@@ -11,7 +11,7 @@ import xarray as xr  # noqa: F401
 import yaml
 from dask.distributed import Client
 from everett.manager import generate_uppercase_key, get_runtime_config
-from prefect import flow, get_run_logger, task
+from prefect import flow, task
 from prefect.futures import wait
 from rich.progress import track
 
@@ -32,7 +32,7 @@ from .config import PymorConfig, PymorConfigManager
 from .controlled_vocabularies import ControlledVocabularies
 from .factory import create_factory
 from .filecache import fc
-from .logging import logger
+from .logging import get_logger, logger
 from .pipeline import Pipeline
 from .rule import Rule
 from .utils import wait_for_workers
@@ -708,11 +708,11 @@ class CMORizer:
 
     @flow
     def check_prefect(self):
-        logger = get_run_logger()
+        hybrid_logger = get_logger()
         try:
             self._caching_check()
         except Exception:
-            logger.critical("Problem with caching in Prefect detected...")
+            hybrid_logger.critical("Problem with caching in Prefect detected...")
 
     @flow
     def _caching_check(self):
@@ -727,19 +727,21 @@ class CMORizer:
     @staticmethod
     @task
     def _caching_single_rule(rule):
-        logger.info(f"Starting to try caching on {rule}")
+        hybrid_logger = get_logger()
+        hybrid_logger.info(f"Starting to try caching on {rule}")
         data = f"Cached call of {rule.name}"
         return data
 
     @staticmethod
     @task(name="Process rule")
     def _process_rule(rule):
-        logger.info(f"Starting to process rule {rule}")
+        hybrid_logger = get_logger()
+        hybrid_logger.info(f"Starting to process rule {rule}")
         data = None
         if not len(rule.pipelines) > 0:
-            logger.error("No pipeline defined, something is wrong!")
+            hybrid_logger.error("No pipeline defined, something is wrong!")
         for pipeline in rule.pipelines:
-            logger.info(f"Running {str(pipeline)}")
+            hybrid_logger.info(f"Running {str(pipeline)}")
             data = pipeline.run(data, rule)
         return data
 

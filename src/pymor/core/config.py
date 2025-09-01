@@ -165,6 +165,46 @@ class PymorConfig:
             """,
             parser=str,
         )
+        log_level = Option(
+            default="INFO",
+            doc="Default log level for console output. Set via environment variable PYMOR_LOG_LEVEL.",
+            parser=ChoiceOf(
+                str,
+                choices=[
+                    "DEBUG",
+                    "INFO",
+                    "WARNING",
+                    "ERROR",
+                    "CRITICAL",
+                ],
+            ),
+        )
+        log_file_level = Option(
+            default="DEBUG",
+            doc="Default log level for file output. Set via environment variable PYMOR_LOG_FILE_LEVEL.",
+            parser=ChoiceOf(
+                str,
+                choices=[
+                    "DEBUG",
+                    "INFO",
+                    "WARNING",
+                    "ERROR",
+                    "CRITICAL",
+                ],
+            ),
+        )
+        log_format = Option(
+            default="rich",
+            doc="Default log format for console output.",
+            parser=ChoiceOf(
+                str,
+                choices=[
+                    "rich",
+                    "simple",
+                    "detailed",
+                ],
+            ),
+        )
         parallel = Option(
             default="yes",
             doc="Whether to run in parallel.",

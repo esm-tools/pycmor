@@ -107,6 +107,7 @@ from imohash import hashfile
 from tqdm.contrib.concurrent import process_map
 
 from .infer_freq import infer_frequency
+from .logging import logger
 
 CACHE_FILE = "~/.cache/pymor_filecache.csv"
 
@@ -223,7 +224,7 @@ class Filecache:
         mask = np.isin(_files, self.df.filepath.values)
         files = _files[~mask].tolist()
         if not files:
-            print("No new files found")
+            logger.info("No new files found")
             return
         self._new_record = True
         records = process_map(

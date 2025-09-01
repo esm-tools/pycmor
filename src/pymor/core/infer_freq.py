@@ -506,9 +506,9 @@ def is_resolution_fine_enough(
 
     if result is None:
         if log:
-            print("[Temporal Resolution Check]")
-            print("  → Error: Could not infer frequency from time data")
-            print("-" * 40)
+            logger.error("[Temporal Resolution Check]")
+            logger.error("  → Error: Could not infer frequency from time data")
+            logger.error("-" * 40)
         return {
             "inferred_interval": None,
             "comparison_status": "unknown",
@@ -522,11 +522,13 @@ def is_resolution_fine_enough(
 
     if delta is None:
         if log:
-            print("[Temporal Resolution Check]")
-            print(f"  → Inferred Frequency     : {freq or 'unknown'}")
-            print(f"  → Status                 : {status}")
-            print("  → Valid for Resampling   : ❌ (could not determine time delta)")
-            print("-" * 40)
+            logger.warning("[Temporal Resolution Check]")
+            logger.warning(f"  → Inferred Frequency     : {freq or 'unknown'}")
+            logger.warning(f"  → Status                 : {status}")
+            logger.warning(
+                "  → Valid for Resampling   : ❌ (could not determine time delta)"
+            )
+            logger.warning("-" * 40)
         return {
             "inferred_interval": None,
             "comparison_status": status,
@@ -552,16 +554,16 @@ def is_resolution_fine_enough(
         if target_freq_str:
             target_display += f" (~{target_freq_str})"
 
-        print("[Temporal Resolution Check]")
-        print(
+        logger.info("[Temporal Resolution Check]")
+        logger.info(
             f"  → Inferred Frequency     : {freq or 'unknown'} (Δ ≈ {delta:.4f} days)"
         )
-        print(f"  → Target Approx Interval : {target_display}")
-        print(f"  → Comparison Status      : {comparison_status}")
-        print(f"  → Valid for Resampling   : {'✅' if is_valid else '❌'}")
+        logger.info(f"  → Target Approx Interval : {target_display}")
+        logger.info(f"  → Comparison Status      : {comparison_status}")
+        logger.info(f"  → Valid for Resampling   : {'✅' if is_valid else '❌'}")
         if status not in (None, "valid"):
-            print(f"  → Status Message        : {status}")
-        print("-" * 40)
+            logger.info(f"  → Status Message        : {status}")
+        logger.info("-" * 40)
 
     return {
         "inferred_interval": delta,

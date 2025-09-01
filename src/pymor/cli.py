@@ -15,7 +15,7 @@ from . import _version
 from .core import caching
 from .core.cmorizer import CMORizer
 from .core.filecache import fc
-from .core.logging import add_report_logger, logger
+from .core.logging import init_cli_logger, logger
 from .core.ssh_tunnel import ssh_tunnel_cli
 from .core.validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
 from .dev import utils as dev_utils
@@ -58,6 +58,21 @@ def pymor_cli_group(func):
     return func
 
 
+def safe_init_logger(func):
+    """
+    Decorator that safely initializes logging without breaking Prefect.
+
+    This replaces @safe_init_logger with a version that doesn't
+    remove all existing loggers, which was breaking Prefect integration.
+    """
+
+    def wrapper(*args, **kwargs):
+        init_cli_logger()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def find_subcommands():
     """
     Finds CLI Subcommands for installed pymor plugins
@@ -90,12 +105,9 @@ def cli(verbose, quiet, logfile, profile_mem):
 
 
 @cli.command()
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("config_file", type=click.Path(exists=True))
 def process(config_file):
-    # NOTE(PG): The ``init_logger`` decorator above removes *ALL* previously configured loggers,
-    #           so we need to re-create the report logger here. Paul does not like this at all.
-    add_report_logger()
     logger.info(f"Processing {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -105,10 +117,9 @@ def process(config_file):
 
 
 @cli.command()
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("config_file", type=click.Path(exists=True))
 def prefect_check(config_file):
-    add_report_logger()
     logger.info(f"Checking prefect with dummy flow using {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -118,7 +129,7 @@ def prefect_check(config_file):
 
 
 @cli.command()
-@click_loguru.init_logger()
+@safe_init_logger
 def table_explorer():
     logger.info("Launching table explorer...")
     with resources.path("pymor", "webapp.py") as webapp_path:
@@ -169,7 +180,7 @@ def scripts():
 
 @develop.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("directory", type=click.Path(exists=True))
 @click.argument("output_file", type=click.File("w"), required=False, default=None)
 def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
@@ -192,7 +203,7 @@ def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
 
 @validate.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("config_file", type=click.Path(exists=True))
 def config(config_file, verbose, quiet, logfile, profile_mem):
     logger.info(f"Checking if a CMORizer can be built from {config_file}")
@@ -227,7 +238,7 @@ def config(config_file, verbose, quiet, logfile, profile_mem):
 
 @validate.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("config_file", type=click.Path(exists=True))
 @click.argument("table_name", type=click.STRING)
 def table(config_file, table_name, verbose, quiet, logfile, profile_mem):
@@ -240,7 +251,7 @@ def table(config_file, table_name, verbose, quiet, logfile, profile_mem):
 
 @validate.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument("config_file", type=click.Path(exists=True))
 @click.argument("output_dir", type=click.STRING)
 def directory(config_file, output_dir, verbose, quiet, logfile, profile_mem):
@@ -281,7 +292,7 @@ scripts.add_command(update_dimensionless_mappings)
 
 @cache.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument(
     "cache_dir",
     default=f"{os.environ['HOME']}/.prefect/storage/",
@@ -296,7 +307,7 @@ def inspect_prefect_global(cache_dir, verbose, quiet, logfile, profile_mem):
 
 @cache.command()
 @click_loguru.logging_options
-@click_loguru.init_logger()
+@safe_init_logger
 @click.argument(
     "result",
     type=click.Path(exists=True),
