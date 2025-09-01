@@ -27,6 +27,8 @@ Contents
    including_subcommand_plugins
    pymor_fesom
    timeaveraging_frequencies
+   accessors
+   infer_freq
    cookbook
    developer_guide
    developer_setup

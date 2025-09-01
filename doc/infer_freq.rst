@@ -138,7 +138,7 @@ The ``status`` field in ``FrequencyResult`` indicates the quality and characteri
 .. code-block:: python
 
    import cftime
-   from toypymor.infer_freq import infer_frequency
+   from pymor.core.infer_freq import infer_frequency
 
    # Valid: Perfect monthly spacing
    times_valid = [
@@ -187,18 +187,24 @@ Core Functions
 Accessor Methods
 ~~~~~~~~~~~~~~~~
 
-The following methods are available via xarray accessors:
+Time frequency functionality is available through xarray accessors. For comprehensive
+documentation of all accessor methods, including both specialized (``timefreq``) and 
+unified (``pymor``) accessors, see:
 
-**DataArray Accessor (``da.timefreq``):**
+.. seealso::
+   :doc:`accessors` - Complete guide to pymor xarray accessors
 
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.infer_frequency
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.check_resolution
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.resample_safe
+**Quick Reference:**
 
-**Dataset Accessor (``ds.timefreq``):**
+.. code-block:: python
 
-.. automethod:: pymor.core.infer_freq.DatasetFrequencyAccessor.infer_frequency
-.. automethod:: pymor.core.infer_freq.DatasetFrequencyAccessor.resample_safe
+   # Specialized accessor (domain-specific)
+   result = data.timefreq.infer_frequency()
+   check = data.timefreq.check_resolution(target_approx_interval=30.0)
+   
+   # Unified accessor (recommended for new code)
+   result = data.pymor.infer_frequency()
+   check = data.pymor.check_resolution(target_approx_interval=30.0)
 
 Calendar Support
 ----------------
