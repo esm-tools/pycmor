@@ -221,9 +221,9 @@ def timeavg(da: xr.DataArray, rule):
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 else:
-                    print(
-                        "It is not possible to reach this branch."
-                        "If you are here, know that Pymor has gone nuts."
+                    logger.error(
+                        "It is not possible to reach this branch. "
+                        "If you are here, know that Pymor has gone nuts. "
                         f"{frequency_str=} {offset=}"
                     )
                 ds["time"] = timestamps

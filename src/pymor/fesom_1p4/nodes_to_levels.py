@@ -20,6 +20,7 @@ import rich_click as click
 import xarray as xr
 from dask.diagnostics import ProgressBar
 
+from ..core.logging import logger
 from .load_mesh_data import ind_for_depth, load_mesh
 
 
@@ -30,7 +31,7 @@ def open_dataset(filepath):
 
 def save_dataset(ds, filepath, compute=True):
     """Save an Xarray dataset to a NetCDF file."""
-    print(f"Saving {filepath}")
+    logger.info(f"Saving {filepath}")
     with ProgressBar():
         ds.to_netcdf(filepath, mode="w", format="NETCDF4", compute=compute)
 
@@ -46,7 +47,7 @@ def process_dataset(input_path, output_path, processor, skip=False):
         skip (bool): Whether to skip processing if the output file exists.
     """
     if skip and os.path.isfile(output_path):
-        print(f"File {output_path} exists. Skipping.")
+        logger.info(f"File {output_path} exists. Skipping.")
         return
 
     ds_in = open_dataset(input_path)

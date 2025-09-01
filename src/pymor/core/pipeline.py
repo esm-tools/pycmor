@@ -13,7 +13,7 @@ from prefect_dask import DaskTaskRunner
 
 from .caching import generate_cache_key  # noqa: F401
 from .cluster import DaskContext
-from .logging import add_to_report_log, logger
+from .logging import add_to_report_log, get_logger, logger
 from .utils import get_callable, get_callable_by_name
 
 
@@ -153,20 +153,22 @@ class Pipeline:
     @staticmethod
     @add_to_report_log
     def on_completion(flow, flowrun, state):
-        logger.success("Success...\n")
-        logger.success(f"{flow=}\n")
-        logger.success(f"{flowrun=}\n")
-        logger.success(f"{state=}\n")
-        logger.success("Good job! :-) \n")
+        hybrid_logger = get_logger()
+        hybrid_logger.success("Success...\n")
+        hybrid_logger.success(f"{flow=}\n")
+        hybrid_logger.success(f"{flowrun=}\n")
+        hybrid_logger.success(f"{state=}\n")
+        hybrid_logger.success("Good job! :-) \n")
 
     @staticmethod
     @add_to_report_log
     def on_failure(flow, flowrun, state):
-        logger.error("Failure...\n")
-        logger.error(f"{flow=}\n")
-        logger.error(f"{flowrun=}\n")
-        logger.error(f"{state=}\n")
-        logger.error("Better luck next time :-( \n")
+        hybrid_logger = get_logger()
+        hybrid_logger.error("Failure...\n")
+        hybrid_logger.error(f"{flow=}\n")
+        hybrid_logger.error(f"{flowrun=}\n")
+        hybrid_logger.error(f"{state=}\n")
+        hybrid_logger.error("Better luck next time :-( \n")
 
     @classmethod
     def from_list(cls, steps, name=None, **kwargs):
