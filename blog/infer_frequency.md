@@ -48,7 +48,7 @@ times = [
     cftime.Datetime360Day(2000, 3, 16),
 ]
 
-print(infer_frequency(times, calendar='360_day'))
+print(infer_frequency(times))
 # Output: 'M'
 ```
 
