@@ -8,32 +8,17 @@ But here’s the catch: one of the simplest-sounding tasks—figuring out the fr
 
 ---
 
-## Why Standard Tools Fail
+## Why `xarray.infer_freq()` Often Returns `None`
 
-Libraries like `pandas` and `xarray` shine when working with clean, perfectly regular time series. Climate data, however, is anything but simple. Three common pitfalls trip up the standard tools:
+Libraries like `pandas` and `xarray` excel with clean, perfectly regular time series. Real climate data rarely looks like that. In practice, three patterns commonly break inference and lead to a silent `None`:
 
-1. **Non-Standard Calendars**
-   Models use special calendars such as `noleap` (no leap years) or `360_day`. Standard datetime objects can’t represent them, so inference breaks.
+1. **Non-standard calendars** (e.g., `noleap`, `360_day`) that standard datetime objects can’t represent.
+2. **Unanchored or shifted timestamps** (e.g., monthly means stamped mid-month) that appear “irregular.”
+3. **Minor gaps or duplicates** (e.g., a missing month or a duplicated timestamp) that strict algorithms reject.
 
-2. **Unanchored or Shifted Timestamps**
-   Monthly averages may be stamped mid-month instead of on the 1st or 30th. To `xarray`, that looks “irregular.”
+The result is guesswork or fragile custom code—tedious and risky, especially for automated pipelines.
 
-3. **Minor Gaps or Duplicates**
-   A missing month or duplicated timestamp throws off algorithms that demand perfection.
-
-The worst part? Failures are silent. You get `None` and are left guessing or writing fragile custom code.
-
----
-
-## Where `xarray.infer_freq()` Falls Short
-
-Here are three typical cases where `xarray` fails:
-
-- **Monthly data shifted mid-month** – perfectly regular, but not anchored → returns `None`.
-- **Non-standard calendar (`noleap`, `360_day`)** – completely regular, but unsupported → returns `None`.
-- **A single missing step** – otherwise fine, but the gap breaks detection → returns `None`.
-
-Each case forces manual detective work. That’s tedious and risky, especially when building automated pipelines.
+Here’s how we address these real-world cases in a robust, calendar-aware way.
 
 ---
 
@@ -71,7 +56,7 @@ Where `xarray.infer_freq` fails, `infer_frequency` succeeds.
 
 ---
 
-### Feature 2: Rich Diagnostics Instead of Silence
+### Feature 2: Rich Diagnostics, Not Silence
 
 You can ask for detailed metadata:
 
@@ -103,6 +88,8 @@ Instead of `None`, you now know:
 - Why not (missing steps)
 
 This feedback is immediately actionable.
+
+These diagnostics help you prevent subtle downstream errors (like accidental upsampling) before they happen.
 
 ---
 
