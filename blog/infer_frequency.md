@@ -118,7 +118,7 @@ A common scenario: you're concatenating multiple NetCDF files or accidentally pr
 ```python
 import cftime
 import numpy as np
-from pymor.core.infer_freq import infer_frequency
+from pycmor.core.infer_freq import infer_frequency
 
 # Original monthly data
 data = [
@@ -134,10 +134,6 @@ result = infer_frequency(duplicated_data, return_metadata=True)
 print(result)
 # FrequencyResult(frequency='M', delta_days=30.0, step=1, is_exact=False, status='irregular')
 ```
-
-**Key insight**: pymor still correctly identifies the monthly frequency (`'M'`) but flags the data as `'irregular'` due to the duplicates. This prevents silent errors in downstream analysis while giving you the information needed to clean your data.
-
-**Practical benefit**: Instead of mysterious `None` results, you get actionable diagnostics that help you identify and fix data quality issues before they corrupt your analysis.
 
 ---
 
