@@ -14,6 +14,8 @@ frequency of your time coordinate—often turns into a roadblock. If you've ever
 called `xarray.infer_freq()` on climate model output, you've probably seen it
 return the dreaded `None`. Why does this happen, and how can we do better?
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/esm-tools/pymor/HEAD?labpath=blog%2Finfer_frequency.ipynb)
+
 ---
 
 ## Why `xarray.infer_freq()` Often Returns `None`
