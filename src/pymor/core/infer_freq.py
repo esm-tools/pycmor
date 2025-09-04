@@ -158,6 +158,9 @@ def _infer_frequency_core(
         return None
     deltas = np.diff(ordinals)
     
+    # Check if there are any zero deltas (duplicates) in the original data
+    has_duplicates = np.any(deltas <= 1e-10)
+    
     # Filter out zero deltas (duplicates) to avoid them dominating the frequency inference
     non_zero_deltas = deltas[deltas > 1e-10]  # Use small epsilon to handle floating point precision
     
@@ -245,7 +248,13 @@ def _infer_frequency_core(
             )
 
     is_exact = std_delta < tol * (base_freqs[matched_freq] * matched_step)
-    status = "valid" if is_exact else "irregular"
+    
+    # If there are duplicates in the original data, mark as irregular regardless of frequency match
+    if has_duplicates:
+        status = "irregular"
+        is_exact = False
+    else:
+        status = "valid" if is_exact else "irregular"
 
     if strict:
         expected_steps = (ordinals[-1] - ordinals[0]) / (
@@ -544,6 +553,7 @@ def is_resolution_fine_enough(
             "inferred_interval": None,
             "comparison_status": "unknown",
             "is_valid_for_resampling": False,
+            "status": "unknown",
         }
 
     freq = result.frequency
@@ -562,6 +572,7 @@ def is_resolution_fine_enough(
             "inferred_interval": None,
             "comparison_status": status,
             "is_valid_for_resampling": False,
+            "status": status,
         }
 
     comparison_status = status

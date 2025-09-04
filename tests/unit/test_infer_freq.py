@@ -998,7 +998,7 @@ def test_check_resolution_return_format():
 def test_infer_frequency_with_duplicates():
     """Test that infer_frequency correctly handles duplicate timestamps."""
     import cftime
-    
+
     # Test case 1: Monthly data with duplicates should return 'M'
     monthly_with_duplicates = [
         cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),
@@ -1007,12 +1007,13 @@ def test_infer_frequency_with_duplicates():
         cftime.Datetime360Day(2000, 2, 16, 0, 0, 0, 0, has_year_zero=True),  # duplicate
         cftime.Datetime360Day(2000, 3, 16, 0, 0, 0, 0, has_year_zero=True)
     ]
-    
+
     result = infer_frequency(monthly_with_duplicates, return_metadata=True)
     assert result.frequency == "M"
     assert result.delta_days == 30.0
-    assert result.status == "valid"
-    
+    assert result.status == "irregular"  # Should be irregular due to duplicates
+    assert result.is_exact is False
+
     # Test case 2: Daily data with duplicates should return 'D'
     daily_with_duplicates = [
         cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
@@ -1022,19 +1023,18 @@ def test_infer_frequency_with_duplicates():
         cftime.Datetime360Day(2000, 1, 3, 0, 0, 0, 0, has_year_zero=True),  # duplicate
         cftime.Datetime360Day(2000, 1, 4, 0, 0, 0, 0, has_year_zero=True)
     ]
-    
+
     result = infer_frequency(daily_with_duplicates, return_metadata=True)
     assert result.frequency == "D"
     assert result.delta_days == 1.0
-    assert result.status == "valid"
-    
-    # Test case 3: All duplicates should return 'all_duplicates'
+
+    # Test case 3: All duplicates should return 'all_duplicates' status
     all_duplicates = [
-        cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),
-        cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),
-        cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True)
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True)
     ]
-    
+
     result = infer_frequency(all_duplicates, return_metadata=True)
     assert result.frequency is None
     assert result.delta_days == 0.0
