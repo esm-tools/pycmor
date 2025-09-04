@@ -183,7 +183,7 @@ def _infer_frequency_core(
     rounded_deltas = np.round(non_zero_deltas, decimals=2)
     unique_deltas, counts = np.unique(rounded_deltas, return_counts=True)
     most_common_delta_index = np.argmax(counts)
-    median_delta = unique_deltas[most_common_delta_index]
+    median_delta = float(unique_deltas[most_common_delta_index])
     std_delta = np.std(non_zero_deltas)
 
     days_in_calendar_year = {
@@ -249,7 +249,7 @@ def _infer_frequency_core(
                 else None
             )
 
-    is_exact = std_delta < tol * (base_freqs[matched_freq] * matched_step)
+    is_exact = bool(std_delta < tol * (base_freqs[matched_freq] * matched_step))
 
     # If there are duplicates in the original data, mark as irregular regardless of frequency match
     if has_duplicates:
@@ -327,10 +327,28 @@ def infer_frequency(
     try:
         freq = xr.infer_freq(times_values)
         if freq is not None:
+            # Calculate delta_days even when xarray.infer_freq succeeds
+            delta_days = None
+            if return_metadata and len(times_values) >= 2:
+                try:
+                    ordinals = _convert_times_to_ordinals(times_values)
+                    deltas = np.diff(ordinals)
+                    # Filter out zero deltas and calculate median
+                    non_zero_deltas = deltas[deltas > 1e-10]
+                    if len(non_zero_deltas) > 0:
+                        # Use the most common delta (similar to _infer_frequency_core)
+                        rounded_deltas = np.round(non_zero_deltas, decimals=2)
+                        unique_deltas, counts = np.unique(rounded_deltas, return_counts=True)
+                        most_common_delta_index = np.argmax(counts)
+                        delta_days = float(unique_deltas[most_common_delta_index])
+                except Exception:
+                    # If delta calculation fails, keep delta_days as None
+                    pass
+            
             if log:
-                log_frequency_check("Time Series", freq, None, 1, True, "valid", strict)
+                log_frequency_check("Time Series", freq, delta_days, 1, True, "valid", strict)
             return (
-                FrequencyResult(freq, None, 1, True, "valid")
+                FrequencyResult(freq, delta_days, 1, True, "valid")
                 if return_metadata
                 else freq
             )
