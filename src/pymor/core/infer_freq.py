@@ -157,8 +157,34 @@ def _infer_frequency_core(
             return FrequencyResult(None, None, None, False, error_status)
         return None
     deltas = np.diff(ordinals)
-    median_delta = np.median(deltas)
-    std_delta = np.std(deltas)
+
+    # Check if there are any zero deltas (duplicates) in the original data
+    has_duplicates = np.any(deltas <= 1e-10)
+
+    # Filter out zero deltas (duplicates) to avoid them dominating the frequency inference
+    non_zero_deltas = deltas[
+        deltas > 1e-10
+    ]  # Use small epsilon to handle floating point precision
+
+    if len(non_zero_deltas) == 0:
+        # All deltas are zero (all duplicates) - cannot infer frequency
+        if log:
+            log_frequency_check(
+                "Time Series", None, 0.0, None, False, "all_duplicates", strict
+            )
+        return (
+            FrequencyResult(None, 0.0, None, False, "all_duplicates")
+            if return_metadata
+            else None
+        )
+
+    # To handle irregular time series with gaps, find the most common delta from non-zero deltas.
+    # We round the deltas to a reasonable precision to group similar values.
+    rounded_deltas = np.round(non_zero_deltas, decimals=2)
+    unique_deltas, counts = np.unique(rounded_deltas, return_counts=True)
+    most_common_delta_index = np.argmax(counts)
+    median_delta = float(unique_deltas[most_common_delta_index])
+    std_delta = np.std(non_zero_deltas)
 
     days_in_calendar_year = {
         "standard": 365.25,
@@ -179,15 +205,25 @@ def _infer_frequency_core(
 
     matched_freq = None
     matched_step = None
-    for freq, base_days in base_freqs.items():
-        for step in range(1, 13):
-            test_delta = base_days * step
-            if abs(median_delta - test_delta) <= tol * test_delta:
-                matched_freq = freq
-                matched_step = step
+    # Prioritize monthly check to avoid incorrect '4W' match
+    monthly_days = base_freqs["M"]
+    # Use a larger tolerance for monthly checks to account for varying month lengths
+    if abs(median_delta - monthly_days) <= 0.15 * monthly_days:
+        matched_freq = "M"
+        matched_step = 1
+    else:
+        for freq, base_days in base_freqs.items():
+            # Skip monthly check as it's already done
+            if freq == "M":
+                continue
+            for step in range(1, 13):
+                test_delta = base_days * step
+                if abs(median_delta - test_delta) <= tol * test_delta:
+                    matched_freq = freq
+                    matched_step = step
+                    break
+            if matched_freq:
                 break
-        if matched_freq:
-            break
 
     if matched_freq is None:
         # For irregular time series, try to find the closest match with relaxed tolerance
@@ -213,8 +249,14 @@ def _infer_frequency_core(
                 else None
             )
 
-    is_exact = std_delta < tol * (base_freqs[matched_freq] * matched_step)
-    status = "valid" if is_exact else "irregular"
+    is_exact = bool(std_delta < tol * (base_freqs[matched_freq] * matched_step))
+
+    # If there are duplicates in the original data, mark as irregular regardless of frequency match
+    if has_duplicates:
+        status = "irregular"
+        is_exact = False
+    else:
+        status = "valid" if is_exact else "irregular"
 
     if strict:
         expected_steps = (ordinals[-1] - ordinals[0]) / (
@@ -285,10 +327,32 @@ def infer_frequency(
     try:
         freq = xr.infer_freq(times_values)
         if freq is not None:
+            # Calculate delta_days even when xarray.infer_freq succeeds
+            delta_days = None
+            if return_metadata and len(times_values) >= 2:
+                try:
+                    ordinals = _convert_times_to_ordinals(times_values)
+                    deltas = np.diff(ordinals)
+                    # Filter out zero deltas and calculate median
+                    non_zero_deltas = deltas[deltas > 1e-10]
+                    if len(non_zero_deltas) > 0:
+                        # Use the most common delta (similar to _infer_frequency_core)
+                        rounded_deltas = np.round(non_zero_deltas, decimals=2)
+                        unique_deltas, counts = np.unique(
+                            rounded_deltas, return_counts=True
+                        )
+                        most_common_delta_index = np.argmax(counts)
+                        delta_days = float(unique_deltas[most_common_delta_index])
+                except Exception:
+                    # If delta calculation fails, keep delta_days as None
+                    pass
+
             if log:
-                log_frequency_check("Time Series", freq, None, 1, True, "valid", strict)
+                log_frequency_check(
+                    "Time Series", freq, delta_days, 1, True, "valid", strict
+                )
             return (
-                FrequencyResult(freq, None, 1, True, "valid")
+                FrequencyResult(freq, delta_days, 1, True, "valid")
                 if return_metadata
                 else freq
             )
@@ -513,6 +577,7 @@ def is_resolution_fine_enough(
             "inferred_interval": None,
             "comparison_status": "unknown",
             "is_valid_for_resampling": False,
+            "status": "unknown",
         }
 
     freq = result.frequency
@@ -531,6 +596,7 @@ def is_resolution_fine_enough(
             "inferred_interval": None,
             "comparison_status": status,
             "is_valid_for_resampling": False,
+            "status": status,
         }
 
     comparison_status = status

@@ -1,5 +1,6 @@
 import cftime
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -442,9 +443,10 @@ def test_accessor_invalid_manual_time_dim():
     """Test behavior when manually specified time_dim doesn't exist."""
     da = xr.DataArray([1, 2, 3], coords={"x": [1, 2, 3]}, dims=["x"])
 
-    # When time_dim doesn't exist, it should return a result with no_match status
+    # When time_dim doesn't exist, it uses the coordinate values [1, 2, 3] which
+    # get converted to ordinals with zero deltas, hence "all_duplicates"
     result = da.timefreq.infer_frequency(time_dim="nonexistent")
-    assert result.status == "no_match"
+    assert result.status == "all_duplicates"
 
 
 def test_dataset_accessor_no_datetime_coord_error():
@@ -510,8 +512,6 @@ def test_numpy_datetime64_with_different_units():
 
 def test_resample_safe_error_paths():
     """Test error paths in resample_safe methods."""
-    import pandas as pd
-
     # Create a coarse time series (quarterly)
     coarse_times = pd.date_range("2000-01-01", periods=4, freq="QS")
     da = xr.DataArray([1, 2, 3, 4], coords={"time": coarse_times}, dims=["time"])
@@ -558,8 +558,6 @@ def test_log_frequency_check_function():
 
 def test_pandas_datetime_index_input():
     """Test with pandas DatetimeIndex input."""
-    import pandas as pd
-
     # Test with pandas DatetimeIndex
     times_index = pd.date_range("2000-01-01", periods=5, freq="D")
     result = infer_frequency(times_index, return_metadata=True)
@@ -569,8 +567,6 @@ def test_pandas_datetime_index_input():
 
 def test_get_time_label_dataset_with_time_coord():
     """Test get_time_label with Dataset containing 'time' coordinate."""
-    import pandas as pd
-
     # Create dataset with time coordinate
     time_coord = pd.date_range("2000-01-01", periods=10)
     ds = xr.Dataset(
@@ -583,8 +579,6 @@ def test_get_time_label_dataset_with_time_coord():
 
 def test_get_time_label_dataset_with_custom_time_coord():
     """Test get_time_label with Dataset containing custom time coordinate name."""
-    import pandas as pd
-
     # Create dataset with 'T' as time coordinate
     time_coord = pd.date_range("2000-01-01", periods=5)
     ds = xr.Dataset({"data": (["T"], np.random.rand(5))}, coords={"T": time_coord})
@@ -595,8 +589,6 @@ def test_get_time_label_dataset_with_custom_time_coord():
 
 def test_get_time_label_dataarray_with_time_coord():
     """Test get_time_label with DataArray containing time coordinate."""
-    import pandas as pd
-
     # Create DataArray with time coordinate
     time_coord = pd.date_range("2000-01-01", periods=8)
     da = xr.DataArray(np.random.rand(8), coords={"time": time_coord}, dims=["time"])
@@ -607,8 +599,6 @@ def test_get_time_label_dataarray_with_time_coord():
 
 def test_get_time_label_dataarray_with_custom_time_coord():
     """Test get_time_label with DataArray containing custom time coordinate name."""
-    import pandas as pd
-
     # Create DataArray with 'T' as time coordinate
     time_coord = pd.date_range("2000-01-01", periods=6)
     da = xr.DataArray(np.random.rand(6), coords={"T": time_coord}, dims=["T"])
@@ -654,8 +644,6 @@ def test_get_time_label_dataset_with_non_datetime_time_coord():
 
 def test_get_time_label_multiple_datetime_coords():
     """Test get_time_label with multiple datetime coordinates."""
-    import pandas as pd
-
     # Create dataset with multiple datetime coordinates
     # The function uses appendleft(), so the last processed coord gets priority
     time1 = pd.date_range("2000-01-01", periods=3)
@@ -677,8 +665,6 @@ def test_get_time_label_multiple_datetime_coords():
 
 def test_get_time_label_datetime_coord_not_used_by_datavar():
     """Test get_time_label when datetime coord exists but not used by data variables."""
-    import pandas as pd
-
     # Create dataset where datetime coord exists but no data variable uses it
     time_coord = pd.date_range("2000-01-01", periods=5)
     ds = xr.Dataset(
@@ -692,8 +678,6 @@ def test_get_time_label_datetime_coord_not_used_by_datavar():
 
 def test_get_time_label_scalar_datetime_coord():
     """Test get_time_label with scalar datetime coordinate (no dimensions)."""
-    import pandas as pd
-
     # Create dataset with scalar datetime coordinate
     ds = xr.Dataset(
         {"data": (["x"], np.random.rand(3))},
@@ -925,10 +909,16 @@ def test_check_resolution_with_strict_mode():
     assert "status" in result_non_strict
 
 
+def test_infer_freq_with_missing_month():
+    """Test that infer_frequency can handle a single missing month."""
+    # Monthly data, but March is missing
+    times = pd.to_datetime(["2000-01-31", "2000-02-29", "2000-04-30"])
+    freq = infer_frequency(times)
+    assert freq == "M", f"Expected 'M', but got {freq}"
+
+
 def test_check_resolution_with_pandas_datetime():
     """Test check_resolution with pandas datetime objects."""
-    import pandas as pd
-
     # Create monthly time series with pandas datetime
     times = pd.date_range("2000-01-01", periods=3, freq="MS")
     da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
@@ -971,27 +961,67 @@ def test_check_resolution_tolerance_parameter():
 
 def test_check_resolution_return_format():
     """Test that check_resolution returns the expected dictionary format."""
-    times = [
-        cftime.Datetime360Day(2000, 1, 1),
-        cftime.Datetime360Day(2000, 2, 1),
-        cftime.Datetime360Day(2000, 3, 1),
-    ]
-    da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
+    times = pd.date_range("2000-01-01", periods=12, freq="M")
 
-    result = da.timefreq.check_resolution(target_approx_interval=30.0, log=False)
+    result = is_resolution_fine_enough(times, target_approx_interval=30.0, log=False)
 
     # Check that all expected keys are present
-    expected_keys = [
+    expected_keys = {
         "inferred_interval",
         "comparison_status",
         "is_valid_for_resampling",
         "status",
-    ]
-    for key in expected_keys:
-        assert key in result
+    }
+    assert set(result.keys()) >= expected_keys
 
-    # Check data types
+    # Check types
     assert isinstance(result["inferred_interval"], (float, type(None)))
     assert isinstance(result["comparison_status"], str)
     assert isinstance(result["is_valid_for_resampling"], bool)
     assert isinstance(result["status"], str)
+
+
+def test_infer_frequency_with_duplicates():
+    """Test that infer_frequency correctly handles duplicate timestamps."""
+    import cftime
+
+    # Test case 1: Monthly data with duplicates should return 'M'
+    monthly_with_duplicates = [
+        cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),  # duplicate
+        cftime.Datetime360Day(2000, 2, 16, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 2, 16, 0, 0, 0, 0, has_year_zero=True),  # duplicate
+        cftime.Datetime360Day(2000, 3, 16, 0, 0, 0, 0, has_year_zero=True),
+    ]
+
+    result = infer_frequency(monthly_with_duplicates, return_metadata=True)
+    assert result.frequency == "M"
+    assert result.delta_days == 30.0
+    assert result.status == "irregular"  # Should be irregular due to duplicates
+    assert result.is_exact is False
+
+    # Test case 2: Daily data with duplicates should return 'D'
+    daily_with_duplicates = [
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),  # duplicate
+        cftime.Datetime360Day(2000, 1, 2, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 3, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 3, 0, 0, 0, 0, has_year_zero=True),  # duplicate
+        cftime.Datetime360Day(2000, 1, 4, 0, 0, 0, 0, has_year_zero=True),
+    ]
+
+    result = infer_frequency(daily_with_duplicates, return_metadata=True)
+    assert result.frequency == "D"
+    assert result.delta_days == 1.0
+
+    # Test case 3: All duplicates should return 'all_duplicates' status
+    all_duplicates = [
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
+    ]
+
+    result = infer_frequency(all_duplicates, return_metadata=True)
+    assert result.frequency is None
+    assert result.delta_days == 0.0
+    assert result.status == "all_duplicates"
