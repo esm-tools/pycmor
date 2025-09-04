@@ -111,6 +111,36 @@ These diagnostics help you prevent subtle downstream errors (like accidental ups
 
 ---
 
+### Feature 3: Handles Data Overlaps and Duplicates
+
+A common scenario: you're concatenating multiple NetCDF files or accidentally process the same file twice. This creates duplicate timestamps that break most frequency inference tools.
+
+```python
+import cftime
+import numpy as np
+from pymor.core.infer_freq import infer_frequency
+
+# Original monthly data
+data = [
+    cftime.Datetime360Day(2000, 1, 16),
+    cftime.Datetime360Day(2000, 2, 16), 
+    cftime.Datetime360Day(2000, 3, 16)
+]
+
+# Simulate concatenating the same file twice (common mistake!)
+duplicated_data = np.tile(data, 2)  # [Jan, Feb, Mar, Jan, Feb, Mar]
+
+result = infer_frequency(duplicated_data, return_metadata=True)
+print(result)
+# FrequencyResult(frequency='M', delta_days=30.0, step=1, is_exact=False, status='irregular')
+```
+
+**Key insight**: pymor still correctly identifies the monthly frequency (`'M'`) but flags the data as `'irregular'` due to the duplicates. This prevents silent errors in downstream analysis while giving you the information needed to clean your data.
+
+**Practical benefit**: Instead of mysterious `None` results, you get actionable diagnostics that help you identify and fix data quality issues before they corrupt your analysis.
+
+---
+
 ### Understanding the FrequencyResult
 
 Here’s what the fields mean:
