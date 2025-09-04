@@ -20,9 +20,26 @@ The result is guesswork or fragile custom code—tedious and risky, especially f
 
 Here’s how we address these real-world cases in a robust, calendar-aware way.
 
+### Background: NetCDF/CF and Model Calendars
+
+- NetCDF is a common file format for climate and geoscience data.
+- The CF (Climate and Forecast) conventions standardize metadata such as variable names, units, and time coordinates so tools can interpret datasets consistently. See the CF conventions at: [cfconventions.org](https://cfconventions.org)
+- Many climate models use special calendars, such as:
+  - standard/gregorian — real-world calendar with leap years
+  - noleap — 365 days every year (no Feb 29)
+  - 360_day — 12 months × 30 days = 360 days
+- Standard datetime types can’t represent these calendars directly, so libraries often rely on `cftime` to handle them (docs: [cftime](https://unidata.github.io/cftime)). This is a key reason naive frequency inference may return `None`, even for perfectly regular model output.
+
+Typical CF-compliant time metadata looks like:
+
+```text
+time: units = "days since 1850-01-01 00:00:00"
+time: calendar = "noleap"  # or "360_day", "gregorian", etc.
+```
+
 ---
 
-## A Smarter Alternative: `pymor.core.infer_freq`
+## A Smarter Alternative: `pycmor.core.infer_freq`
 
 To solve this, we built a robust frequency inference engine, tailored for climate data. The approach is simple but effective:
 
@@ -36,11 +53,11 @@ This design makes it resilient to outliers, irregular calendars, and slight misa
 
 ### Feature 1: Works with Any Calendar
 
-Example: monthly data on a `360_day` calendar.
+Example: monthly data on a `360_day` calendar. In many cases you don’t need to pass the calendar explicitly—if you’re using `xarray`, CF-compliant attributes on the time coordinate will be detected and handled under the hood.
 
 ```python
 import cftime
-from pymor.core.infer_freq import infer_frequency
+from pycmor.core.infer_freq import infer_frequency
 
 times = [
     cftime.Datetime360Day(2000, 1, 16),
@@ -61,7 +78,7 @@ Where `xarray.infer_freq` fails, `infer_frequency` succeeds.
 You can ask for detailed metadata:
 
 ```python
-from pymor.core.infer_freq import infer_frequency
+from pycmor.core.infer_freq import infer_frequency
 
 times = ["2000-01-01", "2000-02-01", "2000-02-28", "2000-04-01"]
 
@@ -71,7 +88,7 @@ print(result)
 
 Output:
 
-```
+```python
 FrequencyResult(
   frequency='M',
   delta_days=30.0,
@@ -82,6 +99,7 @@ FrequencyResult(
 ```
 
 Instead of `None`, you now know:
+
 - The intended frequency (monthly)
 - The median spacing (30 days)
 - Whether the series is perfectly regular (here: no)
@@ -104,6 +122,7 @@ Here’s what the fields mean:
 - **`status`**: Diagnostic message (`'valid'`, `'missing_steps'`, `'irregular'`, `'too_short'`).
 
 👉 **How to interpret this:**
+
 - `status="valid"` and `is_exact=True` → dataset is safe for downstream resampling/analysis.
 - `status="missing_steps"` → data has gaps; consider filling or handling before analysis.
 - `status="irregular"` → underlying frequency exists, but beware of inconsistencies.
@@ -124,10 +143,28 @@ By inferring frequency robustly, you can **programmatically block invalid resamp
 ## Takeaway
 
 Real-world climate data is messy. We need tools that are:
+
 - **Resilient** to irregularities
 - **Transparent** in their diagnostics
 - **Tailored** to non-standard calendars
 
-The `infer_freq` module in PyMOR delivers exactly that. It turns guesswork into a reliable, automated process—so you can spend less time debugging and more time doing science.
+The `infer_freq` module in `pycmor` delivers exactly that. It turns guesswork into a reliable, automated process—so you can spend less time debugging and more time doing science.
 
 Stop guessing. Start inferring—smarter.
+
+---
+
+## Project Repository
+
+- GitHub: [esm-tools/pymor](https://github.com/esm-tools/pymor)
+- PyPI: [py-cmor](https://pypi.org/project/py-cmor/)
+
+---
+
+## Authors
+
+This work was developed by the High Performance Computing and Data Processing group at the Alfred Wegener Institute for Polar and Marine Research (AWI), Bremerhaven, Germany.
+
+- Paul Gierz (AWI)
+- Pavan Siligam (AWI)
+- Miguel Andrés-Martínez (AWI)
