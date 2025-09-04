@@ -157,13 +157,29 @@ def _infer_frequency_core(
             return FrequencyResult(None, None, None, False, error_status)
         return None
     deltas = np.diff(ordinals)
-    # To handle irregular time series with gaps, find the most common delta.
+    
+    # Filter out zero deltas (duplicates) to avoid them dominating the frequency inference
+    non_zero_deltas = deltas[deltas > 1e-10]  # Use small epsilon to handle floating point precision
+    
+    if len(non_zero_deltas) == 0:
+        # All deltas are zero (all duplicates) - cannot infer frequency
+        if log:
+            log_frequency_check(
+                "Time Series", None, 0.0, None, False, "all_duplicates", strict
+            )
+        return (
+            FrequencyResult(None, 0.0, None, False, "all_duplicates")
+            if return_metadata
+            else None
+        )
+    
+    # To handle irregular time series with gaps, find the most common delta from non-zero deltas.
     # We round the deltas to a reasonable precision to group similar values.
-    rounded_deltas = np.round(deltas, decimals=2)
+    rounded_deltas = np.round(non_zero_deltas, decimals=2)
     unique_deltas, counts = np.unique(rounded_deltas, return_counts=True)
     most_common_delta_index = np.argmax(counts)
     median_delta = unique_deltas[most_common_delta_index]
-    std_delta = np.std(deltas)
+    std_delta = np.std(non_zero_deltas)
 
     days_in_calendar_year = {
         "standard": 365.25,
