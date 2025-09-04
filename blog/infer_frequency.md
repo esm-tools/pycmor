@@ -191,6 +191,6 @@ Stop guessing. Start inferring—smarter.
 
 This work was developed by the High Performance Computing and Data Processing group at the Alfred Wegener Institute for Polar and Marine Research (AWI), Bremerhaven, Germany.
 
-- Paul Gierz (AWI)
-- Pavan Siligam (AWI)
-- Miguel Andrés-Martínez (AWI)
+- Pavan Kumar Siligam (AWI) - [ORCID: 0009-0003-8054-7021](https://orcid.org/0009-0003-8054-7021)
+- Paul Gierz (AWI) - [ORCID: 0000-0002-4512-087X](https://orcid.org/0000-0002-4512-087X)
+- Miguel Andrés-Martínez (AWI) - [ORCID: 0000-0002-1525-5546](https://orcid.org/0000-0002-1525-5546)
