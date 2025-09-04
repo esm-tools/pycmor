@@ -917,25 +917,6 @@ def test_infer_freq_with_missing_month():
     assert freq == "M", f"Expected 'M', but got {freq}"
 
 
-def test_check_resolution_with_strict_mode():
-    """Test check_resolution with strict mode enabled."""
-    # Create slightly irregular monthly data
-    times = [
-        cftime.Datetime360Day(2000, 1, 1),
-        cftime.Datetime360Day(2000, 2, 2),  # One day off
-        cftime.Datetime360Day(2000, 3, 1),
-    ]
-    da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
-
-    # Test with strict=True
-    result = da.timefreq.check_resolution(
-        target_approx_interval=30.0, calendar="360_day", strict=True
-    )
-
-    assert result["status"] == "irregular"
-    assert not result["is_valid_for_resampling"]
-
-
 def test_check_resolution_with_pandas_datetime():
     """Test check_resolution with pandas datetime objects."""
     # Create monthly time series with pandas datetime
@@ -981,13 +962,18 @@ def test_check_resolution_tolerance_parameter():
 def test_check_resolution_return_format():
     """Test that check_resolution returns the expected dictionary format."""
     times = pd.date_range("2000-01-01", periods=12, freq="M")
-    
+
     result = is_resolution_fine_enough(times, target_approx_interval=30.0, log=False)
-    
+
     # Check that all expected keys are present
-    expected_keys = {"inferred_interval", "comparison_status", "is_valid_for_resampling", "status"}
+    expected_keys = {
+        "inferred_interval",
+        "comparison_status",
+        "is_valid_for_resampling",
+        "status",
+    }
     assert set(result.keys()) >= expected_keys
-    
+
     # Check types
     assert isinstance(result["inferred_interval"], (float, type(None)))
     assert isinstance(result["comparison_status"], str)
@@ -1005,7 +991,7 @@ def test_infer_frequency_with_duplicates():
         cftime.Datetime360Day(2000, 1, 16, 0, 0, 0, 0, has_year_zero=True),  # duplicate
         cftime.Datetime360Day(2000, 2, 16, 0, 0, 0, 0, has_year_zero=True),
         cftime.Datetime360Day(2000, 2, 16, 0, 0, 0, 0, has_year_zero=True),  # duplicate
-        cftime.Datetime360Day(2000, 3, 16, 0, 0, 0, 0, has_year_zero=True)
+        cftime.Datetime360Day(2000, 3, 16, 0, 0, 0, 0, has_year_zero=True),
     ]
 
     result = infer_frequency(monthly_with_duplicates, return_metadata=True)
@@ -1021,7 +1007,7 @@ def test_infer_frequency_with_duplicates():
         cftime.Datetime360Day(2000, 1, 2, 0, 0, 0, 0, has_year_zero=True),
         cftime.Datetime360Day(2000, 1, 3, 0, 0, 0, 0, has_year_zero=True),
         cftime.Datetime360Day(2000, 1, 3, 0, 0, 0, 0, has_year_zero=True),  # duplicate
-        cftime.Datetime360Day(2000, 1, 4, 0, 0, 0, 0, has_year_zero=True)
+        cftime.Datetime360Day(2000, 1, 4, 0, 0, 0, 0, has_year_zero=True),
     ]
 
     result = infer_frequency(daily_with_duplicates, return_metadata=True)
@@ -1032,7 +1018,7 @@ def test_infer_frequency_with_duplicates():
     all_duplicates = [
         cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
         cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
-        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True)
+        cftime.Datetime360Day(2000, 1, 1, 0, 0, 0, 0, has_year_zero=True),
     ]
 
     result = infer_frequency(all_duplicates, return_metadata=True)

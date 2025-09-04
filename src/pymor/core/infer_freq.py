@@ -157,13 +157,15 @@ def _infer_frequency_core(
             return FrequencyResult(None, None, None, False, error_status)
         return None
     deltas = np.diff(ordinals)
-    
+
     # Check if there are any zero deltas (duplicates) in the original data
     has_duplicates = np.any(deltas <= 1e-10)
-    
+
     # Filter out zero deltas (duplicates) to avoid them dominating the frequency inference
-    non_zero_deltas = deltas[deltas > 1e-10]  # Use small epsilon to handle floating point precision
-    
+    non_zero_deltas = deltas[
+        deltas > 1e-10
+    ]  # Use small epsilon to handle floating point precision
+
     if len(non_zero_deltas) == 0:
         # All deltas are zero (all duplicates) - cannot infer frequency
         if log:
@@ -175,7 +177,7 @@ def _infer_frequency_core(
             if return_metadata
             else None
         )
-    
+
     # To handle irregular time series with gaps, find the most common delta from non-zero deltas.
     # We round the deltas to a reasonable precision to group similar values.
     rounded_deltas = np.round(non_zero_deltas, decimals=2)
@@ -248,7 +250,7 @@ def _infer_frequency_core(
             )
 
     is_exact = std_delta < tol * (base_freqs[matched_freq] * matched_step)
-    
+
     # If there are duplicates in the original data, mark as irregular regardless of frequency match
     if has_duplicates:
         status = "irregular"
