@@ -338,15 +338,19 @@ def infer_frequency(
                     if len(non_zero_deltas) > 0:
                         # Use the most common delta (similar to _infer_frequency_core)
                         rounded_deltas = np.round(non_zero_deltas, decimals=2)
-                        unique_deltas, counts = np.unique(rounded_deltas, return_counts=True)
+                        unique_deltas, counts = np.unique(
+                            rounded_deltas, return_counts=True
+                        )
                         most_common_delta_index = np.argmax(counts)
                         delta_days = float(unique_deltas[most_common_delta_index])
                 except Exception:
                     # If delta calculation fails, keep delta_days as None
                     pass
-            
+
             if log:
-                log_frequency_check("Time Series", freq, delta_days, 1, True, "valid", strict)
+                log_frequency_check(
+                    "Time Series", freq, delta_days, 1, True, "valid", strict
+                )
             return (
                 FrequencyResult(freq, delta_days, 1, True, "valid")
                 if return_metadata
