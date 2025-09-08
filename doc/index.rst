@@ -27,6 +27,7 @@ Contents
    including_subcommand_plugins
    pymor_fesom
    timeaveraging_frequencies
+   time_bounds
    cookbook
    developer_guide
    developer_setup
