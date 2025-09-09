@@ -102,7 +102,6 @@ setup(
     entry_points={
         "console_scripts": [
             "pycmor=pycmor.cli:main",
-            "pycmor=pycmor.cli:main",
         ],
         "pycmor.cli_subcommands": [
             "plugins=pycmor.core.plugins:plugins",
