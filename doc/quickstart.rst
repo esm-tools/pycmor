@@ -25,7 +25,7 @@ The yaml file has 4 sections:
 - ``rules`` each rule defines parameters per variable.
 - ``pipelines`` processing steps to carry out cmorization procress.
 
-For detailed description on this sections, please refer to pymor_building_blocks_
+For detailed description on this sections, please refer to pycmor_building_blocks_
 
 As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file called ``basic.yaml`` and populate with the following content
 
@@ -104,7 +104,7 @@ Here is a brief description of each field in each section.
           - "pycmor.generic.get_variable"
           - "pycmor.timeaverage.compute_average"
           - "pycmor.units.handle_unit_conversion"
-          - "pycmor.global_attributes.set_global_attributes"ß
+          - "pycmor.global_attributes.set_global_attributes"
           - "pycmor.generic.trigger_compute"
           - "pycmor.files.save_dataset"
       - name: partial
