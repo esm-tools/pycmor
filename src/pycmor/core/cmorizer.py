@@ -312,8 +312,8 @@ class CMORizer:
         -------
         None
         """
-        pymor_cfg = self._pycmor_cfg
-        unit_map_file = pymor_cfg.get(
+        pycmor_cfg = self._pycmor_cfg
+        unit_map_file = pycmor_cfg.get(
             "dimensionless_mapping_table", DIMENSIONLESS_MAPPING_TABLE
         )
         if unit_map_file is None:

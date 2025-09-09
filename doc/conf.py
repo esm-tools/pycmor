@@ -100,5 +100,5 @@ napoleon_custom_sections = [("Mutates", "params_style")]
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
-html_logo = "../assets/Pymor1280x640.png"
-html_favicon = "../assets/PymorO240x240.png"
+html_logo = "../assets/PyCMOR1280x640.png"
+html_favicon = "../assets/PyCMORO240x240.png"
