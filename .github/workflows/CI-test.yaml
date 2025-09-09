@@ -33,13 +33,13 @@ jobs:
       - name: Run full flake8 check
         run: |
           # stop at any error
-          flake8 . --show-source --statistics --exclude ./cmip6-cmor-tables,./build,_version.py,./src/pycmor/webapp.py,./CMIP7_DReq_Software
+          flake8 src/pycmor tests --show-source --statistics --exclude ./cmip6-cmor-tables,./build,_version.py,./src/pycmor/webapp.py,./CMIP7_DReq_Software
       - name: Run isort
         run: |
-          isort --profile black --check --skip ./cmip6-cmor-tables --skip ./versioneer.py --skip ./CMIP7_DReq_Software .
+          isort --profile black --check --skip ./cmip6-cmor-tables --skip ./versioneer.py --skip ./CMIP7_DReq_Software src tests
       - name: Run black
         run: |
-          black --check --extend-exclude 'cmip6-cmor-tables|CMIP7_DReq_Software|versioneer\.py|webapp\.py' .
+          black --check --extend-exclude 'cmip6-cmor-tables|CMIP7_DReq_Software|versioneer\.py|webapp\.py' src tests
       - name: Run yamllint
         run: |
           yamllint .
