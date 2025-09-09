@@ -1,5 +1,5 @@
 ====================================
-Usage: The ``pymor`` Table Viewer
+Usage: The ``pycmor`` Table Explorer
 ====================================
 
-.. automodule:: pymor.webapp
+.. automodule:: pycmor.webapp

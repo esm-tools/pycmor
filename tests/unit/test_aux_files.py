@@ -1,7 +1,7 @@
 # import pytest
 from pyfesom2.load_mesh_data import fesom_mesh
 
-from pymor.core.aux_files import attach_files_to_rule
+from pycmor.core.aux_files import attach_files_to_rule
 
 
 def test_aux_files_attach_without_aux(pi_uxarray_temp_rule):

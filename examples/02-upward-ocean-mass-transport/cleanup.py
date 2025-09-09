@@ -34,7 +34,7 @@ def cleanup():
             rm_file(item)
         if (
             item.is_file()
-            and item.name.startswith("pymor")
+            and item.name.startswith("pycmor")
             and item.name.endswith("json")
         ):
             rm_file(item)

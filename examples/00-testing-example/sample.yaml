@@ -5,9 +5,9 @@ general:
   email: "pgierz@awi.de"
   cmor_version: "CMIP6"
   mip: "CMIP"
-  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/CMIP6_CVs"
-  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/Tables"
-pymor:
+  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/CMIP6_CVs"
+  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/Tables"
+pycmor:
   # parallel: True
   warn_on_no_rule: False
   use_flox: True
@@ -68,19 +68,19 @@ rules:
 pipelines:
   - name: default
     steps:
-      - "pymor.core.gather_inputs.load_mfdataset"
-      - "pymor.std_lib.get_variable"
-      - "pymor.std_lib.time_average"
-      - "pymor.std_lib.convert_units"
+      - "pycmor.core.gather_inputs.load_mfdataset"
+      - "pycmor.std_lib.get_variable"
+      - "pycmor.std_lib.time_average"
+      - "pycmor.std_lib.convert_units"
       # NOTE(PG): Nodes to levels needs to happen early in the pipeline to ensure that
       #           the setgrid works correctly.
-      - "pymor.fesom_1p4.nodes_to_levels"
-      - "pymor.std_lib.setgrid.setgrid"
-      # - "pymor.variable_attributes.set_variable_attrs"
-      - "pymor.std_lib.set_global_attributes"
-      - "pymor.std_lib.trigger_compute"
-      - "pymor.std_lib.show_data"
-      - "pymor.std_lib.files.save_dataset"
+      - "pycmor.fesom_1p4.nodes_to_levels"
+      - "pycmor.std_lib.setgrid.setgrid"
+      # - "pycmor.variable_attributes.set_variable_attrs"
+      - "pycmor.std_lib.set_global_attributes"
+      - "pycmor.std_lib.trigger_compute"
+      - "pycmor.std_lib.show_data"
+      - "pycmor.std_lib.files.save_dataset"
 # Settings for using dask-distributed
 distributed:
   worker:
@@ -95,7 +95,7 @@ distributed:
 # SLURM-specific settings for launching workers
 jobqueue:
   slurm:
-    name: pymor-worker
+    name: pycmor-worker
     queue: compute # SLURM queue/partition to submit jobs
     account: ab0246 # SLURM project/account name
     cores: 4 # Number of cores per worker

@@ -1,6 +1,6 @@
 import xarray as xr
 
-from pymor.fesom_1p4 import indicies_from_mesh, interpolate_dataarray, load_mesh
+from pycmor.fesom_1p4 import indicies_from_mesh, interpolate_dataarray, load_mesh
 
 
 def test_nodes_to_levels_with_awicm_1p0_recom_data(awicm_1p0_recom_data):

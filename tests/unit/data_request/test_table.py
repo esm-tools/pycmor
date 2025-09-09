@@ -1,4 +1,4 @@
-from pymor.data_request.table import CMIP7DataRequestTable
+from pycmor.data_request.table import CMIP7DataRequestTable
 
 
 def test_cmip7_from_vendored_json():

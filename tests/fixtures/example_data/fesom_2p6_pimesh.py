@@ -34,7 +34,7 @@ def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
     I_need_to_make_a_local_copy = True
     # Check if you have a local copy
     # Useful for testing on your local laptop
-    local_cache_path = Path("~/.cache/pytest/github.com/esm-tools/pymor").expanduser()
+    local_cache_path = Path("~/.cache/pytest/github.com/esm-tools/pycmor").expanduser()
     local_cache_path = local_cache_path / "fesom_2p6_pimesh"
     if local_cache_path.exists():
         I_need_to_make_a_local_copy = False

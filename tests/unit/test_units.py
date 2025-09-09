@@ -4,8 +4,8 @@ import pytest
 import xarray as xr
 from chemicals import periodic_table
 
-from pymor.core.cmorizer import CMORizer
-from pymor.std_lib.units import handle_chemicals, handle_unit_conversion, ureg
+from pycmor.core.cmorizer import CMORizer
+from pycmor.std_lib.units import handle_chemicals, handle_unit_conversion, ureg
 
 #  input samples that are found in CMIP6 tables and in fesom1 (recom)
 allunits = [
@@ -223,7 +223,7 @@ def test_dimensionless_unit_missing_in_unit_mapping(rule_with_data_request, mock
 def test_units_with_g_kg_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
         },
@@ -244,7 +244,7 @@ def test_units_with_g_kg_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
 def test_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
         },
@@ -280,7 +280,7 @@ def test_catch_unit_conversion_problem(rule_with_data_request, mocker):
 def test_scalar_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
         },

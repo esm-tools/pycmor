@@ -2,7 +2,7 @@ import cftime
 import numpy as np
 import xarray as xr
 
-from pymor.std_lib.setgrid import setgrid
+from pycmor.std_lib.setgrid import setgrid
 
 
 def test_open_dataset_can_read_fake_grid(fake_grid_file):

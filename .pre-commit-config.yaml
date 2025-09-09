@@ -31,7 +31,7 @@ exclude: |
   (?x)  # Enable verbose regex
   (
       ^versioneer\.py$|           # Exclude 'versioneer.py'
-      ^src/pymorize/webapp\.py$|  # Exclude 'src/pymorize/webapp.py'
+      ^src/pycmor/webapp\.py$|  # Exclude 'src/pycmor/webapp.py'
       _version\.py|               # Exclude '_version.py'
-      ^src/pymorize/data/cmip7/   # Exclude 'src/pymorize/data/cmip7/'
+      ^src/pycmor/data/cmip7/   # Exclude 'src/pycmor/data/cmip7/'
   )

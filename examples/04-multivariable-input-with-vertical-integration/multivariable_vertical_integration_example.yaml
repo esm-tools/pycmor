@@ -5,9 +5,9 @@ general:
   email: "pgierz@awi.de"
   cmor_version: "CMIP6"
   mip: "CMIP"
-  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/Tables"
-  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/CMIP6_CVs/"
-pymor:
+  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/Tables"
+  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/CMIP6_CVs/"
+pycmor:
   # parallel: True
   warn_on_no_rule: False
   use_flox: True
@@ -23,9 +23,9 @@ rules:
   - name: Primary Organic Carbon Production
     description: "Primary organic production. This example has several special cases!"
     inputs:
-      - path: "/work/ab0246/a270077/SciComp/Projects/pymor/examples/04-multivariable-input-with-vertical-integration/model_runs/piControl_LUtrans1850/outdata/recom/"
+      - path: "/work/ab0246/a270077/SciComp/Projects/pycmor/examples/04-multivariable-input-with-vertical-integration/model_runs/piControl_LUtrans1850/outdata/recom/"
         pattern: diags3d01_.*.nc
-      - path: "/work/ab0246/a270077/SciComp/Projects/pymor/examples/04-multivariable-input-with-vertical-integration/model_runs/piControl_LUtrans1850/outdata/recom/"
+      - path: "/work/ab0246/a270077/SciComp/Projects/pycmor/examples/04-multivariable-input-with-vertical-integration/model_runs/piControl_LUtrans1850/outdata/recom/"
         pattern: diags3d02_.*.nc
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
@@ -42,17 +42,17 @@ rules:
 pipelines:
   - name: default
     steps:
-      - "pymor.core.gather_inputs.load_mfdataset"
+      - "pycmor.core.gather_inputs.load_mfdataset"
       - "script://./intpp_recom.py:add_pp_components"
-      - "pymor.fesom_1p4.nodes_to_levels"
+      - "pycmor.fesom_1p4.nodes_to_levels"
       - "script://./intpp_recom.py:vertical_integration"
       - "script://./intpp_recom.py:set_pp_units"
-      - "pymor.std_lib.convert_units"
-      - "pymor.std_lib.time_average"
-      - "pymor.std_lib.set_global_attributes"
-      - "pymor.std_lib.trigger_compute"
-      - "pymor.std_lib.show_data"
-      - "pymor.std_lib.files.save_dataset"
+      - "pycmor.std_lib.convert_units"
+      - "pycmor.std_lib.time_average"
+      - "pycmor.std_lib.set_global_attributes"
+      - "pycmor.std_lib.trigger_compute"
+      - "pycmor.std_lib.show_data"
+      - "pycmor.std_lib.files.save_dataset"
 # Settings for using dask-distributed
 distributed:
   worker:
@@ -67,7 +67,7 @@ distributed:
 # SLURM-specific settings for launching workers
 jobqueue:
   slurm:
-    name: pymor-worker
+    name: pycmor-worker
     queue: compute # SLURM queue/partition to submit jobs
     account: ab0246 # SLURM project/account name
     cores: 4 # Number of cores per worker

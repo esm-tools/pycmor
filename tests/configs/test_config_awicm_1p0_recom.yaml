@@ -1,4 +1,4 @@
-pymor:
+pycmor:
   version: "unreleased"
   use_xarray_backend: True
   warn_on_no_rule: False
@@ -33,12 +33,12 @@ rules:
 pipelines:
   - name: level_regridder
     steps:
-      - pymor.core.gather_inputs.load_mfdataset
-      - pymor.std_lib.generic.get_variable
-      - pymor.fesom_1p4.nodes_to_levels
-      - pymor.core.caching.manual_checkpoint
-      - pymor.std_lib.generic.trigger_compute
-      - pymor.std_lib.generic.show_data
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.fesom_1p4.nodes_to_levels
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
 distributed:
   worker:
     memory:

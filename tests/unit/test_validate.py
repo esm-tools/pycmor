@@ -1,6 +1,6 @@
 import pytest
 
-from pymor.core.validate import PIPELINES_SCHEMA, PipelineSectionValidator
+from pycmor.core.validate import PIPELINES_SCHEMA, PipelineSectionValidator
 
 
 @pytest.fixture

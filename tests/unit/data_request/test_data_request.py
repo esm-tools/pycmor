@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from pymor.data_request.collection import CMIP6DataRequest, CMIP7DataRequest
+from pycmor.data_request.collection import CMIP6DataRequest, CMIP7DataRequest
 
 
 def test_cmip6_from_git():

@@ -1,4 +1,4 @@
-from pymor.core.pipeline import Pipeline
+from pycmor.core.pipeline import Pipeline
 
 
 def test_basic_creation():
@@ -8,7 +8,7 @@ def test_basic_creation():
 def test_qualname_creation():
     Pipeline.from_qualname_list(
         [
-            "pymor.std_lib.generic.load_data",
-            "pymor.std_lib.units.handle_unit_conversion",
+            "pycmor.std_lib.generic.load_data",
+            "pycmor.std_lib.units.handle_unit_conversion",
         ]
     )

@@ -1,9 +1,9 @@
 import pytest
 
-from pymor.core.factory import create_factory
-from pymor.data_request.collection import CMIP6DataRequest, DataRequest
-from pymor.data_request.table import CMIP6DataRequestTable, DataRequestTable
-from pymor.data_request.variable import CMIP6DataRequestVariable, DataRequestVariable
+from pycmor.core.factory import create_factory
+from pycmor.data_request.collection import CMIP6DataRequest, DataRequest
+from pycmor.data_request.table import CMIP6DataRequestTable, DataRequestTable
+from pycmor.data_request.variable import CMIP6DataRequestVariable, DataRequestVariable
 
 
 @pytest.mark.parametrize(

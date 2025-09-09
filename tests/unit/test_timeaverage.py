@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-import pymor.std_lib.timeaverage
-from pymor.std_lib.timeaverage import timeavg
+import pycmor.std_lib.timeaverage
+from pycmor.std_lib.timeaverage import timeavg
 
 
 @pytest.fixture
@@ -155,98 +155,100 @@ FREQUENCY_TIME_METHOD = {
 
 @pytest.mark.parametrize("frequency_name, expected", FREQUENCY_TIME_METHOD.items())
 def test__get_time_method(frequency_name, expected):
-    answer = pymor.std_lib.timeaverage._get_time_method(frequency_name)
+    answer = pycmor.std_lib.timeaverage._get_time_method(frequency_name)
     assert answer == expected
 
 
 def test__frequency_from_approx_interval_decade():
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("3650") == "10YS"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("3650") == "10YS"
     )  # Decade conversion
 
 
 def test__frequency_from_approx_interval_year():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("365") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("365") in {
         "YS",
         "1YS",
     }  # One year
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("365") == "1YS"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("365") == "1YS"
     )  # One year
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("1095") == "3YS"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("1095") == "3YS"
     )  # Three years
 
 
 def test__frequency_from_approx_interval_month():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("30") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("30") in {
         "MS",
         "1MS",
     }  # One month
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("30") == "1MS"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("30") == "1MS"
     )  # One month
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("60") == "2MS"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("60") == "2MS"
     )  # Two months
 
 
 def test__frequency_from_approx_interval_day():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("1") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("1") in {
         "D",
         "1D",
     }  # One day
 
 
 def test__frequency_from_approx_interval_hour():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("0.04167") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.04167") in {
         "h",
         "1h",
     }  # Approximately one hour in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.08333") == "2h"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.08333") == "2h"
     )  # Approximately two hours in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.5") == "12h"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.5") == "12h"
     )  # Half a day in hours
 
 
 def test__frequency_from_approx_interval_minute():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("0.000694") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.000694") in {
         "m",
         "1m",
     }  # Approximately one minute in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.001388") == "2m"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.001388") == "2m"
     )  # Approximately two minutes in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.020833") == "30m"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.020833") == "30m"
     )  # Approximately half an hour in minutes
 
 
 def test__frequency_from_approx_interval_second():
-    assert pymor.std_lib.timeaverage._frequency_from_approx_interval("0.000011574") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval(
+        "0.000011574"
+    ) in {
         "s",
         "1s",
     }  # Approximately one second in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.00002314") == "2s"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.00002314") == "2s"
     )  # Approximately two seconds in days
     assert not (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("0.000694") == "60s"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.000694") == "60s"
     )  # Approximately one minute in seconds, should give back min, since it can round up.
 
 
 @pytest.mark.skip(reason="not supported.")
 def test__frequency_from_approx_interval_millisecond():
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("1.1574e-8") == "ms"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("1.1574e-8") == "ms"
     )  # Approximately one millisecond in days
     assert (
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("2.3148e-8") == "2ms"
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("2.3148e-8") == "2ms"
     )  # Approximately two milliseconds in days
 
 
 def test__invalid_interval():
     with pytest.raises(ValueError):
-        pymor.std_lib.timeaverage._frequency_from_approx_interval("not_a_number")
+        pycmor.std_lib.timeaverage._frequency_from_approx_interval("not_a_number")

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from pymor.core.utils import generate_partial_function, get_callable_by_name
+from pycmor.core.utils import generate_partial_function, get_callable_by_name
 
 
 def test_get_callable_by_name_with_function():
@@ -22,7 +22,7 @@ def test_get_callable_by_name_with_nested_callable():
 
 def test_get_callable_with_from_import():
     assert (
-        get_callable_by_name("pymor.core.utils.get_callable_by_name")
+        get_callable_by_name("pycmor.core.utils.get_callable_by_name")
         == get_callable_by_name
     )
 
