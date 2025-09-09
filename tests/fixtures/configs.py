@@ -9,13 +9,13 @@ def config(request):
 
 @pytest.fixture
 def config_empty():
-    return {"pymor": {}}
+    return {"pycmor": {}}
 
 
 @pytest.fixture
 def config_pattern_env_var_name():
     return {
-        "pymor": {
+        "pycmor": {
             "pattern_env_var_name": "CMOR_PATTERN",
         }
     }
@@ -24,7 +24,7 @@ def config_pattern_env_var_name():
 @pytest.fixture
 def config_pattern_env_var_value():
     return {
-        "pymor": {
+        "pycmor": {
             "pattern_env_var_value": "test.*nc",
         }
     }
@@ -33,7 +33,7 @@ def config_pattern_env_var_value():
 @pytest.fixture
 def config_pattern_env_var_name_and_value():
     return {
-        "pymor": {
+        "pycmor": {
             "pattern_env_var_name": "CMOR_PATTERN",
             "pattern_env_var_value": "other_test.*nc",
         }

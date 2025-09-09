@@ -1,6 +1,6 @@
 import xarray as xr
 
-from pymor.core.gather_inputs import load_mfdataset
+from pycmor.core.gather_inputs import load_mfdataset
 
 
 def test_load_mfdataset_pi_uxarray(pi_uxarray_temp_rule):

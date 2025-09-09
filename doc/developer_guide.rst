@@ -2,7 +2,7 @@
 Develop: Main Developer Guide
 =============================
 
-Thanks for helping develop ``pymor``! This document will guide you through
+Thanks for helping develop ``pycmor``! This document will guide you through
 the code structure and layout, and provide a few tips on how to contribute.
 
 Getting Started
@@ -10,8 +10,8 @@ Getting Started
 To get started, you should clone the repository and install the dependencies. We give
 a few extra dependencies for testing and documentation, so you should install these as well::
 
-    git clone https://github.com/esm-tools/pymor.git
-    cd pymor
+    git clone https://github.com/esm-tools/pycmor.git
+    cd pycmor
     pip install -e ".[dev,doc]"
 
 This will install the package in "editable" mode, so you can make changes to the code. The
@@ -27,19 +27,19 @@ are described in the next section.
 Code Layout and Main Classes
 ----------------------------
 
-We use a ``src`` layout, with all files living under ``./src/pymor``. The code is
+We use a ``src`` layout, with all files living under ``./src/pycmor``. The code is
 generally divided into several building blocks:
 
-* :py:class:`~pymor.rule.Rule` is the main class that defines a rule for processing a CMOR variable.
+* :py:class:`~pycmor.rule.Rule` is the main class that defines a rule for processing a CMOR variable.
 
-* :py:class:`~pymor.pipeline.Pipeline` (or an object inherited from :py:class:`~pymor.pipeline.Pipeline`) is a collection
-  of actions that can be applied to a set of files described by a :py:class:`~pymor.rule.Rule`. A few default pipelines are
+* :py:class:`~pycmor.pipeline.Pipeline` (or an object inherited from :py:class:`~pycmor.pipeline.Pipeline`) is a collection
+  of actions that can be applied to a set of files described by a :py:class:`~pycmor.rule.Rule`. A few default pipelines are
   provided, and you can also define your own.
 
-* :py:class:`~pymor.cmorizer.CMORizer` is responsible for reading in the rules, and managing the various
+* :py:class:`~pycmor.cmorizer.CMORizer` is responsible for reading in the rules, and managing the various
   objects.
 
-:py:class:`~pymor.rule.Rule` Class
+:py:class:`~pycmor.rule.Rule` Class
 -------------------------------------
 
 This is the main building block for handling a set of files produced by a model. It has the following attributes:
@@ -59,14 +59,14 @@ looks like this:
     pipelines: [My Pipeline]
 
 
-:py:class:`~pymor.pipeline.Pipeline` Class
+:py:class:`~pycmor.pipeline.Pipeline` Class
 ---------------------------------------------
 
-The :py:class:`~pymor.pipeline.Pipeline` class is a collection of actions that can be applied to a set of files. It should have a
+The :py:class:`~pycmor.pipeline.Pipeline` class is a collection of actions that can be applied to a set of files. It should have a
 ``name`` attribute that describes the pipeline. If not given during construction, a random one is generated. The actions are stored in a list, and
 are applied in order. There are a few ways to construct a pipeline. You can either create one from a list of actions (also called steps)::
 
-    >>> pipeline = pymor.pipeline.Pipeline([action1, action2], name="My Pipeline")
+    >>> pipeline = pycmor.pipeline.Pipeline([action1, action2], name="My Pipeline")
     >>> # Or use the class method:
     >>> pl = Pipeline.from_list([action1, action2], name="My Pipeline")
 
@@ -79,23 +79,23 @@ Another way to build actions is from a list of qualified names of functions. A c
 
 
 
-:py:class:`~pymor.cmorizer.CMORizer` Class
+:py:class:`~pycmor.cmorizer.CMORizer` Class
 ---------------------------------------------
 
-The :py:class:`~pymor.cmorizer.CMORizer` class is responsible for managing the rules and pipelines. It contains four configuration dictionaries:
+The :py:class:`~pycmor.cmorizer.CMORizer` class is responsible for managing the rules and pipelines. It contains four configuration dictionaries:
 
-1. ``pymor_cfg``: This is the configuration for the ``pymor`` package. It should contain a version number, and any other configuration
-   that is needed for the package to run. This is used to check that the configuration is correct for the specific version of ``pymor``. You
+1. ``pymor_cfg``: This is the configuration for the ``pycmor`` package. It should contain a version number, and any other configuration
+   that is needed for the package to run. This is used to check that the configuration is correct for the specific version of ``pycmor``. You
    can also specify certain features to be enabled or disabled here, as well as configure the logging.
 
 2. ``global_cfg``: This is the global configuration for the rules and pipelines. This is used for configuration that is common to all rules and pipelines,
    such as the path to the CMOR tables, or the path to the output directory. This is used to set up the environment for the rules and pipelines.
 
-3. ``pipelines``: This is a list of :py:class:`~pymor.pipeline.Pipeline` objects that are used to process the data. These are the pipelines that are
+3. ``pipelines``: This is a list of :py:class:`~pycmor.pipeline.Pipeline` objects that are used to process the data. These are the pipelines that are
    applied to the data, and are referenced by the rules. Each pipeline should have a unique name, and a series of steps to perform. You can also specify
    "frozen" arguments and key-word arguments to apply to steps in the pipeline's configuration.
 
-4. ``rules``: This is a list of :py:class:`~pymor.rule.Rule` objects that are used to match the data. Each rule should have a unique name, and a series of
+4. ``rules``: This is a list of :py:class:`~pycmor.rule.Rule` objects that are used to match the data. Each rule should have a unique name, and a series of
    input patterns, a CMOR variable name, and a list of pipelines to apply to the data. You can also specify additional attributes that are used in the actions
    in the pipelines.
 
@@ -104,19 +104,19 @@ The :py:class:`~pymor.cmorizer.CMORizer` class is responsible for managing the r
 Building Actions for Pipelines
 ------------------------------
 
-When defining actions for a :py:class:`~pymor.pipeline.Pipeline`, you should create functions
+When defining actions for a :py:class:`~pycmor.pipeline.Pipeline`, you should create functions
 with the following signature::
 
     def my_action(data: Any,
-                  rule_spec: pymor.rule.Rule,
-                  cmorizer: pymor.cmorizer.CMORizer,
+                  rule_spec: pycmor.rule.Rule,
+                  cmorizer: pycmor.cmorizer.CMORizer,
                   *args, **kwargs) -> Any:
         ...
         return data
 
 The ``data`` argument is the data that is passed from one action to the next. The ``rule_spec`` is the
-instance of the :py:class:`~pymor.rule.Rule` class that is currently being evaluated. The ``cmorizer``
-is the instance of the :py:class:`~pymor.cmorizer.CMORizer` class that is managing the pipeline. You
+instance of the :py:class:`~pycmor.rule.Rule` class that is currently being evaluated. The ``cmorizer``
+is the instance of the :py:class:`~pycmor.cmorizer.CMORizer` class that is managing the pipeline. You
 can pass additional arguments to the action by using ``*args`` and ``**kwargs``, however most arguments or
 keyword arguments should be extracted from the ``rule_spec``. The action should return the data that will be
 passed to the next action in the pipeline. Note that the data can be any type, but it should be the same type
@@ -135,15 +135,15 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
 * Example 1: A simple action that adds 1 to the data::
 
-      def add_one(data: Any, rule_spec: pymor.rule.Rule, cmorizer: pymor.cmorizer.CMORizer) -> Any:
+      def add_one(data: Any, rule_spec: pycmor.rule.Rule, cmorizer: pycmor.cmorizer.CMORizer) -> Any:
           """Add one to the data."""
           return data + 1
 
   Using this in a pipeline would look like this in Python code::
 
-      pipeline = pymor.pipeline.Pipeline([add_one], name="Add One")
-      rule_spec = pymor.rule.Rule(input_patterns=[".*"], cmor_variable="tas", pipelines=["Add One"])
-      cmorizer = pymor.cmorizer.CMORizer(pymor_cfg={"version": "unreleased"}, global_cfg={}, rules=[rule_spec], pipelines=[pipeline])
+      pipeline = pycmor.pipeline.Pipeline([add_one], name="Add One")
+      rule_spec = pycmor.rule.Rule(input_patterns=[".*"], cmor_variable="tas", pipelines=["Add One"])
+      cmorizer = pycmor.cmorizer.CMORizer(pymor_cfg={"version": "unreleased"}, global_cfg={}, rules=[rule_spec], pipelines=[pipeline])
       initial_data = 1
       data = pipeline.run(initial_data, rule_spec, cmorizer)
 
@@ -151,7 +151,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
   .. code-block:: yaml
 
-      pymor:
+      pycmor:
         version: unreleased
 
       general:
@@ -168,7 +168,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 * Example 2: An action that sets an attribute on a :py:class:`xarray.Dataset`, where this is specified in
   the rule specification::
 
-      def set_attribute(data: xr.Dataset, rule_spec: pymor.rule.Rule, cmorizer: pymor.cmorizer.CMORizer) -> xr.Dataset:
+      def set_attribute(data: xr.Dataset, rule_spec: pycmor.rule.Rule, cmorizer: pycmor.cmorizer.CMORizer) -> xr.Dataset:
           """Set an attribute on the dataset."""
           data.attrs[rule_spec.attribute_name] = rule_spec.attribute_value
           return data
@@ -177,7 +177,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
   .. code-block:: yaml
 
-      pymor:
+      pycmor:
         version: unreleased
 
       general:
@@ -193,7 +193,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
           attribute_name: "my_attribute"
           attribute_value: "my_value"
 
-* Example 3: An action that sets an attribute on a :py:class:`~xarray.Dataset`, where this is specified in the :py:class:`~pymor.pipeline.Pipeline`.
+* Example 3: An action that sets an attribute on a :py:class:`~xarray.Dataset`, where this is specified in the :py:class:`~pycmor.pipeline.Pipeline`.
 
   It is the responsibility of the action developer to ensure arguments are passed correctly and have sensible values. This is a more complicated example. Here we check
   if the rule has a specific attribute that matches the action's name, with "``_args``" appended. We use those values if that is the case. Otherwise, they can be obtained from
@@ -201,7 +201,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
   .. code-block::
 
-      def set_attribute(data: xr.Dataset, rule_spec: pymor.rule.Rule, cmorizer: pymor.cmorizer.CMORizer, attribute_name: str = "", attribute_value: str = "", *args, **kwargs) -> xr.Dataset:
+      def set_attribute(data: xr.Dataset, rule_spec: pycmor.rule.Rule, cmorizer: pycmor.cmorizer.CMORizer, attribute_name: str = "", attribute_value: str = "", *args, **kwargs) -> xr.Dataset:
           """Set an attribute on the dataset."""
           if hasattr(rule_spec, f"{__name__}_args"):
               attribute_name = getattr(rule_spec, f"{__name__}_args").get("attribute_name", my_attribute)
@@ -213,7 +213,7 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
   .. code-block:: yaml
 
-      pymor:
+      pycmor:
         version: unreleased
 
       general:
@@ -231,13 +231,13 @@ alternatively, to the rule that the action is a part of. A few illustrative exam
 
   .. important::
 
-      In the case of passing arguments that are *not* in the rule spec, you need to be careful about where you place the information. The :py:class:`~pymor.rule.Rule` should win, if
+      In the case of passing arguments that are *not* in the rule spec, you need to be careful about where you place the information. The :py:class:`~pycmor.rule.Rule` should win, if
       there are conflicts between the rule and the pipeline. This is because the rule is the most specific, and the pipeline is the most general. So, to have a value specified in
       the rule, you should do:
 
       .. code-block:: yaml
 
-            pymor:
+            pycmor:
               version: unreleased
 
             general:

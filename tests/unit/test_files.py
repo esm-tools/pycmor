@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymor.core.config import PymorConfigManager
-from pymor.std_lib.files import (
+from pycmor.core.config import PyCMORConfigManager
+from pycmor.std_lib.files import (
     file_timespan_tail,
     get_offset,
     save_dataset,
@@ -138,7 +138,7 @@ def test_save_dataset():
     rule = Mock()
     rule.data_request_variable.table_header.approx_interval = "30"
     rule.data_request_variable.frequency = "mon"
-    rule._pymor_cfg = PymorConfigManager.from_pymor_cfg({})
+    rule._pycmor_cfg = PyCMORConfigManager.from_pycmor_cfg({})
     rule.cmor_variable = "fgco2"
     rule.data_request_variable.table_header.table_id = "Omon"
     rule.variant_label = "r1i1p1f1"

@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from pymor.core.gather_inputs import (
+from pycmor.core.gather_inputs import (
     _files_to_string,
     _filter_by_year,
     _input_files_in_path,

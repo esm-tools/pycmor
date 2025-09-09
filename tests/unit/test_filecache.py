@@ -7,7 +7,7 @@ from unittest.mock import Mock, mock_open, patch
 import pandas as pd
 import pytest
 
-from pymor.core.filecache import Filecache
+from pycmor.core.filecache import Filecache
 from tests.fixtures.filecache import sample_cache_data, sample_netcdf_file  # noqa: F401
 
 
@@ -49,7 +49,7 @@ class TestFilecache:
         assert Filecache._fields == expected_fields
 
     @patch("pandas.read_csv")
-    @patch("pymor.core.filecache.Path")
+    @patch("pycmor.core.filecache.Path")
     def test_load_existing_cache(self, mock_path, mock_read_csv):
         """Test loading an existing cache file."""
         mock_path_instance = mock_path.return_value.expanduser.return_value
@@ -64,7 +64,7 @@ class TestFilecache:
         assert cache.cache_meta == "#2024-01-01;1ME\n"
         mock_read_csv.assert_called_once_with(str(mock_path_instance), comment="#")
 
-    @patch("pymor.core.filecache.Path")
+    @patch("pycmor.core.filecache.Path")
     def test_load_nonexistent_cache(self, mock_path):
         """Test loading when cache file doesn't exist."""
         mock_path_instance = mock_path.return_value.expanduser.return_value
@@ -99,7 +99,7 @@ class TestFilecache:
 
     @patch("xarray.open_dataset")
     @patch("os.stat")
-    @patch("pymor.core.filecache.hashfile")
+    @patch("pycmor.core.filecache.hashfile")
     def test_make_record(
         self,
         mock_hashfile,
@@ -219,7 +219,7 @@ class TestFilecache:
             mock_info.filepath = "/path/to/temp.nc"
             mock_info.variable = "temperature"
             mock_get.return_value = mock_info
-            with patch("pymor.core.filecache.infer_frequency") as mock_infer:
+            with patch("pycmor.core.filecache.infer_frequency") as mock_infer:
                 mock_infer.return_value = "Y"
                 result = cache.infer_freq("temp.nc")
                 assert result == "Y"
@@ -281,7 +281,7 @@ class TestFilecache:
             mock_info.variable = "temperature"
             mock_get.return_value = mock_info
 
-            with patch("pymor.core.filecache.infer_frequency") as mock_infer:
+            with patch("pycmor.core.filecache.infer_frequency") as mock_infer:
                 mock_infer.return_value = "MS"  # Monthly start frequency
                 result = cache.infer_freq("temp_200001.nc")
 
@@ -321,7 +321,7 @@ class TestFilecacheIntegration:
         """Test complete workflow: create cache, add file, save, load."""
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_file = os.path.join(tmpdir, "test_cache.csv")
-            with patch("pymor.core.filecache.CACHE_FILE", cache_file):
+            with patch("pycmor.core.filecache.CACHE_FILE", cache_file):
                 cache = Filecache()
                 cache.add_file(sample_netcdf_file)
                 # Manually set frequency to ME for the test

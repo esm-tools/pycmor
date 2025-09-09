@@ -1,2 +1,2 @@
-.. automodule:: pymor.std_lib
+.. automodule:: pycmor.std_lib
    :members:

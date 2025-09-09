@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Script to rename the pymorize project to pycmor.
+Script to rename the pycmor project to pycmor.
 
 This script handles:
-1. Renaming directories (src/pymor, src/pymorize -> src/pycmor)
-2. Renaming files that contain pymor/pymorize in their names
-3. Replacing content within files (pymor/pymorize -> pycmor)
+1. Renaming directories (src/pycmor, src/pycmor -> src/pycmor)
+2. Renaming files that contain pycmor/pycmor in their names
+3. Replacing content within files (pycmor/pycmor -> pycmor)
 4. Handling special cases and preserving file permissions
 
 Usage:
@@ -33,12 +33,14 @@ class ProjectRenamer:
 
         # Patterns to replace
         self.replacements = {
-            "pymorize": "pycmor",
-            "pymor": "pycmor",
-            "Pymorize": "PyCMOR",
-            "Pymor": "PyCMOR",
-            "PYMORIZE": "PYCMOR",
-            "PYMOR": "PYCMOR",
+            "pycmor": "pycmor",
+            "PyCMOR": "PyCMOR",
+            "PYCMOR": "PYCMOR",
+            "pycmor.": "pycmor.",
+            "PyCMOR.": "PyCMOR.",
+            "PYCMOR.": "PYCMOR.",
+            "from pycmor": "from pycmor",
+            "import pycmor": "import pycmor",
         }
 
         # Files/directories to skip
@@ -197,11 +199,61 @@ class ProjectRenamer:
 
         return Path(new_path_str)
 
-    def rename_directories(self) -> List[Tuple[Path, Path]]:
-        """Rename directories that contain pymor/pymorize in their names."""
+    def rename_files(self) -> List[Tuple[Path, Path]]:
+        """Rename files that contain pycmor in their names."""
         renames = []
 
-        # Find all directories that need renaming
+        # Find all files that need renaming
+        for root, dirs, files in os.walk(self.project_root):
+            root_path = Path(root)
+
+            if self.should_skip_path(root_path):
+                continue
+
+            for file_name in files:
+                file_path = root_path / file_name
+
+                if self.should_skip_path(file_path):
+                    continue
+
+                new_file_path = self.get_new_path_name(file_path)
+
+                if file_path != new_file_path:
+                    if not file_path.exists():
+                        print(f"Warning: Source file does not exist: {file_path}")
+                        continue
+                    renames.append((file_path, new_file_path))
+
+        # Perform renames
+        for old_path, new_path in renames:
+            try:
+                if not self.dry_run:
+                    # Ensure parent directory exists
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    if new_path.exists():
+                        print(f"Warning: Target file already exists: {new_path}")
+                        continue
+                    if not old_path.parent.exists():
+                        print(
+                            f"Warning: Parent directory does not exist: {old_path.parent}"
+                        )
+                        continue
+
+                    old_path.rename(new_path)
+
+                self.changes_log.append(f"File renamed: {old_path} -> {new_path}")
+            except Exception as e:
+                print(f"Error renaming {old_path} to {new_path}: {e}")
+                continue
+
+        return renames
+
+    def rename_directories(self) -> List[Tuple[Path, Path]]:
+        """Rename directories that contain pycmor in their names."""
+        renames = []
+
+        # Find all directories that need renaming (walk top-down=False to rename leaves first)
         for root, dirs, files in os.walk(self.project_root, topdown=False):
             root_path = Path(root)
 
@@ -221,47 +273,24 @@ class ProjectRenamer:
 
         # Perform renames
         for old_path, new_path in renames:
-            if not self.dry_run:
-                if new_path.exists():
-                    print(f"Warning: Target directory already exists: {new_path}")
-                    continue
-                old_path.rename(new_path)
+            try:
+                if not self.dry_run:
+                    # Ensure parent directory exists
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
 
-            self.changes_log.append(f"Directory renamed: {old_path} -> {new_path}")
+                    if new_path.exists():
+                        print(f"Warning: Target directory already exists: {new_path}")
+                        continue
+                    if not old_path.exists():
+                        print(f"Warning: Source directory does not exist: {old_path}")
+                        continue
 
-        return renames
+                    old_path.rename(new_path)
 
-    def rename_files(self) -> List[Tuple[Path, Path]]:
-        """Rename files that contain pymor/pymorize in their names."""
-        renames = []
-
-        # Find all files that need renaming
-        for root, dirs, files in os.walk(self.project_root):
-            root_path = Path(root)
-
-            if self.should_skip_path(root_path):
+                self.changes_log.append(f"Directory renamed: {old_path} -> {new_path}")
+            except Exception as e:
+                print(f"Error renaming directory {old_path} to {new_path}: {e}")
                 continue
-
-            for file_name in files:
-                file_path = root_path / file_name
-
-                if self.should_skip_path(file_path):
-                    continue
-
-                new_file_path = self.get_new_path_name(file_path)
-
-                if file_path != new_file_path:
-                    renames.append((file_path, new_file_path))
-
-        # Perform renames
-        for old_path, new_path in renames:
-            if not self.dry_run:
-                if new_path.exists():
-                    print(f"Warning: Target file already exists: {new_path}")
-                    continue
-                old_path.rename(new_path)
-
-            self.changes_log.append(f"File renamed: {old_path} -> {new_path}")
 
         return renames
 
@@ -319,7 +348,7 @@ class ProjectRenamer:
     def run(self) -> Dict:
         """Run the complete renaming process."""
         print(
-            f"{'DRY RUN: ' if self.dry_run else ''}Renaming project from pymor/pymorize to pycmor"
+            f"{'DRY RUN: ' if self.dry_run else ''}Renaming project from pycmor to pycmor"
         )
         print(f"Project root: {self.project_root}")
 
@@ -380,7 +409,7 @@ class ProjectRenamer:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Rename pymorize project to pycmor")
+    parser = argparse.ArgumentParser(description="Rename pycmor project to pycmor")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -403,11 +432,11 @@ def main():
         print(f"Error: Project root does not exist: {project_root}")
         return 1
 
-    # Check if this looks like the pymorize project
+    # Check if this looks like the pycmor project
     src_dir = project_root / "src"
     if not src_dir.exists():
         print(f"Warning: No 'src' directory found in {project_root}")
-        print("Are you sure this is the pymorize project root?")
+        print("Are you sure this is the pycmor project root?")
         response = input("Continue anyway? (y/N): ")
         if response.lower() != "y":
             return 1

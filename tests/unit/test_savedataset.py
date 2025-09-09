@@ -65,9 +65,9 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymor.core.config import PymorConfigManager
-from pymor.std_lib.files import _filename_time_range, save_dataset
-from pymor.std_lib.timeaverage import _get_time_method  # noqa: F401
+from pycmor.core.config import PyCMORConfigManager
+from pycmor.std_lib.files import _filename_time_range, save_dataset
+from pycmor.std_lib.timeaverage import _get_time_method  # noqa: F401
 
 # Tests for time-span in filename
 
@@ -181,6 +181,8 @@ def test_save_dataset_saves_to_single_file_when_no_time_axis(tmp_path):
     rule.experiment_id = "historical"
     rule.file_timespan = "1YE"
     rule.output_directory = t
+    pycmor_cfg = {"parallel": False}
+    rule._pycmor_cfg = PyCMORConfigManager.from_pycmor_cfg(pycmor_cfg)
     # rule["institution"] = "AWI"
     save_dataset(da, rule)
 
@@ -190,7 +192,8 @@ def test_save_dataset_saves_to_single_file(tmp_path):
     dates = xr.cftime_range(start="2001", periods=24, freq="MS", calendar="noleap")
     da = xr.DataArray(np.arange(24), coords=[dates], dims=["time"], name="foo")
     rule = Mock()
-    rule._pymor_cfg = PymorConfigManager.from_pymor_cfg({})
+    pycmor_cfg = {"parallel": False}
+    rule._pycmor_cfg = PyCMORConfigManager.from_pycmor_cfg(pycmor_cfg)
     rule.data_request_variable.frequency = "mon"
     rule.data_request_variable.table.table_id = "Omon"
     rule.data_request_variable.table_header.approx_interval = 30
@@ -210,7 +213,8 @@ def test_save_dataset_saves_to_multiple_files(tmp_path):
     dates = xr.cftime_range(start="2001", periods=24, freq="MS", calendar="noleap")
     da = xr.DataArray(np.arange(24), coords=[dates], dims=["time"], name="foo")
     rule = Mock()
-    rule._pymor_cfg = PymorConfigManager.from_pymor_cfg({})
+    pycmor_cfg = {"parallel": False}
+    rule._pycmor_cfg = PyCMORConfigManager.from_pycmor_cfg(pycmor_cfg)
     rule.data_request_variable.frequency = "mon"
     rule.data_request_variable.table.table_id = "Omon"
     rule.data_request_variable.table_header.approx_interval = 30

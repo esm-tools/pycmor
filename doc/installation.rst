@@ -14,8 +14,8 @@ RECOMMENDED: Inside a Conda Environment
 This is the recommended way to install the software while we are still in the development phase, since all the requirements will be isolated and you can
 easily activate this in your scripts. Start off by creating a new conda environment::
 
-    conda create -n pymor python=3.10
-    conda activate pymor
+    conda create -n pycmor python=3.10
+    conda activate pycmor
 
 Then, you can install the package by running::
 
@@ -23,8 +23,8 @@ Then, you can install the package by running::
 
 Or with a clone::
 
-    git clone https://github.com/esm-tools/pymor.git
-    cd pymor
+    git clone https://github.com/esm-tools/pycmor.git
+    cd pycmor
     pip install -e .[<extras>]
 
 Note that the ``-e`` switch allows you to edit the source code.
@@ -40,7 +40,7 @@ or::
 
 .. note::
 
-  ``[<extras>]`` allows you to install additional packages that might be use for some specific tasks in pymor. The extras available are:
+  ``[<extras>]`` allows you to install additional packages that might be use for some specific tasks in pycmor. The extras available are:
 
   * ``dev`` packages useful for development
   * ``fesom`` installs ``pyfesom2`` that is used by some of the steps in the rule that deal with FESOM meshes. If you are working with FESOM data
@@ -63,7 +63,7 @@ If you are on an HPC system, you probably don't have root access. In this case, 
 
 Or directly from GitHub::
 
-    pip install --user git+https://github.com/esm-tools/pymor.git[<extras>]
+    pip install --user git+https://github.com/esm-tools/pycmor.git[<extras>]
 
 From PyPI
 ---------
@@ -74,7 +74,7 @@ This is the most straightforward way to install the package if you don't need to
 
 You can also install the latest version from the repository by running::
 
-  pip install git+https://github.com/esm-tools/pymor.git[<extras>]
+  pip install git+https://github.com/esm-tools/pycmor.git[<extras>]
 
 If you want to ensure an isolated install and make sure nothing conflicts with other packages you have, and you **do not want to change source code**, you can have a look at
 `pipx <https://pipx.pypa.io/stable/>`_.
@@ -89,8 +89,8 @@ From source
 
 If you want to modify the source code, you can install the package by cloning the repository and running::
 
-    git clone https://github.com/esm-tools/pymor.git
-    cd pymor
+    git clone https://github.com/esm-tools/pycmor.git
+    cd pycmor
     python -m pip install -e .[<extras>]
 
 If you need the developer requirements as well (i.e. for running tests), you can install them by running::

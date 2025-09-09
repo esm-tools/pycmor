@@ -8,9 +8,9 @@ yaml configuration file.
 
 
 .. cerberus-schema:: Pipeline Schema
-   :module: pymor.core.validate
+   :module: pycmor.core.validate
    :schema: PIPELINES_SCHEMA
 
 .. cerberus-schema:: Rule Schema
-   :module: pymor.core.validate
+   :module: pycmor.core.validate
    :schema: RULES_SCHEMA

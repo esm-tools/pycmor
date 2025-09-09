@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymor.core.filecache import Filecache
+from pycmor.core.filecache import Filecache
 
 
 @pytest.fixture
