@@ -84,20 +84,16 @@ Another way to build actions is from a list of qualified names of functions. A c
 
 The :py:class:`~pycmor.cmorizer.CMORizer` class is responsible for managing the rules and pipelines. It contains four configuration dictionaries:
 
-1. ``pymor_cfg``: This is the configuration for the ``pycmor`` package. It should contain a version number, and any other configuration
+1. ``pycmor_cfg``: This is the configuration for the ``pycmor`` package. It should contain a version number, and any other configuration
    that is needed for the package to run. This is used to check that the configuration is correct for the specific version of ``pycmor``. You
    can also specify certain features to be enabled or disabled here, as well as configure the logging.
 
 2. ``global_cfg``: This is the global configuration for the rules and pipelines. This is used for configuration that is common to all rules and pipelines,
    such as the path to the CMOR tables, or the path to the output directory. This is used to set up the environment for the rules and pipelines.
 
-3. ``pipelines``: This is a list of :py:class:`~pycmor.pipeline.Pipeline` objects that are used to process the data. These are the pipelines that are
-   applied to the data, and are referenced by the rules. Each pipeline should have a unique name, and a series of steps to perform. You can also specify
-   "frozen" arguments and key-word arguments to apply to steps in the pipeline's configuration.
+3. ``pipelines``: This is a list of :py:class:`~pycmor.pipeline.Pipeline` objects that are used to process the data.
 
-4. ``rules``: This is a list of :py:class:`~pycmor.rule.Rule` objects that are used to match the data. Each rule should have a unique name, and a series of
-   input patterns, a CMOR variable name, and a list of pipelines to apply to the data. You can also specify additional attributes that are used in the actions
-   in the pipelines.
+4. ``rules``: This is a list of :py:class:`~pycmor.rule.Rule` objects that are used to match the data.
 
 .. _building-actions-for-pipelines:
 
