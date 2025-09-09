@@ -30,7 +30,7 @@ setup(
     long_description=read("README.rst"),
     long_description_content_type="text/x-rst",
     package_dir={"pycmor": "src"},
-    packages=find_packages(where="src", exclude=("tests",)),
+    packages=find_packages(where="src", exclude=("tests", "scripts")),
     # NOTE: Please keep this list sorted! In vim, you can use
     # visual-block mode (Ctrl-V) to select the lines and then `:sort`.
     # or use the vim-ism (starting anywhere in the list)::
