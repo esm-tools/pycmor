@@ -25,7 +25,7 @@ The yaml file has 4 sections:
 - ``rules`` each rule defines parameters per variable.
 - ``pipelines`` processing steps to carry out cmorization procress.
 
-For detailed description on this sections, please refer to pycmor_building_blocks_
+For detailed description on this sections, please refer to :doc:`developer_guide`
 
 As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file called ``basic.yaml`` and populate with the following content
 

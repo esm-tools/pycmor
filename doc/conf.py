@@ -18,6 +18,8 @@ project = "pycmor"
 copyright = "2024, Paul Gierz"
 author = "Paul Gierz"
 
+# The full version, including alpha/beta/rc tags
+release = "0.1.0"
 
 modules = os.listdir("../src/")
 
@@ -58,19 +60,19 @@ with open("API.rst", "w") as rst:
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosectionlabel",
-    "sphinx.ext.graphviz",
+    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
     "sphinx_copybutton",
     "sphinx_tabs.tabs",
     "sphinx_toolbox.collapse",
     "sphinx_jinja",
-    "sphinx.ext.intersphinx",
-    "cerberus_sphinx_ext",
-    "everett.sphinxext",
-    "sphinx_click",
+    "sphinx.ext.autosectionlabel",
 ]
+
+# Ensure unique section labels
+suppress_warnings = ["autosectionlabel.*"]
 
 # Strip the input prompts for code cells when copying
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
@@ -90,7 +92,6 @@ intersphinx_mapping = {
     "cerberus": ("https://docs.python-cerberus.org/", None),
     "everett": ("https://everett.readthedocs.io/", None),
 }
-
 
 # -- Custom directives --------------------------------------------------------
 napoleon_custom_sections = [("Mutates", "params_style")]
