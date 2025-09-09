@@ -2,7 +2,7 @@ import io
 import os
 import re
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import versioneer
 
@@ -29,8 +29,8 @@ setup(
     description="Makes CMOR Simple",
     long_description=read("README.rst"),
     long_description_content_type="text/x-rst",
-    package_dir={"pycmor": "src"},
-    packages=['pycmor', 'pycmor.core', 'pycmor.data', 'pycmor.data_request'],
+    package_dir={"": "src"},
+    packages=find_packages(where='src', exclude=['scripts', 'fesom_2p1']),
     # NOTE: Please keep this list sorted! In vim, you can use
     # visual-block mode (Ctrl-V) to select the lines and then `:sort`.
     # or use the vim-ism (starting anywhere in the list)::
