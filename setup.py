@@ -29,7 +29,7 @@ setup(
     description="Makes CMOR Simple",
     long_description=read("README.rst"),
     long_description_content_type="text/x-rst",
-    package_dir={"": "src"},
+    package_dir={"pycmor": "src"},
     packages=find_packages(where="src", exclude=("tests",)),
     # NOTE: Please keep this list sorted! In vim, you can use
     # visual-block mode (Ctrl-V) to select the lines and then `:sort`.
