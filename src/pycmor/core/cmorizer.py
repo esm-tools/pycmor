@@ -63,8 +63,9 @@ class CMORizer:
         ################################################################################
         self._general_cfg = general_cfg or {}
         # Use pycmor_cfg if provided, otherwise fall back to pymor_cfg for backward compatibility
-        cfg_to_use = pycmor_cfg if pycmor_cfg is not None else pymor_cfg
-        self._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg(cfg_to_use or {})
+        pycmor_cfg = pycmor_cfg or pymor_cfg or {}
+        self._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg(pycmor_cfg)
+        self._pymor_cfg = self._pycmor_cfg  # For backward compatibility
         self._dask_cfg = dask_cfg or {}
         self._inherit_cfg = inherit_cfg or {}
         self.rules = rules_cfg or []

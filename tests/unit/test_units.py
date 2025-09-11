@@ -273,11 +273,11 @@ def test_catch_unit_conversion_problem(rule_with_data_request, mocker):
     # Set the return value for the property
     mock_getter.return_value = "broken_kg m-2 s-1"
     da = xr.DataArray(10, name="var1", attrs={"units": "broken_kg m-2 s-1"})
-    
+
     # In older versions of pint-xarray, it raises a ValueError with a specific message
     with pytest.raises(ValueError) as excinfo:
         handle_unit_conversion(da, rule_spec)
-    
+
     # Check that the error message contains the expected text
     assert "Cannot parse units" in str(excinfo.value)
     assert "broken_kg" in str(excinfo.value)

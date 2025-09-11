@@ -65,7 +65,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pycmor.core.config import PymorConfigManager
+from pycmor.core.config import PycmorConfigManager
 from pycmor.std_lib.files import _filename_time_range, save_dataset
 from pycmor.std_lib.timeaverage import _get_time_method  # noqa: F401
 

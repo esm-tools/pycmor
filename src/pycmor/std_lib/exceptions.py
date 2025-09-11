@@ -14,7 +14,5 @@ class PycmorResamplingError(PycmorError):
     """Error raised when resampling fails."""
 
 
-class PycmorResamplingTimeAxisIncompatibilityError(
-    PycmorResamplingError, ValueError
-):
+class PycmorResamplingTimeAxisIncompatibilityError(PycmorResamplingError, ValueError):
     """Error raised when resampling fails due to time axis incompatibility."""

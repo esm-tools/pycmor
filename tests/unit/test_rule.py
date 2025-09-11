@@ -20,7 +20,7 @@ def test_from_dict():
             },
             {
                 "path": "/some/other/files/containing/",
-                "pattern": r"var1_(?P<year>\d{4}).nc",
+                "pattern": r"var1_(?P<year>\d{4})\.nc",  # noqa: W605
             },
         ],
         "cmor_variable": "var1",
@@ -38,7 +38,7 @@ def test_from_yaml():
         - path: /some/files/containing/
           pattern: var1.*.nc
         - path: /some/other/files/containing/
-          pattern: var1_(?P<year>\d{4}).nc
+          pattern: var1_(?P<year>\d{4})\.nc  # noqa: W605
     cmor_variable: var1
     pipelines:
       - pycmor.core.pipeline.TestingPipeline

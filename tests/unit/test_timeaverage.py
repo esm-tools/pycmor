@@ -169,10 +169,13 @@ def test__frequency_from_approx_interval_year():
     # Test that 365 days is interpreted as 1 year
     result = pycmor.std_lib.timeaverage._frequency_from_approx_interval("365")
     assert result in ("YS", "1YS")  # Both formats are acceptable
-    
+
     # Test that 365 days is interpreted as 1 year (explicit check)
-    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("365") in ("YS", "1YS")
-    
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("365") in (
+        "YS",
+        "1YS",
+    )
+
     # Test that 1095 days (3 years) is interpreted as 3 years
     assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("1095") == "3YS"
 
@@ -181,7 +184,7 @@ def test__frequency_from_approx_interval_month():
     # Test that 30 days is interpreted as 1 month
     result = pycmor.std_lib.timeaverage._frequency_from_approx_interval("30")
     assert result in ("MS", "1MS")  # Both formats are acceptable
-    
+
     # Test that 60 days is interpreted as 2 months
     assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("60") == "2MS"
 
@@ -220,7 +223,9 @@ def test__frequency_from_approx_interval_minute():
 
 
 def test__frequency_from_approx_interval_second():
-    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.000011574") in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval(
+        "0.000011574"
+    ) in {
         "s",
         "1s",
     }  # Approximately one second in days

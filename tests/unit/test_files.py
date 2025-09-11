@@ -7,7 +7,6 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pycmor.core.config import PymorConfigManager
 from pycmor.std_lib.files import (
     file_timespan_tail,
     get_offset,
@@ -137,6 +136,7 @@ def test_split_data_timespan():
 def test_save_dataset(mocker):
     # Create a mock for _pymor_cfg that returns required values
     mock_cfg = mocker.Mock()
+
     # Configure side_effect to return different values based on the argument
     def cfg_side_effect(key):
         configs = {
@@ -147,26 +147,28 @@ def test_save_dataset(mocker):
             "xarray_time_enable_set_axis": False,
             "xarray_time_taxis_str": "T",
             "xarray_time_remove_fill_value_attr": False,
-            "file_timespan": "6MS"  # Match the file_timespan set in the test
+            "file_timespan": "6MS",  # Match the file_timespan set in the test
         }
         return configs.get(key, None)
-    
+
     mock_cfg.side_effect = cfg_side_effect
-    
+
     # Create a mock for the table header
     table_header = Mock()
     table_header.table_id = "Omon"
     table_header.approx_interval = "30"
-    
+
     # Create a mock for the data request variable
     data_request_variable = Mock()
     data_request_variable.table_header = table_header
     data_request_variable.frequency = "mon"
-    
+
     # Create a mock for the ga attribute
     ga_mock = Mock()
-    ga_mock.subdir_path.return_value = ""  # Return empty string to match the test's expectations
-    
+    ga_mock.subdir_path.return_value = (
+        ""  # Return empty string to match the test's expectations
+    )
+
     rule = Mock()
     rule.ga = ga_mock
     rule.data_request_variable = data_request_variable
@@ -205,7 +207,7 @@ def test_save_dataset(mocker):
         offset = get_offset(rule)
         if offset is not None:
             ds["time"] = ds.time + offset
-            
+
         # Debug: Print the rule configuration
         print("\nRule configuration:")
         print(f"  output_directory: {rule.output_directory}")
@@ -213,22 +215,22 @@ def test_save_dataset(mocker):
         print(f"  cmor_variable: {rule.cmor_variable}")
         print(f"  model_variable: {rule.model_variable}")
         print(f"  _pymor_cfg: {rule._pymor_cfg}")
-        
+
         # Debug: Print the dataset info
         print("\nDataset info:")
         print(f"  Variables: {list(ds.data_vars)}")
         print(f"  Time range: {ds.time.values[0]} to {ds.time.values[-1]}")
-        
+
         # Call the function under test
         save_dataset(ds, rule)
-        
+
         # Debug: List all files in the output directory
         print("\nFiles in output directory:")
         for f in Path(tmpdir).glob("*"):
             print(f"  - {f.name}")
-            
+
         nfiles = len(list(Path(tmpdir).glob("fgco2*.nc")))
         print(f"\nNumber of fgco2*.nc files found: {nfiles}")
-        
+
         # file-timespan is 6MS, so 2 years data should be split into 4 files
         assert nfiles == 4, f"Expected 4 files, found {nfiles}"

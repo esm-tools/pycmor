@@ -22,7 +22,11 @@ from .dev import utils as dev_utils
 from .fesom_1p4.nodes_to_levels import convert
 from .scripts.update_dimensionless_mappings import update_dimensionless_mappings
 
-MAX_FRAMES = int(os.environ.get("PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)))
+MAX_FRAMES = int(
+    os.environ.get(
+        "PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)
+    )
+)
 """
 str: The maximum number of frames to show in the traceback if there is an error. Default to 3
 """

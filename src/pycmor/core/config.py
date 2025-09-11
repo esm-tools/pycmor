@@ -380,6 +380,7 @@ class PycmorConfigManager(ConfigManager):
         except InvalidKeyError:
             return default
 
+
 # ---------------------------------------------------------------------------
 # Backward compatibility aliases (to be removed in a future release)
 # ---------------------------------------------------------------------------
@@ -387,4 +388,10 @@ PymorConfig = PycmorConfig
 PymorConfigManager = PycmorConfigManager
 
 # Legacy constructor compatibility
-setattr(PycmorConfigManager, "from_pymor_cfg", classmethod(lambda cls, run_specific_cfg=None: cls.from_pycmor_cfg(run_specific_cfg)))
+setattr(
+    PycmorConfigManager,
+    "from_pymor_cfg",
+    classmethod(
+        lambda cls, run_specific_cfg=None: cls.from_pycmor_cfg(run_specific_cfg)
+    ),
+)
