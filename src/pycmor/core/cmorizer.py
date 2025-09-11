@@ -442,7 +442,8 @@ class CMORizer:
     def _post_init_attach_pymor_config_rules(self):
         for rule in self.rules:
             # NOTE(PG): **COPY** (don't assign) the configuration to the rule
-            rule._pymor_cfg = copy.deepcopy(self._pymor_cfg)
+            rule._pycmor_cfg = copy.deepcopy(self._pycmor_cfg)
+            rule._pymor_cfg = rule._pycmor_cfg  # For backward compatibility
 
     def _post_init_inherit_rules(self):
         for rule_attr, rule_value in self._inherit_cfg.items():

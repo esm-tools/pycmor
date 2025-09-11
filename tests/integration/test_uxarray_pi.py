@@ -44,8 +44,8 @@ def test_process_native(pi_uxarray_config, pi_uxarray_data):
     logger.info(f"Processing {pi_uxarray_config}")
     with open(pi_uxarray_config, "r") as f:
         cfg = yaml.safe_load(f)
-    cfg["pymor"]["pipeline_workflow_orchestrator"] = "native"
-    cfg["pymor"]["dask_cluster"] = "local"
+    cfg["pycmor"]["pipeline_workflow_orchestrator"] = "native"
+    cfg["pycmor"]["dask_cluster"] = "local"
     for rule in cfg["rules"]:
         for input in rule["inputs"]:
             input["path"] = input["path"].replace("REPLACE_ME", str(pi_uxarray_data))
