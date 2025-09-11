@@ -1,6 +1,7 @@
 """
 Tests for pyfesom2 functionality as used in pycmor
 """
+
 import os
 
 import pytest
