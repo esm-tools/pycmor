@@ -1,6 +1,8 @@
 import os
+
 import pytest
 import xarray as xr
+
 from pycmor.core.gather_inputs import load_mfdataset
 
 

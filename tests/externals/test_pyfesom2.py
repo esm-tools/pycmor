@@ -2,8 +2,10 @@
 Tests for pyfesom2 functionality as used in pycmor
 """
 import os
+
 import pytest
 from pyfesom2.load_mesh_data import load_mesh
+
 import pycmor.core.rule
 
 
