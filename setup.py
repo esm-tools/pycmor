@@ -57,7 +57,7 @@ setup(
         "imohash",
         "joblib",
         "netcdf4",
-        "numbagg",
+        "numbagg<0.9.0",  # Pin to avoid TypeAlias import issue in Python 3.9
         "numpy",
         "pendulum",
         "pint-xarray<0.6.0",
