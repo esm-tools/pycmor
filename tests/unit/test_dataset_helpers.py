@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymor.std_lib.dataset_helpers import (
+from pycmor.std_lib.dataset_helpers import (
     freq_is_coarser_than_data,
     get_time_label,
     has_time_axis,

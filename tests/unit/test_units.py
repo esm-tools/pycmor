@@ -4,8 +4,8 @@ import pytest
 import xarray as xr
 from chemicals import periodic_table
 
-from pymor.core.cmorizer import CMORizer
-from pymor.std_lib.units import handle_chemicals, handle_unit_conversion, ureg
+from pycmor.core.cmorizer import CMORizer
+from pycmor.std_lib.units import handle_chemicals, handle_unit_conversion, ureg
 
 #  input samples that are found in CMIP6 tables and in fesom1 (recom)
 allunits = [
@@ -223,7 +223,7 @@ def test_dimensionless_unit_missing_in_unit_mapping(rule_with_data_request, mock
 def test_units_with_g_kg_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
         },
@@ -244,7 +244,7 @@ def test_units_with_g_kg_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
 def test_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
         },
@@ -273,16 +273,23 @@ def test_catch_unit_conversion_problem(rule_with_data_request, mocker):
     # Set the return value for the property
     mock_getter.return_value = "broken_kg m-2 s-1"
     da = xr.DataArray(10, name="var1", attrs={"units": "broken_kg m-2 s-1"})
-    with pytest.raises(ValueError, match="Cannot parse units:"):
+    
+    # In older versions of pint-xarray, it raises a ValueError with a specific message
+    with pytest.raises(ValueError) as excinfo:
         handle_unit_conversion(da, rule_spec)
+    
+    # Check that the error message contains the expected text
+    assert "Cannot parse units" in str(excinfo.value)
+    assert "broken_kg" in str(excinfo.value)
 
 
 def test_scalar_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
     """Test the conversion of dimensionless units"""
     cmorizer = CMORizer(
-        pymor_cfg={
+        pycmor_cfg={
             "parallel": False,
             "enable_dask": False,
+            "warn_on_no_rule": False,
         },
         general_cfg={
             "CMIP_Tables_Dir": CMIP_Tables_Dir,
@@ -292,7 +299,6 @@ def test_scalar_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
         rules_cfg=[rule_sos],
     )
     da = xr.DataArray(10, name="sos", attrs={"units": "1e3 g/g"})
-
     new_da = handle_unit_conversion(da, cmorizer.rules[0])
     assert new_da.attrs.get("units") == "0.001"
     # Check the magnitude of the data after conversion:

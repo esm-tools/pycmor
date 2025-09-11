@@ -29,7 +29,7 @@ The file cache can be loaded and saved using the following functions:
 
 .. code-block:: python
 
-    >>> from pymor.core.filecache import Filecache
+    >>> from pycmor.core.filecache import Filecache
     >>> cache = Filecache.load()
     >>> cache.save()
 

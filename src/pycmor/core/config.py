@@ -1,5 +1,5 @@
 """
-This module defines the configuration hierarchy for the pymor application, using
+This module defines the configuration hierarchy for the pycmor application, using
 ``everett``'s ``~everett.manager.ConfigManager``. The configuration hierarchy is as follows (lowest to highest
 priority):
     1. Hardcoded defaults
@@ -8,8 +8,8 @@ priority):
     4. Environment variables
     5. Command-line switches
 
-The configuration hierarchy is defined in the ``from_pymor_cfg`` class method, and
-cannot be modified outside the class. You should initialize a ``PymorConfigManager``
+The configuration hierarchy is defined in the ``from_pycmor_cfg`` class method, and
+cannot be modified outside the class. You should initialize a ``PycmorConfigManager``
 object (probably in your ``CMORizer``) and grab config values from it by calling with the
 config key as an argument.
 
@@ -18,10 +18,10 @@ User Configuration File
 
 You can define global configuration options in a user configuration file. The files found at these
 locations will be used, in highest to lowest priority order:
-    1. ``${PYMOR_CONFIG_FILE}``
-    2. ``${XDG_CONFIG_HOME}/pymor.yaml``
-    3. ``${XDG_CONFIG_HOME}/pymor/pymor.yaml``
-    4. ``~/.pymor.yaml``
+    1. ``${PYCMOR_CONFIG_FILE}``
+    2. ``${XDG_CONFIG_HOME}/pycmor.yaml``
+    3. ``${XDG_CONFIG_HOME}/pycmor/pycmor.yaml``
+    4. ``~/.pycmor.yaml``
 
 Note that the ``${XDG_CONFIG_HOME}`` environment variable defaults to ``~/.config`` if it is not set.
 
@@ -30,17 +30,17 @@ Configuration Options
 
 You can configure the following:
 
-.. autocomponentconfig:: pymor.core.config.PymorConfig
+.. autocomponentconfig:: pycmor.core.config.PycmorConfig
    :case: upper
    :show-table:
-   :namespace: pymor
+   :namespace: pycmor
 
 Usage
 -----
 Here are some examples of how to use the configuration manager::
 
-    >>> pymor_cfg = {}
-    >>> config = PymorConfigManager.from_pymor_cfg(pymor_cfg)
+    >>> pycmor_cfg = {}
+    >>> config = PycmorConfigManager.from_pycmor_cfg(pycmor_cfg)
 
     >>> engine = config("xarray_engine")
     >>> print(f"Using xarray backend: {engine}")
@@ -50,16 +50,16 @@ Here are some examples of how to use the configuration manager::
     >>> print(f"Running in parallel: {parallel}")
     Running in parallel: True
 
-You can define a user file at ``${XDG_CONFIG_DIR}/pymor/pymor.yaml``::
+You can define a user file at ``${XDG_CONFIG_DIR}/pycmor/pycmor.yaml``::
 
     >>> import pathlib
     >>> import yaml
-    >>> cfg_file = pathlib.Path("~/.config/pymor/pymor.yaml").expanduser()
+    >>> cfg_file = pathlib.Path("~/.config/pycmor/pycmor.yaml").expanduser()
     >>> cfg_file.parent.mkdir(parents=True, exist_ok=True)
     >>> cfg_to_dump = {"xarray_engine": "zarr"}
     >>> with open(cfg_file, "w") as f:
     ...     yaml.dump(cfg_to_dump, f)
-    >>> config = PymorConfigManager.from_pymor_cfg()
+    >>> config = PycmorConfigManager.from_pycmor_cfg()
     >>> engine = config("xarray_engine")
     >>> print(f"Using xarray backend: {engine}")
     Using xarray backend: zarr
@@ -85,7 +85,7 @@ from everett.manager import (
     parse_bool,
 )
 
-DIMENSIONLESS_MAPPING_TABLE = files("pymor.data").joinpath(
+DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath(
     "dimensionless_mappings.yaml"
 )
 
@@ -96,7 +96,7 @@ def _parse_bool(value):
     return parse_bool(value)
 
 
-class PymorConfig:
+class PycmorConfig:
     class Config:
         # [FIXME] Keep the list of all options alphabetical!
         dask_cluster = Option(
@@ -276,9 +276,9 @@ class PymorConfig:
         )
 
 
-class PymorConfigManager(ConfigManager):
+class PycmorConfigManager(ConfigManager):
     """
-    Custom ConfigManager for Pymor, with a predefined hierarchy and
+    Custom ConfigManager for Pycmor, with a predefined hierarchy and
     support for injecting run-specific configuration.
     """
 
@@ -287,7 +287,13 @@ class PymorConfigManager(ConfigManager):
     _CONFIG_FILES = [
         str(f)
         for f in [
-            os.environ.get("PYMOR_CONFIG_FILE"),
+            # Prefer new env var, fall back to legacy
+            os.environ.get("PYCMOR_CONFIG_FILE") or os.environ.get("PYMOR_CONFIG_FILE"),
+            # Prefer new locations
+            pathlib.Path(f"{_XDG_CONFIG_HOME}/pycmor.yaml").expanduser(),
+            pathlib.Path(f"{_XDG_CONFIG_HOME}/pycmor/pycmor.yaml").expanduser(),
+            pathlib.Path("~/.pycmor.yaml").expanduser(),
+            # Legacy fallbacks
             pathlib.Path(f"{_XDG_CONFIG_HOME}/pymor.yaml").expanduser(),
             pathlib.Path(f"{_XDG_CONFIG_HOME}/pymor/pymor.yaml").expanduser(),
             pathlib.Path("~/.pymor.yaml").expanduser(),
@@ -297,9 +303,9 @@ class PymorConfigManager(ConfigManager):
     """List[str] : The list of configuration files to check for user configuration."""
 
     @classmethod
-    def from_pymor_cfg(cls, run_specific_cfg=None):
+    def from_pycmor_cfg(cls, run_specific_cfg=None):
         """
-        Create a PymorConfigManager with the appropriate hierarchy.
+        Create a PycmorConfigManager with the appropriate hierarchy.
 
         Parameters
         ----------
@@ -319,17 +325,17 @@ class PymorConfigManager(ConfigManager):
         # 1. Hardcoded defaults
         # Handled by ``manager.with_options`` below
 
-        # Combine everything into a new PymorConfigManager instance
+        # Combine everything into a new PycmorConfigManager instance
         manager = cls(
             environments=[user_file, run_specific, env_vars],
         )
-        manager = manager.with_options(PymorConfig)
+        manager = manager.with_options(PycmorConfig)
         return manager
 
     # NOTE(PG): Need to override this method, the original implementation in the parent class
     # explicitly uses ConfigManager (not cls) to create the clone instance.
     def clone(self):
-        my_clone = PymorConfigManager(
+        my_clone = PycmorConfigManager(
             environments=list(self.envs),
             doc=self.doc,
             msg_builder=self.msg_builder,
@@ -347,9 +353,9 @@ class PymorConfigManager(ConfigManager):
     def __repr__(self) -> str:
         if self.bound_component:
             name = _get_component_name(self.bound_component)
-            return f"<PymorConfigManager({name}): namespace:{self.get_namespace()}>"
+            return f"<PycmorConfigManager({name}): namespace:{self.get_namespace()}>"
         else:
-            return f"<PymorConfigManager: namespace:{self.get_namespace()}>"
+            return f"<PycmorConfigManager: namespace:{self.get_namespace()}>"
 
     def get(self, key, default=None, parser=None):
         """
@@ -373,3 +379,12 @@ class PymorConfigManager(ConfigManager):
             return self(key, parser=parser)
         except InvalidKeyError:
             return default
+
+# ---------------------------------------------------------------------------
+# Backward compatibility aliases (to be removed in a future release)
+# ---------------------------------------------------------------------------
+PymorConfig = PycmorConfig
+PymorConfigManager = PycmorConfigManager
+
+# Legacy constructor compatibility
+setattr(PycmorConfigManager, "from_pymor_cfg", classmethod(lambda cls, run_specific_cfg=None: cls.from_pycmor_cfg(run_specific_cfg)))

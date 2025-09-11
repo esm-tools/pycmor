@@ -2,7 +2,7 @@
 Default Unit conversions
 ========================
 
-In this example, we show how to do "default unit conversions". ``pymor`` can handle some standard cases, assuming
+In this example, we show how to do "default unit conversions". ``pycmor`` can handle some standard cases, assuming
 your NetCDF files are sensible. We show two examples:
 
 1. ``mmolC/m2/d`` --> ``kg m-2 s-2``, as in ``fgco2`` for ``CMIP6_Omon.json``:

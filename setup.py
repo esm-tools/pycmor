@@ -18,11 +18,11 @@ docs_require = read("doc/requirements.txt").splitlines()
 
 
 setup(
-    name="py-cmor",
+    name="pycmor",
     python_requires=">=3.9, <4",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    url="https://github.com/esm-tools/pymor",
+    url="https://github.com/esm-tools/pycmor",
     license="MIT",
     author="Paul Gierz",
     author_email="pgierz@awi.de",
@@ -60,7 +60,7 @@ setup(
         "numbagg",
         "numpy",
         "pendulum",
-        "pint-xarray",
+        "pint-xarray<0.6.0",
         "prefect[dask]",
         "pyyaml",
         "questionary",
@@ -101,17 +101,25 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "pymor=pymor.cli:main",
-            "pymorize=pymor.cli:main",
+            # Canonical entry point
+            "pycmor=pycmor.cli:main",
+            # Backward-compatible alias for one transition release
+            "pymor=pycmor.cli:main",
         ],
+        # New canonical plugin entry point group
+        "pycmor.cli_subcommands": [
+            "plugins=pycmor.core.plugins:plugins",
+            "externals=pycmor.core.externals:externals",
+        ],
+        # Backward-compatible plugin group for existing plugins
         "pymor.cli_subcommands": [
-            "plugins=pymor.core.plugins:plugins",
-            "externals=pymor.core.externals:externals",
+            "plugins=pycmor.core.plugins:plugins",
+            "externals=pycmor.core.externals:externals",
         ],
     },
     include_package_data=True,
     package_data={
-        "pymor": ["data/*.yaml", "data/cmip7/all_var_info.json"],
+        "pycmor": ["data/*.yaml", "data/cmip7/all_var_info.json"],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

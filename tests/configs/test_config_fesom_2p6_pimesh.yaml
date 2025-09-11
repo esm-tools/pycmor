@@ -1,4 +1,4 @@
-pymor:
+pycmor:
   warn_on_no_rule: False
   parallel: False
 general:

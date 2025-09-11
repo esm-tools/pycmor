@@ -6,15 +6,15 @@ goes wrong in the standard library.
 # NOTE(PG): I am not sure what is better; to have this here, or to have each exception next to the step code...
 
 
-class PymorizeError(Exception):
-    """Base class for all errors raised by pymorize."""
+class PycmorError(Exception):
+    """Base class for all errors raised by pycmor."""
 
 
-class PymorizeResamplingError(PymorizeError):
+class PycmorResamplingError(PycmorError):
     """Error raised when resampling fails."""
 
 
-class PymorizeResamplingTimeAxisIncompatibilityError(
-    PymorizeResamplingError, ValueError
+class PycmorResamplingTimeAxisIncompatibilityError(
+    PycmorResamplingError, ValueError
 ):
     """Error raised when resampling fails due to time axis incompatibility."""

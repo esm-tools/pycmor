@@ -5,9 +5,9 @@ general:
   email: "pgierz@awi.de"
   cmor_version: "CMIP6"
   mip: "CMIP"
-  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/Tables"
-  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pymor/cmip6-cmor-tables/CMIP6_CVs/"
-pymor:
+  CMIP_Tables_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/Tables"
+  CV_Dir: "/work/ab0246/a270077/SciComp/Projects/pycmor/cmip6-cmor-tables/CMIP6_CVs/"
+pycmor:
   # parallel: True
   warn_on_no_rule: False
   use_flox: True
@@ -22,7 +22,7 @@ rules:
   - name: Dissolved Inorganic Carbon in Seawater
     description: "dissic from REcoM, showing missing units in NetCDF"
     inputs:
-      - path: "/work/ab0246/a270077/SciComp/Projects/pymor/examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
+      - path: "/work/ab0246/a270077/SciComp/Projects/pycmor.examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
         pattern: bgc02_fesom_.*.nc
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
@@ -38,7 +38,7 @@ rules:
   - name: Seawater Alkalinity
     description: "talk from REcoM, showing missing units in NetCDF"
     inputs:
-      - path: "/work/ab0246/a270077/SciComp/Projects/pymor/examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
+      - path: "/work/ab0246/a270077/SciComp/Projects/pycmor.examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
         pattern: bgc03_fesom_.*.nc
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
@@ -64,7 +64,7 @@ distributed:
 # SLURM-specific settings for launching workers
 jobqueue:
   slurm:
-    name: pymor-worker
+    name: pycmor.worker
     queue: compute # SLURM queue/partition to submit jobs
     account: ab0246 # SLURM project/account name
     cores: 4 # Number of cores per worker

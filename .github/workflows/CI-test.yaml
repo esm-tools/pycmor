@@ -33,7 +33,7 @@ jobs:
       - name: Run full flake8 check
         run: |
           # stop at any error
-          flake8 . --show-source --statistics --exclude ./cmip6-cmor-tables,./build,_version.py,./src/pymor/webapp.py,./CMIP7_DReq_Software
+          flake8 . --show-source --statistics --exclude ./cmip6-cmor-tables,./build,_version.py,./src/pycmor/webapp.py,./CMIP7_DReq_Software
       - name: Run isort
         run: |
           isort --profile black --check --skip ./cmip6-cmor-tables --skip ./versioneer.py --skip ./CMIP7_DReq_Software .
@@ -77,21 +77,21 @@ jobs:
           export NETCDF_DEBUG=1
           export XARRAY_ENGINE=h5netcdf
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          pytest -vvv -s --cov=src/pymor tests/meta/**.py
+          pytest -vvv -s --cov=src/pycmor tests/meta/**.py
       - name: Test with pytest (Unit)
         run: |
           export XARRAY_ENGINE=h5netcdf
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          pytest -vvv -s --cov=src/pymor --cov-append tests/unit/**.py
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/unit/**.py
       - name: Test with pytest (Integration)
         run: |
           export XARRAY_ENGINE=h5netcdf
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          pytest -vvv -s --cov=src/pymor --cov-append tests/integration/**.py
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/integration/**.py
       - name: Test with doctest
         run: |
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          PYTHONPATH=src pytest -v --doctest-modules --cov=src/pymor --cov-append src/
+          PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor --cov-append src/
       - name: Generate coverage report
         run: |
           python -m coverage xml -o coverage-${{ matrix.python-version }}.xml

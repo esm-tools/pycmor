@@ -1,7 +1,7 @@
 """
-============================
-The Pymorize Standard Library
-============================
+==========================
+The Pycmor Standard Library
+==========================
 The standard library contains functions that are included in the default
 pipelines, and are generally used as ``step`` functions. We expose several
 useful ones:
@@ -27,8 +27,8 @@ from ..core.logging import logger
 from ..core.rule import Rule
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
 from .exceptions import (
-    PymorizeResamplingError,
-    PymorizeResamplingTimeAxisIncompatibilityError,
+    PycmorResamplingError,
+    PycmorResamplingTimeAxisIncompatibilityError,
 )
 from .generic import load_data as _load_data
 from .generic import show_data as _show_data
@@ -199,14 +199,14 @@ def temporal_resample(
     time_dim = get_time_label(data)
     freq = rule.data_request_variable.frequency
     if not freq_is_coarser_than_data(freq, data):
-        raise PymorizeResamplingTimeAxisIncompatibilityError(
+        raise PycmorResamplingTimeAxisIncompatibilityError(
             f"Requested frequency {freq} for cmor variable {rule.cmor_variable} is finer than the dataset's ({rule.model_variable}) inherent frequency. Cannot resample!"  # noqa: E501
         )
     try:
         return data.resample({time_dim: freq}).mean()
     except Exception as e:
         logger.exception(e)
-        raise PymorizeResamplingError(
+        raise PycmorResamplingError(
             f"Error during resampling model {rule.model_variable} for CMOR {rule.cmor_variable}: {e}"
         )
 

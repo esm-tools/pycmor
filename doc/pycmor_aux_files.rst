@@ -1,6 +1,6 @@
-======================================
-Usage: ``pymor`` Using auxiliary files
-======================================
+=======================================
+Usage: ``pycmor`` Using auxiliary files
+=======================================
 
 At times, your post-processing will require additional files beyond the actual data.
 For example, say your are analyzing FESOM output, and need to know the computational mesh

@@ -3,12 +3,12 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from pymor.core.infer_freq import (
+from pycmor.core.infer_freq import (
     infer_frequency,
     is_resolution_fine_enough,
     log_frequency_check,
 )
-from pymor.core.time_utils import get_time_label, is_datetime_type
+from pycmor.core.time_utils import get_time_label, is_datetime_type
 
 
 @pytest.fixture
