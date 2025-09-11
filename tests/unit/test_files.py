@@ -134,24 +134,21 @@ def test_split_data_timespan():
 
 
 def test_save_dataset(mocker):
-    # Create a mock for _pymor_cfg that returns required values
+    # Create a mock for _pycmor_cfg that returns required values
     mock_cfg = mocker.Mock()
-
-    # Configure side_effect to return different values based on the argument
-    def cfg_side_effect(key):
-        configs = {
-            "xarray_time_dtype": "float64",
-            "xarray_time_unlimited": False,
-            "xarray_time_set_standard_name": False,
-            "xarray_time_set_long_name": False,
-            "xarray_time_enable_set_axis": False,
-            "xarray_time_taxis_str": "T",
-            "xarray_time_remove_fill_value_attr": False,
-            "file_timespan": "6MS",  # Match the file_timespan set in the test
-        }
-        return configs.get(key, None)
-
-    mock_cfg.side_effect = cfg_side_effect
+    configs = {
+        "xarray_time_dtype": "float64",
+        "xarray_time_unlimited": False,
+        "xarray_time_set_standard_name": False,
+        "xarray_time_set_long_name": False,
+        "xarray_time_enable_set_axis": True,  # Enable axis setting
+        "xarray_time_taxis_str": "T",
+        "xarray_time_remove_fill_value_attr": False,
+        "file_timespan": "6MS",  # Match the file_timespan set in the test
+        "enable_output_subdirs": False,  # Add this to prevent subdirectory creation
+    }
+    mock_cfg.side_effect = lambda key, default=None: configs.get(key, default)
+    mock_cfg.get = configs.get
 
     # Create a mock for the table header
     table_header = Mock()
@@ -172,7 +169,7 @@ def test_save_dataset(mocker):
     rule = Mock()
     rule.ga = ga_mock
     rule.data_request_variable = data_request_variable
-    rule._pymor_cfg = mock_cfg
+    rule._pycmor_cfg = mock_cfg  # Use the mock object
     rule.cmor_variable = "fgco2"
     rule.data_request_variable.table_header.table_id = "Omon"
     rule.variant_label = "r1i1p1f1"
