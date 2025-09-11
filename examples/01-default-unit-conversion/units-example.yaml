@@ -4,7 +4,7 @@ general:
   mip: "CMIP"
   CMIP_Tables_Dir: "/work/ab0995/a270243/pycmor.cmip6-cmor-tables/Tables"
   CV_Dir: "/work/ab0995/a270243/pycmor.cmip6-cmor-tables/CMIP6_CVs"
-pycmor.
+pycmor:
   # parallel: True
   warn_on_no_rule: False
   use_flox: True
