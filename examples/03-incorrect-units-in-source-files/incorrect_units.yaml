@@ -22,7 +22,7 @@ rules:
   - name: Dissolved Inorganic Carbon in Seawater
     description: "dissic from REcoM, showing missing units in NetCDF"
     inputs:
-      - path: "/work/ab0246/a270077/SciComp/Projects/pycmor.examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
+      - path: "/work/ab0246/a270077/SciComp/Projects/pymor/examples/03-incorrect-units-in-source-files/model_runs/piControl_LUtrans1850/outdata/recom/"
         pattern: bgc02_fesom_.*.nc
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
