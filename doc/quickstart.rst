@@ -158,7 +158,7 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep ssh $(ls -rdt logs/pycmor/process* | tail -n 1)
+    ➜ grep ssh $(ls -rdt logs/pycmor-process* | tail -n 1)
     pycmor ssh-tunnel --username a270243 --compute-node l10395.lvt.dkrz.de
 
 - checking unit conversion:
