@@ -61,5 +61,5 @@ Note: It is possible to use ``pycmor.fesom_1p4.nodes_to_levels`` directly in
 the pipeline instead of this wrapped function.
 
 Check out ``wo_cellarea.yaml`` for details on how these functions are inserted
-in the pipeline, ``pycmor.wo_cellarea.slurm`` for the job submission
+in the pipeline, ``pycmor_wo_cellarea.slurm`` for the job submission
 script. The ``wo_cellarea.py`` has these custom functions defined.
