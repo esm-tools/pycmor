@@ -33,7 +33,7 @@ As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file c
 
     general:
       cmor_version: "CMIP6"
-      CMIP_Tables_Dir: "/Users/pasili001/repos/tmp_rename/cmip6-cmor-tables/Tables"
+      CMIP_Tables_Dir: "/Users/pasili001/repos/pycmor/cmip6-cmor-tables/Tables"
       CV_Dir: /Users/pasili001/repos/tmp_rename/cmip6-cmor-tables/CMIP6_CVs
     pycmor:
       warn_on_no_rule: False
