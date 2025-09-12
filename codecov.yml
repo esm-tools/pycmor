@@ -6,7 +6,7 @@ coverage:
       default:
         threshold: 10% # Allow ten percent coverage decreases (a bit high, but that's fine for now...)
 ignore:
-  - "src/pycmorize/_version.py"
+  - "src/pycmor/_version.py"
   - "cmip6-cmor-tables/**/*"
   - "CMIP7_DReq_Software/**/*"
   - "versioneer.py"
