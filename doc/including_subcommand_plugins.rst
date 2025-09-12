@@ -47,7 +47,7 @@ Then, in your ``setup.py`` file, you can register this subcommand as an entry po
 
 After installing your package, you should be able to run your subcommand like this::
 
-    $ pycmor.my_subcommand
+    $ pycmor my_subcommand
     Hello from my subcommand!
 
 That's it! ``pycmor`` will automatically discover your subcommand and make it available to the user. To list available subcommands, run ``pycmor --help``, or ``pycmor plugins list``.
