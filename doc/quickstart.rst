@@ -171,7 +171,7 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep -i "molC" $(ls -rthd logs/pycmor/process* | tail -n 1 )
+    ➜ grep -i "molC" $(ls -rthd logs/pycmor-process* | tail -n 1 )
     2025-03-13 09:06:37.158 | INFO     | pycmor.units:handle_unit_conversion:148 - Converting units: (CO2f -> fgco2) mmolC/m2/d -> kg m-2 s-1 (kg m-2 s-1)
     2025-03-13 09:06:37.158 | DEBUG    | pycmor.units:handle_chemicals:67 - Chemical element Carbon detected in units mmolC/m2/d.
     2025-03-13 09:06:37.158 | DEBUG    | pycmor.units:handle_chemicals:68 - Registering definition: molC = 12.0107 * g
