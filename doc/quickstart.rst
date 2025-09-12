@@ -143,7 +143,7 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep Dashboard $(ls -rdt logs/pycmor/process* | tail -n 1)
+    ➜ grep Dashboard $(ls -rdt logs/pycmor-process* | tail -n 1)
     2025-03-14 06:45:52.825 | INFO     | pycmor.cmorizer:_post_init_create_dask_cluster:192 - Dashboard http://127.0.0.1:8787/status
 
   The dashboard link ``http://127.0.0.1:8787/status`` almost remains
