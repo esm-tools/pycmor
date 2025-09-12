@@ -5,7 +5,7 @@ Upward ocean mass transport
 The vertical velocity component 𝑤 (saved as ``wo`` in fesom) is scaled by the
 cell area as well as a reference density 𝜌0 = 1035 kg m−3.
 
-``Pycmorize`` tool does not have in-built function that can handle such a
+``Pycmor`` tool does not have in-built function that can handle such a
 computation but it is simple and straightforward to define a custom function and
 include it in the pipeline.
 
