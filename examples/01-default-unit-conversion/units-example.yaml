@@ -2,7 +2,7 @@ general:
   name: "units-example"
   cmor_version: "CMIP6"
   mip: "CMIP"
-  CMIP_Tables_Dir: "/work/ab0995/a270243/pycmor.cmip6-cmor-tables/Tables"
+  CMIP_Tables_Dir: "/work/ab0995/a270243/pycmor/cmip6-cmor-tables/Tables"
   CV_Dir: "/work/ab0995/a270243/pycmor/cmip6-cmor-tables/CMIP6_CVs"
 pycmor:
   # parallel: True
