@@ -14,7 +14,7 @@ pycmor:
 rules:
   - name: cellarea_wo
     inputs:
-      - path: /work/ab0995/a270243/pycmor/sample_data
+      - path: /work/ab0995/a270243/pycmor_sample_data
         pattern: wo_fesom_.*nc
     cmor_variable: wmo
     model_variable: wo
