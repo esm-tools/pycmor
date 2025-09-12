@@ -36,7 +36,7 @@ library can recognize the units. For instance, say the units of some variable is
 
 .. code-block:: python
    :linenos:
-      from pycmor.ze.units import ureg, handle_chemicals
+      from pycmor.std_lib.units import ureg, handle_chemicals
       handle_chemicals("mmolC/m2/d")    # this call registers moles of Carbon in grams.
       somevariable = ureg("mmolC/m2/d")
 
