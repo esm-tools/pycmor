@@ -23,7 +23,7 @@ include it in the pipeline.
 Notice in the above function, ``density`` is defined as a unit aware
 quantity so that the correct dimensionality reduction happens
 automatically in the calculations. Also notice the ``ureg``
-function. This function is provided by pycmor.tool.  The advantage
+function. This function is provided by ``pycmor`` tool.  The advantage
 of using this function as opposed to ``UnitRegistry`` from ``pint``
 library is that it can handle various kinds of unit notations. For
 instance, ``pint`` does not recognize the unit notation ``kg m-3``. It
