@@ -41,7 +41,7 @@ keywords = ["cmor", "climate", "data", "netcdf", "cmip"]
 # NOTE: Please keep this list sorted! In vim, you can use
 # visual-block mode (Ctrl-V) to select the lines and then `:sort`.
 dependencies = [
-    "bokeh>=3.6.2",
+    "bokeh>=3.4.3",
     "cerberus>=1.3.5",
     "cf_xarray>=0.9.4",
     "cftime>=1.6.4",
