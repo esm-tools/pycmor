@@ -1,4 +1,4 @@
-pymor:
+pycmor:
   version: "unreleased"
   use_xarray_backend: True
   warn_on_no_rule: False
@@ -16,15 +16,15 @@ general:
   CV_Dir: "./cmip6-cmor-tables/CMIP6_CVs"
 pipelines:
   - name: "test_pipeline"
-    uses: "pymor.core.pipeline.TestingPipeline"
+    uses: "pycmor.core.pipeline.TestingPipeline"
   - name: "my_pipeline"
     steps:
-      - "pymor.std_lib.generic.dummy_load_data"
-      - "pymor.std_lib.units.handle_unit_conversion"
-      - "pymor.std_lib.generic.dummy_save_data"
+      - "pycmor.std_lib.generic.dummy_load_data"
+      - "pycmor.std_lib.units.handle_unit_conversion"
+      - "pycmor.std_lib.generic.dummy_save_data"
   - name: "sleeper_pipeline"
     steps:
-      - "pymor.std_lib.generic.dummy_sleep"
+      - "pycmor.std_lib.generic.dummy_sleep"
 rules:
   - name: "tas_rule"
     pipelines: ["my_pipeline"]

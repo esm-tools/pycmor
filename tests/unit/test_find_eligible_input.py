@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from pymor.core.gather_inputs import (
+from pycmor.core.gather_inputs import (
     _files_to_string,
     _filter_by_year,
     _input_files_in_path,
@@ -187,7 +187,7 @@ def test__sort_by_year(fs_with_datestamps_years):
     import random
 
     random.shuffle(files)
-    fpattern = re.compile(r".*(?P<year>\d{4}).*")
+    fpattern = re.compile(r".*(?P<year>\d{4}).*")  # noqa: W605
 
     # Act
     sorted_files = _sort_by_year(files, fpattern)
@@ -253,7 +253,7 @@ def test__filter_by_year(fs_with_datestamps_years):
     fake_files = [
         pathlib.Path(f"/path/to/file_{year}.txt") for year in range(2000, 2010)
     ]
-    fpattern = re.compile(r"file_(?P<year>\d{4})\.txt")
+    fpattern = re.compile(r"file_(?P<year>\d{4})\.txt")  # noqa: W605
 
     # Test filtering files from 2010 to 2015
     filtered_files = _filter_by_year(fake_files, fpattern, 2000, 2005)

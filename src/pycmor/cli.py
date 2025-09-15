@@ -22,7 +22,11 @@ from .dev import utils as dev_utils
 from .fesom_1p4.nodes_to_levels import convert
 from .scripts.update_dimensionless_mappings import update_dimensionless_mappings
 
-MAX_FRAMES = int(os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3))
+MAX_FRAMES = int(
+    os.environ.get(
+        "PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)
+    )
+)
 """
 str: The maximum number of frames to show in the traceback if there is an error. Default to 3
 """
@@ -33,7 +37,7 @@ VERSION = _version.get_versions()["version"]
 
 # global constants
 LOG_FILE_RETENTION = 3
-NAME = "pymor"
+NAME = "pycmor"
 # define the CLI
 click_loguru = ClickLoguru(
     NAME,
@@ -60,20 +64,21 @@ def pymor_cli_group(func):
 
 def find_subcommands():
     """
-    Finds CLI Subcommands for installed pymor plugins
+    Finds CLI Subcommands for installed plugins in both legacy and new groups.
     """
-    discovered_subcommands = {
-        entry_point.name: {
-            "plugin_name": entry_point.module_name.split(".")[0],
-            "callable": entry_point.load(),
-        }
-        for entry_point in pkg_resources.iter_entry_points("pymor.cli_subcommands")
-    }
+    groups = ["pycmor.cli_subcommands", "pymor.cli_subcommands"]
+    discovered_subcommands = {}
+    for group in groups:
+        for entry_point in pkg_resources.iter_entry_points(group):
+            discovered_subcommands[entry_point.name] = {
+                "plugin_name": entry_point.module_name.split(".")[0],
+                "callable": entry_point.load(),
+            }
     return discovered_subcommands
 
 
 @click_loguru.logging_options
-@click.group(name="pymor", help="PyMOR - Makes CMOR Simple")
+@click.group(name="pycmor", help="PyCMOR - Makes CMOR Simple")
 @click_loguru.stash_subcommand()
 @click.version_option(version=VERSION, prog_name=NAME)
 def cli(verbose, quiet, logfile, profile_mem):
@@ -121,6 +126,13 @@ def prefect_check(config_file):
 @click_loguru.init_logger()
 def table_explorer():
     logger.info("Launching table explorer...")
+    try:
+        with resources.path("pycmor", "webapp.py") as webapp_path:
+            sys.argv = ["streamlit", "run", str(webapp_path)]
+            stcli.main()
+            return
+    except Exception:
+        pass
     with resources.path("pymor", "webapp.py") as webapp_path:
         sys.argv = ["streamlit", "run", str(webapp_path)]
         stcli.main()
@@ -344,7 +356,8 @@ cli.add_command(cache)
 def main():
     for entry_point_name, entry_point in find_subcommands().items():
         cli.add_command(entry_point["callable"], name=entry_point_name)
-    cli(auto_envvar_prefix="PYMOR")
+    # Prefer new env var prefix, but keep backward compatibility
+    cli(auto_envvar_prefix="PYCMOR")
 
 
 if __name__ == "__main__":

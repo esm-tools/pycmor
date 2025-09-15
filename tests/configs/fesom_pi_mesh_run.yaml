@@ -9,4 +9,4 @@ rules:
         pattern: sst.fesom.*.nc
     cmor_variable: tos
     output_directory: ./sandbox/
-    pipelines: ["pymor.fesom.FESOMRegridPipeline"]
+    pipelines: ["pycmor.fesom.FESOMRegridPipeline"]

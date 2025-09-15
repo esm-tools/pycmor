@@ -1,4 +1,4 @@
-from pymor.fesom_1p4 import load_mesh_data
+from pycmor.fesom_1p4 import load_mesh_data
 
 
 def test_load_mesh_awicm_1p0_recom(awicm_1p0_recom_data):

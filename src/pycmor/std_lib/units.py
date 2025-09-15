@@ -79,8 +79,8 @@ def _get_units(
                 raise ValueError(
                     f"Empty dimensionless mapping found for variable '{cmor_variable}' with unit '{to_unit}'. "
                     f"Please update the {dimless_mapping} file with an appropriate value. "
-                    f"See the PyMorize documentation at "
-                    f"https://pymorize.readthedocs.io/en/latest/cookbook.html#working-with-dimensionless-units "
+                    f"See the Pycmor documentation at "
+                    f"https://pycmor.readthedocs.io/en/latest/cookbook.html#working-with-dimensionless-units "
                     f"for more information on how to contribute dimensionless mappings."
                 )
             logger.info(
@@ -91,8 +91,8 @@ def _get_units(
             raise KeyError(
                 f"Dimensionless unit '{to_unit}' not found in mappings for variable '{cmor_variable}'. "
                 f"Please add an appropriate mapping to {dimless_mapping}. "
-                f"See the PyMorize documentation at "
-                f"https://pymorize.readthedocs.io/en/latest/cookbook.html#working-with-dimensionless-units "
+                f"See the Pycmor documentation at "
+                f"https://pycmor.readthedocs.io/en/latest/cookbook.html#working-with-dimensionless-units "
                 f"for more information on how to contribute dimensionless mappings."
             )
     if from_unit is None:

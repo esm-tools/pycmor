@@ -30,7 +30,7 @@ files is wrong, e.g.:
 
 The actual input unit in both cases is :math:`\frac{mmol}{m^{3}}`, i.e. use ``mult_factor = 1/1e3`` to convert from mmol to mol.
 
-Happily enough, ``pymor`` provides an easy way to rectify this without needing to edit the source files with something like ``ncatted``. You
+Happily enough, ``pycmor`` provides an easy way to rectify this without needing to edit the source files with something like ``ncatted``. You
 can specify the correct units in the ``model_unit`` setting of the ``rule``. Here is an example of how to do that:
 
 .. literalinclude:: ../examples/03-incorrect-units-in-source-files/incorrect_units.yaml

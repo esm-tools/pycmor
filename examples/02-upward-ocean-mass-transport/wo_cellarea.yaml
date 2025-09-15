@@ -2,9 +2,9 @@ general:
   name: "wo_cellarea"
   cmor_version: "CMIP6"
   mip: "CMIP"
-  CMIP_Tables_Dir: "/work/ab0995/a270243/pymor/cmip6-cmor-tables/Tables"
-  CV_Dir: "/work/ab0995/a270243/pymor/cmip6-cmor-tables/CMIP6_CVs"
-pymor:
+  CMIP_Tables_Dir: "/work/ab0995/a270243/pycmor/cmip6-cmor-tables/Tables"
+  CV_Dir: "/work/ab0995/a270243/pycmor/cmip6-cmor-tables/CMIP6_CVs"
+pycmor:
   # parallel: True
   warn_on_no_rule: False
   use_flox: True
@@ -14,7 +14,7 @@ pymor:
 rules:
   - name: cellarea_wo
     inputs:
-      - path: /work/ab0995/a270243/pymor_sample_data
+      - path: /work/ab0995/a270243/pycmor_sample_data
         pattern: wo_fesom_.*nc
     cmor_variable: wmo
     model_variable: wo
@@ -31,17 +31,17 @@ rules:
 pipelines:
   - name: default
     steps:
-      - "pymor.core.gather_inputs.load_mfdataset"
-      - "pymor.std_lib.get_variable"
+      - "pycmor.core.gather_inputs.load_mfdataset"
+      - "pycmor.std_lib.get_variable"
       - "script://./wo_cellarea.py:nodes_to_levels"
-      - "pymor.std_lib.time_average"
+      - "pycmor.std_lib.time_average"
       - "script://./wo_cellarea.py:weight_by_cellarea_and_density"
-      - "pymor.std_lib.convert_units"
-      - "pymor.std_lib.setgrid.setgrid"
-      - "pymor.std_lib.set_global_attributes"
-      - "pymor.std_lib.trigger_compute"
-      - "pymor.std_lib.show_data"
-      - "pymor.std_lib.files.save_dataset"
+      - "pycmor.std_lib.convert_units"
+      - "pycmor.std_lib.setgrid.setgrid"
+      - "pycmor.std_lib.set_global_attributes"
+      - "pycmor.std_lib.trigger_compute"
+      - "pycmor.std_lib.show_data"
+      - "pycmor.std_lib.files.save_dataset"
 # Settings for using dask-distributed
 distributed:
   worker:
@@ -56,7 +56,7 @@ distributed:
 # SLURM-specific settings for launching workers
 jobqueue:
   slurm:
-    name: pymor-worker
+    name: pycmor-worker
     queue: compute # SLURM queue/partition to submit jobs
     account: ab0246 # SLURM project/account name
     cores: 4 # Number of cores per worker

@@ -588,14 +588,14 @@ class CMIP7DataRequestTable(DataRequestTable):
 
     @classmethod
     def from_all_var_info_json(cls, table_name: str) -> "CMIP7DataRequestTable":
-        _all_var_info = files("pymor.data.cmip7").joinpath("all_var_info.json")
+        _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
         all_var_info = json.load(open(_all_var_info, "r"))
         return cls.from_all_var_info(table_name, all_var_info)
 
     @classmethod
     def from_all_var_info(cls, table_name: str, all_var_info: dict = None):
         if all_var_info is None:
-            _all_var_info = files("pymor.data.cmip7").joinpath("all_var_info.json")
+            _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
             all_var_info = json.load(open(_all_var_info, "r"))
         header = CMIP7DataRequestTableHeader.from_all_var_info(table_name, all_var_info)
         variables = []

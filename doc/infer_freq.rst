@@ -25,7 +25,7 @@ Quick Start
 
    import xarray as xr
    import cftime
-   from pymor.core.infer_freq import infer_frequency
+   from pycmor.core.infer_freq import infer_frequency
 
    # Create a DataArray with 360_day calendar
    times = [cftime.Datetime360Day(2000, m, 15) for m in range(1, 5)]
@@ -138,7 +138,7 @@ The ``status`` field in ``FrequencyResult`` indicates the quality and characteri
 .. code-block:: python
 
    import cftime
-   from toypymor.infer_freq import infer_frequency
+   from toypycmor.infer_freq import infer_frequency
 
    # Valid: Perfect monthly spacing
    times_valid = [
@@ -191,14 +191,14 @@ The following methods are available via xarray accessors:
 
 **DataArray Accessor (``da.timefreq``):**
 
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.infer_frequency
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.check_resolution
-.. automethod:: pymor.core.infer_freq.TimeFrequencyAccessor.resample_safe
+.. automethod:: pycmor.core.infer_freq.TimeFrequencyAccessor.infer_frequency
+.. automethod:: pycmor.core.infer_freq.TimeFrequencyAccessor.check_resolution
+.. automethod:: pycmor.core.infer_freq.TimeFrequencyAccessor.resample_safe
 
 **Dataset Accessor (``ds.timefreq``):**
 
-.. automethod:: pymor.core.infer_freq.DatasetFrequencyAccessor.infer_frequency
-.. automethod:: pymor.core.infer_freq.DatasetFrequencyAccessor.resample_safe
+.. automethod:: pycmor.core.infer_freq.DatasetFrequencyAccessor.infer_frequency
+.. automethod:: pycmor.core.infer_freq.DatasetFrequencyAccessor.resample_safe
 
 Calendar Support
 ----------------

@@ -1,17 +1,17 @@
 =====================================
-Usage: ``pymor``'s Building Blocks
+Usage: ``pycmor``'s Building Blocks
 =====================================
 
-The ``pymor`` command line interface (CLI) and its main configuration file has a few basic concepts you should be familiar with before you start using it. This guide
+The ``pycmor`` command line interface (CLI) and its main configuration file has a few basic concepts you should be familiar with before you start using it. This guide
 will give you a brief overview of these concepts.
 
 Configuration
 -------------
 
-The configuration is the central piece of the ``pymor`` CLI. It is a YAML file that specifies the behavior of
+The configuration is the central piece of the ``pycmor`` CLI. It is a YAML file that specifies the behavior of
 the CLI. The configuration file is divided into several sections:
 
-1. ``pymor``: This section contains the configuration for the CLI itself. It specifies the program version, log verbosity, the location of the user configuration file, and the location of the log file.
+1. ``pycmor``: This section contains the configuration for the CLI itself. It specifies the program version, log verbosity, the location of the user configuration file, and the location of the log file.
 2. ``general``: This section contains information that will be passed to all pipelines. You will specify the location of the data directory (your model output files),
    the output directory (where re-written data should be stored), the location of the CMOR tables, the location of your model's geometry description file (or files), and
    any other information that may be needed by all pipelines.
@@ -27,7 +27,7 @@ types and structures that are expected in the configuration file.
 
 Steps
 -----
-The true heart of ``pymor`` are so-called ``steps``, which are nothing more than Python functions
+The true heart of ``pycmor`` are so-called ``steps``, which are nothing more than Python functions
 that take a data as input and return a possible modified dataset as output:
 
   .. code-block:: python
@@ -39,14 +39,14 @@ that take a data as input and return a possible modified dataset as output:
 
 Steps will **always** have the call signature ``def step(data: Any, rule: Rule) -> Any``. The ``data``
 parameter is the data that this step will operate on, and could be *anything*, but is typically either
-a :py:class:`~xarray.Dataset` or a :py:class:`~numpy.ndarray`. The ``rule`` parameter is a special ``pymor``
+a :py:class:`~xarray.Dataset` or a :py:class:`~numpy.ndarray`. The ``rule`` parameter is a special ``pycmor``
 object that contains information about the current data being processed, including it's CMOR name,
 the files it comes from, and other valuable information described in the CMIP data requests.
 
 Pipelines
 ---------
 
-:py:class:`~pymor.pipeline.Pipeline`'s come in two flavors. The first is a predefined pipeline, which is
+:py:class:`~pycmor.pipeline.Pipeline`'s come in two flavors. The first is a predefined pipeline, which is
 attached to the configuration via a ``uses`` directive. In the user configuration file, you would specify it
 like this:
 
@@ -55,7 +55,7 @@ like this:
       # ... other configuration
       pipelines:
         - name: my_pipeline
-          uses: pymor.pipeline.DefaultPipeline
+          uses: pycmor.pipeline.DefaultPipeline
       # ... other configuration
 
 Alternatively you can define your own pipeline by specifying the steps it should take. Here is an example of a
@@ -67,9 +67,9 @@ custom pipeline:
       pipelines:
         - name: my_pipeline
           steps:
-            - pymor.generic.dummy_load_data
-            - pymor.generic.dummy_process_data
-            - pymor.generic.dummy_save_data
+            - pycmor.generic.dummy_load_data
+            - pycmor.generic.dummy_process_data
+            - pycmor.generic.dummy_save_data
       # ... other configuration
 
 Rules

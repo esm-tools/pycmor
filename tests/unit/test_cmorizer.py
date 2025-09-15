@@ -2,8 +2,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from pymor.core.cmorizer import CMORizer
-from pymor.core.pipeline import TestingPipeline
+from pycmor.core.cmorizer import CMORizer
+from pycmor.core.pipeline import TestingPipeline
 
 
 @pytest.mark.skip
@@ -20,15 +20,15 @@ def test_parallel_process(CMIP_Tables_Dir):
     ]  # assuming there are 5 rules
 
     # Use patch to replace Client with our mock_client in the context of this test
-    with patch("pymor.cmorizer.Client", return_value=mock_client):
-        pymor_cfg = {"parallel": True}
+    with patch("pycmor.cmorizer.Client", return_value=mock_client):
+        pycmor_cfg = {"parallel": True}
         general_cfg = {"CMIP_Tables_Dir": CMIP_Tables_Dir}
         pipelines_cfg = [TestingPipeline()]
         rules_cfg = [
             {"name": f"rule_{i}", "cmor_variable": ["tas"], "input_patterns": [".*"]}
             for i in range(5)
         ]
-        cmorizer = CMORizer(pymor_cfg, general_cfg, pipelines_cfg, rules_cfg)
+        cmorizer = CMORizer(pycmor_cfg, general_cfg, pipelines_cfg, rules_cfg)
         results = cmorizer.parallel_process()
 
     # Check that submit was called once for each rule

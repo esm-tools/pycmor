@@ -1,12 +1,12 @@
 import re
 
-from pymor.core.controlled_vocabularies import ControlledVocabularies
-from pymor.core.factory import create_factory
-from pymor.std_lib.global_attributes import GlobalAttributes
+from pycmor.core.controlled_vocabularies import ControlledVocabularies
+from pycmor.core.factory import create_factory
+from pycmor.std_lib.global_attributes import GlobalAttributes
 
 # Name, expected pass
-creation_date_format = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
-tracking_id_format = r"^hdl:\d{2}\.\d{5}/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}$"
+creation_date_format = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"  # noqa: W605
+tracking_id_format = r"^hdl:\d{2}\.\d{5}/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}$"  # noqa: W605
 global_attributes = {
     "Conventions": "CF-1.7 CMIP-6.2",
     "activity_id": "CMIP",

@@ -7,8 +7,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymor.core.config import PymorConfigManager
-from pymor.std_lib.files import (
+from pycmor.std_lib.files import (
     file_timespan_tail,
     get_offset,
     save_dataset,
@@ -134,11 +133,44 @@ def test_split_data_timespan():
             assert len(set(chunk.time.dt.month.values)) == 12
 
 
-def test_save_dataset():
+def test_save_dataset(mocker):
+    # Create a mock for _pycmor_cfg that returns required values
+    mock_cfg = mocker.Mock()
+    configs = {
+        "xarray_time_dtype": "float64",
+        "xarray_time_unlimited": False,
+        "xarray_time_set_standard_name": False,
+        "xarray_time_set_long_name": False,
+        "xarray_time_enable_set_axis": True,  # Enable axis setting
+        "xarray_time_taxis_str": "T",
+        "xarray_time_remove_fill_value_attr": False,
+        "file_timespan": "6MS",  # Match the file_timespan set in the test
+        "enable_output_subdirs": False,  # Add this to prevent subdirectory creation
+    }
+    mock_cfg.side_effect = lambda key, default=None: configs.get(key, default)
+    mock_cfg.get = configs.get
+
+    # Create a mock for the table header
+    table_header = Mock()
+    table_header.table_id = "Omon"
+    table_header.approx_interval = "30"
+
+    # Create a mock for the data request variable
+    data_request_variable = Mock()
+    data_request_variable.table_header = table_header
+    data_request_variable.frequency = "mon"
+
+    # Create a mock for the ga attribute
+    ga_mock = Mock()
+    ga_mock.subdir_path.return_value = (
+        ""  # Return empty string to match the test's expectations
+    )
+
     rule = Mock()
-    rule.data_request_variable.table_header.approx_interval = "30"
-    rule.data_request_variable.frequency = "mon"
-    rule._pymor_cfg = PymorConfigManager.from_pymor_cfg({})
+    rule.ga = ga_mock
+    rule.data_request_variable = data_request_variable
+    rule._pycmor_cfg = mock_cfg  # Use the mock object
+    rule._pymor_cfg = mock_cfg  # For backward compatibility
     rule.cmor_variable = "fgco2"
     rule.data_request_variable.table_header.table_id = "Omon"
     rule.variant_label = "r1i1p1f1"
@@ -147,6 +179,7 @@ def test_save_dataset():
     rule.institution = "AWI"
     rule.adjust_timestamp = None
     rule.file_timespan = "6MS"
+    rule.model_variable = "air"  # Add model_variable to match the data variable name
     # creating 2 years data with daily frequency
     timeindex = xr.cftime_range("2000", periods=365 * 2, freq="D", calendar="standard")
     air = xr.Dataset(
@@ -172,7 +205,30 @@ def test_save_dataset():
         offset = get_offset(rule)
         if offset is not None:
             ds["time"] = ds.time + offset
+
+        # Debug: Print the rule configuration
+        print("\nRule configuration:")
+        print(f"  output_directory: {rule.output_directory}")
+        print(f"  file_timespan: {rule.file_timespan}")
+        print(f"  cmor_variable: {rule.cmor_variable}")
+        print(f"  model_variable: {rule.model_variable}")
+        print(f"  _pymor_cfg: {rule._pymor_cfg}")
+
+        # Debug: Print the dataset info
+        print("\nDataset info:")
+        print(f"  Variables: {list(ds.data_vars)}")
+        print(f"  Time range: {ds.time.values[0]} to {ds.time.values[-1]}")
+
+        # Call the function under test
         save_dataset(ds, rule)
+
+        # Debug: List all files in the output directory
+        print("\nFiles in output directory:")
+        for f in Path(tmpdir).glob("*"):
+            print(f"  - {f.name}")
+
         nfiles = len(list(Path(tmpdir).glob("fgco2*.nc")))
+        print(f"\nNumber of fgco2*.nc files found: {nfiles}")
+
         # file-timespan is 6MS, so 2 years data should be split into 4 files
-        assert nfiles == 4
+        assert nfiles == 4, f"Expected 4 files, found {nfiles}"

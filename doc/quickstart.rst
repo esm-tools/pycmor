@@ -7,25 +7,25 @@ Installation
 
 Installation from source repository::
 
-  git clone https://esm-tools/pymor.git
-  cd pymor
-  pip install pymor[<extras>]
+  git clone https://esm-tools/pycmor.git
+  cd pycmor
+  pip install pycmor[<extras>]
 
 For more details in installation options, please refer section installation_
 
-Setting up a task to pymor
+Setting up a task to pycmor
 -----------------------------
 
-At the heart of ``pymor`` is the yaml configuration file. ``pymor`` gathers all
+At the heart of ``pycmor`` is the yaml configuration file. ``pycmor`` gathers all
 the information it needs to perform CMORization of your data from this file.
 
 The yaml file has 4 sections:
 - ``general`` global settings that are applicable to all the rules
-- ``pymor`` setting for the controlling the behavior of the tool
+- ``pycmor`` settings for controlling the behavior of the tool
 - ``rules`` each rule defines parameters per variable.
 - ``pipelines`` processing steps to carry out cmorization procress.
 
-For detailed description on this sections, please refer to pymor_building_blocks_
+For detailed description on this sections, please refer to pycmor_building_blocks_
 
 As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file called ``basic.yaml`` and populate with the following content
 
@@ -33,9 +33,9 @@ As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file c
 
     general:
       cmor_version: "CMIP6"
-      CMIP_Tables_Dir: "/Users/pasili001/repos/pymor/cmip6-cmor-tables/Tables"
-      CV_Dir: /Users/pasili001/repos/pymor/cmip6-cmor-tables/CMIP6_CVs
-    pymor:
+      CMIP_Tables_Dir: "/Users/pasili001/repos/pycmor/cmip6-cmor-tables/Tables"
+      CV_Dir: /Users/pasili001/repos/pycmor/cmip6-cmor-tables/CMIP6_CVs
+    pycmor:
       warn_on_no_rule: False
       dask_cluster: "local"
       enable_output_subdirs: False
@@ -57,18 +57,18 @@ As an example task to cmorize ``FESOM 1.4``'s ``CO2f`` variable, create a file c
     pipelines:
       - name: default
         steps:
-          - "pymor.gather_inputs.load_mfdataset"
-          - "pymor.generic.get_variable"
-          - "pymor.timeaverage.compute_average"
-          - "pymor.units.handle_unit_conversion"
-          - "pymor.global_attributes.set_global_attributes"
-          - "pymor.generic.trigger_compute"
-          - "pymor.files.save_dataset"
+          - "pycmor.gather_inputs.load_mfdataset"
+          - "pycmor.generic.get_variable"
+          - "pycmor.timeaverage.compute_average"
+          - "pycmor.units.handle_unit_conversion"
+          - "pycmor.global_attributes.set_global_attributes"
+          - "pycmor.generic.trigger_compute"
+          - "pycmor.files.save_dataset"
       - name: partial
         steps:
-          - "pymor.gather_inputs.load_mfdataset"
-          - "pymor.generic.get_variable"
-          - "pymor.units.handle_unit_conversion"
+          - "pycmor.gather_inputs.load_mfdataset"
+          - "pycmor.generic.get_variable"
+          - "pycmor.units.handle_unit_conversion"
 
 Here is a brief description of each field in each section.
 
@@ -78,7 +78,7 @@ Here is a brief description of each field in each section.
       cmor_version: <- specify CMIP version. i.e., CMIP6 or CMIP7
       CMIP_Tables_Dir: <- path to CMIP tables
       CV_Dir: <- path to CMIP controlled vocabularies
-    pymor:
+    pycmor:
       warn_on_no_rule: <- Turn on or off warnings (not mandatory)
       dask_cluster: <- Specify the dask cluster to use. i.e., "local" or "slurm"
       enable_output_subdirs: <- if True, creates sub-dirs according to DRS described in CVs
@@ -100,18 +100,18 @@ Here is a brief description of each field in each section.
     pipelines:
       - name: default  <- any descriptive name
         steps:
-          - "pymor.gather_inputs.load_mfdataset"
-          - "pymor.generic.get_variable"
-          - "pymor.timeaverage.compute_average"
-          - "pymor.units.handle_unit_conversion"
-          - "pymor.global_attributes.set_global_attributes"ß
-          - "pymor.generic.trigger_compute"
-          - "pymor.files.save_dataset"
+          - "pycmor.gather_inputs.load_mfdataset"
+          - "pycmor.generic.get_variable"
+          - "pycmor.timeaverage.compute_average"
+          - "pycmor.units.handle_unit_conversion"
+          - "pycmor.global_attributes.set_global_attributes"ß
+          - "pycmor.generic.trigger_compute"
+          - "pycmor.files.save_dataset"
       - name: partial
         steps:
-          - "pymor.gather_inputs.load_mfdataset"
-          - "pymor.generic.get_variable"
-          - "pymor.units.handle_unit_conversion"
+          - "pycmor.gather_inputs.load_mfdataset"
+          - "pycmor.generic.get_variable"
+          - "pycmor.units.handle_unit_conversion"
 
 
 There is more that can be specified in the configuration file but for
@@ -122,13 +122,13 @@ for a sanity check as follows
 
 .. code:: shell
 
-  ➜ pymor validate config basic.yaml
+  ➜ pycmor validate config basic.yaml
 
 To run the task just run the following command
 
 .. code:: shell
 
-  ➜ pymor process basic.yaml
+  ➜ pycmor process basic.yaml
 
 As the tool is working on the task, a lot of logging information is
 printed out to the terminal screen. The same information is also written
@@ -143,8 +143,8 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep Dashboard $(ls -rdt logs/pymor-process* | tail -n 1)
-    2025-03-14 06:45:52.825 | INFO     | pymor.cmorizer:_post_init_create_dask_cluster:192 - Dashboard http://127.0.0.1:8787/status
+    ➜ grep Dashboard $(ls -rdt logs/pycmor-process* | tail -n 1)
+    2025-03-14 06:45:52.825 | INFO     | pycmor.cmorizer:_post_init_create_dask_cluster:192 - Dashboard http://127.0.0.1:8787/status
 
   The dashboard link ``http://127.0.0.1:8787/status`` almost remains
   the same unless some other dask dashboard is already running on the
@@ -158,8 +158,8 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep ssh $(ls -rdt logs/pymor-process* | tail -n 1)
-    pymor ssh-tunnel --username a270243 --compute-node l10395.lvt.dkrz.de
+    ➜ grep ssh $(ls -rdt logs/pycmor-process* | tail -n 1)
+    pycmor ssh-tunnel --username a270243 --compute-node l10395.lvt.dkrz.de
 
 - checking unit conversion:
   In this example, model variable ``CO2f`` has
@@ -171,14 +171,14 @@ to watch out for in the logs.
 
   .. code:: shell
 
-    ➜ grep -i "molC" $(ls -rthd logs/pymor-process* | tail -n 1 )
-    2025-03-13 09:06:37.158 | INFO     | pymor.units:handle_unit_conversion:148 - Converting units: (CO2f -> fgco2) mmolC/m2/d -> kg m-2 s-1 (kg m-2 s-1)
-    2025-03-13 09:06:37.158 | DEBUG    | pymor.units:handle_chemicals:67 - Chemical element Carbon detected in units mmolC/m2/d.
-    2025-03-13 09:06:37.158 | DEBUG    | pymor.units:handle_chemicals:68 - Registering definition: molC = 12.0107 * g
-    2025-03-13 09:06:37.470 | INFO     | pymor.units:handle_unit_conversion:148 - Converting units: (CO2f -> fgco2) mmolC/m2/d -> kg m-2 s-1 (kg m-2 s-1)
+    ➜ grep -i "molC" $(ls -rthd logs/pycmor-process* | tail -n 1 )
+    2025-03-13 09:06:37.158 | INFO     | pycmor.units:handle_unit_conversion:148 - Converting units: (CO2f -> fgco2) mmolC/m2/d -> kg m-2 s-1 (kg m-2 s-1)
+    2025-03-13 09:06:37.158 | DEBUG    | pycmor.units:handle_chemicals:67 - Chemical element Carbon detected in units mmolC/m2/d.
+    2025-03-13 09:06:37.158 | DEBUG    | pycmor.units:handle_chemicals:68 - Registering definition: molC = 12.0107 * g
+    2025-03-13 09:06:37.470 | INFO     | pycmor.units:handle_unit_conversion:148 - Converting units: (CO2f -> fgco2) mmolC/m2/d -> kg m-2 s-1 (kg m-2 s-1)
 
 Hopefully, this is good enough as a starting point for using this tool.
 
 As next steps checkout ``examples`` directory for ``sample.yaml`` file which
-contains more configuration options and also ``pymor.slurm`` file which is
+contains more configuration options and also ``pycmor.slurm`` file which is
 used for submitting the job to slurm
