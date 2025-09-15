@@ -205,8 +205,8 @@ extend_skip_glob = [
 max-line-length = 120
 extend-ignore = ["E203", "W503"]
 extend-exclude = [
-    "cmip6-cmor-tables/CMIP6_CVs/src",
-    "CMIP7_DReq_Software/",
+    "cmip6-cmor-tables/*",
+    "CMIP7_DReq_Software/*",
     "_version.py",
     "versioneer.py",
 ]
