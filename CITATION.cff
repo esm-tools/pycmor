@@ -18,7 +18,7 @@ authors:
   orcid: "https://orcid.org/0000-0001-9515-3322"
   affiliation: "Alfred-Wegener-Institut Helmholtz-Zentrum für Polar- und Meeresforschung"
 
-title: "pymor"
+title: "pycmor"
 doi: 10.5281/zenodo.15530131
 date-released: 2025-05-27
-url: "https://github.com/esm-tools/pymor"
+url: "https://github.com/esm-tools/pycmor"
