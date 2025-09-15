@@ -1,4 +1,4 @@
-from pymor.std_lib.generic import sort_dimensions
+from pycmor.std_lib.generic import sort_dimensions
 
 
 def test_sort_dimensions(dummy_array, rule_with_unsorted_data):

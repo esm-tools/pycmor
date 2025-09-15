@@ -249,24 +249,24 @@ class DefaultPipeline(FrozenPipeline):
     Parameters
     ----------
     name : str, optional
-        The name of the pipeline. If not provided, it defaults to "pymor.pipeline.DefaultPipeline".
+        The name of the pipeline. If not provided, it defaults to "pycmor.pipeline.DefaultPipeline".
     """
 
     # FIXME(PG): This is not so nice. All things should come out of the std_lib,
     #            but it is a good start...
     STEPS = (
-        "pymor.core.gather_inputs.load_mfdataset",
-        "pymor.std_lib.generic.get_variable",
-        "pymor.std_lib.timeaverage.timeavg",
-        "pymor.std_lib.units.handle_unit_conversion",
-        "pymor.std_lib.global_attributes.set_global_attributes",
-        "pymor.std_lib.variable_attributes.set_variable_attributes",
-        "pymor.core.caching.manual_checkpoint",
-        "pymor.std_lib.generic.trigger_compute",
-        "pymor.std_lib.generic.show_data",
-        "pymor.std_lib.files.save_dataset",
+        "pycmor.core.gather_inputs.load_mfdataset",
+        "pycmor.std_lib.generic.get_variable",
+        "pycmor.std_lib.timeaverage.timeavg",
+        "pycmor.std_lib.units.handle_unit_conversion",
+        "pycmor.std_lib.global_attributes.set_global_attributes",
+        "pycmor.std_lib.variable_attributes.set_variable_attributes",
+        "pycmor.core.caching.manual_checkpoint",
+        "pycmor.std_lib.generic.trigger_compute",
+        "pycmor.std_lib.generic.show_data",
+        "pycmor.std_lib.files.save_dataset",
     )
-    NAME = "pymor.pipeline.DefaultPipeline"
+    NAME = "pycmor.pipeline.DefaultPipeline"
 
 
 class TestingPipeline(FrozenPipeline):
@@ -278,7 +278,7 @@ class TestingPipeline(FrozenPipeline):
     Parameters
     ----------
     name : str, optional
-        The name of the pipeline. If not provided, it defaults to "pymor.pipeline.TestingPipeline".
+        The name of the pipeline. If not provided, it defaults to "pycmor.pipeline.TestingPipeline".
 
     Warning
     -------
@@ -288,8 +288,8 @@ class TestingPipeline(FrozenPipeline):
     __test__ = False  # Prevent pytest from thinking this is a test, as the class name starts with test.
 
     STEPS = (
-        "pymor.std_lib.generic.dummy_load_data",
-        "pymor.std_lib.generic.dummy_logic_step",
-        "pymor.std_lib.generic.dummy_save_data",
+        "pycmor.std_lib.generic.dummy_load_data",
+        "pycmor.std_lib.generic.dummy_logic_step",
+        "pycmor.std_lib.generic.dummy_save_data",
     )
-    NAME = "pymor.pipeline.TestingPipeline"
+    NAME = "pycmor.pipeline.TestingPipeline"

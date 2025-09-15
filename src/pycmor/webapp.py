@@ -8,7 +8,7 @@ data tables.
 
 Launch it from the command line with::
 
-    $ pymor table-explorer
+    $ pycmor table-explorer
 
 .. image:: images/table-explorer.png
 
@@ -47,12 +47,12 @@ GitHub, improving performance when dealing with a large number of tables.
 
 This module contains several functions:
 
-- `process_table(tbl_name: str, data: dict)`: Processes a single table,
+- **`process_table(tbl_name: str, data: dict)`**: Processes a single table,
                                               extracting key information and
                                               updating global data structures.
-- `show_selected_variable(varname)`: Displays information about
+- **`show_selected_variable(varname)`**: Displays information about
                                      the selected variable.
-- `load_data_from_github(f, ctx)`: Loads a single table from GitHub.
+- **`load_data_from_github(f, ctx)`**: Loads a single table from GitHub.
 
 The application uses several global data structures to store information
 about the tables and variables, including `tbls`, `tbl_raw_data`,

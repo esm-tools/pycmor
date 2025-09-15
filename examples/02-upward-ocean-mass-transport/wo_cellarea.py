@@ -20,8 +20,8 @@ Step.2 Apply cell_area calculations
 
 import xarray as xr
 
-import pymor.fesom_1p4
-from pymor.std_lib.units import ureg
+import pycmor.fesom_1p4
+from pycmor.std_lib.units import ureg
 
 
 def nodes_to_levels(data, rule):
@@ -31,7 +31,7 @@ def nodes_to_levels(data, rule):
             "Set `mesh_path` path in yaml config."
             "Required for converting nodes to levels"
         )
-    return pymor.fesom_1p4.nodes_to_levels(data, rule)
+    return pycmor.fesom_1p4.nodes_to_levels(data, rule)
 
 
 def weight_by_cellarea_and_density(data, rule):

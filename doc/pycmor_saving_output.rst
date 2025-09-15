@@ -36,5 +36,5 @@ should be contained in each file. You can use the key ``"file_timespan"``:
 
 The full list of possibilities for the frequency strings can be found here: https://pandas.pydata.org/docs/user_guide/timeseries.html#offset-aliases
 
-This can also be changed globally and overridden on a per-rule basis. You can either do this in the inherit section, or, in the ``pymor`` configuration as
-the key ``file_timespan``. Note that the ``pymor`` configuration can also be shared across runs, see the detailed information in :ref:`pymor_configuration`
+This can also be changed globally and overridden on a per-rule basis. You can either do this in the inherit section, or, in the ``pycmor`` configuration as
+the key ``file_timespan``. Note that the ``pycmor`` configuration can also be shared across runs, see the detailed information in :ref:`pycmor_configuration`

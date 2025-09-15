@@ -28,7 +28,7 @@ from .cluster import (
     DaskContext,
     set_dashboard_link,
 )
-from .config import PymorConfig, PymorConfigManager
+from .config import PycmorConfig, PycmorConfigManager
 from .controlled_vocabularies import ControlledVocabularies
 from .factory import create_factory
 from .filecache import fc
@@ -38,7 +38,7 @@ from .rule import Rule
 from .utils import wait_for_workers
 from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
 
-DIMENSIONLESS_MAPPING_TABLE = files("pymor.data").joinpath(
+DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath(
     "dimensionless_mappings.yaml"
 )
 """Path: The dimenionless unit mapping table, used to recreate meaningful units from
@@ -52,6 +52,7 @@ class CMORizer:
     def __init__(
         self,
         pymor_cfg=None,
+        pycmor_cfg=None,  # New parameter name
         general_cfg=None,
         pipelines_cfg=None,
         rules_cfg=None,
@@ -61,7 +62,10 @@ class CMORizer:
     ):
         ################################################################################
         self._general_cfg = general_cfg or {}
-        self._pymor_cfg = PymorConfigManager.from_pymor_cfg(pymor_cfg or {})
+        # Use pycmor_cfg if provided, otherwise fall back to pymor_cfg for backward compatibility
+        pycmor_cfg = pycmor_cfg or pymor_cfg or {}
+        self._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg(pycmor_cfg)
+        self._pymor_cfg = self._pycmor_cfg  # For backward compatibility
         self._dask_cfg = dask_cfg or {}
         self._inherit_cfg = inherit_cfg or {}
         self.rules = rules_cfg or []
@@ -89,7 +93,7 @@ class CMORizer:
         logger.debug("PyMOR Configuration:")
         logger.debug("--------------------")
         # This isn't actually the config, it's the "App" object. Everett is weird about this...
-        pymor_config = PymorConfig()
+        pymor_config = PycmorConfig()
         # NOTE(PG): This variable is for demonstration purposes:
         _pymor_config_dict = {}
         for namespace, key, value, option in get_runtime_config(
@@ -112,7 +116,7 @@ class CMORizer:
 
         ################################################################################
         # Post_Init:
-        if self._pymor_cfg("enable_dask"):
+        if self._pycmor_cfg("enable_dask"):
             logger.debug("Setting up dask configuration...")
             self._post_init_configure_dask()
             logger.debug("...done!")
@@ -438,7 +442,8 @@ class CMORizer:
     def _post_init_attach_pymor_config_rules(self):
         for rule in self.rules:
             # NOTE(PG): **COPY** (don't assign) the configuration to the rule
-            rule._pymor_cfg = copy.deepcopy(self._pymor_cfg)
+            rule._pycmor_cfg = copy.deepcopy(self._pycmor_cfg)
+            rule._pymor_cfg = rule._pycmor_cfg  # For backward compatibility
 
     def _post_init_inherit_rules(self):
         for rule_attr, rule_value in self._inherit_cfg.items():
@@ -537,8 +542,10 @@ class CMORizer:
         if "general" in data:
             if not GENERAL_VALIDATOR.validate({"general": data["general"]}):
                 raise ValueError(GENERAL_VALIDATOR.errors)
+        # Use pycmor config if available, otherwise fall back to pymor for backward compatibility
+        pycmor_cfg = data.get("pycmor", data.get("pymor", {}))
         instance = cls(
-            pymor_cfg=data.get("pymor", {}),
+            pycmor_cfg=pycmor_cfg,
             general_cfg=data.get("general", {}),
             dask_cfg={
                 "distributed": data.get("distributed", {}),

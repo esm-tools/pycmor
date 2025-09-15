@@ -9,6 +9,6 @@ if [ -d model_runs ]; then
 fi
 
 module load py-python-swiftclient
-swift download pymorize_demo 01-default-unit-conversion-model-runs.tgz
+swift download pycmor_demo 01-default-unit-conversion-model-runs.tgz
 tar -xzvf 01-default-unit-conversion-model-runs.tgz
 rm 01-default-unit-conversion-model-runs.tgz

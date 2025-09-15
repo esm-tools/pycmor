@@ -62,7 +62,7 @@ class CMIP7DataRequest(DataRequest):
 
     @classmethod
     def from_vendored_json(cls):
-        _all_var_info = files("pymor.data.cmip7").joinpath("all_var_info.json")
+        _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
         all_var_info = json.load(open(_all_var_info, "r"))
         return cls.from_all_var_info(all_var_info)
 

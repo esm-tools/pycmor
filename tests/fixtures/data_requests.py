@@ -1,6 +1,6 @@
 import pytest
 
-from pymor.data_request.variable import DataRequestVariable
+from pycmor.data_request.variable import DataRequestVariable
 
 
 @pytest.fixture

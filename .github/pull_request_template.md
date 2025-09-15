@@ -9,7 +9,7 @@ Please put a small usage example in the PR body so that we can see what you want
 
 You can include python:
 ```python
-from pymorize.cmorizer import CMORizer
+from pycmor.core.cmorizer import CMORizer
 cmorizer = CMORizer()
 cmorizer.process()
 ```

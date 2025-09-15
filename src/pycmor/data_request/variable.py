@@ -454,7 +454,7 @@ class CMIP7DataRequestVariable(DataRequestVariable):
 
     @classmethod
     def from_all_var_info_json(cls, var_name: str, table_name: str):
-        _all_var_info = files("pymor.data.cmip7").joinpath("all_var_info.json")
+        _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
         all_var_info = json.load(open(_all_var_info, "r"))
         key = f"{table_name}.{var_name}"
         data = all_var_info["Compound Name"][key]

@@ -132,7 +132,7 @@ def create_filepath(ds, rule):
     grid = "gn"  # grid_type
     time_range = _filename_time_range(ds, rule)
     # check if output sub-directory is needed
-    enable_output_subdirs = rule._pymor_cfg.get("enable_output_subdirs", False)
+    enable_output_subdirs = rule._pycmor_cfg.get("enable_output_subdirs", False)
     if enable_output_subdirs:
         subdirs = rule.ga.subdir_path()
         out_dir = f"{out_dir}/{subdirs}"
@@ -285,8 +285,8 @@ def save_dataset(da: xr.DataArray, rule):
     NOTE: prior to calling this function, call dask.compute() method,
     otherwise tasks will progress very slow.
     """
-    time_dtype = rule._pymor_cfg("xarray_time_dtype")
-    time_unlimited = rule._pymor_cfg("xarray_time_unlimited")
+    time_dtype = rule._pycmor_cfg("xarray_time_dtype")
+    time_unlimited = rule._pycmor_cfg("xarray_time_unlimited")
     extra_kwargs = {}
     if time_unlimited:
         extra_kwargs.update({"unlimited_dims": ["time"]})
@@ -313,14 +313,14 @@ def save_dataset(da: xr.DataArray, rule):
         da = da.to_dataset()
     # Not sure about this, maybe it needs to go above, before the is_scalar
     # check
-    if rule._pymor_cfg("xarray_time_set_standard_name"):
+    if rule._pycmor_cfg("xarray_time_set_standard_name"):
         da[time_label].attrs["standard_name"] = "time"
-    if rule._pymor_cfg("xarray_time_set_long_name"):
+    if rule._pycmor_cfg("xarray_time_set_long_name"):
         da[time_label].attrs["long_name"] = "time"
-    if rule._pymor_cfg("xarray_time_enable_set_axis"):
-        time_axis_str = rule._pymor_cfg("xarray_time_taxis_str")
+    if rule._pycmor_cfg("xarray_time_enable_set_axis"):
+        time_axis_str = rule._pycmor_cfg("xarray_time_taxis_str")
         da[time_label].attrs["axis"] = time_axis_str
-    if rule._pymor_cfg("xarray_time_remove_fill_value_attr"):
+    if rule._pycmor_cfg("xarray_time_remove_fill_value_attr"):
         time_encoding["_FillValue"] = None
 
     if not has_time_axis(da):
@@ -332,7 +332,7 @@ def save_dataset(da: xr.DataArray, rule):
             **extra_kwargs,
         )
 
-    default_file_timespan = rule._pymor_cfg("file_timespan")
+    default_file_timespan = rule._pycmor_cfg("file_timespan")
     file_timespan = getattr(rule, "file_timespan", default_file_timespan)
     if file_timespan == "file_native":
         return _save_dataset_with_native_timespan(
