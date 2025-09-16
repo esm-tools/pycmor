@@ -129,7 +129,7 @@ def create_filepath(ds, rule):
     experiment_id = rule.experiment_id  # historical
     out_dir = rule.output_directory  # where to save output files
     institution = getattr(rule, "institution", "AWI")
-    grid = "gn"  # grid_type
+    grid = rule.grid_label  # grid_type
     time_range = _filename_time_range(ds, rule)
     # check if output sub-directory is needed
     enable_output_subdirs = rule._pycmor_cfg.get("enable_output_subdirs", False)
