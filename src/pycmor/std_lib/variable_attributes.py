@@ -16,9 +16,14 @@ def set_variable_attrs(
     if isinstance(ds, xr.Dataset):
         given_dtype = xr.Dataset
         da = ds[rule.model_variable]
+        if rule.model_variable != rule.cmor_variable:
+            ds = ds.rename({rule.model_variable: rule.cmor_variable})
+            da = ds[rule.cmor_variable]
     elif isinstance(ds, xr.DataArray):
         given_dtype = xr.DataArray
         da = ds
+        if da.name != rule.cmor_variable:
+            da = da.rename(rule.cmor_variable)
     else:
         raise TypeError("Input must be an xarray Dataset or DataArray")
 
