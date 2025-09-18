@@ -223,3 +223,82 @@ def test_save_dataset_saves_to_multiple_files(tmp_path):
     save_dataset(da, rule)
     files = list(t.iterdir())
     assert len(files) == 4
+
+
+def test_save_dataset_with_custom_time_settings(tmp_path):
+    """Test that custom time units and calendar are correctly applied when saving datasets."""
+    # Create a simple dataset with time dimension
+    dates = xr.date_range(
+        start="2000-01-01", periods=2, freq="D", calendar="noleap", use_cftime=True
+    )
+    da = xr.DataArray(
+        np.arange(2),
+        coords=[dates],
+        dims=["time"],
+        name="test_var",
+    )
+
+    # Create a mock rule with custom time settings (following the pattern of other tests)
+    rule = Mock()
+    rule._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg({})
+    rule.data_request_variable = Mock()
+    rule.data_request_variable.frequency = "day"
+    rule.data_request_variable.table = Mock()
+    rule.data_request_variable.table.table_id = "Amon"
+    rule.data_request_variable.table_header = Mock()
+    rule.data_request_variable.table_header.approx_interval = 1
+
+    # Set other required attributes
+    rule.cmor_variable = "tas"
+    rule.variant_label = "r1i1p1f1"
+    rule.source_id = "test_model"
+    rule.experiment_id = "test_exp"
+    rule.file_timespan = "1D"
+    rule.output_directory = str(tmp_path)
+    rule.inputs = []  # Mock the inputs attribute to avoid iteration errors
+    rule.adjust_timestamp = None  # Add this to avoid the Mock object error
+
+    # Set custom time units and calendar
+    custom_units = "days since 1850-01-01"
+    custom_calendar = "proleptic_gregorian"
+    rule.time_units = custom_units
+    rule.time_calendar = custom_calendar
+
+    # Save the dataset
+    save_dataset(da, rule)
+
+    # Check that the file was created
+    saved_files = list(tmp_path.glob("*.nc"))
+    assert len(saved_files) > 0, "No NetCDF file was created"
+
+    # Check the actual NetCDF file attributes using netCDF4 directly
+    import netCDF4 as nc
+
+    with nc.Dataset(saved_files[0], "r") as ncfile:
+        assert "time" in ncfile.variables, "Time variable not found in saved dataset"
+        time_var_nc = ncfile.variables["time"]
+
+        # Check if our custom units and calendar are in the NetCDF file
+        nc_units = getattr(time_var_nc, "units", None)
+        nc_calendar = getattr(time_var_nc, "calendar", None)
+
+        # Test against the NetCDF file directly
+        assert (
+            nc_units == custom_units
+        ), f"NetCDF units do not match. Expected {custom_units}, got {nc_units}"
+        assert (
+            nc_calendar == custom_calendar
+        ), f"NetCDF calendar does not match. Expected {custom_calendar}, got {nc_calendar}"
+
+    # Also verify with xarray that the encoding is preserved
+    with xr.open_dataset(saved_files[0]) as ds:
+        assert "time" in ds.variables, "Time variable not found in saved dataset"
+        time_var = ds.variables["time"]
+
+        # Verify the encoding contains our custom units and calendar
+        assert (
+            time_var.encoding["units"] == custom_units
+        ), f"XArray encoding units do not match. Expected {custom_units}, got {time_var.encoding['units']}"
+        assert (
+            time_var.encoding["calendar"] == custom_calendar
+        ), f"XArray encoding calendar does not match. Expected {custom_calendar}, got {time_var.encoding['calendar']}"
