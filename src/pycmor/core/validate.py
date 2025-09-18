@@ -215,24 +215,22 @@ RULES_SCHEMA = {
                         r"^\s*(days|hours|minutes|seconds|milliseconds|microseconds|nanoseconds)"
                         r"\s+since\s+\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2}(.\d+)?)?\s*$"
                     ),
-                    "description": "Time units in CF convention format (e.g., 'days since 1850-01-01')",
                 },
                 "time_calendar": {
                     "type": "string",
                     "required": False,
                     "allowed": [
                         "standard",
-                        "gregorian",  # Gregorian/standard calendar (default)
-                        "proleptic_gregorian",  # Gregorian calendar extended to dates before 1582-10-15
+                        "gregorian",
+                        "proleptic_gregorian",
                         "noleap",
-                        "365_day",  # No leap years, all years are 365 days
+                        "365_day",
                         "all_leap",
-                        "366_day",  # All years are leap years (366 days)
-                        "360_day",  # All years are 360 days divided into 30 day months
-                        "julian",  # Julian calendar
-                        "none",  # No calendar
+                        "366_day",
+                        "360_day",
+                        "julian",
+                        "none",
                     ],
-                    "description": "Calendar type for time calculations",
                 },
             },
         },
