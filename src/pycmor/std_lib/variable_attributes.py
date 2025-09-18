@@ -23,7 +23,7 @@ def set_variable_attrs(
         given_dtype = xr.DataArray
         da = ds
         if da.name != rule.cmor_variable:
-            da = da.rename(rule.cmor_variable) 
+            da = da.rename(rule.cmor_variable)
     else:
         raise TypeError("Input must be an xarray Dataset or DataArray")
 
