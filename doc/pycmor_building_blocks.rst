@@ -100,6 +100,40 @@ Here's an example of a rule:
 Inheritance
 -----------
 
+Time Units and Calendar Configuration
+------------------------------------
+
+When working with time-dependent data, you can specify custom time units and calendar types in your rule configuration. This is particularly useful for historical experiments or when working with models that use non-standard calendars.
+
+Example configuration:
+
+.. code-block:: yaml
+
+    rules:
+      - name: historical_experiment
+        cmor_variable: "tas"
+        # ... other required fields ...
+        
+        # Custom time configuration
+        time_units: "days since 1850-01-01"  # CF-compliant time units
+        time_calendar: "proleptic_gregorian"  # Calendar type
+
+Time Units:
+- Must follow the CF convention: "<units> since <reference date>"
+- Supported units: days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds
+- Example: "days since 1850-01-01", "hours since 2000-01-01 00:00:00"
+
+Calendar Types:
+- ``standard`` or ``gregorian``: Standard Gregorian calendar (default)
+- ``proleptic_gregorian``: Gregorian calendar extended to dates before 1582-10-15
+- ``noleap`` or ``365_day``: No leap years, all years are 365 days
+- ``all_leap`` or ``366_day``: All years are leap years (366 days)
+- ``360_day``: All years are 360 days divided into 30-day months
+- ``julian``: Julian calendar
+- ``none``: No calendar
+
+If not specified, the default calendar is "standard" and the time units will be determined from the input data.
+
 Rules can inherit global values. To do so, you should include them in the ``inherit`` section of the configuration file. Here is an example:
 
   .. code-block:: yaml

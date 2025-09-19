@@ -239,12 +239,58 @@ def _save_dataset_with_native_timespan(
 ):
     paths = []
     datasets = split_data_timespan(da, rule)
-    for group_ds in datasets:
-        paths.append(create_filepath(group_ds, rule))
+
+    # Ensure time encoding is properly applied to each dataset
+    for i, ds in enumerate(datasets):
+        if time_label in ds.variables:
+            # If we have custom units and calendar, use xarray's CF encoding function
+            # Only apply if both are actual strings (not Mock objects or None)
+            if (
+                "units" in time_encoding
+                and "calendar" in time_encoding
+                and isinstance(time_encoding["units"], str)
+                and isinstance(time_encoding["calendar"], str)
+            ):
+                from xarray.coding.times import encode_cf_datetime
+
+                # Get the current time values (should be datetime objects)
+                time_values = ds[time_label].values
+
+                # Use xarray's CF encoding function to encode the datetime values
+                encoded_values, _, _ = encode_cf_datetime(
+                    time_values,
+                    units=time_encoding["units"],
+                    calendar=time_encoding["calendar"],
+                )
+
+                # Replace the time coordinate with the encoded values
+                ds[time_label] = xr.DataArray(
+                    encoded_values, dims=[time_label], attrs=ds[time_label].attrs.copy()
+                )
+
+            # Set time units and calendar as attributes for consistency
+            # Only set if they are actual strings (not Mock objects)
+            # But avoid setting calendar attribute if it conflicts with encoding
+            if "units" in time_encoding and isinstance(time_encoding["units"], str):
+                ds[time_label].attrs["units"] = time_encoding["units"]
+            # Only set calendar attribute if we have custom calendar (not default "standard")
+            if (
+                "calendar" in time_encoding
+                and isinstance(time_encoding["calendar"], str)
+                and time_encoding["calendar"] != "standard"
+            ):
+                ds[time_label].attrs["calendar"] = time_encoding["calendar"]
+
+            # Also set the encoding directly on the variable
+            ds[time_label].encoding.update(time_encoding)
+
+        paths.append(create_filepath(ds, rule))
+
+    # Don't pass encoding to save_mfdataset since we've already encoded the time values
+    # and set the attributes - let xarray use what we've provided
     return xr.save_mfdataset(
         datasets,
         paths,
-        encoding={time_label: time_encoding},
         **extra_kwargs,
     )
 
@@ -292,6 +338,20 @@ def save_dataset(da: xr.DataArray, rule):
         extra_kwargs.update({"unlimited_dims": ["time"]})
     time_encoding = {"dtype": time_dtype}
     time_encoding = {k: v for k, v in time_encoding.items() if v is not None}
+    # Allow user to define time units and calendar in the rule object
+    # Martina has a usecase where she wants to set time units to
+    # `days since 1850-01-01` and calendar to `proleptic_gregorian` for
+    # historical experiments. See issue #215
+    time_units = getattr(rule, "time_units", None)
+    time_calendar = getattr(rule, "time_calendar", None)
+    # Only add to encoding if they are actual strings (not Mock objects or None)
+    if time_units is not None and isinstance(time_units, str):
+        time_encoding["units"] = time_units
+    if time_calendar is not None and isinstance(time_calendar, str):
+        time_encoding["calendar"] = time_calendar
+    # Set default calendar if none is specified
+    if time_encoding.get("calendar") is None:
+        time_encoding["calendar"] = "standard"
     if not has_time_axis(da):
         filepath = create_filepath(da, rule)
         return da.to_netcdf(
@@ -311,8 +371,8 @@ def save_dataset(da: xr.DataArray, rule):
         )
     if isinstance(da, xr.DataArray):
         da = da.to_dataset()
-    # Not sure about this, maybe it needs to go above, before the is_scalar
-    # check
+
+    # Set time variable attributes
     if rule._pycmor_cfg("xarray_time_set_standard_name"):
         da[time_label].attrs["standard_name"] = "time"
     if rule._pycmor_cfg("xarray_time_set_long_name"):
@@ -322,6 +382,53 @@ def save_dataset(da: xr.DataArray, rule):
         da[time_label].attrs["axis"] = time_axis_str
     if rule._pycmor_cfg("xarray_time_remove_fill_value_attr"):
         time_encoding["_FillValue"] = None
+
+    # If we have custom units and calendar, use xarray's CF encoding function
+    # Only apply if both are actual strings (not Mock objects or None)
+    if (
+        "units" in time_encoding
+        and "calendar" in time_encoding
+        and isinstance(time_encoding["units"], str)
+        and isinstance(time_encoding["calendar"], str)
+    ):
+        from xarray.coding.times import encode_cf_datetime
+
+        # Convert the dataset to Dataset if it's a DataArray
+        if isinstance(da, xr.DataArray):
+            da = da.to_dataset()
+
+        # Get the current time values (should be datetime objects)
+        time_values = da[time_label].values
+
+        # Use xarray's CF encoding function to encode the datetime values
+        encoded_values, _, _ = encode_cf_datetime(
+            time_values,
+            units=time_encoding["units"],
+            calendar=time_encoding["calendar"],
+        )
+
+        # Replace the time coordinate with the encoded values
+        da[time_label] = xr.DataArray(
+            encoded_values, dims=[time_label], attrs=da[time_label].attrs.copy()
+        )
+
+    # Set time units and calendar as attributes (for metadata)
+    # Only set if they are actual strings (not Mock objects)
+    # But avoid setting calendar attribute if it conflicts with encoding
+    if "units" in time_encoding and isinstance(time_encoding["units"], str):
+        da[time_label].attrs["units"] = time_encoding["units"]
+    # Only set calendar attribute if we have custom calendar (not default "standard")
+    if (
+        "calendar" in time_encoding
+        and isinstance(time_encoding["calendar"], str)
+        and time_encoding["calendar"] != "standard"
+    ):
+        da[time_label].attrs["calendar"] = time_encoding["calendar"]
+
+    # Ensure the encoding is set on the time variable itself
+    if isinstance(da, xr.DataArray):
+        da = da.to_dataset()
+    da[time_label].encoding.update(time_encoding)
 
     if not has_time_axis(da):
         filepath = create_filepath(da, rule)
