@@ -104,7 +104,7 @@ def _sanitize_component(component):
 
     Parameters
     ----------
-    component : str
+    component : str or Mock
         The component to sanitize
 
     Returns
@@ -113,6 +113,10 @@ def _sanitize_component(component):
         The sanitized component
     """
     import re
+
+    # Convert component to string if it's not already (handles Mock objects)
+    if not isinstance(component, str):
+        component = str(component)
 
     # Replace periods, underscores, and spaces with hyphens
     component = re.sub(r"[._\s]+", "-", component)
