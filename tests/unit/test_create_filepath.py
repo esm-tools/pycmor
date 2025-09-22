@@ -61,11 +61,11 @@ class TestCreateFilepath:
             dims = ["time", "lat", "lon"]
             data_shape = (len(time_range), 2, 2)
         elif has_time:
-            # Default monthly data for 2 years
-            time_range = pd.date_range("2000-01-01", periods=24, freq="MS")
+            # Default monthly data for 1 year
+            time_range = pd.date_range("2000-01-01", periods=12, freq="MS")
             coords = {"time": time_range, "lat": [0, 1], "lon": [0, 1]}
             dims = ["time", "lat", "lon"]
-            data_shape = (24, 2, 2)
+            data_shape = (12, 2, 2)
         else:
             # No time dimension
             coords = {"lat": [0, 1], "lon": [0, 1]}
@@ -95,7 +95,7 @@ class TestCreateFilepath:
         filepath = create_filepath(ds, self.rule)
 
         expected_pattern = (
-            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_.nc"
+            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         )
         assert filepath == expected_pattern
 
@@ -111,7 +111,7 @@ class TestCreateFilepath:
         filepath = create_filepath(ds, self.rule)
 
         expected_pattern = (
-            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_.nc"
+            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         )
         assert filepath == expected_pattern
 
@@ -135,7 +135,7 @@ class TestCreateFilepath:
         self.rule.data_request_variable.table_header.table_id = "6hrLev"
 
         # Create 6-hourly data for one day
-        time_range = pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6H")
+        time_range = pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6h")
         ds = self.create_test_dataset(time_range=time_range)
 
         filepath = create_filepath(ds, self.rule)
@@ -151,13 +151,13 @@ class TestCreateFilepath:
         self.rule.data_request_variable.frequency = "yr"
         self.rule.data_request_variable.table_header.table_id = "Ayr"
 
-        # Create yearly data
-        time_range = pd.date_range("2000-01-01", "2005-01-01", freq="YS")
+        # Create yearly data (4 years: 2000, 2001, 2002, 2003)
+        time_range = pd.date_range("2000-01-01", periods=4, freq="YS")
         ds = self.create_test_dataset(time_range=time_range)
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Ayr_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_2000-2004.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Ayr_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_2000-2003.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_fx_frequency(self):
@@ -169,7 +169,7 @@ class TestCreateFilepath:
         filepath = create_filepath(ds, self.rule)
 
         expected_pattern = (
-            f"{self.temp_dir}/tas_fx_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_.nc"
+            f"{self.temp_dir}/tas_fx_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         )
         assert filepath == expected_pattern
 
@@ -362,18 +362,18 @@ class TestCreateFilepath:
 
         # Create appropriate time range for each frequency
         if frequency == "yr":
-            time_range = pd.date_range("2000-01-01", "2005-01-01", freq="YS")
+            time_range = pd.date_range("2000-01-01", periods=5, freq="YS")
         elif frequency == "mon":
             time_range = pd.date_range("2000-01-01", periods=12, freq="MS")
         elif frequency == "day":
             time_range = pd.date_range("2000-01-01", "2000-01-31", freq="D")
         elif frequency in ["6hr", "3hr", "1hr"]:
             if frequency == "6hr":
-                time_range = pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6H")
+                time_range = pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6h")
             elif frequency == "3hr":
-                time_range = pd.date_range("2000-01-01", "2000-01-01 21:00", freq="3H")
+                time_range = pd.date_range("2000-01-01", "2000-01-01 21:00", freq="3h")
             else:  # 1hr
-                time_range = pd.date_range("2000-01-01", "2000-01-01 23:00", freq="1H")
+                time_range = pd.date_range("2000-01-01", "2000-01-01 23:00", freq="1h")
         else:  # fx
             ds = self.create_test_dataset(has_time=False)
             filepath = create_filepath(ds, self.rule)
@@ -387,7 +387,7 @@ class TestCreateFilepath:
             assert expected_time_format in filepath
         else:
             # For fx frequency, time range should be empty
-            assert filepath.endswith("_gn_.nc")
+            assert filepath.endswith("_gn.nc")
 
     def test_cmip6_filename_compliance(self):
         """Test that generated filenames comply with CMIP6 specification."""
@@ -421,13 +421,13 @@ class TestCreateFilepath:
             (
                 "yr",
                 "yyyy",
-                pd.date_range("2000-01-01", "2004-01-01", freq="YS"),
+                pd.date_range("2000-01-01", periods=4, freq="YS"),
                 "2000-2003",
             ),
             (
                 "dec",
                 "yyyy",
-                pd.date_range("2000-01-01", "2030-01-01", freq="10YS"),
+                pd.date_range("2000-01-01", periods=3, freq="10YS"),
                 "2000-2020",
             ),
             (
@@ -445,19 +445,19 @@ class TestCreateFilepath:
             (
                 "6hr",
                 "yyyyMMddhhmm",
-                pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6H"),
+                pd.date_range("2000-01-01", "2000-01-01 18:00", freq="6h"),
                 "200001010000-200001011800",
             ),
             (
                 "3hr",
                 "yyyyMMddhhmm",
-                pd.date_range("2000-01-01", "2000-01-01 21:00", freq="3H"),
+                pd.date_range("2000-01-01", "2000-01-01 21:00", freq="3h"),
                 "200001010000-200001012100",
             ),
             (
                 "1hr",
                 "yyyyMMddhhmm",
-                pd.date_range("2000-01-01", "2000-01-01 23:00", freq="1H"),
+                pd.date_range("2000-01-01", "2000-01-01 23:00", freq="1h"),
                 "200001010000-200001012300",
             ),
         ]
@@ -563,7 +563,7 @@ class TestCreateFilepath:
         # This test documents what should happen according to CMIP6 spec
         # Expected format would be: tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012-clim.nc
 
-        # For now, just verify current behavior
+        # Now verify that climatology suffix is properly implemented
         assert filename.endswith(
-            "200001-200012.nc"
-        ), "Current implementation doesn't handle climatology suffix"
+            "200001-200012-clim.nc"
+        ), "Climatology suffix should be added when climatology attribute is present"

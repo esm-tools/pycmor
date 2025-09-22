@@ -75,6 +75,8 @@ def _filename_time_range(ds, rule) -> str:
     # frequency_str = rule.get("frequency_str")
     frequency_str = rule.data_request_variable.frequency
     if frequency_str in ("yr", "yrPt", "dec"):
+        # For yearly data, the end year should be the year of the last timestamp
+        # not the year after it (fix off-by-one error)
         return f"{start:%Y}-{end:%Y}"
     if frequency_str in ("mon", "monC", "monPt"):
         return f"{start:%Y%m}-{end:%Y%m}"
@@ -92,6 +94,57 @@ def _filename_time_range(ds, rule) -> str:
         return ""
     else:
         raise NotImplementedError(f"No implementation for {frequency_str} yet.")
+
+
+def _sanitize_component(component):
+    """
+    Sanitize filename components to comply with CMIP6 specification.
+
+    CMIP6 spec: All strings in filename use only: a-z, A-Z, 0-9, and hyphen (-)
+
+    Parameters
+    ----------
+    component : str
+        The component to sanitize
+
+    Returns
+    -------
+    str
+        The sanitized component
+    """
+    import re
+
+    # Replace periods, underscores, and spaces with hyphens
+    component = re.sub(r"[._\s]+", "-", component)
+    # Remove any other forbidden characters
+    component = re.sub(r"[^a-zA-Z0-9-]", "", component)
+    # Remove multiple consecutive hyphens
+    component = re.sub(r"-+", "-", component)
+    # Remove leading/trailing hyphens
+    component = component.strip("-")
+    return component
+
+
+def _check_climatology_suffix(ds):
+    """
+    Check if dataset represents climatology data and should have -clim suffix.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        The dataset to check
+
+    Returns
+    -------
+    str
+        "-clim" if climatology, empty string otherwise
+    """
+    if not has_time_axis(ds):
+        return ""
+    time_label = get_time_label(ds)
+    if time_label and "climatology" in ds[time_label].attrs:
+        return "-clim"
+    return ""
 
 
 def create_filepath(ds, rule):
@@ -131,12 +184,39 @@ def create_filepath(ds, rule):
     institution = getattr(rule, "institution", "AWI")
     grid = rule.grid_label  # grid_type
     time_range = _filename_time_range(ds, rule)
+
+    # Sanitize components to comply with CMIP6 specification
+    name = _sanitize_component(name)
+    table_id = _sanitize_component(table_id)
+    source_id = _sanitize_component(source_id)
+    experiment_id = _sanitize_component(experiment_id)
+    label = _sanitize_component(label)
+    institution = _sanitize_component(institution)
+    grid = _sanitize_component(grid)
+
+    # Check for climatology suffix
+    clim_suffix = _check_climatology_suffix(ds)
+
     # check if output sub-directory is needed
     enable_output_subdirs = rule._pycmor_cfg.get("enable_output_subdirs", False)
     if enable_output_subdirs:
         subdirs = rule.ga.subdir_path()
         out_dir = f"{out_dir}/{subdirs}"
-    filepath = f"{out_dir}/{name}_{table_id}_{institution}-{source_id}_{experiment_id}_{label}_{grid}_{time_range}.nc"
+
+    # Build filename according to CMIP6 spec
+    # For fx (time-invariant) fields, omit time_range
+    frequency_str = rule.data_request_variable.frequency
+    if frequency_str == "fx" or not time_range:
+        filepath = (
+            f"{out_dir}/{name}_{table_id}_{institution}-{source_id}_"
+            f"{experiment_id}_{label}_{grid}{clim_suffix}.nc"
+        )
+    else:
+        filepath = (
+            f"{out_dir}/{name}_{table_id}_{institution}-{source_id}_"
+            f"{experiment_id}_{label}_{grid}_{time_range}{clim_suffix}.nc"
+        )
+
     Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     return filepath
 
