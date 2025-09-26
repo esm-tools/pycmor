@@ -1,4 +1,4 @@
-.. |logo| image:: assets/Pymor1280x640.png
+.. |logo| image:: assets/Pycmor1280x640.png
 
 ===============================================
 ``pycmor``: A Python package to simplify CMOR
