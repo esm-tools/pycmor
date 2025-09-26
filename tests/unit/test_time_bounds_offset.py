@@ -5,9 +5,13 @@ import xarray as xr
 import pytest
 
 # Temporarily skip this test module until time_bounds is finalized
-pytestmark = pytest.mark.skip(reason="Temporarily skipping time_bounds offset test during refactor")
-
-from pycmor.std_lib.time_bounds import time_bounds
+try:
+    from pycmor.std_lib.time_bounds import time_bounds
+except Exception:
+    pytest.skip(
+        "Temporarily skipping time_bounds offset test during refactor",
+        allow_module_level=True,
+    )
 
 
 def test_monthly_frequency_with_offset():
