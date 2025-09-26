@@ -110,7 +110,9 @@ def _input_pattern_from_env(config: dict) -> re.Pattern:
     """
     # Resolve env var name, preferring pycmor key and default but falling back to legacy
     env_var_name = None
-    for addr, default in zip(_PATTERN_ENV_VAR_NAME_ADDRS, _PATTERN_ENV_VAR_NAME_DEFAULTS):
+    for addr, default in zip(
+        _PATTERN_ENV_VAR_NAME_ADDRS, _PATTERN_ENV_VAR_NAME_DEFAULTS
+    ):
         try:
             env_var_name = dpath.get(config, addr)
             if env_var_name:

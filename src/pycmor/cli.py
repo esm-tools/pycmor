@@ -56,9 +56,9 @@ def pymor_cli_group(func):
     func = click_loguru.logging_options(func)
     func = click.group()(func)
     func = click_loguru.stash_subcommand()(func)
-    func = click.version_option(version=VERSION, prog_name="PyCMOR - Makes CMOR Simple")(
-        func
-    )
+    func = click.version_option(
+        version=VERSION, prog_name="PyCMOR - Makes CMOR Simple"
+    )(func)
     return func
 
 
