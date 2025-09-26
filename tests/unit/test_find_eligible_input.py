@@ -78,7 +78,7 @@ def test_default_pattern(config, env):
 @pytest.mark.parametrize("env", ["env_empty"], indirect=True)
 def test_custom_pattern_name(config, env):
     os.environ["CMOR_PATTERN"] = "test.*"
-    os.environ["PYMOR_INPUT_PATTERN"] = "test.*"
+    os.environ["PYCMOR_INPUT_PATTERN"] = "test.*"
     pattern = _input_pattern_from_env(config)
     assert isinstance(pattern, re.Pattern)
     assert pattern.match("test123")
@@ -101,7 +101,7 @@ def test_custom_both(config_pattern_env_var_name_and_value, env):
     assert isinstance(pattern, re.Pattern)
     assert pattern.match("other_test123.nc")
     os.environ["CMOR_PATTERN"] = "test.*"
-    os.environ["PYMOR_INPUT_PATTERN"] = "test.*"
+    os.environ["PYCMOR_INPUT_PATTERN"] = "test.*"
     pattern = _input_pattern_from_env(config)
     assert isinstance(pattern, re.Pattern)
     assert pattern.match("test123")
@@ -122,7 +122,7 @@ def test_custom_both(config_pattern_env_var_name_and_value, env):
 @pytest.mark.parametrize("env", ["env_empty"], indirect=True)
 def test_env_var_no_match(config, fs, env):
     os.environ["CMOR_PATTERN"] = "no_match*"
-    os.environ["PYMOR_INPUT_PATTERN"] = "no_match*"
+    os.environ["PYCMOR_INPUT_PATTERN"] = "no_match*"
     pattern = _input_pattern_from_env(config)
     output = _input_files_in_path("/path/to", pattern)
     assert output == []
