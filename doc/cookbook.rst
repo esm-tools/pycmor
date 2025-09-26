@@ -1,5 +1,5 @@
 =====================
-The Pymor Cookbook
+The Pycmor Cookbook
 =====================
 
 A showcase of some more complicated use cases.
@@ -26,11 +26,11 @@ You need to work with variables that have ambiguous dimensionless units in CMIP6
 * Salinity values (unit: "0.001")
 * Parts-per-million concentrations (unit: "1e-06")
 
-And you need these units to be properly converted or recognized by Pymor. In essence, we need to tell
-Pymor more about the physical meaning of the units so that it can convert from one unit to another arbitrarily.
+And you need these units to be properly converted or recognized by Pycmor. In essence, we need to tell
+Pycmor more about the physical meaning of the units so that it can convert from one unit to another arbitrarily.
 An example is a mass ratio of 0.001. If mass is not specified that is ambiguous because it could also be, for example,
-a volume ratio. The ratios of mass and volume are different depending on the density. To help Pymor to
-convert to 0.001 (mass ratio), we need to tell Pymor that it is a mass ratio and we do this by indicating that
+a volume ratio. The ratios of mass and volume are different depending on the density. To help Pycmor to
+convert to 0.001 (mass ratio), we need to tell Pycmor that it is a mass ratio and we do this by indicating that
 0.001 means g/kg or 10-3 kg kg-1.
 
 Solution

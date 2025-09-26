@@ -6,7 +6,7 @@ This module contains functions for time averaging of data arrays.
 
 The approximate interval for time averaging is prescribed in the CMOR tables,
 using the key ``'approx_interval'``. This information is also provided
-in ~``pymor.frequency``.
+within the library.
 
 Functions
 ---------
@@ -223,7 +223,7 @@ def timeavg(da: xr.DataArray, rule):
                 else:
                     print(
                         "It is not possible to reach this branch."
-                        "If you are here, know that Pymor has gone nuts."
+                        "If you are here, know that Pycmor has gone nuts."
                         f"{frequency_str=} {offset=}"
                     )
                 ds["time"] = timestamps

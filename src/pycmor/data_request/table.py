@@ -242,7 +242,7 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
         cls, table_name: str, all_var_info: dict = None
     ) -> "CMIP7DataRequestTableHeader":
         if all_var_info is None:
-            _all_var_info = files("pymor.data.cmip7").joinpath("all_var_info.json")
+            _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
             all_var_info = json.load(open(_all_var_info, "r"))
         all_vars_for_table = {
             k: v

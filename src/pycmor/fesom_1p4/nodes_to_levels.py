@@ -5,11 +5,11 @@ the dimensions (nodes, time) to the dimensions (nodes, levels, time).
 
 You can include it in your Pipeline by using the step::
 
-    pymor.fesom1.nodes_to_levels
+    pycmor.fesom1.nodes_to_levels
 
 This script can also be used stand-alone::
 
-    $ pymor scripts fesom1 nodes_to_levels mesh in_path out_path [variable]
+    $ pycmor scripts fesom1 nodes_to_levels mesh in_path out_path [variable]
 
 The argument ``[variable]`` defaults to ``"temp"``.
 """

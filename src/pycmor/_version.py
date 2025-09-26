@@ -52,7 +52,7 @@ def get_config() -> VersioneerConfig:
     cfg.style = "pep440"
     cfg.tag_prefix = "v"
     cfg.parentdir_prefix = "None"
-    cfg.versionfile_source = "src/pymor/_version.py"
+    cfg.versionfile_source = "src/pycmor/_version.py"
     cfg.verbose = False
     return cfg
 

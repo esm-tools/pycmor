@@ -152,7 +152,7 @@ to watch out for in the logs.
   port number is recorded in the log file.
 
   When running the task on a compute node, additional steps may be
-  required (like setting up a tunnel) to open the dashboard. Pymor
+  required (like setting up a tunnel) to open the dashboard. Pycmor
   provides a convenient function to do that and it is also records in
   the logs. Search for ``ssh`` in the logs
 
@@ -165,7 +165,7 @@ to watch out for in the logs.
   In this example, model variable ``CO2f`` has
   units ``mmolC/m2/d``. The cmor variable ``fgco2`` has units
   ``kg m-2 s-1``. This means there needs to be a conversion factor to
-  express moles of Carbon in grams. Pymor detects such units and
+  express moles of Carbon in grams. Pycmor detects such units and
   applies the appropriate unit conversion factor. Search for ``molC``
   in the logs
 

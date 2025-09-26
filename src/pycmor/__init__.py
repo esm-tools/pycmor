@@ -1,4 +1,4 @@
-"""pymor - Makes CMOR Simple"""
+"""pycmor - Makes CMOR Simple"""
 
 from . import _version
 

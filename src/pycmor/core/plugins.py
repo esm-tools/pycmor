@@ -11,7 +11,7 @@ from .logging import logger
 # @pymor_cli_group
 def plugins(verbose, quiet, logfile, profile_mem):
     """
-    Manage pymor plugins
+    Manage pycmor plugins
     """
     pass
 
@@ -20,11 +20,11 @@ def plugins(verbose, quiet, logfile, profile_mem):
 @click_loguru.init_logger()
 def _list():
     """
-    List all installed pymor plugins. These can be to help CMORize a specific data
+    List all installed pycmor plugins. These can be to help CMORize a specific data
     collection (e.g. produced by FESOM, ICON, etc.)
     """
     discovered_plugins = find_subcommands()
-    logger.info("The pymor plugins are installed and available:")
+    logger.info("The pycmor plugins are installed and available:")
     for plugin_name in discovered_plugins:
         plugin_code = discovered_plugins[plugin_name]["callable"]
         logger.info(f"# {plugin_name}", extra={"markup": True})

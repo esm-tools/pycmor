@@ -90,7 +90,7 @@ class CMORizer:
         logger.debug("---------------------")
         logger.debug(yaml.dump(self._general_cfg))
         logger.debug("--------------------")
-        logger.debug("PyMOR Configuration:")
+        logger.debug("PyCMOR Configuration:")
         logger.debug("--------------------")
         # This isn't actually the config, it's the "App" object. Everett is weird about this...
         pymor_config = PycmorConfig()
@@ -209,7 +209,7 @@ class CMORizer:
         logger.info(
             "To see the dashboards run the following command in your computer's "
             "terminal:\n"
-            f"\tpymor ssh-tunnel --username {username} --compute-node "
+            f"\tpycmor ssh-tunnel --username {username} --compute-node "
             f"{nodename}"
         )
 
