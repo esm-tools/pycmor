@@ -14,14 +14,24 @@ import xarray as xr
 from .filecache import register_cache  # noqa: F401
 from .logging import logger
 
-_PATTERN_ENV_VAR_NAME_ADDR = "/pymor/pattern_env_var_name"
-"""str: The address in the YAML file which stores the environment variable to be used for the pattern"""
-_PATTERN_ENV_VAR_NAME_DEFAULT = "PYMOR_INPUT_PATTERN"
-"""str: The default value for the environment variable to be used for the pattern"""
-_PATTERN_ENV_VAR_VALUE_ADDR = "/pymor/pattern_env_var_value"
-"""str: The address in the YAML file which stores the environment variable's value"""
+# Prefer new pycmor keys; keep legacy pymor as fallback
+_PATTERN_ENV_VAR_NAME_ADDRS = [
+    "/pycmor/pattern_env_var_name",
+    "/pymor/pattern_env_var_name",
+]
+"""list[str]: Addresses in the YAML file for the env var name used for the pattern (new, legacy)."""
+_PATTERN_ENV_VAR_NAME_DEFAULTS = [
+    "PYCMOR_INPUT_PATTERN",
+    "PYMOR_INPUT_PATTERN",
+]
+"""list[str]: Defaults for env var name (new, legacy)."""
+_PATTERN_ENV_VAR_VALUE_ADDRS = [
+    "/pycmor/pattern_env_var_value",
+    "/pymor/pattern_env_var_value",
+]
+"""list[str]: Addresses in the YAML file for the env var value (new, legacy)."""
 _PATTERN_ENV_VAR_VALUE_DEFAULT = ".*"  # Default: match anything
-"""str: The default value for the environment variable's value to be used if the variable is not set"""
+"""str: Default value for the environment variable's value to be used if not set."""
 
 
 class InputFileCollection:
@@ -60,7 +70,7 @@ def _input_pattern_from_env(config: dict) -> re.Pattern:
         The configuration dictionary. This dictionary should contain the keys
         `pattern_env_var_name` and `pattern_env_value_default`, which are used to locate
         the environment variable name and default value respectively. If not gives, these default
-        to `PYMOR_INPUT_PATTERN` and `.*` respectively.
+        Prefer `PYCMOR_INPUT_PATTERN` and `.*` respectively. Legacy `PYMOR_INPUT_PATTERN` is also supported.
 
     Returns
     -------
@@ -69,9 +79,9 @@ def _input_pattern_from_env(config: dict) -> re.Pattern:
 
     Examples
     --------
-    >>> config_bare = { "pymor": {} }
+    >>> config_bare = { "pycmor": {} }
     >>> config_only_env_name = {
-    ...     "pymor": {
+    ...     "pycmor": {
     ...         'pattern_env_var_name': 'CMOR_PATTERN',
     ...     }
     ... }
@@ -98,15 +108,30 @@ def _input_pattern_from_env(config: dict) -> re.Pattern:
     >>> bool(pattern.match('test'))
     True
     """
-    env_var_name = dpath.get(
-        config, _PATTERN_ENV_VAR_NAME_ADDR, default=_PATTERN_ENV_VAR_NAME_DEFAULT
-    )
-    env_var_value = os.getenv(
-        env_var_name,
-        dpath.get(
-            config, _PATTERN_ENV_VAR_VALUE_ADDR, default=_PATTERN_ENV_VAR_VALUE_DEFAULT
-        ),
-    )
+    # Resolve env var name, preferring pycmor key and default but falling back to legacy
+    env_var_name = None
+    for addr, default in zip(
+        _PATTERN_ENV_VAR_NAME_ADDRS, _PATTERN_ENV_VAR_NAME_DEFAULTS
+    ):
+        try:
+            env_var_name = dpath.get(config, addr)
+            if env_var_name:
+                break
+        except KeyError:
+            # not present; try next
+            env_var_name = env_var_name or default
+    # Resolve env var value default from config (new first, then legacy)
+    env_var_default = None
+    for addr in _PATTERN_ENV_VAR_VALUE_ADDRS:
+        try:
+            env_var_default = dpath.get(config, addr)
+            if env_var_default is not None:
+                break
+        except KeyError:
+            continue
+    if env_var_default is None:
+        env_var_default = _PATTERN_ENV_VAR_VALUE_DEFAULT
+    env_var_value = os.getenv(env_var_name, env_var_default)
     return re.compile(env_var_value)
 
 

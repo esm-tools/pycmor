@@ -366,5 +366,5 @@ def regrid_to_regular(data, rule):
 
 
 class FESOMRegridPipeline(FrozenPipeline):
-    STEPS = ("pymor.fesom.regrid_to_regular",)
-    NAME = "pymor.fesom.FESOMRegridPipeline"
+    STEPS = ("pycmor.fesom.regrid_to_regular",)
+    NAME = "pycmor.fesom.FESOMRegridPipeline"

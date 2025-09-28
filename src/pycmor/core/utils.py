@@ -74,7 +74,7 @@ def get_callable_by_name(name):
     return getattr(module, callable_name)
 
 
-def get_entrypoint_by_name(name, group="pymor.steps"):
+def get_entrypoint_by_name(name, group="pycmor.steps"):
     """
     Get an entry point by its name.
 
@@ -101,11 +101,15 @@ def get_entrypoint_by_name(name, group="pymor.steps"):
         If the entry point specified by the name does not exist in the given group.
     """
     logger.debug(f"Getting entry point '{name}' from group '{group}'")
-    for entry_point in pkg_resources.iter_entry_points(group=group):
-        if entry_point.name == name:
-            return entry_point.load()
+    groups_to_try = [group]
+    if group == "pycmor.steps":
+        groups_to_try.append("pymor.steps")  # legacy fallback
+    for grp in groups_to_try:
+        for entry_point in pkg_resources.iter_entry_points(group=grp):
+            if entry_point.name == name:
+                return entry_point.load()
 
-    raise ValueError(f"Entry point '{name}' not found in group '{group}'")
+    raise ValueError(f"Entry point '{name}' not found in groups {groups_to_try}")
 
 
 def generate_partial_function(func: callable, open_arg: str, *args, **kwargs):

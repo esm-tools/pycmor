@@ -56,9 +56,9 @@ def pymor_cli_group(func):
     func = click_loguru.logging_options(func)
     func = click.group()(func)
     func = click_loguru.stash_subcommand()(func)
-    func = click.version_option(version=VERSION, prog_name="PyMOR - Make CMOR Simple")(
-        func
-    )
+    func = click.version_option(
+        version=VERSION, prog_name="PyCMOR - Makes CMOR Simple"
+    )(func)
     return func
 
 
@@ -167,7 +167,7 @@ def cache(verbose, quiet, logfile, profile_mem):
 
 @click.group()
 def scripts():
-    """Various utility scripts for Pymor."""
+    """Various utility scripts for Pycmor."""
     return 0
 
 
@@ -188,7 +188,7 @@ def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
     yaml_str = dev_utils.ls_to_yaml(directory)
     # Append to beginning of output file
     if output_file is not None:
-        output_file.write(f"# Created with: pymor develop ls {directory}\n")
+        output_file.write(f"# Created with: pycmor develop ls {directory}\n")
         output_file.write(yaml_str)
     return 0
 
@@ -196,7 +196,6 @@ def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
 ################################################################################
 ################################################################################
 ################################################################################
-
 ################################################################################
 # COMMANDS FOR validate
 ################################################################################

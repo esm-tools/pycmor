@@ -1,5 +1,5 @@
 """
-This module contains functions for handling file-related operations in the pymor package.
+This module contains functions for handling file-related operations in the pycmor package.
 It includes functions for creating filepaths based on given rules and datasets, and for
 saving the resulting datasets to the generated filepaths.
 
