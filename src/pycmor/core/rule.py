@@ -281,6 +281,8 @@ class Rule:
             dir_timestamp = datetime.datetime.fromtimestamp(
                 afile.parent.stat().st_ctime
             )
+        except StopIteration:
+            raise RuntimeError("No input files found!")
         except FileNotFoundError:
             # No input files, so use the current time -- this is a fallback triggered for test cases
             dir_timestamp = datetime.datetime.now()
