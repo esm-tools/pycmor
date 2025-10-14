@@ -21,8 +21,8 @@ from .variable import (
 # Import CMIP7 interface if available
 try:
     from .cmip7_interface import (
-        CMIP7Interface,
         CMIP7_API_AVAILABLE,
+        CMIP7Interface,
         get_cmip7_interface,
     )
 except ImportError:

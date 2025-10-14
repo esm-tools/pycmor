@@ -3,8 +3,8 @@ Fixtures and test data for CMIP7 interface tests.
 """
 
 import json
-import pytest
 
+import pytest
 
 # Sample metadata for testing CMIP7 interface
 SAMPLE_CMIP7_METADATA = {
@@ -80,7 +80,7 @@ SAMPLE_CMIP7_METADATA = {
             "cmip6_compound_name": "day.clt",
             "cmip7_compound_name": "atmos.clt.tavg-u-hxy-u.day.GLB",
         },
-    }
+    },
 }
 
 # Sample experiments data for testing CMIP7 interface
@@ -106,7 +106,7 @@ SAMPLE_CMIP7_EXPERIMENTS_DATA = {
                 "atmos.tas.tavg-h2m-hxy-u.mon.GLB",
             ],
         },
-    }
+    },
 }
 
 
@@ -126,7 +126,7 @@ def cmip7_sample_experiments_data():
 def cmip7_metadata_file(tmp_path, cmip7_sample_metadata):
     """Create a temporary CMIP7 metadata JSON file."""
     metadata_file = tmp_path / "test_cmip7_metadata.json"
-    with open(metadata_file, 'w') as f:
+    with open(metadata_file, "w") as f:
         json.dump(cmip7_sample_metadata, f)
     return metadata_file
 
@@ -135,7 +135,7 @@ def cmip7_metadata_file(tmp_path, cmip7_sample_metadata):
 def cmip7_experiments_file(tmp_path, cmip7_sample_experiments_data):
     """Create a temporary CMIP7 experiments JSON file."""
     experiments_file = tmp_path / "test_cmip7_experiments.json"
-    with open(experiments_file, 'w') as f:
+    with open(experiments_file, "w") as f:
         json.dump(cmip7_sample_experiments_data, f)
     return experiments_file
 
@@ -144,13 +144,13 @@ def cmip7_experiments_file(tmp_path, cmip7_sample_experiments_data):
 def cmip7_interface_with_metadata(cmip7_metadata_file):
     """Create a CMIP7Interface instance with loaded metadata."""
     from pycmor.data_request.cmip7_interface import (
-        CMIP7Interface,
         CMIP7_API_AVAILABLE,
+        CMIP7Interface,
     )
-    
+
     if not CMIP7_API_AVAILABLE:
         pytest.skip("CMIP7 API not available")
-    
+
     interface = CMIP7Interface()
     interface.load_metadata(metadata_file=cmip7_metadata_file)
     return interface
@@ -160,13 +160,13 @@ def cmip7_interface_with_metadata(cmip7_metadata_file):
 def cmip7_interface_with_all_data(cmip7_metadata_file, cmip7_experiments_file):
     """Create a CMIP7Interface instance with metadata and experiments loaded."""
     from pycmor.data_request.cmip7_interface import (
-        CMIP7Interface,
         CMIP7_API_AVAILABLE,
+        CMIP7Interface,
     )
-    
+
     if not CMIP7_API_AVAILABLE:
         pytest.skip("CMIP7 API not available")
-    
+
     interface = CMIP7Interface()
     interface.load_metadata(metadata_file=cmip7_metadata_file)
     interface.load_experiments_data(cmip7_experiments_file)
