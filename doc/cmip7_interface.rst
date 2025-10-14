@@ -17,7 +17,15 @@ The CMIP7 data request interface provides:
 Installation
 ============
 
-First, install the official CMIP7 Data Request API:
+The CMIP7 Data Request API is available as an optional dependency. You can install it in two ways:
+
+**Option 1: Install with pycmor (recommended)**
+
+.. code-block:: bash
+
+   pip install pycmor[cmip7]
+
+**Option 2: Install separately**
 
 .. code-block:: bash
 
