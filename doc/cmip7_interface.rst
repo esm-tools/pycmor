@@ -383,6 +383,66 @@ Use Case 3: Backward Compatibility with CMIP6 Code
    print(f"CMIP7: {var_metadata['cmip7_compound_name']}")
    print(f"Table: {var_metadata['cmip6_table']}")
 
+Use Case 4: Integration with CMORizer
+--------------------------------------
+
+The CMIP7 interface can be automatically initialized within the CMORizer for
+runtime queries and metadata lookups.
+
+**Configuration:**
+
+Add the metadata file path to your pycmor configuration:
+
+.. code-block:: yaml
+
+   general:
+     cmor_version: CMIP7
+     CMIP_Tables_Dir: /path/to/cmip7/tables
+     cmip7_metadata_file: /path/to/dreq_v1.2.2.2_metadata.json
+     cmip7_experiments_file: /path/to/dreq_v1.2.2.2.json  # optional
+
+   # ... rest of your configuration
+
+**Usage:**
+
+.. code-block:: python
+
+   from pycmor import CMORizer
+
+   # Load configuration
+   cmorizer = CMORizer.from_dict(config)
+
+   # Access the CMIP7 interface if available
+   if cmorizer.cmip7_interface:
+       # Query variables during runtime
+       variants = cmorizer.cmip7_interface.find_variable_variants(
+           'tas', 
+           frequency='mon',
+           region='GLB'
+       )
+       
+       # Get detailed metadata
+       metadata = cmorizer.cmip7_interface.get_variable_metadata(
+           'atmos.tas.tavg-h2m-hxy-u.mon.GLB'
+       )
+       
+       # Check which experiments require a variable
+       experiments = cmorizer.cmip7_interface.get_all_experiments()
+       print(f"Available experiments: {experiments}")
+   else:
+       print("CMIP7 interface not available")
+
+   # Continue with normal CMORization workflow
+   cmorizer.process()
+
+**Notes:**
+
+- The interface is **optional** - CMORizer works without it
+- Only initialized if ``cmor_version: CMIP7`` and metadata file is configured
+- Gracefully degrades if CMIP7 Data Request API is not installed
+- Does not affect the core CMORization workflow
+- Useful for runtime queries and validation
+
 API Reference
 =============
 
