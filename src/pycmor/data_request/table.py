@@ -238,17 +238,78 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
     ############################################################################
     # Constructor methods:
     @classmethod
+    def from_dict(cls, data: dict) -> "CMIP7DataRequestTableHeader":
+        """Create a CMIP7DataRequestTableHeader from a dictionary.
+        
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing header information from CMIP7 metadata.
+        
+        Returns
+        -------
+        CMIP7DataRequestTableHeader
+            Table header instance.
+        """
+        # Extract required fields
+        table_id = data.get('table_id', 'unknown')
+        realm = data.get('realm', [])
+        if isinstance(realm, str):
+            realm = [realm]
+        
+        # Extract optional fields with defaults
+        approx_interval = data.get('approx_interval')
+        generic_levels = data.get('generic_levels', [])
+        if isinstance(generic_levels, str):
+            generic_levels = generic_levels.split()
+        
+        return cls(
+            _table_id=table_id,
+            _realm=realm,
+            _approx_interval=approx_interval,
+            _generic_levels=generic_levels,
+        )
+    
+    @classmethod
     def from_all_var_info(
         cls, table_name: str, all_var_info: dict = None
     ) -> "CMIP7DataRequestTableHeader":
+        """Create header from all_var_info.json for a specific table.
+        
+        This method is for backward compatibility with CMIP6 table structure.
+        It groups CMIP7 variables by their CMIP6 table name.
+        
+        Parameters
+        ----------
+        table_name : str
+            CMIP6 table name to filter by.
+        all_var_info : dict, optional
+            The all_var_info dictionary. If None, loads from vendored file.
+        
+        Returns
+        -------
+        CMIP7DataRequestTableHeader
+            Table header instance.
+        """
         if all_var_info is None:
             _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
             all_var_info = json.load(open(_all_var_info, "r"))
+        
+        # Filter by CMIP6 table name for backward compatibility
         all_vars_for_table = {
             k: v
             for k, v in all_var_info["Compound Name"].items()
-            if k.startswith(table_name)
+            if v.get("cmip6_table") == table_name
         }
+        
+        if not all_vars_for_table:
+            # Fallback: try prefix matching (old behavior)
+            all_vars_for_table = {
+                k: v
+                for k, v in all_var_info["Compound Name"].items()
+                if k.startswith(table_name)
+            }
+        
         attrs_for_table = {
             "realm": set(),
             "approx_interval": set(),
@@ -256,21 +317,22 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
 
         for var in all_vars_for_table.values():
             attrs_for_table["realm"].add(var["modeling_realm"])
-            attrs_for_table["approx_interval"].add(
-                cls._approx_interval_from_frequency(var["frequency"])
-            )
+            freq_interval = cls._approx_interval_from_frequency(var["frequency"])
+            if freq_interval is not None:  # Skip None values (e.g., from 'fx')
+                attrs_for_table["approx_interval"].add(freq_interval)
 
-        # We assume that all variables in the table have the same approx_interval
-        # If not, we need to raise an error
-        if len(attrs_for_table["approx_interval"]) != 1:
-            raise ValueError(
-                f"approx_interval in the table is not consistent: {attrs_for_table['approx_interval']}"
-            )
+        # Get the most common approx_interval, or None if empty
+        if attrs_for_table["approx_interval"]:
+            # For tables with mixed frequencies, use the first one
+            approx_interval = sorted(attrs_for_table["approx_interval"])[0]
+        else:
+            approx_interval = None
+        
         # Build a table header, always using defaults for known fields
         return cls(
             _table_id=table_name,
             _realm=list(attrs_for_table["realm"]),
-            _approx_interval=attrs_for_table["approx_interval"].pop(),
+            _approx_interval=approx_interval,
             _generic_levels=[],
         )
 

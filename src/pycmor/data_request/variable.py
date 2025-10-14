@@ -408,6 +408,13 @@ class CMIP6JSONDataRequestVariable(CMIP6DataRequestVariable):
 
 @dataclass
 class CMIP7DataRequestVariable(DataRequestVariable):
+    """DataRequestVariable for CMIP7.
+    
+    CMIP7 uses a compound name structure: realm.variable.branding.frequency.region
+    Example: atmos.tas.tavg-h2m-hxy-u.mon.GLB
+    
+    For backward compatibility, CMIP6 table and compound name are also stored.
+    """
 
     # Attributes without defaults
     _frequency: str
@@ -424,14 +431,36 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     _positive: str
     _spatial_shape: str
     _temporal_shape: str
-    _cmip6_cmor_table: str
     _name: str
+    
+    # CMIP7-specific attributes
+    _cmip7_compound_name: Optional[str] = None
+    _branding_label: Optional[str] = None
+    _region: Optional[str] = None
+    
+    # CMIP6 backward compatibility
+    _cmip6_table: Optional[str] = None
+    _cmip6_compound_name: Optional[str] = None
     _table_name: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data):
+        """Create a CMIP7DataRequestVariable from a dictionary.
+        
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing variable metadata from CMIP7 data request.
+            Expected keys include all standard metadata fields plus CMIP7-specific
+            fields like 'cmip7_compound_name', 'branding_label', 'region', etc.
+        
+        Returns
+        -------
+        CMIP7DataRequestVariable
+            Variable instance.
+        """
         extracted_data = dict(
-            _name=data["out_name"],
+            _name=data.get("out_name", data.get("physical_parameter_name")),
             _frequency=data["frequency"],
             _modeling_realm=data["modeling_realm"],
             # FIXME(PG): Not all variables appear to have standard_name
@@ -447,28 +476,66 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             _positive=data["positive"],
             _spatial_shape=data["spatial_shape"],
             _temporal_shape=data["temporal_shape"],
-            _cmip6_cmor_table=data["cmip6_cmor_table"],
-            _table_name=data["cmip6_cmor_table"],
+            # CMIP7-specific fields
+            _cmip7_compound_name=data.get("cmip7_compound_name"),
+            _branding_label=data.get("branding_label"),
+            _region=data.get("region"),
+            # CMIP6 backward compatibility
+            _cmip6_table=data.get("cmip6_table"),
+            _cmip6_compound_name=data.get("cmip6_compound_name"),
+            _table_name=data.get("cmip6_table", data.get("table_name")),
         )
         return cls(**extracted_data)
 
     @classmethod
-    def from_all_var_info_json(cls, var_name: str, table_name: str):
+    def from_all_var_info_json(cls, compound_name: str, use_cmip6_name: bool = False):
+        """Load a variable from the vendored all_var_info.json file.
+        
+        Parameters
+        ----------
+        compound_name : str
+            Either CMIP7 compound name (realm.variable.branding.frequency.region)
+            or CMIP6 compound name (table.variable) if use_cmip6_name=True.
+        use_cmip6_name : bool, optional
+            If True, treat compound_name as CMIP6 format. Default is False.
+        
+        Returns
+        -------
+        CMIP7DataRequestVariable
+            Variable instance.
+        """
         _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
         all_var_info = json.load(open(_all_var_info, "r"))
-        key = f"{table_name}.{var_name}"
-        data = all_var_info["Compound Name"][key]
-        data["out_name"] = var_name
-        data["cmip6_cmor_table"] = table_name
-        return cls.from_dict(data)
+        
+        if use_cmip6_name:
+            # Search for CMIP6 compound name
+            for cmip7_name, data in all_var_info["Compound Name"].items():
+                if data.get("cmip6_compound_name") == compound_name:
+                    return cls.from_dict(data)
+            raise ValueError(f"CMIP6 compound name '{compound_name}' not found")
+        else:
+            # Use CMIP7 compound name directly
+            data = all_var_info["Compound Name"].get(compound_name)
+            if data is None:
+                raise ValueError(f"CMIP7 compound name '{compound_name}' not found")
+            return cls.from_dict(data)
 
     @property
     def attrs(self) -> dict:
-        raise NotImplementedError("CMI7 attributes are not yet finalized")
+        """Return attributes dictionary for xarray DataArray."""
+        attrs = {
+            "standard_name": self.standard_name,
+            "long_name": self.long_name,
+            "units": self.units,
+            "cell_methods": self.cell_methods,
+            "comment": self.comment,
+        }
+        # Remove None values
+        return {k: v for k, v in attrs.items() if v is not None}
 
     @property
     def cell_measures(self) -> str:
-        raise NotImplementedError("CMIP7 does not have cell measures")
+        return self._cell_measures
 
     @property
     def cell_methods(self) -> str:
@@ -486,14 +553,40 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     def frequency(self) -> str:
         return self._frequency
 
-    @property
     def global_attrs(self, override_dict: dict = None) -> dict:
-        raise NotImplementedError("CMIP7 global attributes not yet finalized")
+        """Return global attributes for CMIP7 variable.
+        
+        Parameters
+        ----------
+        override_dict : dict, optional
+            Dictionary of attributes to override defaults.
+        
+        Returns
+        -------
+        dict
+            Global attributes dictionary.
+        """
+        override_dict = override_dict or {}
+        rdict = {
+            "Conventions": "CF-1.7 CMIP-7.0",
+            "mip_era": "CMIP7",
+            "frequency": self.frequency,
+            "realm": self.modeling_realm,
+            "variable_id": self.out_name,
+            "table_id": self.table_name,
+            # Additional CMIP7-specific attributes
+            "cmip7_compound_name": self.cmip7_compound_name,
+            "branding_label": self.branding_label,
+            "region": self.region,
+        }
+        # Remove None values
+        rdict = {k: v for k, v in rdict.items() if v is not None}
+        rdict.update(override_dict)
+        return rdict
 
     @property
     def long_name(self) -> str:
-        # FIXME(PG): I'm not sure about this one
-        return self._standard_name
+        return self._long_name
 
     @property
     def modeling_realm(self) -> str:
@@ -505,11 +598,13 @@ class CMIP7DataRequestVariable(DataRequestVariable):
 
     @property
     def ok_max_mean_abs(self) -> float:
-        raise NotImplementedError("Not yet figured out")
+        """Acceptable maximum mean absolute value (not defined in CMIP7)."""
+        return float('inf')
 
     @property
     def ok_min_mean_abs(self) -> float:
-        raise NotImplementedError("Not yet figured out")
+        """Acceptable minimum mean absolute value (not defined in CMIP7)."""
+        return 0.0
 
     @property
     def out_name(self) -> str:
@@ -525,9 +620,28 @@ class CMIP7DataRequestVariable(DataRequestVariable):
 
     @property
     def table_name(self) -> Optional[str]:
-        if self._table_name is None:
-            raise ValueError("Table name not set")
+        """Return CMIP6 table name for backward compatibility."""
         return self._table_name
+    
+    @property
+    def cmip7_compound_name(self) -> Optional[str]:
+        """CMIP7 compound name: realm.variable.branding.frequency.region"""
+        return self._cmip7_compound_name
+    
+    @property
+    def cmip6_compound_name(self) -> Optional[str]:
+        """CMIP6 compound name for backward compatibility: table.variable"""
+        return self._cmip6_compound_name
+    
+    @property
+    def branding_label(self) -> Optional[str]:
+        """CMIP7 branding label describing temporal/spatial processing."""
+        return self._branding_label
+    
+    @property
+    def region(self) -> Optional[str]:
+        """CMIP7 region code (e.g., 'GLB', '30S-90S')."""
+        return self._region
 
     @property
     def typ(self) -> type:
@@ -539,11 +653,13 @@ class CMIP7DataRequestVariable(DataRequestVariable):
 
     @property
     def valid_max(self) -> float:
-        raise NotImplementedError("Not yet figured out")
+        """Valid maximum value (not strictly defined in CMIP7)."""
+        return float('inf')
 
     @property
     def valid_min(self) -> float:
-        raise NotImplementedError("Not yet figured out")
+        """Valid minimum value (not strictly defined in CMIP7)."""
+        return float('-inf')
 
     def clone(self) -> "CMIP7DataRequestVariable":
         clone = copy.deepcopy(self)

@@ -18,17 +18,17 @@ from .variable import (
     DataRequestVariable,
 )
 
-# Import CMIP7 wrapper if available
+# Import CMIP7 interface if available
 try:
-    from .cmip7_dreq_wrapper import (
-        CMIP7DataRequestWrapper,
-        CMIP7_DREQ_AVAILABLE,
-        get_cmip7_data_request,
+    from .cmip7_interface import (
+        CMIP7Interface,
+        CMIP7_API_AVAILABLE,
+        get_cmip7_interface,
     )
 except ImportError:
-    CMIP7DataRequestWrapper = None
-    get_cmip7_data_request = None
-    CMIP7_DREQ_AVAILABLE = False
+    CMIP7Interface = None
+    get_cmip7_interface = None
+    CMIP7_API_AVAILABLE = False
 
 __all__ = [
     # Base classes
@@ -46,8 +46,8 @@ __all__ = [
     "CMIP7DataRequestTable",
     "CMIP7DataRequestTableHeader",
     "CMIP7DataRequestVariable",
-    # CMIP7 wrapper (official API)
-    "CMIP7DataRequestWrapper",
-    "get_cmip7_data_request",
-    "CMIP7_DREQ_AVAILABLE",
+    # CMIP7 interface (official API)
+    "CMIP7Interface",
+    "get_cmip7_interface",
+    "CMIP7_API_AVAILABLE",
 ]
