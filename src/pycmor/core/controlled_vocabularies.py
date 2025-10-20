@@ -148,4 +148,267 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
 
 
 class CMIP7ControlledVocabularies(ControlledVocabularies):
-    pass
+    """Controlled vocabularies for CMIP7
+    
+    CMIP7 CVs are organized differently from CMIP6:
+    - Each CV entry is a separate JSON file (e.g., experiment/picontrol.json)
+    - Files are organized in subdirectories (experiment/, project/)
+    - Uses JSON-LD format with @context and @type fields
+    - Project-level CVs use list-based structures (e.g., frequency-list.json)
+    """
+
+    def __init__(self, cv_data: dict):
+        """Create a new CMIP7ControlledVocabularies object
+
+        Parameters
+        ----------
+        cv_data : dict
+            Dictionary containing the controlled vocabularies organized by category
+            (e.g., {'experiment': {...}, 'frequency': [...], ...})
+        """
+        super().__init__()
+        self.update(cv_data)
+
+    @classmethod
+    def load(cls, table_dir=None):
+        """Load the controlled vocabularies from the CMIP7_CVs directory
+        
+        Parameters
+        ----------
+        table_dir : str or Path, optional
+            Path to the CMIP7 CVs directory (should contain experiment/, project/ subdirs)
+            If None, uses the vendored CMIP7-CVs submodule in the repository.
+            
+        Returns
+        -------
+        CMIP7ControlledVocabularies
+            A new CMIP7ControlledVocabularies object
+        """
+        if table_dir is None:
+            # Use the vendored CMIP7-CVs submodule
+            table_dir = cls._get_vendored_cv_path()
+        cv_dir = Path(table_dir)
+        return cls.from_directory(cv_dir)
+
+    @staticmethod
+    def _get_vendored_cv_path():
+        """Get the path to the vendored CMIP7-CVs submodule
+        
+        Returns
+        -------
+        Path
+            Path to the CMIP7-CVs submodule directory
+        """
+        # Get the path to this file, then navigate to the repository root
+        current_file = Path(__file__)
+        # Assuming structure: repo_root/src/pycmor/core/controlled_vocabularies.py
+        repo_root = current_file.parent.parent.parent.parent
+        cv_path = repo_root / "CMIP7-CVs"
+        
+        if not cv_path.exists():
+            raise FileNotFoundError(
+                f"CMIP7-CVs submodule not found at {cv_path}. "
+                "Please initialize the submodule with: "
+                "git submodule update --init CMIP7-CVs"
+            )
+        
+        return cv_path
+
+    @classmethod
+    def from_directory(cls, directory):
+        """Create a new CMIP7ControlledVocabularies object from a directory
+
+        Parameters
+        ----------
+        directory : str or Path
+            Path to the directory containing CMIP7 CV subdirectories
+            (experiment/, project/, etc.)
+            
+        Returns
+        -------
+        CMIP7ControlledVocabularies
+            A new CMIP7ControlledVocabularies object
+        """
+        directory = Path(directory)
+        cv_data = {}
+        
+        # Load experiment CVs (one file per experiment)
+        experiment_dir = directory / "experiment"
+        if experiment_dir.exists():
+            cv_data["experiment"] = cls._load_individual_files(experiment_dir)
+        
+        # Load project-level CVs (list-based files)
+        project_dir = directory / "project"
+        if project_dir.exists():
+            cv_data.update(cls._load_project_files(project_dir))
+        
+        return cls(cv_data)
+
+    @staticmethod
+    def _load_individual_files(directory):
+        """Load individual JSON files from a directory into a dictionary
+        
+        Each file represents one CV entry (e.g., experiment/picontrol.json)
+        
+        Parameters
+        ----------
+        directory : Path
+            Directory containing individual JSON files
+            
+        Returns
+        -------
+        dict
+            Dictionary mapping entry IDs to their data
+        """
+        entries = {}
+        json_files = directory.glob("*.json")
+        
+        for json_file in json_files:
+            # Skip special files
+            if json_file.name.startswith("@") or json_file.name == "graph.jsonld" or json_file.name == "graph.min.jsonld":
+                continue
+                
+            try:
+                with open(json_file, "r") as f:
+                    data = json.load(f)
+                    # Use 'id' field as the key, or filename without extension as fallback
+                    entry_id = data.get("id", json_file.stem)
+                    entries[entry_id] = data
+            except json.JSONDecodeError as e:
+                raise ValueError(f"file {json_file}: {e.msg}")
+        
+        return entries
+
+    @staticmethod
+    def _load_project_files(directory):
+        """Load project-level CV files (list-based structures)
+        
+        Project files like frequency-list.json contain arrays of values
+        
+        Parameters
+        ----------
+        directory : Path
+            Directory containing project-level JSON files
+            
+        Returns
+        -------
+        dict
+            Dictionary mapping CV types to their data
+        """
+        cv_data = {}
+        json_files = directory.glob("*-list.json")
+        
+        for json_file in json_files:
+            try:
+                with open(json_file, "r") as f:
+                    data = json.load(f)
+                    # Extract the CV type from filename (e.g., "frequency-list" -> "frequency")
+                    cv_type = json_file.stem.replace("-list", "")
+                    
+                    # The actual data is usually in a field matching the cv_type
+                    # e.g., frequency-list.json has a "frequency" field with the list
+                    if cv_type in data:
+                        cv_data[cv_type] = data[cv_type]
+                    else:
+                        # Fallback: store the entire data
+                        cv_data[cv_type] = data
+            except json.JSONDecodeError as e:
+                raise ValueError(f"file {json_file}: {e.msg}")
+        
+        return cv_data
+
+    @classmethod
+    def load_from_git(cls, tag: str = None, branch: str = "src-data"):
+        """Load the controlled vocabularies from the git repository
+
+        Parameters
+        ----------
+        tag : str, optional
+            The git tag to use. If None, uses the branch specified.
+        branch : str, optional
+            The branch to use. Default is "src-data" which contains the CMIP7 CVs.
+            
+        Returns
+        -------
+        CMIP7ControlledVocabularies
+            A new CMIP7ControlledVocabularies object
+        """
+        if tag is not None:
+            ref = f"refs/tags/{tag}"
+        else:
+            ref = f"refs/heads/{branch}"
+            
+        base_url = f"https://raw.githubusercontent.com/WCRP-CMIP/CMIP7-CVs/{branch}"
+        
+        cv_data = {}
+        
+        # Load experiments (sample key experiments)
+        experiment_files = [
+            "picontrol.json",
+            "historical.json",
+            "1pctco2.json",
+            "abrupt-4xco2.json",
+            "amip.json",
+        ]
+        
+        experiments = {}
+        for fname in experiment_files:
+            url = f"{base_url}/experiment/{fname}"
+            try:
+                r = requests.get(url)
+                r.raise_for_status()
+                data = r.json()
+                entry_id = data.get("id", fname.replace(".json", ""))
+                experiments[entry_id] = data
+            except requests.RequestException:
+                # Skip files that don't exist
+                continue
+        
+        if experiments:
+            cv_data["experiment"] = experiments
+        
+        # Load project-level CVs
+        project_files = [
+            "frequency-list.json",
+            "license-list.json",
+            "mip-era-list.json",
+            "product-list.json",
+            "tables-list.json",
+        ]
+        
+        for fname in project_files:
+            url = f"{base_url}/project/{fname}"
+            try:
+                r = requests.get(url)
+                r.raise_for_status()
+                data = r.json()
+                cv_type = fname.replace("-list.json", "")
+                
+                # Extract the actual list from the data
+                if cv_type in data:
+                    cv_data[cv_type] = data[cv_type]
+                else:
+                    cv_data[cv_type] = data
+            except requests.RequestException:
+                continue
+        
+        return cls(cv_data)
+
+    def print_experiment_ids(self):
+        """Print experiment ids with start and end years and parent experiment ids"""
+        if "experiment" not in self:
+            print("No experiment data available")
+            return
+            
+        for exp_id, exp_data in self["experiment"].items():
+            start = exp_data.get("start", exp_data.get("start-year", "N/A"))
+            end = exp_data.get("end", exp_data.get("end-year", "N/A"))
+            parent = exp_data.get("parent-experiment", exp_data.get("parent_experiment_id", []))
+            
+            # Handle parent experiment format
+            if isinstance(parent, list):
+                parent_str = ", ".join(parent)
+            else:
+                parent_str = str(parent)
+            
+            print(f"{exp_id} {start}-{end} parent:{parent_str}")
