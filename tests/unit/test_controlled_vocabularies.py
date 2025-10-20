@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from pycmor.core.controlled_vocabularies import (
     CMIP6ControlledVocabularies,
@@ -213,7 +214,7 @@ class TestCMIP7ControlledVocabularies:
 
     @pytest.mark.skipif(
         not Path(__file__).parent.parent.parent.joinpath("CMIP7-CVs").exists(),
-        reason="CMIP7-CVs submodule not initialized"
+        reason="CMIP7-CVs submodule not initialized",
     )
     def test_load_from_git_method(self):
         """Test loading from git (requires internet connection)"""
