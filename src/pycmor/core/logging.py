@@ -96,6 +96,14 @@ class PrefectHandler(logging.Handler):
             pass
 
 
+def _format_with_padding(record):
+    """Add padding to align log levels after square brackets."""
+    # [CRITICAL] is 10 chars, pad others to match
+    level_with_brackets = f"[{record['level'].name}]"
+    padding = " " * (10 - len(level_with_brackets))
+    record["extra"]["pad"] = padding
+
+
 def setup_logging(
     level: str = DEFAULT_LOG_LEVEL,
     log_file: Optional[str] = LOG_FILE_PATH,
@@ -121,11 +129,17 @@ def setup_logging(
     """
     logger.remove()
 
+    # Format: [LEVEL] padded to 10 chars total ([CRITICAL] is longest)
     console_format = (
-        "<green>{time:HH:mm:ss}</green> | <level>[{level}]: <10</level> | "
+        "<green>{time:HH:mm:ss}</green> | "
+        "<level>[{level}]{extra[pad]}</level> | "
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
         "<level>{message}</level>"
     )
+
+    # Configure logger to use padding function
+    logger.configure(patcher=_format_with_padding)
+
     logger.add(
         sys.stderr,
         format=console_format,
@@ -139,7 +153,7 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         logger.add(
             log_file,
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]: <10 | {name}:{function}:{line} - {message}",
+            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]{extra[pad]} | {name}:{function}:{line} - {message}",
             level="DEBUG",
             rotation="10 MB",
             retention="7 days",
@@ -195,7 +209,7 @@ def add_rule_log_file(rule_name: str, log_dir: Optional[Path] = None) -> int:
 
     handler_id = logger.add(
         log_file,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]: <10 | {name}:{function}:{line} - {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]{extra[pad]} | {name}:{function}:{line} - {message}",
         level="DEBUG",
         enqueue=True,
     )
