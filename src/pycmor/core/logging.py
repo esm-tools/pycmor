@@ -27,6 +27,18 @@ from loguru import logger
 # Create a simple file record type that's picklable
 FileRecord = namedtuple("FileRecord", ["name", "path"])
 
+
+def _format_with_padding(record):
+    """Add padding to align log levels after square brackets."""
+    # [CRITICAL] is 10 chars, pad others to match
+    level_with_brackets = f"[{record['level'].name}]"
+    padding = " " * (10 - len(level_with_brackets))
+    record["extra"]["pad"] = padding
+
+
+# Configure the global logger with padding function
+logger = logger.patch(_format_with_padding)
+
 DEFAULT_LOG_LEVEL = os.environ.get("PYCMOR_LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.environ.get("PYCMOR_LOG_FILE", None)
 LOG_TO_PREFECT = os.environ.get("PYCMOR_LOG_TO_PREFECT", "true").lower() == "true"
@@ -96,14 +108,6 @@ class PrefectHandler(logging.Handler):
             pass
 
 
-def _format_with_padding(record):
-    """Add padding to align log levels after square brackets."""
-    # [CRITICAL] is 10 chars, pad others to match
-    level_with_brackets = f"[{record['level'].name}]"
-    padding = " " * (10 - len(level_with_brackets))
-    record["extra"]["pad"] = padding
-
-
 def setup_logging(
     level: str = DEFAULT_LOG_LEVEL,
     log_file: Optional[str] = LOG_FILE_PATH,
@@ -136,9 +140,6 @@ def setup_logging(
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
         "<level>{message}</level>"
     )
-
-    # Configure logger to use padding function
-    logger.configure(patcher=_format_with_padding)
 
     logger.add(
         sys.stderr,
