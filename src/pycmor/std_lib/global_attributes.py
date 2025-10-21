@@ -6,6 +6,7 @@ from abc import abstractmethod
 import xarray as xr
 
 from ..core.factory import MetaFactory
+from ..core.logging import logger
 
 
 class GlobalAttributes(metaclass=MetaFactory):
@@ -293,7 +294,16 @@ class CMIP6GlobalAttributes(GlobalAttributes):
 
 def set_global_attributes(ds, rule):
     """Set global attributes for the dataset"""
+    logger.info("Setting global CMOR attributes")
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
-    ds.attrs.update(rule.ga.global_attributes())
+
+    attrs = rule.ga.global_attributes()
+    key_attrs = ['experiment_id', 'institution_id', 'source_id', 'variant_label']
+    for key in key_attrs:
+        if key in attrs:
+            logger.info(f"  {key}: {attrs[key]}")
+    logger.debug(f"  Total attributes: {len(attrs)}")
+
+    ds.attrs.update(attrs)
     return ds

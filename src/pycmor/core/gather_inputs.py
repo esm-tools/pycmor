@@ -14,6 +14,9 @@ import xarray as xr
 from .filecache import register_cache  # noqa: F401
 from .logging import logger
 
+_LOG_FILE_PREVIEW_LIMIT = 5
+"""int: Maximum number of input files to show in log messages before truncating with '... (N more files)'."""
+
 # Prefer new pycmor keys; keep legacy pymor as fallback
 _PATTERN_ENV_VAR_NAME_ADDRS = [
     "/pycmor/pattern_env_var_name",
@@ -44,11 +47,17 @@ class InputFileCollection:
     @property
     def files(self):
         files = []
-        for file in list(self.path.iterdir()):
+        all_files = list(self.path.iterdir())
+        for file in all_files:
             if self.pattern.match(
                 file.name
             ):  # Check if the filename matches the pattern
                 files.append(file)
+
+        if len(files) == 0:
+            logger.warning(f"No files matched pattern '{self.pattern.pattern}' in {self.path}")
+            logger.debug(f"  Checked {len(all_files)} files in directory")
+
         return files
 
     @classmethod
@@ -297,12 +306,37 @@ def load_mfdataset(data, rule_spec):
     for file_collection in rule_spec.inputs:
         for f in file_collection.files:
             all_files.append(f)
+
     all_files = _resolve_symlinks(all_files)
-    logger.info(f"Loading {len(all_files)} files using {engine} backend on xarray...")
-    for f in all_files:
-        logger.info(f"  * {f}")
-    mf_ds = xr.open_mfdataset(all_files, parallel=True, use_cftime=True, engine=engine)
-    return mf_ds
+
+    if len(all_files) == 0:
+        logger.error("No input files found!")
+        logger.error("  Check your file patterns and input directories")
+        raise ValueError("No input files found for this rule")
+
+    logger.info(f"Loading {len(all_files)} input files")
+    logger.info(f"  Engine: {engine}")
+    logger.info(f"  Variable: {rule_spec.model_variable}")
+
+    if len(all_files) <= _LOG_FILE_PREVIEW_LIMIT:
+        for f in all_files:
+            logger.info(f"    • {f.name}")
+    else:
+        logger.info(f"    • {all_files[0].name}")
+        logger.info(f"    • ... ({len(all_files) - 2} more files)")
+        logger.info(f"    • {all_files[-1].name}")
+
+    logger.debug("Opening multi-file dataset with parallel=True, use_cftime=True")
+
+    try:
+        mf_ds = xr.open_mfdataset(all_files, parallel=True, use_cftime=True, engine=engine)
+        logger.debug(f"  Dataset loaded: {dict(mf_ds.sizes)}")
+        return mf_ds
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {e}")
+        logger.error(f"  Files attempted: {len(all_files)}")
+        logger.error(f"  First file: {all_files[0]}")
+        raise
 
 
 @deprecation.deprecated(details="Use load_mfdataset in your pipeline instead!")

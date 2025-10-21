@@ -2,19 +2,14 @@ import subprocess
 
 import rich_click as click
 
-from ..cli import find_subcommands  # noqa: F401
-from ..cli import NAME, VERSION, click_loguru  # , pymor_cli_group
+from ..cli import NAME, VERSION, find_subcommands  # noqa: F401
 from .logging import logger
 
 
-@click_loguru.logging_options
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click_loguru.stash_subcommand()
-@click_loguru.init_logger()
 @click.version_option(version=VERSION, prog_name=NAME)
-# @pymor_cli_group
-def externals(ctx, verbose, quiet, logfile, profile_mem):
+def externals(ctx):
     """
     Information about external dependencies
     """

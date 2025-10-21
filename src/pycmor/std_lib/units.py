@@ -294,6 +294,14 @@ def handle_unit_conversion(
         model_variable = rule.model_variable
         new_da = da[model_variable]
         from_unit, to_unit, to_unit_dimensionless_mapping = _get_units(new_da, rule)
+
+        if from_unit != to_unit:
+            logger.info(f"Converting units: '{from_unit}' → '{to_unit}'")
+            if to_unit_dimensionless_mapping:
+                logger.debug(f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}")
+        else:
+            logger.debug(f"Units already correct: '{from_unit}'")
+
         converted_da = convert(
             new_da, from_unit, to_unit, to_unit_dimensionless_mapping
         )
@@ -301,4 +309,12 @@ def handle_unit_conversion(
         return da
     else:
         from_unit, to_unit, to_unit_dimensionless_mapping = _get_units(da, rule)
+
+        if from_unit != to_unit:
+            logger.info(f"Converting units: '{from_unit}' → '{to_unit}'")
+            if to_unit_dimensionless_mapping:
+                logger.debug(f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}")
+        else:
+            logger.debug(f"Units already correct: '{from_unit}'")
+
         return convert(da, from_unit, to_unit, to_unit_dimensionless_mapping)

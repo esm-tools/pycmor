@@ -41,8 +41,11 @@ from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
 DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath(
     "dimensionless_mappings.yaml"
 )
-"""Path: The dimenionless unit mapping table, used to recreate meaningful units from
-dimensionless fractional values (e.g. 0.001 --> g/kg)"""
+"""Path: The dimensionless unit mapping table, used to recreate meaningful units from
+dimensionless fractional values (e.g., 0.001 → g/kg)."""
+
+_LOG_VARIABLE_PREVIEW_LIMIT = 5
+"""int: Maximum number of variables to show in log messages before truncating with '... (N more)'."""
 
 
 class CMORizer:
@@ -79,32 +82,39 @@ class CMORizer:
         self.cmor_version = self._general_cfg["cmor_version"]
         if self.cmor_version not in self._SUPPORTED_CMOR_VERSIONS:
             logger.error(f"CMOR version {self.cmor_version} is not supported.")
-            logger.error(f"Supported versions are {self._SUPPORTED_CMOR_VERSION}")
+            logger.error(f"Supported versions: {', '.join(self._SUPPORTED_CMOR_VERSIONS)}")
             raise ValueError(f"Unsupported CMOR version: {self.cmor_version}")
 
         ################################################################################
         # Print Out Configuration:
-        logger.debug(80 * "#")
-        logger.debug("---------------------")
-        logger.debug("General Configuration")
-        logger.debug("---------------------")
-        logger.debug(yaml.dump(self._general_cfg))
-        logger.debug("--------------------")
-        logger.debug("PyCMOR Configuration:")
-        logger.debug("--------------------")
-        # This isn't actually the config, it's the "App" object. Everett is weird about this...
+        logger.info("=" * 80)
+        logger.info("CMORizer Configuration")
+        logger.info("=" * 80)
+        logger.info(f"CMOR Version: {self.cmor_version}")
+
+        # General configuration (user-facing)
+        key_general = ['output_directory', 'tables_dir', 'grids_dir']
+        for key in key_general:
+            if key in self._general_cfg:
+                logger.info(f"{key}: {self._general_cfg[key]}")
+
+        # PyCMOR configuration
         pymor_config = PycmorConfig()
-        # NOTE(PG): This variable is for demonstration purposes:
         _pymor_config_dict = {}
         for namespace, key, value, option in get_runtime_config(
             self._pymor_cfg, pymor_config
         ):
             full_key = generate_uppercase_key(key, namespace)
             _pymor_config_dict[full_key] = value
-        logger.info(yaml.dump(_pymor_config_dict))
-        # Avoid confusion:
+
+        # Show full config at DEBUG level only
+        logger.debug("Full General Configuration:")
+        logger.debug(yaml.dump(self._general_cfg))
+        logger.debug("Full PyCMOR Configuration:")
+        logger.debug(yaml.dump(_pymor_config_dict))
+
         del pymor_config
-        logger.info(80 * "#")
+        logger.info("=" * 80)
         ################################################################################
 
         ################################################################################
@@ -117,12 +127,8 @@ class CMORizer:
         ################################################################################
         # Post_Init:
         if self._pycmor_cfg("enable_dask"):
-            logger.debug("Setting up dask configuration...")
             self._post_init_configure_dask()
-            logger.debug("...done!")
-            logger.debug("Creating dask cluster...")
             self._post_init_create_dask_cluster()
-            logger.debug("...done!")
         self._post_init_create_pipelines()
         self._post_init_create_rules()
         self._post_init_create_data_request_tables()
@@ -134,7 +140,6 @@ class CMORizer:
         self._post_init_create_controlled_vocabularies()
         self._post_init_populate_rules_with_controlled_vocabularies()
         self._post_init_create_global_attributes_on_rules()
-        logger.debug("...post-init done!")
         ################################################################################
 
     def __del__(self):
@@ -176,57 +181,52 @@ class CMORizer:
 
     def _post_init_create_dask_cluster(self):
         # FIXME: In the future, we can support PBS, too.
-        logger.info("Setting up dask cluster...")
         cluster_name = self._pymor_cfg("dask_cluster")
         ClusterClass = CLUSTER_MAPPINGS[cluster_name]
+
+        logger.info("=" * 80)
+        logger.info("Dask Cluster Setup")
+        logger.info("=" * 80)
+        logger.info(f"Cluster type: {cluster_name}")
+
         self._cluster = ClusterClass()
         set_dashboard_link(self._cluster)
+
         cluster_scaling_mode = self._pymor_cfg.get("dask_cluster_scaling_mode", "adapt")
+        logger.info(f"Scaling mode: {cluster_scaling_mode}")
+
         if cluster_scaling_mode == "adapt":
             if CLUSTER_ADAPT_SUPPORT[cluster_name]:
                 min_jobs = self._pymor_cfg.get("dask_cluster_scaling_minimum_jobs", 1)
                 max_jobs = self._pymor_cfg.get("dask_cluster_scaling_maximum_jobs", 10)
                 self._cluster.adapt(minimum_jobs=min_jobs, maximum_jobs=max_jobs)
+                logger.info(f"  Worker range: {min_jobs}-{max_jobs} jobs")
             else:
-                logger.warning(f"{self._cluster} does not support adaptive scaling!")
+                logger.warning(f"  {cluster_name} does not support adaptive scaling")
         elif cluster_scaling_mode == "fixed":
             if CLUSTER_SCALE_SUPPORT[cluster_name]:
                 jobs = self._pymor_cfg.get("dask_cluster_scaling_fixed_jobs", 5)
                 self._cluster.scale(jobs=jobs)
+                logger.info(f"  Fixed workers: {jobs} jobs")
             else:
-                logger.warning(f"{self._cluster} does not support fixed scaing")
+                logger.warning(f"  {cluster_name} does not support fixed scaling")
         else:
             raise ValueError(
                 "You need to specify adapt or fixed for pymor.dask_cluster_scaling_mode"
             )
-        # FIXME: Include the gateway option if possible
-        # FIXME: Does ``Client`` needs to be available here?
-        logger.info(f"Cluster can be found at: {self._cluster=}")
-        logger.info(f"Dashboard {self._cluster.dashboard_link}")
+
+        logger.info(f"Dashboard: {self._cluster.dashboard_link}")
 
         username = getpass.getuser()
         nodename = getattr(os.uname(), "nodename", "UNKNOWN")
-        logger.info(
-            "To see the dashboards run the following command in your computer's "
-            "terminal:\n"
-            f"\tpycmor ssh-tunnel --username {username} --compute-node "
-            f"{nodename}"
+        logger.debug(
+            f"SSH tunnel command: pycmor ssh-tunnel --username {username} --compute-node {nodename}"
         )
 
-        dask_extras = 0
-        messages = []
-        messages.append("Importing Dask Extras...")
         if self._pymor_cfg.get("enable_flox", True):
-            dask_extras += 1
-            messages.append("...flox...")
+            logger.debug("Importing flox for Dask optimization")
             import flox  # noqa: F401
             import flox.xarray  # noqa: F401
-        messages.append(f"...done! Imported {dask_extras} libraries.")
-        if messages:
-            for message in messages:
-                logger.info(message)
-        else:
-            logger.info("No Dask extras specified...")
 
     def _post_init_create_data_request_tables(self):
         """
@@ -646,17 +646,28 @@ class CMORizer:
                     logger.warning(filepath)
 
     def process(self, parallel=None):
-        logger.debug("Process start!")
+        logger.info("=" * 80)
+        logger.info("Starting CMORization Process")
+        logger.info("=" * 80)
+
         self._match_pipelines_in_rules()
+
+        total_rules = len(self.rules)
+        variables = sorted(set(r.cmor_variable for r in self.rules))
+        logger.info(f"Total rules: {total_rules}")
+        logger.info(f"Variables: {', '.join(variables[:_LOG_VARIABLE_PREVIEW_LIMIT])}{f' ... ({len(variables)-_LOG_VARIABLE_PREVIEW_LIMIT} more)' if len(variables) > _LOG_VARIABLE_PREVIEW_LIMIT else ''}")
+
         if parallel is None:
             parallel = self._pymor_cfg.get("parallel", True)
+
+        workflow_backend = self._pymor_cfg.get("pipeline_orchestrator", "prefect")
         if parallel:
-            logger.debug("Parallel processing...")
-            # FIXME(PG): This is mixed up, hard-coding to prefect for now...
-            workflow_backend = self._pymor_cfg.get("pipeline_orchestrator", "prefect")
-            logger.debug(f"...with {workflow_backend}...")
+            logger.info(f"Execution mode: Parallel ({workflow_backend})")
+            logger.info("-" * 80)
             return self.parallel_process(backend=workflow_backend)
         else:
+            logger.info("Execution mode: Serial")
+            logger.info("-" * 80)
             return self.serial_process()
 
     def parallel_process(self, backend="prefect"):
@@ -669,9 +680,8 @@ class CMORizer:
             raise ValueError("Unknown backend for parallel processing")
 
     def _parallel_process_prefect(self):
-        # prefect_logger = get_run_logger()
-        # logger = prefect_logger
-        # @flow(task_runner=DaskTaskRunner(address=self._cluster.scheduler_address))
+        from .logging import merge_rule_logs
+
         logger.debug("Defining dynamically generated prefect workflow...")
 
         @flow(name="CMORizer Process")
@@ -689,9 +699,19 @@ class CMORizer:
             # We encapsulate the flow in a context manager to ensure that the
             # Dask cluster is available in the singleton, which could be used
             # during unpickling to reattach it to a Pipeline.
-            return dynamic_flow()
+            result = dynamic_flow()
+
+        # Merge all per-rule logs into a chronological log
+        rule_names = [rule.cmor_variable for rule in self.rules]
+        logger.info("Merging per-rule log files...")
+        merge_rule_logs(rule_names)
+        logger.success("Log files merged successfully")
+
+        return result
 
     def _parallel_process_dask(self, external_client=None):
+        from .logging import merge_rule_logs
+
         if external_client:
             client = external_client
         else:
@@ -701,6 +721,12 @@ class CMORizer:
 
             results = client.gather(futures)
 
+            # Merge all per-rule logs into a chronological log
+            rule_names = [rule.cmor_variable for rule in self.rules]
+            logger.info("Merging per-rule log files...")
+            merge_rule_logs(rule_names)
+            logger.success("Log files merged successfully")
+
             logger.success("Processing completed.")
             return results
         else:
@@ -708,9 +734,14 @@ class CMORizer:
 
     def serial_process(self):
         data = {}
-        for rule in track(self.rules, description="Processing rules"):
+        total_rules = len(self.rules)
+        logger.info(f"Processing {total_rules} rules sequentially...")
+        for i, rule in enumerate(self.rules, 1):
+            logger.info("=" * 80)
+            logger.info(f"[{i}/{total_rules}] Processing: {rule.cmor_variable}")
+            logger.info("=" * 80)
             data[rule.name] = self._process_rule(rule)
-        logger.success("Processing completed.")
+        logger.success(f"All {total_rules} rules processed successfully!")
         return data
 
     @flow
@@ -741,14 +772,37 @@ class CMORizer:
     @staticmethod
     @task(name="Process rule")
     def _process_rule(rule):
-        logger.info(f"Starting to process rule {rule}")
-        data = None
-        if not len(rule.pipelines) > 0:
-            logger.error("No pipeline defined, something is wrong!")
-        for pipeline in rule.pipelines:
-            logger.info(f"Running {str(pipeline)}")
-            data = pipeline.run(data, rule)
-        return data
+        """
+        Process a single rule through its pipelines.
+
+        In parallel mode, this task gets its own log file that will be merged later.
+        """
+        from .logging import add_rule_log_file, remove_rule_log_file
+
+        # Add per-rule log file for parallel execution
+        # (In serial mode, this still works but won't be merged)
+        add_rule_log_file(rule.cmor_variable)
+
+        try:
+            logger.info(f"Starting processing: {rule.cmor_variable}")
+            logger.debug(f"  Rule: {rule.name}")
+            logger.debug(f"  Model variable: {rule.model_variable}")
+
+            data = None
+            if not len(rule.pipelines) > 0:
+                logger.error("No pipeline defined for this rule!")
+                return None
+
+            for pipeline in rule.pipelines:
+                logger.debug(f"Running pipeline: {pipeline.name}")
+                data = pipeline.run(data, rule)
+
+            logger.success(f"Completed successfully: {rule.cmor_variable}")
+            return data
+
+        finally:
+            # Remove the per-rule log handler
+            remove_rule_log_file(rule.cmor_variable)
 
     def _post_init_create_global_attributes_on_rules(self):
         global_attributes_factory = create_factory(GlobalAttributes)

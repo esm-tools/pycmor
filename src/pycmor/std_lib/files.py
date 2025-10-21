@@ -47,6 +47,9 @@ from xarray.core.utils import is_scalar
 from ..core.logging import logger
 from .dataset_helpers import get_time_label, has_time_axis
 
+_LOG_FILE_PREVIEW_LIMIT = 3
+"""int: Maximum number of files to show in log messages before truncating with '... (N more files)'."""
+
 
 def _filename_time_range(ds, rule) -> str:
     """
@@ -241,12 +244,21 @@ def _save_dataset_with_native_timespan(
     datasets = split_data_timespan(da, rule)
     for group_ds in datasets:
         paths.append(create_filepath(group_ds, rule))
-    return xr.save_mfdataset(
+
+    logger.info(f"  → Writing {len(datasets)} files (native timespan)")
+    for i, path in enumerate(paths[:_LOG_FILE_PREVIEW_LIMIT], 1):
+        logger.info(f"    [{i}/{len(datasets)}] {path.name}")
+    if len(datasets) > _LOG_FILE_PREVIEW_LIMIT:
+        logger.info(f"    ... ({len(datasets) - _LOG_FILE_PREVIEW_LIMIT} more files)")
+
+    result = xr.save_mfdataset(
         datasets,
         paths,
         encoding={time_label: time_encoding},
         **extra_kwargs,
     )
+    logger.success(f"  ✓ Saved {len(datasets)} files to {paths[0].parent}")
+    return result
 
 
 def save_dataset(da: xr.DataArray, rule):
@@ -285,6 +297,9 @@ def save_dataset(da: xr.DataArray, rule):
     NOTE: prior to calling this function, call dask.compute() method,
     otherwise tasks will progress very slow.
     """
+    logger.info(f"Saving dataset: {rule.cmor_variable}")
+    logger.debug(f"  Data shape: {dict(da.sizes)}")
+
     time_dtype = rule._pycmor_cfg("xarray_time_dtype")
     time_unlimited = rule._pycmor_cfg("xarray_time_unlimited")
     extra_kwargs = {}
@@ -294,21 +309,27 @@ def save_dataset(da: xr.DataArray, rule):
     time_encoding = {k: v for k, v in time_encoding.items() if v is not None}
     if not has_time_axis(da):
         filepath = create_filepath(da, rule)
-        return da.to_netcdf(
+        logger.info(f"  → Writing: {filepath}")
+        result = da.to_netcdf(
             filepath,
             mode="w",
             format="NETCDF4",
         )
+        logger.success(f"  ✓ Saved: {filepath}")
+        return result
     time_label = get_time_label(da)
     if is_scalar(da[time_label]):
         filepath = create_filepath(da, rule)
-        return da.to_netcdf(
+        logger.info(f"  → Writing (scalar time): {filepath}")
+        result = da.to_netcdf(
             filepath,
             mode="w",
             format="NETCDF4",
             encoding={time_label: time_encoding},
             **extra_kwargs,
         )
+        logger.success(f"  ✓ Saved: {filepath}")
+        return result
     if isinstance(da, xr.DataArray):
         da = da.to_dataset()
     # Not sure about this, maybe it needs to go above, before the is_scalar
@@ -335,6 +356,7 @@ def save_dataset(da: xr.DataArray, rule):
     default_file_timespan = rule._pycmor_cfg("file_timespan")
     file_timespan = getattr(rule, "file_timespan", default_file_timespan)
     if file_timespan == "file_native":
+        logger.info("  → File timespan: native (preserving original chunking)")
         return _save_dataset_with_native_timespan(
             da,
             rule,
@@ -351,8 +373,8 @@ def save_dataset(da: xr.DataArray, rule):
         dt = pd.Timedelta(approx_interval, unit="d")
         if file_timespan_as_dt < dt:
             logger.warning(
-                f"file_timespan {file_timespan_as_dt} is smaller than approx_interval {dt}"
-                "falling back to timespan as defined in the source file"
+                f"  → File timespan {file_timespan_as_dt} is smaller than data interval {dt}, "
+                f"falling back to native timespan"
             )
             return _save_dataset_with_native_timespan(
                 da,
@@ -368,9 +390,18 @@ def save_dataset(da: xr.DataArray, rule):
             for group_name, group_ds in groups:
                 paths.append(create_filepath(group_ds, rule))
                 datasets.append(group_ds)
-            return xr.save_mfdataset(
+
+            logger.info(f"  → Splitting into {len(datasets)} files ({file_timespan} per file)")
+            for i, path in enumerate(paths[:_LOG_FILE_PREVIEW_LIMIT], 1):
+                logger.info(f"    [{i}/{len(datasets)}] {path.name}")
+            if len(datasets) > _LOG_FILE_PREVIEW_LIMIT:
+                logger.info(f"    ... ({len(datasets) - _LOG_FILE_PREVIEW_LIMIT} more files)")
+
+            result = xr.save_mfdataset(
                 datasets,
                 paths,
                 encoding={time_label: time_encoding},
                 **extra_kwargs,
             )
+            logger.success(f"  ✓ Saved {len(datasets)} files to {paths[0].parent}")
+            return result

@@ -1,12 +1,11 @@
 import os
 import sys
 from importlib import resources
+from importlib.metadata import entry_points
 from typing import List
 
-import pkg_resources
 import rich_click as click
 import yaml
-from click_loguru import ClickLoguru
 from dask.distributed import Client
 from rich.traceback import install as rich_traceback_install
 from streamlit.web import cli as stcli
@@ -15,7 +14,7 @@ from . import _version
 from .core import caching
 from .core.cmorizer import CMORizer
 from .core.filecache import fc
-from .core.logging import add_report_logger, logger
+from .core.logging import logger
 from .core.ssh_tunnel import ssh_tunnel_cli
 from .core.validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
 from .dev import utils as dev_utils
@@ -34,32 +33,7 @@ str: The maximum number of frames to show in the traceback if there is an error.
 rich_traceback_install(show_locals=True, max_frames=MAX_FRAMES)
 
 VERSION = _version.get_versions()["version"]
-
-# global constants
-LOG_FILE_RETENTION = 3
 NAME = "pycmor"
-# define the CLI
-click_loguru = ClickLoguru(
-    NAME,
-    VERSION,
-    retention=LOG_FILE_RETENTION,
-    # log_dir_parent="tests/data/logs",
-    timer_log_level="info",
-)
-
-
-# FIXME(PG): Doesn't work as intended :-(
-def pymor_cli_group(func):
-    """
-    Decorator to add the click_loguru logging options to a click group
-    """
-    func = click_loguru.logging_options(func)
-    func = click.group()(func)
-    func = click_loguru.stash_subcommand()(func)
-    func = click.version_option(
-        version=VERSION, prog_name="PyCMOR - Makes CMOR Simple"
-    )(func)
-    return func
 
 
 def find_subcommands():
@@ -68,21 +42,23 @@ def find_subcommands():
     """
     groups = ["pycmor.cli_subcommands", "pymor.cli_subcommands"]
     discovered_subcommands = {}
+
+    eps = entry_points()
     for group in groups:
-        for entry_point in pkg_resources.iter_entry_points(group):
+        # Get entry points for this group (compatible with Python 3.10+)
+        group_eps = eps.select(group=group) if hasattr(eps, 'select') else eps.get(group, [])
+        for entry_point in group_eps:
             discovered_subcommands[entry_point.name] = {
-                "plugin_name": entry_point.module_name.split(".")[0],
+                "plugin_name": entry_point.value.split(":")[0].split(".")[0],
                 "callable": entry_point.load(),
             }
     return discovered_subcommands
 
 
-@click_loguru.logging_options
 @click.group(name="pycmor", help="PyCMOR - Makes CMOR Simple")
-@click_loguru.stash_subcommand()
 @click.version_option(version=VERSION, prog_name=NAME)
-def cli(verbose, quiet, logfile, profile_mem):
-    return 0
+def cli():
+    pass
 
 
 ################################################################################
@@ -95,25 +71,45 @@ def cli(verbose, quiet, logfile, profile_mem):
 
 
 @cli.command()
-@click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
 def process(config_file):
-    # NOTE(PG): The ``init_logger`` decorator above removes *ALL* previously configured loggers,
-    #           so we need to re-create the report logger here. Paul does not like this at all.
-    add_report_logger()
-    logger.info(f"Processing {config_file}")
-    with open(config_file, "r") as f:
-        cfg = yaml.safe_load(f)
-    cmorizer = CMORizer.from_dict(cfg)
-    client = Client(cmorizer._cluster)  # noqa: F841
-    cmorizer.process()
+    import time
+    start_time = time.time()
+
+    logger.info("=" * 80)
+    logger.info(f"PyCMOR - Processing Configuration")
+    logger.info("=" * 80)
+    logger.info(f"Config file: {config_file}")
+    logger.info("-" * 80)
+
+    try:
+        with open(config_file, "r") as f:
+            cfg = yaml.safe_load(f)
+        cmorizer = CMORizer.from_dict(cfg)
+        client = Client(cmorizer._cluster)  # noqa: F841
+        result = cmorizer.process()
+
+        elapsed_time = time.time() - start_time
+        logger.info("=" * 80)
+        logger.success("CMORization Completed Successfully!")
+        logger.info(f"Total time: {elapsed_time:.1f}s")
+        if 'general' in cfg and 'output_directory' in cfg['general']:
+            logger.info(f"Output directory: {cfg['general']['output_directory']}")
+        logger.info("=" * 80)
+        return result
+
+    except Exception as e:
+        elapsed_time = time.time() - start_time
+        logger.info("=" * 80)
+        logger.error(f"CMORization Failed After {elapsed_time:.1f}s")
+        logger.error(f"Error: {e}")
+        logger.info("=" * 80)
+        raise
 
 
 @cli.command()
-@click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
 def prefect_check(config_file):
-    add_report_logger()
     logger.info(f"Checking prefect with dummy flow using {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -123,7 +119,6 @@ def prefect_check(config_file):
 
 
 @cli.command()
-@click_loguru.init_logger()
 def table_explorer():
     logger.info("Launching table explorer...")
     try:
@@ -141,34 +136,28 @@ def table_explorer():
 ################################################################################
 # SUBCOMMANDS
 ################################################################################
-@click_loguru.logging_options
 @click.group()
-@click_loguru.stash_subcommand()
-@click.version_option(version=VERSION, prog_name=NAME)
-def validate(verbose, quiet, logfile, profile_mem):
-    return 0
+def validate():
+    """Validate pycmor configurations and rules."""
+    pass
 
 
-@click_loguru.logging_options
 @click.group()
-@click_loguru.stash_subcommand()
-@click.version_option(version=VERSION, prog_name=NAME)
-def develop(verbose, quiet, logfile, profile_mem):
-    return 0
+def develop():
+    """Development utilities."""
+    pass
 
 
-@click_loguru.logging_options
 @click.group()
-@click_loguru.stash_subcommand()
-@click.version_option(version=VERSION, prog_name=NAME)
-def cache(verbose, quiet, logfile, profile_mem):
-    return 0
+def cache():
+    """Cache management commands."""
+    pass
 
 
 @click.group()
 def scripts():
     """Various utility scripts for Pycmor."""
-    return 0
+    pass
 
 
 ################################################################################
@@ -180,11 +169,9 @@ def scripts():
 
 
 @develop.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument("directory", type=click.Path(exists=True))
 @click.argument("output_file", type=click.File("w"), required=False, default=None)
-def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
+def ls(directory, output_file):
     yaml_str = dev_utils.ls_to_yaml(directory)
     # Append to beginning of output file
     if output_file is not None:
@@ -202,10 +189,8 @@ def ls(directory, output_file, verbose, quiet, logfile, profile_mem):
 
 
 @validate.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
-def config(config_file, verbose, quiet, logfile, profile_mem):
+def config(config_file):
     logger.info(f"Checking if a CMORizer can be built from {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -237,11 +222,9 @@ def config(config_file, verbose, quiet, logfile, profile_mem):
 
 
 @validate.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
 @click.argument("table_name", type=click.STRING)
-def table(config_file, table_name, verbose, quiet, logfile, profile_mem):
+def table(config_file, table_name):
     logger.info(f"Processing {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -250,11 +233,9 @@ def table(config_file, table_name, verbose, quiet, logfile, profile_mem):
 
 
 @validate.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
 @click.argument("output_dir", type=click.STRING)
-def directory(config_file, output_dir, verbose, quiet, logfile, profile_mem):
+def directory(config_file, output_dir):
     logger.info(f"Processing {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)
@@ -291,14 +272,12 @@ scripts.add_command(update_dimensionless_mappings)
 
 
 @cache.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument(
     "cache_dir",
     default=f"{os.environ['HOME']}/.prefect/storage/",
     type=click.Path(exists=True, dir_okay=True),
 )
-def inspect_prefect_global(cache_dir, verbose, quiet, logfile, profile_mem):
+def inspect_prefect_global(cache_dir):
     """Print information about items in Prefect's storage cache"""
     logger.info(f"Inspecting Prefect Cache at {cache_dir}")
     caching.inspect_cache(cache_dir)
@@ -306,22 +285,19 @@ def inspect_prefect_global(cache_dir, verbose, quiet, logfile, profile_mem):
 
 
 @cache.command()
-@click_loguru.logging_options
-@click_loguru.init_logger()
 @click.argument(
     "result",
     type=click.Path(exists=True),
 )
-def inspect_prefect_result(result, verbose, quiet, logfile, profile_mem):
+def inspect_prefect_result(result):
     obj = caching.inspect_result(result)
     logger.info(obj)
     return 0
 
 
 @cache.command()
-@click_loguru.logging_options
 @click.argument("files", type=click.Path(exists=True), nargs=-1)
-def populate_cache(files: List, verbose, quiet, logfile, profile_mem):
+def populate_cache(files: List):
     fc.add_files(files)
     fc.save()
 

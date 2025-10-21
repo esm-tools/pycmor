@@ -166,9 +166,18 @@ def timeavg(da: xr.DataArray, rule):
     rule.frequency_str = frequency_str
     time_method = _get_time_method(drv.frequency)
     rule.time_method = time_method
+
+    input_time_size = da.sizes.get('time', 0)
+    logger.info(f"Time averaging: {time_method}")
+    logger.info(f"  Source interval: {approx_interval} days → Target frequency: {frequency_str}")
+    if input_time_size > 0:
+        logger.debug(f"  Input time points: {input_time_size}")
+
     if time_method == "INSTANTANEOUS":
+        logger.info("  Method: Taking first value in each period")
         ds = da.resample(time=frequency_str).first()
     elif time_method == "MEAN":
+        logger.info("  Method: Computing mean over each period")
         ds = da.resample(time=frequency_str).mean()
         offset = rule.get("adjust_timestamp", None)
         offset_presets = {
@@ -181,6 +190,9 @@ def timeavg(da: xr.DataArray, rule):
         }
         offset = offset_presets.get(offset, offset)
         if offset is None:
+            output_time_size = ds.sizes.get('time', 0)
+            if input_time_size > 0 and output_time_size > 0:
+                logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
             return ds
         try:
             offset = float(offset)
@@ -194,10 +206,17 @@ def timeavg(da: xr.DataArray, rule):
                 # at the moment, skip supporting it.
                 raise ValueError(f"offset ({offset}) can not converted to timedelta")
             else:
+                logger.info(f"  Timestamp adjustment: +{offset}")
                 ds["time"] = ds.time.values + offset
+                output_time_size = ds.sizes.get('time', 0)
+                if input_time_size > 0 and output_time_size > 0:
+                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
                 return ds
         else:
             if offset == 0.0:
+                output_time_size = ds.sizes.get('time', 0)
+                if input_time_size > 0 and output_time_size > 0:
+                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
                 return ds
             elif "MS" in frequency_str or "YS" in frequency_str:
                 timestamps = []
@@ -206,7 +225,7 @@ def timeavg(da: xr.DataArray, rule):
                 if "MS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_month.values[0] * magnitude
-                        # NOTE: removing a day is requied to avoid overflow of the interval into next month
+                        # Subtract 1 day to avoid overflow into next month
                         new_offset = pd.to_timedelta(
                             f"{ndays}d"
                         ) * offset - pd.to_timedelta("1d")
@@ -221,21 +240,33 @@ def timeavg(da: xr.DataArray, rule):
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 else:
-                    print(
-                        "It is not possible to reach this branch."
-                        "If you are here, know that Pycmor has gone nuts."
-                        f"{frequency_str=} {offset=}"
+                    logger.critical(
+                        f"Invalid code path reached in timestamp adjustment. "
+                        f"frequency_str={frequency_str}, offset={offset}. "
+                        f"This indicates a logic error."
                     )
+                    raise RuntimeError(f"Invalid timestamp adjustment state: frequency_str={frequency_str}, offset={offset}")
+                logger.info(f"  Timestamp adjustment: period offset {offset}")
                 ds["time"] = timestamps
+                output_time_size = ds.sizes.get('time', 0)
+                if input_time_size > 0 and output_time_size > 0:
+                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
                 return ds
             else:
                 new_offset = pd.to_timedelta(frequency_str) * offset
+                logger.info(f"  Timestamp adjustment: +{new_offset}")
                 ds["time"] = ds.time.values + new_offset
+                output_time_size = ds.sizes.get('time', 0)
+                if input_time_size > 0 and output_time_size > 0:
+                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
                 return ds
     elif time_method == "CLIMATOLOGY":
+        logger.info(f"  Method: Climatology ({drv.frequency})")
         if drv.frequency == "monC":
+            logger.info("  Grouping: By month")
             ds = da.groupby("time.month").mean("time")
         elif drv.frequency == "1hrCM":
+            logger.info("  Grouping: By hour")
             ds = da.groupby("time.hour").mean("time")
         else:
             raise ValueError(
@@ -243,6 +274,10 @@ def timeavg(da: xr.DataArray, rule):
             )
     else:
         raise ValueError(f"Unknown time method: {time_method}")
+
+    output_time_size = ds.sizes.get('time', 0)
+    if input_time_size > 0 and output_time_size > 0:
+        logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
     return ds
 
 

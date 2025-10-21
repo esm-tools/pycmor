@@ -8,8 +8,8 @@ import os
 import tempfile
 import time
 from functools import partial
+from importlib.metadata import entry_points
 
-import pkg_resources
 import requests
 
 from .logging import logger
@@ -104,8 +104,12 @@ def get_entrypoint_by_name(name, group="pycmor.steps"):
     groups_to_try = [group]
     if group == "pycmor.steps":
         groups_to_try.append("pymor.steps")  # legacy fallback
+
+    eps = entry_points()
     for grp in groups_to_try:
-        for entry_point in pkg_resources.iter_entry_points(group=grp):
+        # Get entry points for this group (compatible with Python 3.10+)
+        group_eps = eps.select(group=grp) if hasattr(eps, 'select') else eps.get(grp, [])
+        for entry_point in group_eps:
             if entry_point.name == name:
                 return entry_point.load()
 

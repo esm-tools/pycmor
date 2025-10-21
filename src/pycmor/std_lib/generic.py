@@ -216,7 +216,18 @@ def get_variable(data, rule_spec, *args, **kwargs):
     -------
     xr.DataArray
     """
-    return data[rule_spec.model_variable]
+    model_var = rule_spec.model_variable
+    logger.info(f"Extracting variable: '{model_var}'")
+
+    if model_var not in data:
+        available = list(data.data_vars)
+        logger.error(f"  Variable '{model_var}' not found in dataset")
+        logger.error(f"  Available variables: {', '.join(available)}")
+        raise KeyError(f"Variable '{model_var}' not found in dataset. Available: {available}")
+
+    extracted = data[model_var]
+    logger.debug(f"  Shape: {dict(extracted.sizes)}")
+    return extracted
 
 
 def resample_monthly(data, rule_spec, *args, **kwargs):
@@ -250,8 +261,13 @@ def multiyear_monthly_mean(data, rule_spec, *args, **kwargs):
 
 def trigger_compute(data, rule_spec, *args, **kwargs):
     if hasattr(data, "compute"):
-        return data.compute()
+        logger.info("Triggering computation (converting lazy arrays to in-memory)")
+        logger.debug("  This may take a while for large datasets...")
+        result = data.compute()
+        logger.debug("  Computation complete")
+        return result
     # Data doesn't have a compute method, do nothing
+    logger.debug("Data already computed (no lazy arrays)")
     return data
 
 
