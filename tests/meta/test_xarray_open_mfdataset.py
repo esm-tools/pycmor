@@ -21,7 +21,7 @@ def test_open_awicm_1p0_recom(awicm_1p0_recom_data, engine):
 @pytest.mark.parametrize(
     "engine",
     [
-        "h5netcdf",
+        "netcdf4",
     ],
 )
 def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_pimesh_esm_tools_data, engine):
@@ -41,7 +41,7 @@ def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_pimesh_esm_tools_data, engine
 @pytest.mark.parametrize(
     "engine",
     [
-        "h5netcdf",
+        "netcdf4",
     ],
 )
 def test_open_fesom_2p6_pimesh_esm_tools_cftime(
@@ -62,7 +62,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_cftime(
 @pytest.mark.parametrize(
     "engine",
     [
-        "h5netcdf",
+        "netcdf4",
     ],
 )
 def test_open_fesom_2p6_pimesh_esm_tools_parallel(
@@ -83,7 +83,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_parallel(
 @pytest.mark.parametrize(
     "engine",
     [
-        "h5netcdf",
+        "netcdf4",
     ],
 )
 def test_open_fesom_2p6_pimesh_esm_tools_full(fesom_2p6_pimesh_esm_tools_data, engine):

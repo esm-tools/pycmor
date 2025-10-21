@@ -75,17 +75,17 @@ jobs:
         run: |
           export HDF5_DEBUG=1
           export NETCDF_DEBUG=1
-          export XARRAY_ENGINE=h5netcdf
+          export XARRAY_ENGINE=netcdf4
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
           pytest -vvv -s --cov=src/pycmor tests/meta/**.py
       - name: Test with pytest (Unit)
         run: |
-          export XARRAY_ENGINE=h5netcdf
+          export XARRAY_ENGINE=netcdf4
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
           pytest -vvv -s --cov=src/pycmor --cov-append tests/unit/**.py
       - name: Test with pytest (Integration)
         run: |
-          export XARRAY_ENGINE=h5netcdf
+          export XARRAY_ENGINE=netcdf4
           export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
           pytest -vvv -s --cov=src/pycmor --cov-append tests/integration/**.py
       - name: Test with doctest
