@@ -223,7 +223,9 @@ def get_variable(data, rule_spec, *args, **kwargs):
         available = list(data.data_vars)
         logger.error(f"  Variable '{model_var}' not found in dataset")
         logger.error(f"  Available variables: {', '.join(available)}")
-        raise KeyError(f"Variable '{model_var}' not found in dataset. Available: {available}")
+        raise KeyError(
+            f"Variable '{model_var}' not found in dataset. Available: {available}"
+        )
 
     extracted = data[model_var]
     logger.debug(f"  Shape: {dict(extracted.sizes)}")

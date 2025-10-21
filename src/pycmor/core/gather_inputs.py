@@ -55,7 +55,9 @@ class InputFileCollection:
                 files.append(file)
 
         if len(files) == 0:
-            logger.warning(f"No files matched pattern '{self.pattern.pattern}' in {self.path}")
+            logger.warning(
+                f"No files matched pattern '{self.pattern.pattern}' in {self.path}"
+            )
             logger.debug(f"  Checked {len(all_files)} files in directory")
 
         return files
@@ -329,7 +331,9 @@ def load_mfdataset(data, rule_spec):
     logger.debug("Opening multi-file dataset with parallel=True, use_cftime=True")
 
     try:
-        mf_ds = xr.open_mfdataset(all_files, parallel=True, use_cftime=True, engine=engine)
+        mf_ds = xr.open_mfdataset(
+            all_files, parallel=True, use_cftime=True, engine=engine
+        )
         logger.debug(f"  Dataset loaded: {dict(mf_ds.sizes)}")
         return mf_ds
     except Exception as e:

@@ -108,7 +108,9 @@ def get_entrypoint_by_name(name, group="pycmor.steps"):
     eps = entry_points()
     for grp in groups_to_try:
         # Get entry points for this group (compatible with Python 3.10+)
-        group_eps = eps.select(group=grp) if hasattr(eps, 'select') else eps.get(grp, [])
+        group_eps = (
+            eps.select(group=grp) if hasattr(eps, "select") else eps.get(grp, [])
+        )
         for entry_point in group_eps:
             if entry_point.name == name:
                 return entry_point.load()

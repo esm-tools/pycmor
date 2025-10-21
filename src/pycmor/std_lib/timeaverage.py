@@ -167,9 +167,11 @@ def timeavg(da: xr.DataArray, rule):
     time_method = _get_time_method(drv.frequency)
     rule.time_method = time_method
 
-    input_time_size = da.sizes.get('time', 0)
+    input_time_size = da.sizes.get("time", 0)
     logger.info(f"Time averaging: {time_method}")
-    logger.info(f"  Source interval: {approx_interval} days → Target frequency: {frequency_str}")
+    logger.info(
+        f"  Source interval: {approx_interval} days → Target frequency: {frequency_str}"
+    )
     if input_time_size > 0:
         logger.debug(f"  Input time points: {input_time_size}")
 
@@ -190,9 +192,11 @@ def timeavg(da: xr.DataArray, rule):
         }
         offset = offset_presets.get(offset, offset)
         if offset is None:
-            output_time_size = ds.sizes.get('time', 0)
+            output_time_size = ds.sizes.get("time", 0)
             if input_time_size > 0 and output_time_size > 0:
-                logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
+                logger.info(
+                    f"  Time reduced: {input_time_size} → {output_time_size} points"
+                )
             return ds
         try:
             offset = float(offset)
@@ -208,15 +212,19 @@ def timeavg(da: xr.DataArray, rule):
             else:
                 logger.info(f"  Timestamp adjustment: +{offset}")
                 ds["time"] = ds.time.values + offset
-                output_time_size = ds.sizes.get('time', 0)
+                output_time_size = ds.sizes.get("time", 0)
                 if input_time_size > 0 and output_time_size > 0:
-                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
+                    logger.info(
+                        f"  Time reduced: {input_time_size} → {output_time_size} points"
+                    )
                 return ds
         else:
             if offset == 0.0:
-                output_time_size = ds.sizes.get('time', 0)
+                output_time_size = ds.sizes.get("time", 0)
                 if input_time_size > 0 and output_time_size > 0:
-                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
+                    logger.info(
+                        f"  Time reduced: {input_time_size} → {output_time_size} points"
+                    )
                 return ds
             elif "MS" in frequency_str or "YS" in frequency_str:
                 timestamps = []
@@ -245,20 +253,26 @@ def timeavg(da: xr.DataArray, rule):
                         f"frequency_str={frequency_str}, offset={offset}. "
                         f"This indicates a logic error."
                     )
-                    raise RuntimeError(f"Invalid timestamp adjustment state: frequency_str={frequency_str}, offset={offset}")
+                    raise RuntimeError(
+                        f"Invalid timestamp adjustment state: frequency_str={frequency_str}, offset={offset}"
+                    )
                 logger.info(f"  Timestamp adjustment: period offset {offset}")
                 ds["time"] = timestamps
-                output_time_size = ds.sizes.get('time', 0)
+                output_time_size = ds.sizes.get("time", 0)
                 if input_time_size > 0 and output_time_size > 0:
-                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
+                    logger.info(
+                        f"  Time reduced: {input_time_size} → {output_time_size} points"
+                    )
                 return ds
             else:
                 new_offset = pd.to_timedelta(frequency_str) * offset
                 logger.info(f"  Timestamp adjustment: +{new_offset}")
                 ds["time"] = ds.time.values + new_offset
-                output_time_size = ds.sizes.get('time', 0)
+                output_time_size = ds.sizes.get("time", 0)
                 if input_time_size > 0 and output_time_size > 0:
-                    logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
+                    logger.info(
+                        f"  Time reduced: {input_time_size} → {output_time_size} points"
+                    )
                 return ds
     elif time_method == "CLIMATOLOGY":
         logger.info(f"  Method: Climatology ({drv.frequency})")
@@ -275,7 +289,7 @@ def timeavg(da: xr.DataArray, rule):
     else:
         raise ValueError(f"Unknown time method: {time_method}")
 
-    output_time_size = ds.sizes.get('time', 0)
+    output_time_size = ds.sizes.get("time", 0)
     if input_time_size > 0 and output_time_size > 0:
         logger.info(f"  Time reduced: {input_time_size} → {output_time_size} points")
     return ds

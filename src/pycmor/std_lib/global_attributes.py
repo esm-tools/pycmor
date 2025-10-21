@@ -299,7 +299,7 @@ def set_global_attributes(ds, rule):
         ds = ds.to_dataset()
 
     attrs = rule.ga.global_attributes()
-    key_attrs = ['experiment_id', 'institution_id', 'source_id', 'variant_label']
+    key_attrs = ["experiment_id", "institution_id", "source_id", "variant_label"]
     for key in key_attrs:
         if key in attrs:
             logger.info(f"  {key}: {attrs[key]}")

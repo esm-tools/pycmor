@@ -391,11 +391,15 @@ def save_dataset(da: xr.DataArray, rule):
                 paths.append(create_filepath(group_ds, rule))
                 datasets.append(group_ds)
 
-            logger.info(f"  → Splitting into {len(datasets)} files ({file_timespan} per file)")
+            logger.info(
+                f"  → Splitting into {len(datasets)} files ({file_timespan} per file)"
+            )
             for i, path in enumerate(paths[:_LOG_FILE_PREVIEW_LIMIT], 1):
                 logger.info(f"    [{i}/{len(datasets)}] {path.name}")
             if len(datasets) > _LOG_FILE_PREVIEW_LIMIT:
-                logger.info(f"    ... ({len(datasets) - _LOG_FILE_PREVIEW_LIMIT} more files)")
+                logger.info(
+                    f"    ... ({len(datasets) - _LOG_FILE_PREVIEW_LIMIT} more files)"
+                )
 
             result = xr.save_mfdataset(
                 datasets,

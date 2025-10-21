@@ -46,7 +46,9 @@ def find_subcommands():
     eps = entry_points()
     for group in groups:
         # Get entry points for this group (compatible with Python 3.10+)
-        group_eps = eps.select(group=group) if hasattr(eps, 'select') else eps.get(group, [])
+        group_eps = (
+            eps.select(group=group) if hasattr(eps, "select") else eps.get(group, [])
+        )
         for entry_point in group_eps:
             discovered_subcommands[entry_point.name] = {
                 "plugin_name": entry_point.value.split(":")[0].split(".")[0],
@@ -74,10 +76,11 @@ def cli():
 @click.argument("config_file", type=click.Path(exists=True))
 def process(config_file):
     import time
+
     start_time = time.time()
 
     logger.info("=" * 80)
-    logger.info(f"PyCMOR - Processing Configuration")
+    logger.info("PyCMOR - Processing Configuration")
     logger.info("=" * 80)
     logger.info(f"Config file: {config_file}")
     logger.info("-" * 80)
@@ -93,7 +96,7 @@ def process(config_file):
         logger.info("=" * 80)
         logger.success("CMORization Completed Successfully!")
         logger.info(f"Total time: {elapsed_time:.1f}s")
-        if 'general' in cfg and 'output_directory' in cfg['general']:
+        if "general" in cfg and "output_directory" in cfg["general"]:
             logger.info(f"Output directory: {cfg['general']['output_directory']}")
         logger.info("=" * 80)
         return result

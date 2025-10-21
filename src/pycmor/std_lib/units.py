@@ -298,7 +298,9 @@ def handle_unit_conversion(
         if from_unit != to_unit:
             logger.info(f"Converting units: '{from_unit}' → '{to_unit}'")
             if to_unit_dimensionless_mapping:
-                logger.debug(f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}")
+                logger.debug(
+                    f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}"
+                )
         else:
             logger.debug(f"Units already correct: '{from_unit}'")
 
@@ -313,7 +315,9 @@ def handle_unit_conversion(
         if from_unit != to_unit:
             logger.info(f"Converting units: '{from_unit}' → '{to_unit}'")
             if to_unit_dimensionless_mapping:
-                logger.debug(f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}")
+                logger.debug(
+                    f"  Using dimensionless mapping: {to_unit_dimensionless_mapping}"
+                )
         else:
             logger.debug(f"Units already correct: '{from_unit}'")
 

@@ -13,7 +13,6 @@ from dask.distributed import Client
 from everett.manager import generate_uppercase_key, get_runtime_config
 from prefect import flow, get_run_logger, task
 from prefect.futures import wait
-from rich.progress import track
 
 from ..data_request.collection import DataRequest
 from ..data_request.table import DataRequestTable
@@ -82,7 +81,9 @@ class CMORizer:
         self.cmor_version = self._general_cfg["cmor_version"]
         if self.cmor_version not in self._SUPPORTED_CMOR_VERSIONS:
             logger.error(f"CMOR version {self.cmor_version} is not supported.")
-            logger.error(f"Supported versions: {', '.join(self._SUPPORTED_CMOR_VERSIONS)}")
+            logger.error(
+                f"Supported versions: {', '.join(self._SUPPORTED_CMOR_VERSIONS)}"
+            )
             raise ValueError(f"Unsupported CMOR version: {self.cmor_version}")
 
         ################################################################################
@@ -93,7 +94,7 @@ class CMORizer:
         logger.info(f"CMOR Version: {self.cmor_version}")
 
         # General configuration (user-facing)
-        key_general = ['output_directory', 'tables_dir', 'grids_dir']
+        key_general = ["output_directory", "tables_dir", "grids_dir"]
         for key in key_general:
             if key in self._general_cfg:
                 logger.info(f"{key}: {self._general_cfg[key]}")
@@ -655,7 +656,12 @@ class CMORizer:
         total_rules = len(self.rules)
         variables = sorted(set(r.cmor_variable for r in self.rules))
         logger.info(f"Total rules: {total_rules}")
-        logger.info(f"Variables: {', '.join(variables[:_LOG_VARIABLE_PREVIEW_LIMIT])}{f' ... ({len(variables)-_LOG_VARIABLE_PREVIEW_LIMIT} more)' if len(variables) > _LOG_VARIABLE_PREVIEW_LIMIT else ''}")
+        var_preview = ", ".join(variables[:_LOG_VARIABLE_PREVIEW_LIMIT])
+        if len(variables) > _LOG_VARIABLE_PREVIEW_LIMIT:
+            remaining = len(variables) - _LOG_VARIABLE_PREVIEW_LIMIT
+            logger.info(f"Variables: {var_preview} ... ({remaining} more)")
+        else:
+            logger.info(f"Variables: {var_preview}")
 
         if parallel is None:
             parallel = self._pymor_cfg.get("parallel", True)

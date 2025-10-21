@@ -25,7 +25,7 @@ from typing import Optional
 from loguru import logger
 
 # Create a simple file record type that's picklable
-FileRecord = namedtuple('FileRecord', ['name', 'path'])
+FileRecord = namedtuple("FileRecord", ["name", "path"])
 
 DEFAULT_LOG_LEVEL = os.environ.get("PYCMOR_LOG_LEVEL", "INFO")
 LOG_FILE_PATH = os.environ.get("PYCMOR_LOG_FILE", None)
@@ -55,12 +55,14 @@ class InterceptHandler(logging.Handler):
             path=record.pathname,
         )
 
-        logger.patch(lambda r: r.update(
-            name=record.name,
-            file=file_record,
-            function=record.funcName,
-            line=record.lineno,
-        )).log(level, record.getMessage())
+        logger.patch(
+            lambda r: r.update(
+                name=record.name,
+                file=file_record,
+                function=record.funcName,
+                line=record.lineno,
+            )
+        ).log(level, record.getMessage())
 
 
 class PrefectHandler(logging.Handler):
@@ -119,9 +121,14 @@ def setup_logging(
     """
     logger.remove()
 
+    console_format = (
+        "<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
+    )
     logger.add(
         sys.stderr,
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format=console_format,
         level=level,
         colorize=True,
         enqueue=True,
@@ -175,8 +182,6 @@ def add_rule_log_file(rule_name: str, log_dir: Optional[Path] = None) -> int:
     int
         Handler ID for the added log file
     """
-    global _rule_log_handlers
-
     if log_dir is None:
         log_dir = Path.cwd() / "logs" / "rules"
     else:
@@ -185,7 +190,7 @@ def add_rule_log_file(rule_name: str, log_dir: Optional[Path] = None) -> int:
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # Sanitize rule name for filename
-    safe_rule_name = rule_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe_rule_name = rule_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
     log_file = log_dir / f"pycmor_{safe_rule_name}.log"
 
     handler_id = logger.add(
@@ -209,8 +214,6 @@ def remove_rule_log_file(rule_name: str):
     rule_name : str
         Name of the rule whose log handler to remove
     """
-    global _rule_log_handlers
-
     if rule_name in _rule_log_handlers:
         handler_id = _rule_log_handlers[rule_name]
         logger.remove(handler_id)
@@ -218,7 +221,9 @@ def remove_rule_log_file(rule_name: str):
         logger.debug(f"Removed per-rule log handler for: {rule_name}")
 
 
-def merge_rule_logs(rule_names: list, output_file: Optional[Path] = None, log_dir: Optional[Path] = None):
+def merge_rule_logs(
+    rule_names: list, output_file: Optional[Path] = None, log_dir: Optional[Path] = None
+):
     """
     Merge per-rule log files into a single chronologically-sorted log.
 
@@ -248,23 +253,27 @@ def merge_rule_logs(rule_names: list, output_file: Optional[Path] = None, log_di
 
     # Collect all log lines with timestamps
     all_lines = []
-    timestamp_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})')
+    timestamp_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})")
 
     for rule_name in rule_names:
-        safe_rule_name = rule_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
+        safe_rule_name = (
+            rule_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+        )
         log_file = log_dir / f"pycmor_{safe_rule_name}.log"
 
         if not log_file.exists():
             logger.warning(f"Rule log file not found: {log_file}")
             continue
 
-        with open(log_file, 'r') as f:
+        with open(log_file, "r") as f:
             for line in f:
                 match = timestamp_pattern.match(line)
                 if match:
                     timestamp_str = match.group(1)
                     try:
-                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
+                        timestamp = datetime.strptime(
+                            timestamp_str, "%Y-%m-%d %H:%M:%S.%f"
+                        )
                         all_lines.append((timestamp, f"[{rule_name}] {line}"))
                     except ValueError:
                         # Couldn't parse timestamp, append anyway
@@ -277,7 +286,7 @@ def merge_rule_logs(rule_names: list, output_file: Optional[Path] = None, log_di
     all_lines.sort(key=lambda x: x[0])
 
     # Write merged log
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         for _, line in all_lines:
             f.write(line)
 
@@ -286,4 +295,10 @@ def merge_rule_logs(rule_names: list, output_file: Optional[Path] = None, log_di
 
 setup_logging()
 
-__all__ = ["logger", "setup_logging", "add_rule_log_file", "remove_rule_log_file", "merge_rule_logs"]
+__all__ = [
+    "logger",
+    "setup_logging",
+    "add_rule_log_file",
+    "remove_rule_log_file",
+    "merge_rule_logs",
+]
