@@ -44,3 +44,6 @@ doc/api/
 doc/API.rst
 .direnv
 sandbox/
+# pixi environments
+.pixi/*
+!.pixi/config.toml
