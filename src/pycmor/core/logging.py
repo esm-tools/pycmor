@@ -122,7 +122,7 @@ def setup_logging(
     logger.remove()
 
     console_format = (
-        "<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | "
+        "<green>{time:HH:mm:ss}</green> | <level>[{level}]: <10</level> | "
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
         "<level>{message}</level>"
     )
@@ -139,7 +139,7 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         logger.add(
             log_file,
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]: <10 | {name}:{function}:{line} - {message}",
             level="DEBUG",
             rotation="10 MB",
             retention="7 days",
@@ -195,7 +195,7 @@ def add_rule_log_file(rule_name: str, log_dir: Optional[Path] = None) -> int:
 
     handler_id = logger.add(
         log_file,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | [{level}]: <10 | {name}:{function}:{line} - {message}",
         level="DEBUG",
         enqueue=True,
     )
