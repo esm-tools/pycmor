@@ -46,9 +46,8 @@ def set_variable_attrs(
         if enc_attr in attrs:
             attrs_for_encoding[enc_attr] = attrs.pop(enc_attr)
 
-    logger.info("Setting the following attributes:")
-    for k, v in attrs.items():
-        logger.info(f"{k}: {v}")
+    logger.info(f"Setting variable attributes for '{rule.cmor_variable}'")
+    logger.debug(f"  Attributes: {', '.join(attrs.keys())}")
     da.attrs.update(attrs)
 
     # Set encoding for missing values:

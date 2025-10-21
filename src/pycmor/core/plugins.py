@@ -1,15 +1,12 @@
 import rich_click as click
 
-from ..cli import NAME, VERSION, click_loguru, find_subcommands  # , pymor_cli_group
+from ..cli import NAME, VERSION, find_subcommands
 from .logging import logger
 
 
-@click_loguru.logging_options
 @click.group
-@click_loguru.stash_subcommand()
 @click.version_option(version=VERSION, prog_name=NAME)
-# @pymor_cli_group
-def plugins(verbose, quiet, logfile, profile_mem):
+def plugins():
     """
     Manage pycmor plugins
     """
@@ -17,7 +14,6 @@ def plugins(verbose, quiet, logfile, profile_mem):
 
 
 @plugins.command(name="list")
-@click_loguru.init_logger()
 def _list():
     """
     List all installed pycmor plugins. These can be to help CMORize a specific data

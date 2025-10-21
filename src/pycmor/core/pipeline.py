@@ -13,7 +13,7 @@ from prefect_dask import DaskTaskRunner
 
 from .caching import generate_cache_key  # noqa: F401
 from .cluster import DaskContext
-from .logging import add_to_report_log, logger
+from .logging import logger
 from .utils import get_callable, get_callable_by_name
 
 
@@ -151,22 +151,13 @@ class Pipeline:
         return dynamic_flow(data, rule_spec)
 
     @staticmethod
-    @add_to_report_log
     def on_completion(flow, flowrun, state):
-        logger.success("Success...\n")
-        logger.success(f"{flow=}\n")
-        logger.success(f"{flowrun=}\n")
-        logger.success(f"{state=}\n")
-        logger.success("Good job! :-) \n")
+        logger.success(f"Pipeline '{flow.name}' completed successfully")
 
     @staticmethod
-    @add_to_report_log
     def on_failure(flow, flowrun, state):
-        logger.error("Failure...\n")
-        logger.error(f"{flow=}\n")
-        logger.error(f"{flowrun=}\n")
-        logger.error(f"{state=}\n")
-        logger.error("Better luck next time :-( \n")
+        logger.error(f"Pipeline '{flow.name}' failed")
+        logger.error(f"State: {state}")
 
     @classmethod
     def from_list(cls, steps, name=None, **kwargs):
