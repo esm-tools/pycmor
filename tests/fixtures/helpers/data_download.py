@@ -134,16 +134,14 @@ def download_and_extract_fixture(
     else:
         logger.info(f"Using cached archive: {archive_path}")
 
-    # Determine extraction directory and final result path
-    extract_base = archive_path.with_suffix("")  # Remove .tar extension
-    if extract_base.suffix in [".tar", ".tgz", ".gz"]:
-        extract_base = extract_base.with_suffix("")  # Remove .tar from .tar.gz
-
-    result_path = extract_base / extracted_subdir if extracted_subdir else extract_base
+    # Determine the final result path
+    # Extract directly to cache_dir to avoid double nesting
+    # (tar files often contain their own top-level directory)
+    result_path = cache_dir / extracted_subdir if extracted_subdir else cache_dir
 
     # Extract if not already extracted
     if not result_path.exists():
-        extract_tarfile(archive_path, extract_base, extracted_subdir)
+        extract_tarfile(archive_path, cache_dir, extracted_subdir)
     else:
         logger.info(f"Using cached extraction: {result_path}")
 

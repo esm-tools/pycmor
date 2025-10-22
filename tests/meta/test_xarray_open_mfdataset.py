@@ -40,7 +40,9 @@ def test_open_awicm_1p0_recom(awicm_1p0_recom_data, engine):
     ],
 )
 def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_temp_files, engine):
-    matching_files = [f for f in fesom_2p6_temp_files if f.name.startswith("temp.fesom")]
+    matching_files = [
+        f for f in fesom_2p6_temp_files if f.name.startswith("temp.fesom")
+    ]
     assert len(matching_files) > 0
     with xr.open_mfdataset(
         matching_files,
