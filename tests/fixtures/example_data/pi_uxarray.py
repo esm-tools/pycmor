@@ -1,10 +1,8 @@
-"""Example data for the FESOM model."""
-
-import tarfile
-from pathlib import Path
+"""Example data for PI mesh with uxarray support."""
 
 import pytest
-import requests
+
+from tests.fixtures.helpers.data_download import download_and_extract_fixture
 
 URL = "https://nextcloud.awi.de/s/swqyFgbL2jjgjRo/download/pi_uxarray.tar"
 """str : URL to download the example data from."""
@@ -14,55 +12,36 @@ MESH_URL = "https://nextcloud.awi.de/s/FCPZmBJGeGaji4y/download/pi_mesh.tgz"
 
 
 @pytest.fixture(scope="session")
-def pi_uxarray_download_data(tmp_path_factory):
-    cache_dir = tmp_path_factory.getbasetemp() / "cached_data"
-    cache_dir.mkdir(exist_ok=True)
-    data_path = cache_dir / "pi_uxarray.tar"
+def pi_uxarray_data(tmp_path_factory):
+    """Fixture providing PI uxarray test data.
 
-    if not data_path.exists():
-        response = requests.get(URL)
-        response.raise_for_status()
-        with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
-    else:
-        print(f"Using cached data: {data_path}.")
+    Downloads and extracts test data from AWI Nextcloud.
+    Data is cached across test sessions to avoid repeated downloads.
 
-    return data_path
-
-
-@pytest.fixture(scope="session")
-def pi_uxarray_data(pi_uxarray_download_data):
-
-    data_dir = Path(pi_uxarray_download_data).parent
-    with tarfile.open(pi_uxarray_download_data, "r") as tar:
-        tar.extractall(data_dir)
-
-    return data_dir / "pi_uxarray"
+    Returns:
+        Path to the extracted pi_uxarray directory
+    """
+    return download_and_extract_fixture(
+        tmp_path_factory,
+        url=URL,
+        archive_name="pi_uxarray.tar",
+        extracted_subdir="pi_uxarray",
+    )
 
 
 @pytest.fixture(scope="session")
-def pi_uxarray_download_mesh(tmp_path_factory):
-    cache_dir = tmp_path_factory.getbasetemp() / "cached_data"
-    cache_dir.mkdir(exist_ok=True)
-    data_path = cache_dir / "pi_mesh.tar"
+def pi_uxarray_mesh(tmp_path_factory):
+    """Fixture providing PI mesh data.
 
-    if not data_path.exists():
-        response = requests.get(MESH_URL)
-        response.raise_for_status()
-        with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
-    else:
-        print(f"Using cached data: {data_path}.")
+    Downloads and extracts mesh data from AWI Nextcloud.
+    Data is cached across test sessions to avoid repeated downloads.
 
-    return data_path
-
-
-@pytest.fixture(scope="session")
-def pi_uxarray_mesh(pi_uxarray_download_mesh):
-    data_dir = Path(pi_uxarray_download_mesh).parent
-    with tarfile.open(pi_uxarray_download_mesh, "r") as tar:
-        tar.extractall(data_dir)
-
-    return data_dir / "pi"
+    Returns:
+        Path to the extracted pi directory containing mesh files
+    """
+    return download_and_extract_fixture(
+        tmp_path_factory,
+        url=MESH_URL,
+        archive_name="pi_mesh.tgz",
+        extracted_subdir="pi",
+    )
