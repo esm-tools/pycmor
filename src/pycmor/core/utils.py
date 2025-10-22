@@ -5,11 +5,12 @@ Various utility functions needed around the package
 import importlib
 import inspect
 import os
+import sys
 import tempfile
 import time
 from functools import partial
+from importlib.metadata import entry_points
 
-import pkg_resources
 import requests
 
 from .logging import logger
@@ -105,7 +106,13 @@ def get_entrypoint_by_name(name, group="pycmor.steps"):
     if group == "pycmor.steps":
         groups_to_try.append("pymor.steps")  # legacy fallback
     for grp in groups_to_try:
-        for entry_point in pkg_resources.iter_entry_points(group=grp):
+        # Handle different Python versions' entry_points API
+        if sys.version_info >= (3, 10):
+            eps = entry_points(group=grp)
+        else:
+            eps = entry_points().get(grp, [])
+
+        for entry_point in eps:
             if entry_point.name == name:
                 return entry_point.load()
 
