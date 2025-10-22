@@ -27,6 +27,7 @@ def test_open_awicm_1p0_recom(awicm_1p0_recom_data, engine):
     with xr.open_mfdataset(
         f"{awicm_1p0_recom_data}/awi-esm-1-1-lr_kh800/piControl/outdata/fesom/*.nc",
         engine=engine,
+        parallel=False,
     ) as ds:
         assert len(ds.dims) > 0
         assert len(ds.data_vars) > 0
@@ -47,6 +48,7 @@ def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_temp_files, engine):
     with xr.open_mfdataset(
         matching_files,
         engine=engine,
+        parallel=False,
     ) as ds:
         assert len(ds.dims) > 0
         assert len(ds.data_vars) > 0
@@ -64,6 +66,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_cftime(fesom_2p6_temp_files, engine):
         fesom_2p6_temp_files,
         use_cftime=True,
         engine=engine,
+        parallel=False,
     ) as ds:
         assert len(ds.dims) > 0
         assert len(ds.data_vars) > 0
