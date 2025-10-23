@@ -36,6 +36,7 @@ def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_pimesh_esm_tools_data, engine
         matching_files,
         engine=engine,
         parallel=False,
+        phony_dims="sort",  # Workaround for h5netcdf dimension scale issues
     )
     assert isinstance(ds, xr.Dataset)
 
@@ -58,6 +59,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_cftime(
         use_cftime=True,
         engine=engine,
         parallel=False,
+        phony_dims="sort",  # Workaround for h5netcdf dimension scale issues
     )
     assert isinstance(ds, xr.Dataset)
 
@@ -79,6 +81,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_parallel(
         ),
         parallel=False,
         engine=engine,
+        phony_dims="sort",  # Workaround for h5netcdf dimension scale issues
     )
     assert isinstance(ds, xr.Dataset)
 
@@ -99,5 +102,6 @@ def test_open_fesom_2p6_pimesh_esm_tools_full(fesom_2p6_pimesh_esm_tools_data, e
         use_cftime=True,
         parallel=False,
         engine=engine,
+        phony_dims="sort",  # Workaround for h5netcdf dimension scale issues
     )
     assert isinstance(ds, xr.Dataset)
