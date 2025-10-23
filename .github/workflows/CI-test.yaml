@@ -103,6 +103,21 @@ jobs:
         with:
           name: coverage-reports-${{ matrix.python-version }}
           path: coverage-${{ matrix.python-version }}.xml
+  # Docker-based test job for consistent environment
+  test-docker:
+    name: Test in Docker (Python 3.11)
+    needs: [lint_and_format]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build Docker test image
+        run: |
+          docker build -f Dockerfile.test -t pycmor-test:latest .
+      - name: Run tests in Docker
+        run: |
+          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/meta/**.py tests/unit/**.py tests/integration/**.py
   post-status:
     name: Post Status for other jobs
     needs: [lint_and_format, test]
