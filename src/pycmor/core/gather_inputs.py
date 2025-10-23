@@ -293,6 +293,7 @@ def load_mfdataset(data, rule_spec):
         Rule being handled
     """
     engine = rule_spec._pymor_cfg("xarray_engine")
+    parallel = rule_spec._pymor_cfg("xarray_parallel")
     all_files = []
     for file_collection in rule_spec.inputs:
         for f in file_collection.files:
@@ -301,7 +302,9 @@ def load_mfdataset(data, rule_spec):
     logger.info(f"Loading {len(all_files)} files using {engine} backend on xarray...")
     for f in all_files:
         logger.info(f"  * {f}")
-    mf_ds = xr.open_mfdataset(all_files, parallel=True, use_cftime=True, engine=engine)
+    mf_ds = xr.open_mfdataset(
+        all_files, parallel=parallel, use_cftime=True, engine=engine
+    )
     return mf_ds
 
 
