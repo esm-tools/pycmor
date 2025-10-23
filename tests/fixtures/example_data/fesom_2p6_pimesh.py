@@ -59,7 +59,7 @@ def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
         return local_cache_path
     data_dir = Path(fesom_2p6_esm_tools_download_data).parent / "fesom_2p6_pimesh"
     if not data_dir.exists():
-        print(f"Extracting tarball...")
+        print("Extracting tarball...")
         with tarfile.open(fesom_2p6_esm_tools_download_data, "r") as tar:
             tar.extractall(data_dir)
 
