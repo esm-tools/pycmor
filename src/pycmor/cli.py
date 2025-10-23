@@ -1,9 +1,8 @@
 import os
 import sys
-from importlib import resources
+from importlib import metadata, resources
 from typing import List
 
-import pkg_resources
 import rich_click as click
 import yaml
 from click_loguru import ClickLoguru
@@ -69,9 +68,23 @@ def find_subcommands():
     groups = ["pycmor.cli_subcommands", "pymor.cli_subcommands"]
     discovered_subcommands = {}
     for group in groups:
-        for entry_point in pkg_resources.iter_entry_points(group):
+        # Handle both Python 3.9 and 3.10+ APIs for entry_points
+        try:
+            # Python 3.10+ API: entry_points(group=...)
+            eps = metadata.entry_points(group=group)
+        except TypeError:
+            # Python 3.9 API: entry_points()[group]
+            eps = metadata.entry_points().get(group, [])
+
+        for entry_point in eps:
+            # Get the module name - entry_point.value is in format "module:attr"
+            module_name = (
+                entry_point.value.split(":")[0]
+                if ":" in entry_point.value
+                else entry_point.value
+            )
             discovered_subcommands[entry_point.name] = {
-                "plugin_name": entry_point.module_name.split(".")[0],
+                "plugin_name": module_name.split(".")[0],
                 "callable": entry_point.load(),
             }
     return discovered_subcommands

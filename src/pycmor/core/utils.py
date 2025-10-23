@@ -8,8 +8,8 @@ import os
 import tempfile
 import time
 from functools import partial
+from importlib import metadata
 
-import pkg_resources
 import requests
 
 from .logging import logger
@@ -105,7 +105,15 @@ def get_entrypoint_by_name(name, group="pycmor.steps"):
     if group == "pycmor.steps":
         groups_to_try.append("pymor.steps")  # legacy fallback
     for grp in groups_to_try:
-        for entry_point in pkg_resources.iter_entry_points(group=grp):
+        # Handle both Python 3.9 and 3.10+ APIs for entry_points
+        try:
+            # Python 3.10+ API: entry_points(group=...)
+            eps = metadata.entry_points(group=grp)
+        except TypeError:
+            # Python 3.9 API: entry_points()[group]
+            eps = metadata.entry_points().get(grp, [])
+
+        for entry_point in eps:
             if entry_point.name == name:
                 return entry_point.load()
 
