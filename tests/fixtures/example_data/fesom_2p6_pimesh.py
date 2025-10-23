@@ -18,11 +18,28 @@ def fesom_2p6_esm_tools_download_data(tmp_path_factory):
     data_path = cache_dir / "fesom_2p6_pimesh.tar"
 
     if not data_path.exists():
-        response = requests.get(URL)
+        print(f"Downloading data from {URL}...")
+        response = requests.get(URL, stream=True)
         response.raise_for_status()
+
+        # Download with streaming to avoid memory issues
+        total_size = int(response.headers.get('content-length', 0))
         with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
+            downloaded = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+        # Verify download completed
+        actual_size = data_path.stat().st_size
+        if total_size > 0 and actual_size != total_size:
+            data_path.unlink()
+            raise RuntimeError(
+                f"Download incomplete: expected {total_size} bytes, got {actual_size} bytes"
+            )
+
+        print(f"Data downloaded: {data_path} ({actual_size} bytes).")
     else:
         print(f"Using cached data: {data_path}.")
 
@@ -42,9 +59,28 @@ def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
         return local_cache_path
     data_dir = Path(fesom_2p6_esm_tools_download_data).parent / "fesom_2p6_pimesh"
     if not data_dir.exists():
+        print(f"Extracting tarball...")
         with tarfile.open(fesom_2p6_esm_tools_download_data, "r") as tar:
             tar.extractall(data_dir)
-        print(f"Data extracted to: {data_dir}.")
+
+        # Verify extraction - check that expected files exist
+        expected_data = data_dir / "fesom_2p6_pimesh" / "outdata" / "fesom"
+        if not expected_data.exists():
+            raise RuntimeError(
+                f"Extraction failed: expected directory not found at {expected_data}"
+            )
+
+        # Check that NetCDF files exist and are non-empty
+        nc_files = list(expected_data.glob("temp.fesom.*.nc"))
+        if len(nc_files) == 0:
+            raise RuntimeError(f"No NetCDF files found in {expected_data}")
+
+        for nc_file in nc_files:
+            size = nc_file.stat().st_size
+            if size < 1000:  # NetCDF files should be at least 1KB
+                raise RuntimeError(f"NetCDF file {nc_file} appears corrupted ({size} bytes)")
+
+        print(f"Data extracted to: {data_dir}. Verified {len(nc_files)} NetCDF files.")
     else:
         print(f"Using cached extraction: {data_dir}.")
 
