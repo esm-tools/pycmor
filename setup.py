@@ -19,7 +19,7 @@ docs_require = read("doc/requirements.txt").splitlines()
 
 setup(
     name="pycmor",
-    python_requires=">=3.9, <4",
+    python_requires=">=3.9, <3.13",  # Python 3.13 not yet supported due to pint compatibility issues
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     url="https://github.com/esm-tools/pycmor",
