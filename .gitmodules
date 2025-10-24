@@ -4,3 +4,7 @@
 [submodule "CMIP7_DReq_Software"]
 	path = CMIP7_DReq_Software
 	url = https://github.com/CMIP-Data-Request/CMIP7_DReq_Software.git
+[submodule "CMIP7-CVs"]
+	path = CMIP7-CVs
+	url = https://github.com/WCRP-CMIP/CMIP7-CVs.git
+	branch = src-data
