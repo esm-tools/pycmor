@@ -23,7 +23,7 @@ def fesom_2p6_esm_tools_download_data(tmp_path_factory):
         response.raise_for_status()
 
         # Download with streaming to avoid memory issues
-        total_size = int(response.headers.get('content-length', 0))
+        total_size = int(response.headers.get("content-length", 0))
         with open(data_path, "wb") as f:
             downloaded = 0
             for chunk in response.iter_content(chunk_size=8192):
@@ -78,7 +78,9 @@ def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
         for nc_file in nc_files:
             size = nc_file.stat().st_size
             if size < 1000:  # NetCDF files should be at least 1KB
-                raise RuntimeError(f"NetCDF file {nc_file} appears corrupted ({size} bytes)")
+                raise RuntimeError(
+                    f"NetCDF file {nc_file} appears corrupted ({size} bytes)"
+                )
 
         print(f"Data extracted to: {data_dir}. Verified {len(nc_files)} NetCDF files.")
     else:
