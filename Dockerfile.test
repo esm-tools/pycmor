@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     wget \
+    m4 \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -71,8 +72,8 @@ ENV PYCMOR_XARRAY_PARALLEL=no
 ENV PYTHONUNBUFFERED=1
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
-# Verify thread safety
-RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version); print('Thread-safe:', h5py.get_config().threadsafe)"
+# Verify h5py installation
+RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)"
 
 # Default command runs tests
 CMD ["pytest", "-vvv", "--cov=src/pycmor", "tests/"]
