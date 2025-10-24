@@ -106,7 +106,7 @@ jobs:
   # Docker-based test job for consistent environment
   test-docker:
     name: Test in Docker (Python 3.11)
-    needs: [lint_and_format]
+    # needs: [lint_and_format] # [FIXME] Yes, it does need lint and format, but, let's skip this for right now...
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,9 +124,18 @@ jobs:
           tags: pycmor-test:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Run tests in Docker
+      - name: Run tests in Docker (Meta)
         run: |
-          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/meta/**.py tests/unit/**.py tests/integration/**.py
+          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/meta/**.py
+      - name: Run tests in Docker (Unit)
+        run: |
+          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+      - name: Run tests in Docker (Integration)
+        run: |
+          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/integration/**.py
+      - name: Run tests in Docker (doctest)
+        run: |
+          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor --cov-append src/
   post-status:
     name: Post Status for other jobs
     needs: [lint_and_format, test]
