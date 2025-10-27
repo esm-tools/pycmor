@@ -43,11 +43,11 @@ jobs:
       - name: Run yamllint
         run: |
           yamllint .
-  # Main test job that runs on multiple Python versions
-  test:
-    name: Test Python ${{ matrix.python-version }}
+  # Meta test job - checks if data loading works (runs first for each Python version)
+  test-meta:
+    name: Meta Test Python ${{ matrix.python-version }}
     needs: [lint_and_format]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -56,89 +56,148 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Set up NetCDF4 with HDF5 support
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnetcdf-dev libhdf5-dev
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if ${{ matrix.python-version == '3.12' }}; then pip install --upgrade setuptools; fi
-      - name: Install package
-        run: |
-          python -m pip install ".[dev, fesom]"
-      - name: Test if data will work (Meta-Test)
-        run: |
-          export HDF5_DEBUG=1
-          export NETCDF_DEBUG=1
-          export XARRAY_ENGINE=h5netcdf
-          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          export PYCMOR_XARRAY_PARALLEL=no
-          pytest -vvv -s --cov=src/pycmor tests/meta/**.py
-      - name: Test with pytest (Unit)
-        run: |
-          export XARRAY_ENGINE=h5netcdf
-          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          export PYCMOR_XARRAY_PARALLEL=no
-          pytest -vvv -s --cov=src/pycmor --cov-append tests/unit/**.py
-      - name: Test with pytest (Integration)
-        run: |
-          export XARRAY_ENGINE=h5netcdf
-          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          export PYCMOR_XARRAY_PARALLEL=no
-          pytest -vvv -s --cov=src/pycmor --cov-append tests/integration/**.py
-      - name: Test with doctest
-        run: |
-          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-          PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor --cov-append src/
-      - name: Generate coverage report
-        run: |
-          python -m coverage xml -o coverage-${{ matrix.python-version }}.xml
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-reports-${{ matrix.python-version }}
-          path: coverage-${{ matrix.python-version }}.xml
-  # Docker-based test job for consistent environment
-  test-docker:
-    name: Test in Docker (Python 3.11)
-    # needs: [lint_and_format] # [FIXME] Yes, it does need lint and format, but, let's skip this for right now...
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build Docker test image
+      - name: Build Docker test image for Python ${{ matrix.python-version }}
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.test
           push: false
           load: true
-          tags: pycmor-test:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Run tests in Docker (Meta)
+          tags: pycmor-test:py${{ matrix.python-version }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha,scope=py${{ matrix.python-version }}
+          cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
+      - name: Test if data will work (Meta-Test)
         run: |
-          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/meta/**.py
-      - name: Run tests in Docker (Unit)
+          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/meta/**.py
+      - name: Generate and extract coverage report
         run: |
-          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/unit/**.py
-      - name: Run tests in Docker (Integration)
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-meta-${{ matrix.python-version }}.xml"
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-meta-${{ matrix.python-version }}
+          path: coverage-meta-${{ matrix.python-version }}.xml
+  # Unit test job - runs in parallel with integration (after meta passes)
+  test-unit:
+    name: Unit Test Python ${{ matrix.python-version }}
+    needs: [test-meta]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker test image for Python ${{ matrix.python-version }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.test
+          push: false
+          load: true
+          tags: pycmor-test:py${{ matrix.python-version }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha,scope=py${{ matrix.python-version }}
+          cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
+      - name: Test with pytest (Unit)
         run: |
-          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor tests/integration/**.py
-      - name: Run tests in Docker (doctest)
+          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+      - name: Generate and extract coverage report
         run: |
-          docker run --rm pycmor-test:latest pytest -vvv -s --cov=src/pycmor --cov-append src/
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-unit-${{ matrix.python-version }}.xml"
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-unit-${{ matrix.python-version }}
+          path: coverage-unit-${{ matrix.python-version }}.xml
+  # Integration test job - runs in parallel with unit (after meta passes)
+  test-integration:
+    name: Integration Test Python ${{ matrix.python-version }}
+    needs: [test-meta]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker test image for Python ${{ matrix.python-version }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.test
+          push: false
+          load: true
+          tags: pycmor-test:py${{ matrix.python-version }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha,scope=py${{ matrix.python-version }}
+          cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
+      - name: Test with pytest (Integration)
+        run: |
+          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/integration/**.py
+      - name: Generate and extract coverage report
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-integration-${{ matrix.python-version }}.xml"
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-integration-${{ matrix.python-version }}
+          path: coverage-integration-${{ matrix.python-version }}.xml
+  # Doctest job - runs in parallel with unit/integration (after meta passes)
+  test-doctest:
+    name: Doctest Python ${{ matrix.python-version }}
+    needs: [test-meta]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker test image for Python ${{ matrix.python-version }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.test
+          push: false
+          load: true
+          tags: pycmor-test:py${{ matrix.python-version }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+          cache-from: type=gha,scope=py${{ matrix.python-version }}
+          cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
+      - name: Test with doctest
+        run: |
+          docker run --rm pycmor-test:py${{ matrix.python-version }} bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/"
+      - name: Generate and extract coverage report
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-doctest-${{ matrix.python-version }}.xml"
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-doctest-${{ matrix.python-version }}
+          path: coverage-doctest-${{ matrix.python-version }}.xml
   post-status:
     name: Post Status for other jobs
-    needs: [lint_and_format, test]
+    needs: [lint_and_format, test-unit, test-integration, test-doctest]
     runs-on: ubuntu-latest
     steps:
       - name: Set output for lint and test status
@@ -153,7 +212,7 @@ jobs:
   set-output:
     name: Set Output for Ref
     runs-on: ubuntu-latest
-    needs: [lint_and_format, test]
+    needs: [lint_and_format, test-unit, test-integration, test-doctest]
     outputs:
       ref: ${{ steps.set-ref.outputs.ref }}
       is_tag: ${{ steps.set-ref.outputs.is_tag }}
@@ -193,7 +252,7 @@ jobs:
   # Combined test coverage report
   coverage:
     name: Generate Coverage Report
-    needs: test
+    needs: [test-meta, test-unit, test-integration, test-doctest]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -211,12 +270,17 @@ jobs:
           path: coverage-reports
       - name: Process coverage reports
         run: |
-          # Create directories for each Python version
+          # Create directories for each Python version and test type
           mkdir -p coverage-output/3.9 coverage-output/3.10 coverage-output/3.11 coverage-output/3.12
 
           # Copy coverage reports to their respective directories
           for version in 3.9 3.10 3.11 3.12; do
-            cp coverage-reports/coverage-reports-$version/coverage-$version.xml coverage-output/$version/coverage.xml
+            # Combine all coverage reports for each version
+            for type in meta unit integration doctest; do
+              if [ -f "coverage-reports/coverage-reports-${type}-${version}/coverage-${type}-${version}.xml" ]; then
+                cp coverage-reports/coverage-reports-${type}-${version}/coverage-${type}-${version}.xml coverage-output/${version}/coverage-${type}.xml
+              fi
+            done
           done
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
