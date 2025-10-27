@@ -70,13 +70,11 @@ jobs:
             PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=gha,scope=py${{ matrix.python-version }}
           cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
-      - name: Test if data will work (Meta-Test)
+      - name: Test if data will work (Meta-Test) and generate coverage
         run: |
-          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/meta/**.py
-      - name: Generate and extract coverage report
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-meta-${{ matrix.python-version }}.xml"
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-${{ matrix.python-version }}.xml"
       - name: Upload coverage reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports-meta-${{ matrix.python-version }}
@@ -108,13 +106,11 @@ jobs:
             PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=gha,scope=py${{ matrix.python-version }}
           cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
-      - name: Test with pytest (Unit)
+      - name: Test with pytest (Unit) and generate coverage
         run: |
-          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/unit/**.py
-      - name: Generate and extract coverage report
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-unit-${{ matrix.python-version }}.xml"
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-${{ matrix.python-version }}.xml"
       - name: Upload coverage reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports-unit-${{ matrix.python-version }}
@@ -146,13 +142,11 @@ jobs:
             PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=gha,scope=py${{ matrix.python-version }}
           cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
-      - name: Test with pytest (Integration)
+      - name: Test with pytest (Integration) and generate coverage
         run: |
-          docker run --rm pycmor-test:py${{ matrix.python-version }} pytest -vvv -s --cov=src/pycmor tests/integration/**.py
-      - name: Generate and extract coverage report
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-integration-${{ matrix.python-version }}.xml"
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-${{ matrix.python-version }}.xml"
       - name: Upload coverage reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports-integration-${{ matrix.python-version }}
@@ -184,13 +178,11 @@ jobs:
             PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=gha,scope=py${{ matrix.python-version }}
           cache-to: type=gha,mode=max,scope=py${{ matrix.python-version }}
-      - name: Test with doctest
+      - name: Test with doctest and generate coverage
         run: |
-          docker run --rm pycmor-test:py${{ matrix.python-version }} bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/"
-      - name: Generate and extract coverage report
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "python -m coverage xml -o /workspace/coverage-doctest-${{ matrix.python-version }}.xml"
+          docker run --rm -v ${{ github.workspace }}:/workspace pycmor-test:py${{ matrix.python-version }} bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-${{ matrix.python-version }}.xml"
       - name: Upload coverage reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports-doctest-${{ matrix.python-version }}
