@@ -20,11 +20,28 @@ def pi_uxarray_download_data(tmp_path_factory):
     data_path = cache_dir / "pi_uxarray.tar"
 
     if not data_path.exists():
-        response = requests.get(URL)
+        print(f"Downloading data from {URL}...")
+        response = requests.get(URL, stream=True)
         response.raise_for_status()
+
+        # Download with streaming to avoid memory issues
+        total_size = int(response.headers.get("content-length", 0))
         with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
+            downloaded = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+        # Verify download completed
+        actual_size = data_path.stat().st_size
+        if total_size > 0 and actual_size != total_size:
+            data_path.unlink()
+            raise RuntimeError(
+                f"Download incomplete: expected {total_size} bytes, got {actual_size} bytes"
+            )
+
+        print(f"Data downloaded: {data_path} ({actual_size} bytes).")
     else:
         print(f"Using cached data: {data_path}.")
 
@@ -48,13 +65,30 @@ def pi_uxarray_download_mesh(tmp_path_factory):
     data_path = cache_dir / "pi_mesh.tar"
 
     if not data_path.exists():
-        response = requests.get(MESH_URL)
+        print(f"Downloading mesh data from {MESH_URL}...")
+        response = requests.get(MESH_URL, stream=True)
         response.raise_for_status()
+
+        # Download with streaming to avoid memory issues
+        total_size = int(response.headers.get("content-length", 0))
         with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
+            downloaded = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+        # Verify download completed
+        actual_size = data_path.stat().st_size
+        if total_size > 0 and actual_size != total_size:
+            data_path.unlink()
+            raise RuntimeError(
+                f"Download incomplete: expected {total_size} bytes, got {actual_size} bytes"
+            )
+
+        print(f"Mesh data downloaded: {data_path} ({actual_size} bytes).")
     else:
-        print(f"Using cached data: {data_path}.")
+        print(f"Using cached mesh data: {data_path}.")
 
     return data_path
 
