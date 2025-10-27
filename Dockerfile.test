@@ -64,7 +64,7 @@ COPY . .
 
 # Install pycmor with dev dependencies
 # Force rebuild of h5py against our thread-safe HDF5
-RUN HDF5_DIR=/usr/local pip install --no-cache-dir --no-binary=h5py ".[dev]"
+RUN HDF5_DIR=/usr/local pip install --no-cache-dir --no-binary=h5py ".[dev, fesom]"
 
 # Set environment variables for testing
 ENV XARRAY_ENGINE=h5netcdf
