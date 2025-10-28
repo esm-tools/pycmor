@@ -395,17 +395,12 @@ def add_vertical_bounds(
     --------
     pycmor.std_lib.bounds.add_vertical_bounds : The underlying implementation
     """
-    # Convert DataArray to Dataset if needed
-    was_dataarray = isinstance(data, DataArray)
-    if was_dataarray:
-        name = data.name or "data"
-        data = data.to_dataset(name=name)
-
-    # Add vertical bounds
-    data = _add_vertical_bounds(data)
-
-    # Convert back to DataArray if input was DataArray
-    if was_dataarray:
-        data = data[name]
-
-    return data
+    # Handle DataArray input by converting to Dataset
+    if isinstance(data, DataArray):
+        var_name = data.name or "data"
+        ds = data.to_dataset(name=var_name)
+        ds_with_bounds = _add_vertical_bounds(ds)
+        return ds_with_bounds[var_name]
+    
+    # Dataset input - pass through directly
+    return _add_vertical_bounds(data)
