@@ -401,6 +401,6 @@ def add_vertical_bounds(
         ds = data.to_dataset(name=var_name)
         ds_with_bounds = _add_vertical_bounds(ds)
         return ds_with_bounds[var_name]
-    
+
     # Dataset input - pass through directly
     return _add_vertical_bounds(data)
