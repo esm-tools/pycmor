@@ -228,6 +228,11 @@ class PycmorConfig:
                 ],
             ),
         )
+        xarray_parallel = Option(
+            default="yes",
+            doc="Whether to use parallel processing when opening multiple files with xarray. Default is True.",
+            parser=_parse_bool,
+        )
         xarray_skip_unit_attr_from_drv = Option(
             default="yes",
             doc="Whether to skip setting the unit attribute from the DataRequestVariable, this can be handled via Pint",

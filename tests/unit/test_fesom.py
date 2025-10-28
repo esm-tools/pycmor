@@ -11,7 +11,8 @@ def test_regridding(
     rule = pycmor.core.rule.Rule.from_dict(config["rules"][0])
     rule.mesh_path = pi_uxarray_mesh
     ds = xr.open_mfdataset(
-        str(fesom_2p6_pimesh_esm_tools_data / "outdata/fesom") + "/temp.fesom.*.nc"
+        str(fesom_2p6_pimesh_esm_tools_data / "outdata/fesom") + "/temp.fesom.*.nc",
+        parallel=False,
     )
     da = ds.temp.load()
     da = pycmor.fesom_2p1.regridding.regrid_to_regular(da, rule)
