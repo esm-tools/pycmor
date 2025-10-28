@@ -105,10 +105,33 @@ Vertical bounds are required for:
 
 The ``add_vertical_bounds`` function automatically detects common vertical coordinate names and calculates appropriate bounds.
 
-Usage in Pipelines
-------------------
+.. note::
+   **Automatic in Default Pipeline**: As of the latest version, vertical bounds calculation is automatically included in the ``DefaultPipeline``. If you're using the default pipeline, vertical bounds will be added automatically to any dataset with vertical coordinates—no additional configuration needed!
 
-You can use ``add_vertical_bounds`` as a step in your processing pipeline:
+Usage in Default Pipeline
+--------------------------
+
+The ``add_vertical_bounds`` step is automatically included in the ``DefaultPipeline`` (step 3, after variable extraction). This means:
+
+- All datasets processed with the default pipeline automatically get vertical bounds
+- No manual configuration required
+- Only applies to datasets with vertical coordinates (non-intrusive)
+- Preserves existing bounds if already present
+
+.. code-block:: python
+
+   from pycmor.core.pipeline import DefaultPipeline
+
+   # The default pipeline includes add_vertical_bounds automatically
+   pipeline = DefaultPipeline()
+   
+   # Process your data - vertical bounds added automatically if applicable
+   result = pipeline.run(data, rule_spec)
+
+Usage in Custom Pipelines
+--------------------------
+
+You can also explicitly add ``add_vertical_bounds`` to custom pipelines:
 
 .. code-block:: python
 
