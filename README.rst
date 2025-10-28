@@ -28,7 +28,7 @@
   "Makes CMOR Simple" :-)
 
 ``pycmor`` is designed as a wrapper around various CMORization tools and NetCDF
-command line tools to make reformatting data into CMIP6 compliant format as simple
+command line tools to make reformatting data into CMIP6 and CMIP7 compliant format as simple
 and flexible as possible.
 
 The package is designed to be modular and extensible, with a plugin system that allows

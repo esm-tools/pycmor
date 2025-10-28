@@ -19,7 +19,9 @@ Contents
    pycmor_configuration
    pycmor_saving_output
    pycmor_aux_files
+   cmip7_configuration
    cmip7_interface
+   cmip7_controlled_vocabularies
    table_explorer
    pycmor_on_slurm
    schemas
@@ -28,7 +30,6 @@ Contents
    including_subcommand_plugins
    pycmor_fesom
    timeaveraging_frequencies
-   cmip7_controlled_vocabularies
    cookbook
    developer_guide
    developer_setup
