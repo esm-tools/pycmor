@@ -5,11 +5,12 @@ Coordinate Bounds Calculation
 Overview
 ========
 
-Coordinate bounds (e.g., ``lat_bnds``, ``lon_bnds``) are required for CMIP compliance. They define the edges of grid cells and are essential for proper data interpretation, especially for:
+Coordinate bounds (e.g., ``lat_bnds``, ``lon_bnds``, ``plev_bnds``, ``depth_bnds``) are required for CMIP compliance. They define the edges of grid cells and vertical levels, and are essential for proper data interpretation, especially for:
 
 - Calculating accurate spatial averages
-- Determining grid cell areas
+- Determining grid cell areas and volumes
 - Ensuring proper regridding and interpolation
+- Defining vertical level boundaries for atmospheric and oceanic data
 - Meeting CF conventions and CMIP standards
 
 Automatic Bounds Calculation
@@ -87,6 +88,122 @@ You can also calculate bounds manually using the ``bounds`` module:
    # For a complete grid dataset
    grid = xr.open_dataset("grid.nc")
    grid_with_bounds = add_bounds_to_grid(grid)
+
+Vertical Bounds Calculation
+============================
+
+Similar to CDO's ``genlevelbounds`` operator, pymorize can automatically calculate bounds for vertical coordinates such as pressure levels, depth, and height.
+
+Overview
+--------
+
+Vertical bounds are required for:
+
+- Atmospheric pressure levels (``plev``, ``plev19``, etc.)
+- Ocean depth levels (``depth``)
+- Height coordinates (``height``, ``altitude``)
+
+The ``add_vertical_bounds`` function automatically detects common vertical coordinate names and calculates appropriate bounds.
+
+.. note::
+   **Automatic in Default Pipeline**: As of the latest version, vertical bounds calculation is automatically included in the ``DefaultPipeline``. If you're using the default pipeline, vertical bounds will be added automatically to any dataset with vertical coordinates—no additional configuration needed!
+
+Usage in Default Pipeline
+--------------------------
+
+The ``add_vertical_bounds`` step is automatically included in the ``DefaultPipeline`` (step 3, after variable extraction). This means:
+
+- All datasets processed with the default pipeline automatically get vertical bounds
+- No manual configuration required
+- Only applies to datasets with vertical coordinates (non-intrusive)
+- Preserves existing bounds if already present
+
+.. code-block:: python
+
+   from pycmor.core.pipeline import DefaultPipeline
+
+   # The default pipeline includes add_vertical_bounds automatically
+   pipeline = DefaultPipeline()
+   
+   # Process your data - vertical bounds added automatically if applicable
+   result = pipeline.run(data, rule_spec)
+
+Usage in Custom Pipelines
+--------------------------
+
+You can also explicitly add ``add_vertical_bounds`` to custom pipelines:
+
+.. code-block:: python
+
+   from pycmor.std_lib import add_vertical_bounds
+
+   # In your pipeline configuration
+   pipeline = [
+       "load_data",
+       "get_variable",
+       "add_vertical_bounds",  # Add this step
+       "convert_units",
+       "time_average",
+       # ... other steps
+   ]
+
+Standalone Usage
+----------------
+
+You can also use it directly on datasets:
+
+.. code-block:: python
+
+   from pycmor.std_lib.bounds import add_vertical_bounds
+   import xarray as xr
+   import numpy as np
+
+   # Dataset with pressure levels
+   ds = xr.Dataset({
+       'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
+   }, coords={
+       'plev': [100000, 92500, 85000, 70000, 60000, 50000, 40000, 30000],
+       'lat': np.linspace(-90, 90, 5),
+       'lon': np.linspace(0, 360, 6),
+   })
+
+   # Add vertical bounds
+   ds_with_bounds = add_vertical_bounds(ds)
+
+   # Now ds_with_bounds contains 'plev_bnds'
+   print(ds_with_bounds['plev_bnds'])
+
+Supported Vertical Coordinates
+-------------------------------
+
+The function automatically detects these coordinate names:
+
+- **Pressure levels**: ``plev``, ``plev19``, ``plev8``, ``plev7``, ``plev4``, ``plev3``, ``lev``, ``level``, ``pressure``
+- **Depth**: ``depth``
+- **Height**: ``height``, ``alt``, ``altitude``
+
+Example with Ocean Depth
+-------------------------
+
+.. code-block:: python
+
+   # Ocean data with depth levels
+   ds = xr.Dataset({
+       'thetao': (['time', 'depth', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
+   }, coords={
+       'depth': [0, 10, 20, 50, 100, 200, 500, 1000],
+       'lat': np.linspace(-90, 90, 5),
+       'lon': np.linspace(0, 360, 6),
+   })
+   ds['depth'].attrs['units'] = 'm'
+   ds['depth'].attrs['positive'] = 'down'
+
+   # Add depth bounds
+   ds_with_bounds = add_vertical_bounds(ds)
+
+   # Bounds are calculated automatically
+   print(ds_with_bounds['depth_bnds'].values[:3])
+   # Output: [[-5.  5.], [ 5. 15.], [15. 35.]]
 
 CMIP Compliance
 ===============

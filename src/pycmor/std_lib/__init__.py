@@ -25,6 +25,7 @@ from xarray import DataArray, Dataset
 
 from ..core.logging import logger
 from ..core.rule import Rule
+from .bounds import add_vertical_bounds as _add_vertical_bounds
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
 from .exceptions import (
     PycmorResamplingError,
@@ -49,6 +50,7 @@ __all__ = [
     "set_global_attributes",
     "set_variable_attributes",
     "checkpoint_pipeline",
+    "add_vertical_bounds",
 ]
 
 
@@ -339,3 +341,66 @@ def checkpoint_pipeline(
     """
     # Implementation can be added as needed
     return data
+
+
+def add_vertical_bounds(
+    data: Union[DataArray, Dataset], rule: Rule
+) -> Union[DataArray, Dataset]:
+    """
+    Add vertical coordinate bounds to a dataset (similar to cdo genlevelbounds).
+
+    This function automatically calculates and adds bounds for vertical coordinates
+    such as pressure levels (plev, plev19, etc.) or depth levels if they don't
+    already exist. This is useful for CMIP compliance where vertical bounds are
+    required for proper data interpretation.
+
+    Parameters
+    ----------
+    data : xarray.DataArray or xarray.Dataset
+        The data to add vertical bounds to. If a DataArray, it will be converted
+        to a Dataset temporarily for processing.
+    rule : Rule
+        The rule containing additional parameters (currently unused but kept for
+        consistency with other pipeline functions).
+
+    Returns
+    -------
+    xarray.DataArray or xarray.Dataset
+        The data with vertical bounds added if vertical coordinates were found.
+
+    Examples
+    --------
+    >>> import xarray as xr
+    >>> import numpy as np
+    >>> ds = xr.Dataset({
+    ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
+    ... }, coords={
+    ...     'plev': [100000, 92500, 85000, 70000, 60000, 50000, 40000, 30000],
+    ...     'lat': np.linspace(-90, 90, 5),
+    ...     'lon': np.linspace(0, 360, 6),
+    ... })
+    >>> ds_with_bounds = add_vertical_bounds(ds, rule)
+    >>> print('plev_bnds' in ds_with_bounds)
+    True
+
+    Notes
+    -----
+    This function is similar to CDO's genlevelbounds operator. It automatically
+    detects common vertical coordinate names including:
+    - Pressure levels: plev, plev19, plev8, lev, level, pressure
+    - Depth: depth
+    - Height: height, alt, altitude
+
+    See Also
+    --------
+    pycmor.std_lib.bounds.add_vertical_bounds : The underlying implementation
+    """
+    # Handle DataArray input by converting to Dataset
+    if isinstance(data, DataArray):
+        var_name = data.name or "data"
+        ds = data.to_dataset(name=var_name)
+        ds_with_bounds = _add_vertical_bounds(ds)
+        return ds_with_bounds[var_name]
+
+    # Dataset input - pass through directly
+    return _add_vertical_bounds(data)
