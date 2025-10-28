@@ -19,6 +19,7 @@ Contents
    pycmor_configuration
    pycmor_saving_output
    pycmor_aux_files
+   cmip7_interface
    table_explorer
    pycmor_on_slurm
    schemas
