@@ -219,6 +219,105 @@ def add_bounds_from_coords(
     return ds_out
 
 
+def add_vertical_bounds(
+    ds: xr.Dataset,
+    vertical_coord_names: list[str] = None,
+    bounds_dim: str = "bnds",
+) -> xr.Dataset:
+    """
+    Add vertical coordinate bounds to a dataset (similar to cdo genlevelbounds).
+
+    This function automatically calculates and adds bounds for vertical coordinates
+    such as pressure levels (plev, plev19, etc.) or depth levels if they don't
+    already exist. It uses the same algorithm as horizontal bounds calculation.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Input dataset
+    vertical_coord_names : list of str, optional
+        List of vertical coordinate names to add bounds for. If None, automatically
+        detects common vertical coordinate names like 'plev', 'lev', 'depth', 'pressure'.
+    bounds_dim : str, optional
+        Name for the bounds dimension. Default is "bnds".
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with vertical bounds variables added (e.g., plev_bnds, depth_bnds)
+
+    Examples
+    --------
+    >>> ds = xr.Dataset({
+    ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
+    ... }, coords={
+    ...     'plev': [100000, 92500, 85000, 70000, 60000, 50000, 40000, 30000],
+    ...     'lat': np.linspace(-90, 90, 5),
+    ...     'lon': np.linspace(0, 360, 6),
+    ... })
+    >>> ds_with_bounds = add_vertical_bounds(ds)
+    >>> print('plev_bnds' in ds_with_bounds)
+    True
+
+    Notes
+    -----
+    This function is similar to CDO's genlevelbounds operator, which generates
+    bounds for vertical coordinates in climate model output.
+    """
+    if vertical_coord_names is None:
+        # Common vertical coordinate names in climate data
+        vertical_coord_names = [
+            "plev",
+            "lev",
+            "level",
+            "pressure",
+            "depth",
+            "plev19",
+            "plev8",
+            "plev7",
+            "plev4",
+            "plev3",
+            "height",
+            "alt",
+            "altitude",
+        ]
+
+    ds_out = ds.copy()
+
+    for coord_name in vertical_coord_names:
+        # Check if coordinate exists in dataset
+        if coord_name not in ds.coords and coord_name not in ds.data_vars:
+            continue
+
+        coord = ds[coord_name]
+        bounds_name = f"{coord_name}_bnds"
+
+        # Skip if bounds already exist
+        if bounds_name in ds.data_vars or bounds_name in ds.coords:
+            logger.debug(
+                f"  → Vertical bounds '{bounds_name}' already exist, skipping calculation"
+            )
+            continue
+
+        # Only handle 1D vertical coordinates
+        if coord.ndim == 1:
+            logger.info(f"  → Calculating vertical bounds for '{coord_name}'")
+            bounds = calculate_bounds_1d(coord)
+
+            if bounds is not None:
+                ds_out[bounds_name] = bounds
+                # Add bounds attribute to coordinate
+                ds_out[coord_name].attrs["bounds"] = bounds_name
+                logger.info(f"  → Added vertical bounds variable '{bounds_name}'")
+        else:
+            logger.warning(
+                f"  → Vertical coordinate '{coord_name}' has {coord.ndim} dimensions. "
+                "Bounds calculation only supports 1D coordinates."
+            )
+
+    return ds_out
+
+
 def add_bounds_to_grid(grid: xr.Dataset) -> xr.Dataset:
     """
     Add lat/lon bounds to a grid dataset if they don't exist.
