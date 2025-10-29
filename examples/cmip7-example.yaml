@@ -17,82 +17,82 @@ rules:
     inputs:
       - path: ./model_runs/historical/outdata/echam/
         pattern: temp2_echam_mon_.*nc
-    
+
     # CMIP7 compound name (provides: frequency, realm, table_id automatically)
     compound_name: atmos.tas.tavg-h2m-hxy-u.mon.GLB
-    
+
     # Model variable mapping
     model_variable: temp2
-    
+
     # Required: Core identifiers (8 minimum attributes)
     source_id: AWI-CM-1-1-HR
     institution_id: AWI
     experiment_id: historical
     variant_label: r1i1p1f1
     grid_label: gn
-    
+
     # Optional but recommended: Grid information
     grid: "Native atmosphere T63 grid (192x96)"
     nominal_resolution: "250 km"
-    
+
     # Output
     output_directory: ./output/CMIP7
-  
+
   # Example 2: Ocean variable with compound name
   - name: tos
     inputs:
       - path: ./model_runs/historical/outdata/fesom/
         pattern: sst_fesom_mon_.*nc
-    
+
     # CMIP7 compound name
     compound_name: ocean.tos.tavg-u-hxy-u.mon.GLB
-    
+
     # Model variable mapping
     model_variable: sst
-    
+
     # Required: Core identifiers
     source_id: AWI-CM-1-1-HR
     institution_id: AWI
     experiment_id: historical
     variant_label: r1i1p1f1
     grid_label: gn
-    
+
     # Optional: Grid information for unstructured mesh
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
     grid: "FESOM 1.4 unstructured grid (1306775 wet nodes, 46 levels)"
     nominal_resolution: "25 km"
-    
+
     # Output
     output_directory: ./output/CMIP7
-  
+
   # Example 3: Without compound name (manual specification)
   - name: fgco2
     inputs:
       - path: ./model_runs/piControl/outdata/recom/
         pattern: CO2f_fesom_mon_.*nc
-    
+
     # Without compound name, must specify these manually:
     cmor_variable: fgco2
     frequency: mon
     realm: ocnBgchem
     table_id: Omon
-    
+
     # Model variable mapping
     model_variable: CO2f
-    
+
     # Required: Core identifiers
     source_id: AWI-CM-1-1-HR
     institution_id: AWI
     experiment_id: piControl
     variant_label: r1i1p1f1
     grid_label: gn
-    
+
     # Optional: Grid information
     grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
     grid: "FESOM 1.4 unstructured grid"
     nominal_resolution: "25 km"
-    
+
     # Output
     output_directory: ./output/CMIP7
