@@ -2,10 +2,7 @@
 Tests for DataRequestVariable
 """
 
-from pycmor.data_request.variable import (
-    CMIP6JSONDataRequestVariable,
-    CMIP7DataRequestVariable,
-)
+from pycmor.data_request.variable import CMIP6JSONDataRequestVariable
 
 
 def test_cmip6_init_from_json_file():
