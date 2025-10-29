@@ -248,6 +248,31 @@ RULES_SCHEMA = {
                     "type": "string",
                     "required": False,
                 },  # Model resolution
+                # Time coordinate fields
+                "time_units": {
+                    "type": "string",
+                    "required": False,
+                    "regex": (
+                        r"^\s*(days|hours|minutes|seconds|milliseconds|microseconds|nanoseconds)"
+                        r"\s+since\s+\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2}(.\d+)?)?\s*$"
+                    ),
+                },
+                "time_calendar": {
+                    "type": "string",
+                    "required": False,
+                    "allowed": [
+                        "standard",
+                        "gregorian",
+                        "proleptic_gregorian",
+                        "noleap",
+                        "365_day",
+                        "all_leap",
+                        "366_day",
+                        "360_day",
+                        "julian",
+                        "none",
+                    ],
+                },
             },
         },
     },

@@ -26,6 +26,7 @@ Contents
    pycmor_on_slurm
    schemas
    standard_library
+   coordinate_bounds
    including_custom_steps
    including_subcommand_plugins
    pycmor_fesom

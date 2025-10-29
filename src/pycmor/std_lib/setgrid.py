@@ -16,8 +16,22 @@ Some guiding rules to set the grid information:
 5. The coordinate variables and boundary variables (lat_bnds, lon_bnds) from the grid file
    are kept, while other data variables in grid file are dropped.
 6. The result of the merge is always a xarray.Dataset
+7. If coordinate bounds (lat_bnds, lon_bnds) are not present in the grid file,
+   they will be automatically calculated from the coordinate values.
 
 Note: Rule 5 is not strict and may go away if it is not desired.
+
+Automatic Bounds Calculation
+-----------------------------
+As of the latest version, this module automatically calculates coordinate bounds
+(lat_bnds, lon_bnds) if they are not present in the grid file. This ensures
+CMIP compliance, as coordinate bounds are required for proper data interpretation.
+
+The bounds calculation:
+- Uses midpoints between adjacent coordinate values for interior cells
+- Extrapolates for edge cells using the same spacing
+- Ensures continuity (no gaps between cells)
+- Works for both regular and irregular grids
 """
 
 from typing import Union
@@ -26,6 +40,7 @@ import xarray as xr
 
 from ..core.logging import logger
 from ..core.rule import Rule
+from .bounds import add_bounds_to_grid
 
 
 def setgrid(
@@ -52,6 +67,10 @@ def setgrid(
     if gridfile is None:
         raise ValueError("Missing grid file. Please set 'grid_file' in the rule.")
     grid = xr.open_dataset(gridfile)
+
+    # Add bounds if they don't exist
+    grid = add_bounds_to_grid(grid)
+
     required_dims = set(sum([gc.dims for _, gc in grid.coords.items()], ()))
     logger.info(f"  → Required Dimensions: {sorted(required_dims)}")
     to_rename = {}

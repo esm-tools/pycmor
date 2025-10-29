@@ -243,13 +243,19 @@ class FrozenPipeline(Pipeline):
 class DefaultPipeline(FrozenPipeline):
     """
     The DefaultPipeline class is a subclass of the Pipeline class. It is designed to be a general-purpose pipeline
-    for data processing. It includes steps for loading data and handling unit conversion. The specific steps are fixed
-    and cannot be customized, only the name of the pipeline can be customized.
+    for data processing. It includes steps for loading data, adding vertical bounds, handling unit conversion,
+    and setting CMIP-compliant attributes. The specific steps are fixed and cannot be customized, only the name
+    of the pipeline can be customized.
 
     Parameters
     ----------
     name : str, optional
         The name of the pipeline. If not provided, it defaults to "pycmor.pipeline.DefaultPipeline".
+
+    Notes
+    -----
+    The pipeline includes automatic vertical bounds calculation for datasets with vertical coordinates
+    (pressure levels, depth, height), ensuring CMIP compliance.
     """
 
     # FIXME(PG): This is not so nice. All things should come out of the std_lib,
@@ -257,6 +263,7 @@ class DefaultPipeline(FrozenPipeline):
     STEPS = (
         "pycmor.core.gather_inputs.load_mfdataset",
         "pycmor.std_lib.generic.get_variable",
+        "pycmor.std_lib.add_vertical_bounds",
         "pycmor.std_lib.timeaverage.timeavg",
         "pycmor.std_lib.units.handle_unit_conversion",
         "pycmor.std_lib.global_attributes.set_global_attributes",

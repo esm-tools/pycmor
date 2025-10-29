@@ -89,7 +89,12 @@ def test_skip_grid_setting_if_no_matching_dimension_in_data_is_found(fake_grid_f
 
 
 def test_setgrid_with_grid_without_boundary_variables(tmp_path):
-    """Test setgrid behavior when grid file doesn't have lat_bnds/lon_bnds."""
+    """Test setgrid behavior when grid file doesn't have lat_bnds/lon_bnds.
+
+    With the automatic bounds calculation feature, bounds should now be
+    automatically calculated and added even when they don't exist in the
+    original grid file.
+    """
     # Create a minimal grid without boundary variables
     ncells = 100
     lat = np.linspace(-90, 90, ncells)
@@ -127,16 +132,20 @@ def test_setgrid_with_grid_without_boundary_variables(tmp_path):
     result = setgrid(da, rule)
     assert isinstance(result, xr.Dataset)
 
-    # Should have coordinates but no boundary variables
+    # Should have coordinates
     assert "ncells" in result.sizes
     assert "time" in result.sizes
     assert "lon" in result.coords
     assert "lat" in result.coords
     assert "CO2" in result.data_vars
 
-    # Should NOT have boundary variables since they weren't in the grid
-    assert "lat_bnds" not in result.data_vars
-    assert "lon_bnds" not in result.data_vars
+    # NEW BEHAVIOR: Bounds should now be automatically calculated and added
+    assert "lat_bnds" in result.data_vars
+    assert "lon_bnds" in result.data_vars
+
+    # Verify bounds have correct shape
+    assert result["lat_bnds"].shape == (ncells, 2)
+    assert result["lon_bnds"].shape == (ncells, 2)
 
     # Should NOT have other grid variables like cell_area
     assert "cell_area" not in result.data_vars
