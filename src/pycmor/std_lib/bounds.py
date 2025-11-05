@@ -164,6 +164,7 @@ def add_bounds_from_coords(
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> ds_with_bounds = add_bounds_from_coords(ds)  # doctest: +ELLIPSIS
+    ...
     >>> 'lat_bnds' in ds_with_bounds
     True
     """
@@ -256,6 +257,7 @@ def add_vertical_bounds(
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> ds_with_bounds = add_vertical_bounds(ds)  # doctest: +ELLIPSIS
+    ...
     >>> 'plev_bnds' in ds_with_bounds
     True
 
