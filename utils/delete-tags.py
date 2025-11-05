@@ -83,9 +83,7 @@ def main():
         if delete_tag(tag):
             success_count += 1
 
-    print(
-        f"\nSummary: Successfully deleted {success_count}/{len(selected_tags)} tag(s)."
-    )
+    print(f"\nSummary: Successfully deleted {success_count}/{len(selected_tags)} tag(s).")
 
 
 if __name__ == "__main__":

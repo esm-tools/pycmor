@@ -21,13 +21,7 @@ from ..data_request.variable import DataRequestVariable
 from ..std_lib.global_attributes import GlobalAttributes
 from ..std_lib.timeaverage import _frequency_from_approx_interval
 from .aux_files import attach_files_to_rule
-from .cluster import (
-    CLUSTER_ADAPT_SUPPORT,
-    CLUSTER_MAPPINGS,
-    CLUSTER_SCALE_SUPPORT,
-    DaskContext,
-    set_dashboard_link,
-)
+from .cluster import CLUSTER_ADAPT_SUPPORT, CLUSTER_MAPPINGS, CLUSTER_SCALE_SUPPORT, DaskContext, set_dashboard_link
 from .config import PycmorConfig, PycmorConfigManager
 from .controlled_vocabularies import ControlledVocabularies
 from .factory import create_factory
@@ -38,9 +32,7 @@ from .rule import Rule
 from .utils import wait_for_workers
 from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
 
-DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath(
-    "dimensionless_mappings.yaml"
-)
+DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath("dimensionless_mappings.yaml")
 """Path: The dimenionless unit mapping table, used to recreate meaningful units from
 dimensionless fractional values (e.g. 0.001 --> g/kg)"""
 
@@ -96,9 +88,7 @@ class CMORizer:
         pymor_config = PycmorConfig()
         # NOTE(PG): This variable is for demonstration purposes:
         _pymor_config_dict = {}
-        for namespace, key, value, option in get_runtime_config(
-            self._pymor_cfg, pymor_config
-        ):
+        for namespace, key, value, option in get_runtime_config(self._pymor_cfg, pymor_config):
             full_key = generate_uppercase_key(key, namespace)
             _pymor_config_dict[full_key] = value
         logger.info(yaml.dump(_pymor_config_dict))
@@ -196,9 +186,7 @@ class CMORizer:
             else:
                 logger.warning(f"{self._cluster} does not support fixed scaing")
         else:
-            raise ValueError(
-                "You need to specify adapt or fixed for pymor.dask_cluster_scaling_mode"
-            )
+            raise ValueError("You need to specify adapt or fixed for pymor.dask_cluster_scaling_mode")
         # FIXME: Include the gateway option if possible
         # FIXME: Does ``Client`` needs to be available here?
         logger.info(f"Cluster can be found at: {self._cluster=}")
@@ -284,9 +272,7 @@ class CMORizer:
         """
         table_dir = self._general_cfg["CV_Dir"]
         controlled_vocabularies_factory = create_factory(ControlledVocabularies)
-        ControlledVocabulariesClass = controlled_vocabularies_factory.get(
-            self.cmor_version
-        )
+        ControlledVocabulariesClass = controlled_vocabularies_factory.get(self.cmor_version)
         self.controlled_vocabularies = ControlledVocabulariesClass.load(table_dir)
 
     def _post_init_populate_rules_with_controlled_vocabularies(self):
@@ -317,9 +303,7 @@ class CMORizer:
         None
         """
         pymor_cfg = self._pymor_cfg
-        unit_map_file = pymor_cfg.get(
-            "dimensionless_mapping_table", DIMENSIONLESS_MAPPING_TABLE
-        )
+        unit_map_file = pymor_cfg.get("dimensionless_mapping_table", DIMENSIONLESS_MAPPING_TABLE)
         if unit_map_file is None:
             logger.warning("No dimensionless unit mappings file specified!")
             dimensionless_unit_mappings = {}
@@ -334,9 +318,7 @@ class CMORizer:
         for rule in self.rules:
             rule.match_pipelines(self.pipelines, force=force)
 
-    def find_matching_rule(
-        self, data_request_variable: DataRequestVariable
-    ) -> Rule or None:
+    def find_matching_rule(self, data_request_variable: DataRequestVariable) -> Rule or None:
         matches = []
         attr_criteria = [("cmor_variable", "variable_id")]
         for rule in self.rules:
@@ -466,9 +448,7 @@ class CMORizer:
         logger.info("checking frequency in netcdf file and in table...")
         errors = []
         for rule in self.rules:
-            table_freq = _frequency_from_approx_interval(
-                rule.data_request_variable.table_header.approx_interval
-            )
+            table_freq = _frequency_from_approx_interval(rule.data_request_variable.table_header.approx_interval)
             # is_subperiod from pandas does not support YE or ME notation
             table_freq = table_freq.rstrip("E")
             for input_collection in rule.inputs:
@@ -478,18 +458,14 @@ class CMORizer:
                         logger.info("No. input files found. Skipping frequency check.")
                         break
                     data_freq = fc.get(input_collection.files[0]).freq
-                is_subperiod = pd.tseries.frequencies.is_subperiod(
-                    data_freq, table_freq
-                )
+                is_subperiod = pd.tseries.frequencies.is_subperiod(data_freq, table_freq)
                 if not is_subperiod:
                     errors.append(
                         ValueError(
                             f"Freq in source file {data_freq} is not a subperiod of freq in table {table_freq}."
                         ),
                     )
-                logger.info(
-                    f"Frequency of data {data_freq}. Frequency in tables {table_freq}"
-                )
+                logger.info(f"Frequency of data {data_freq}. Frequency in tables {table_freq}")
         if errors:
             for err in errors:
                 logger.error(err)
@@ -529,9 +505,7 @@ class CMORizer:
                     if not is_unit_scalar(model_unit):
                         dimless = rule.get("dimensionless_unit_mappings", {})
                         if cmor_unit not in dimless.get(cmor_variable, {}):
-                            errors.append(
-                                f"Missing mapping for dimensionless variable {cmor_variable}"
-                            )
+                            errors.append(f"Missing mapping for dimensionless variable {cmor_variable}")
         if errors:
             for err in errors:
                 logger.error(err)
@@ -625,9 +599,7 @@ class CMORizer:
                 missing_variables.append(cmor_variable)
         if missing_variables:
             logger.warning("This CMORizer may be incomplete or badly configured!")
-            logger.warning(
-                f"Missing rules for >> {len(missing_variables)} << variables."
-            )
+            logger.warning(f"Missing rules for >> {len(missing_variables)} << variables.")
 
     def check_rules_for_output_dir(self, output_dir):
         all_files_in_output_dir = [f for f in Path(output_dir).iterdir()]
@@ -638,9 +610,7 @@ class CMORizer:
                     all_files_in_output_dir.remove(filepath)
         if all_files_in_output_dir:
             logger.warning("This CMORizer may be incomplete or badly configured!")
-            logger.warning(
-                f"Found >> {len(all_files_in_output_dir)} << files in output dir not matching any rule."
-            )
+            logger.warning(f"Found >> {len(all_files_in_output_dir)} << files in output dir not matching any rule.")
             if questionary.confirm("Do you want to view these files?").ask():
                 for filepath in all_files_in_output_dir:
                     logger.warning(filepath)

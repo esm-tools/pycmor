@@ -10,11 +10,7 @@ from semver.version import Version
 
 from ..core.factory import MetaFactory
 from ..core.logging import logger
-from .variable import (
-    CMIP6DataRequestVariable,
-    CMIP7DataRequestVariable,
-    DataRequestVariable,
-)
+from .variable import CMIP6DataRequestVariable, CMIP7DataRequestVariable, DataRequestVariable
 
 ################################################################################
 # BLUEPRINTS: Abstract classes for the data request tables
@@ -238,17 +234,11 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
     ############################################################################
     # Constructor methods:
     @classmethod
-    def from_all_var_info(
-        cls, table_name: str, all_var_info: dict = None
-    ) -> "CMIP7DataRequestTableHeader":
+    def from_all_var_info(cls, table_name: str, all_var_info: dict = None) -> "CMIP7DataRequestTableHeader":
         if all_var_info is None:
             _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
             all_var_info = json.load(open(_all_var_info, "r"))
-        all_vars_for_table = {
-            k: v
-            for k, v in all_var_info["Compound Name"].items()
-            if k.startswith(table_name)
-        }
+        all_vars_for_table = {k: v for k, v in all_var_info["Compound Name"].items() if k.startswith(table_name)}
         attrs_for_table = {
             "realm": set(),
             "approx_interval": set(),
@@ -256,16 +246,12 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
 
         for var in all_vars_for_table.values():
             attrs_for_table["realm"].add(var["modeling_realm"])
-            attrs_for_table["approx_interval"].add(
-                cls._approx_interval_from_frequency(var["frequency"])
-            )
+            attrs_for_table["approx_interval"].add(cls._approx_interval_from_frequency(var["frequency"]))
 
         # We assume that all variables in the table have the same approx_interval
         # If not, we need to raise an error
         if len(attrs_for_table["approx_interval"]) != 1:
-            raise ValueError(
-                f"approx_interval in the table is not consistent: {attrs_for_table['approx_interval']}"
-            )
+            raise ValueError(f"approx_interval in the table is not consistent: {attrs_for_table['approx_interval']}")
         # Build a table header, always using defaults for known fields
         return cls(
             _table_id=table_name,
@@ -352,9 +338,7 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
             _realm=[data["realm"]],
             _table_date=pendulum.parse(data["table_date"], strict=False).date(),
             # This might be None, if the approx interval is an empty string...
-            _approx_interval=(
-                float(data["approx_interval"]) if data["approx_interval"] else None
-            ),
+            _approx_interval=(float(data["approx_interval"]) if data["approx_interval"] else None),
             _generic_levels=data["generic_levels"].split(" "),
         )
         # Optionally get the rest, which might not be present:
@@ -364,9 +348,9 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
         # Handle Version conversions
         if "_data_specs_version" in extracted_data:
             for old_value, new_value in cls._HARD_CODED_DATA_SPECS_REPLACEMENTS.items():
-                extracted_data["_data_specs_version"] = extracted_data[
-                    "_data_specs_version"
-                ].replace(old_value, new_value)
+                extracted_data["_data_specs_version"] = extracted_data["_data_specs_version"].replace(
+                    old_value, new_value
+                )
             extracted_data["_data_specs_version"] = Version.parse(
                 extracted_data["_data_specs_version"],
                 optional_minor_and_patch=True,
@@ -380,9 +364,7 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
         if "_missing_value" in extracted_data:
             extracted_data["_missing_value"] = float(extracted_data["_missing_value"])
         if "_int_missing_value" in extracted_data:
-            extracted_data["_int_missing_value"] = int(
-                extracted_data["_int_missing_value"]
-            )
+            extracted_data["_int_missing_value"] = int(extracted_data["_int_missing_value"])
         return cls(**extracted_data)
 
     @property
@@ -488,17 +470,12 @@ class CMIP6DataRequestTable(DataRequestTable):
         for v in self._variables:
             if getattr(v, find_by) == name:
                 return v
-        raise ValueError(
-            f"A Variable with the attribute {find_by}={name} not found in the table."
-        )
+        raise ValueError(f"A Variable with the attribute {find_by}={name} not found in the table.")
 
     @classmethod
     def from_dict(cls, data: dict) -> "CMIP6DataRequestTable":
         header = CMIP6DataRequestTableHeader.from_dict(data["Header"])
-        variables = [
-            CMIP6DataRequestVariable.from_dict(v)
-            for v in data["variable_entry"].values()
-        ]
+        variables = [CMIP6DataRequestVariable.from_dict(v) for v in data["variable_entry"].values()]
         return cls(header, variables)
 
     @classmethod
@@ -571,9 +548,7 @@ class CMIP7DataRequestTable(DataRequestTable):
         for v in self._variables:
             if getattr(v, find_by) == name:
                 return v
-        raise ValueError(
-            f"A Variable with the attribute {find_by}={name} not found in the table."
-        )
+        raise ValueError(f"A Variable with the attribute {find_by}={name} not found in the table.")
 
     @classmethod
     def from_dict(cls, data: dict) -> "CMIP7DataRequestTable":
@@ -613,9 +588,7 @@ class CMIP7DataRequestTable(DataRequestTable):
                 all_var_info = json.load(f)
         except FileNotFoundError:
             logger.error(f"No all_var_info.json found in {path}.")
-            logger.error(
-                "It is currently possible to only create tables from the all_var_info.json file!"
-            )
+            logger.error("It is currently possible to only create tables from the all_var_info.json file!")
             logger.error("Sorry...")
             raise FileNotFoundError
         table_ids = set(k.split(".")[0] for k in all_var_info["Compound Name"].keys())

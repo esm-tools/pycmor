@@ -26,9 +26,7 @@ def test_open_awicm_1p0_recom(awicm_1p0_recom_data, engine):
 )
 def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_pimesh_esm_tools_data, engine):
     matching_files = [
-        f
-        for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir()
-        if f.name.startswith("temp.fesom")
+        f for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir() if f.name.startswith("temp.fesom")
     ]
     assert len(matching_files) > 0
     ds = xr.open_mfdataset(
@@ -44,15 +42,9 @@ def test_open_fesom_2p6_pimesh_esm_tools(fesom_2p6_pimesh_esm_tools_data, engine
         "h5netcdf",
     ],
 )
-def test_open_fesom_2p6_pimesh_esm_tools_cftime(
-    fesom_2p6_pimesh_esm_tools_data, engine
-):
+def test_open_fesom_2p6_pimesh_esm_tools_cftime(fesom_2p6_pimesh_esm_tools_data, engine):
     ds = xr.open_mfdataset(
-        (
-            f
-            for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir()
-            if f.name.startswith("temp")
-        ),
+        (f for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir() if f.name.startswith("temp")),
         use_cftime=True,
         engine=engine,
     )
@@ -65,15 +57,9 @@ def test_open_fesom_2p6_pimesh_esm_tools_cftime(
         "h5netcdf",
     ],
 )
-def test_open_fesom_2p6_pimesh_esm_tools_parallel(
-    fesom_2p6_pimesh_esm_tools_data, engine
-):
+def test_open_fesom_2p6_pimesh_esm_tools_parallel(fesom_2p6_pimesh_esm_tools_data, engine):
     ds = xr.open_mfdataset(
-        (
-            f
-            for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir()
-            if f.name.startswith("temp")
-        ),
+        (f for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir() if f.name.startswith("temp")),
         parallel=True,
         engine=engine,
     )
@@ -88,11 +74,7 @@ def test_open_fesom_2p6_pimesh_esm_tools_parallel(
 )
 def test_open_fesom_2p6_pimesh_esm_tools_full(fesom_2p6_pimesh_esm_tools_data, engine):
     ds = xr.open_mfdataset(
-        (
-            f
-            for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir()
-            if f.name.startswith("temp")
-        ),
+        (f for f in (fesom_2p6_pimesh_esm_tools_data / "outdata/fesom/").iterdir() if f.name.startswith("temp")),
         use_cftime=True,
         parallel=True,
         engine=engine,

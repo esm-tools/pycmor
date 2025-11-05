@@ -60,8 +60,7 @@ def _get_units(
     from_unit = da.attrs.get("units", None)
     if model_unit is not None:
         logger.info(
-            f"user defined units {model_unit!r} takes precedence"
-            f" over units defined in dataset {from_unit!r}"
+            f"user defined units {model_unit!r} takes precedence" f" over units defined in dataset {from_unit!r}"
         )
         from_unit = model_unit
     to_unit = rule.data_request_variable.units
@@ -72,10 +71,7 @@ def _get_units(
         try:
             to_unit_dimensionless_mapping = dimless_mapping.get(cmor_variable)[to_unit]
             # Check if the mapping is empty
-            if (
-                to_unit_dimensionless_mapping is None
-                or to_unit_dimensionless_mapping == ""
-            ):
+            if to_unit_dimensionless_mapping is None or to_unit_dimensionless_mapping == "":
                 raise ValueError(
                     f"Empty dimensionless mapping found for variable '{cmor_variable}' with unit '{to_unit}'. "
                     f"Please update the {dimless_mapping} file with an appropriate value. "
@@ -98,9 +94,7 @@ def _get_units(
     if from_unit is None:
         raise ValueError(f"Unit not defined: {from_unit=}")
     if not (to_unit or to_unit_dimensionless_mapping):
-        raise ValueError(
-            f"Unit not defined: {to_unit=}, {to_unit_dimensionless_mapping=}"
-        )
+        raise ValueError(f"Unit not defined: {to_unit=}, {to_unit_dimensionless_mapping=}")
     return from_unit, to_unit, to_unit_dimensionless_mapping
 
 
@@ -152,14 +146,10 @@ def handle_chemicals(
             try:
                 element = getattr(periodic_table, d["symbol"])
             except AttributeError:
-                raise ValueError(
-                    f"Unknown chemical element {d['symbol']} in {match.group()}"
-                )
+                raise ValueError(f"Unknown chemical element {d['symbol']} in {match.group()}")
             else:
                 logger.debug(f"Chemical element {element.name} detected in units {s}.")
-                logger.debug(
-                    f"Registering definition: {match.group()} = {element.MW} * g"
-                )
+                logger.debug(f"Registering definition: {match.group()} = {element.MW} * g")
                 ureg.define(f"{match.group()} = {element.MW} * g")
 
 
@@ -294,9 +284,7 @@ def handle_unit_conversion(
         model_variable = rule.model_variable
         new_da = da[model_variable]
         from_unit, to_unit, to_unit_dimensionless_mapping = _get_units(new_da, rule)
-        converted_da = convert(
-            new_da, from_unit, to_unit, to_unit_dimensionless_mapping
-        )
+        converted_da = convert(new_da, from_unit, to_unit, to_unit_dimensionless_mapping)
         da[model_variable] = converted_da
         return da
     else:

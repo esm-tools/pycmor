@@ -70,9 +70,7 @@ class CMIP6GlobalAttributes(GlobalAttributes):
         )
         d = pattern.match(label)
         if d is None:
-            raise ValueError(
-                f"`label` must be of the form 'r<int>i<int>p<int>f<int>', Got: {label}"
-            )
+            raise ValueError(f"`label` must be of the form 'r<int>i<int>p<int>f<int>', Got: {label}")
         d = {name: int(val) for name, val in d.groupdict().items()}
         return d
 
@@ -120,13 +118,10 @@ class CMIP6GlobalAttributes(GlobalAttributes):
             if user_institution_id:
                 if user_institution_id not in institution_ids:
                     raise ValueError(
-                        f"Institution ID '{user_institution_id}' is not valid. "
-                        f"Allowed values: {institution_ids}"
+                        f"Institution ID '{user_institution_id}' is not valid. " f"Allowed values: {institution_ids}"
                     )
                 return user_institution_id
-            raise ValueError(
-                f"Multiple institutions are not supported, got: {institution_ids}"
-            )
+            raise ValueError(f"Multiple institutions are not supported, got: {institution_ids}")
         return institution_ids[0]
 
     def get_institution(self):
@@ -152,14 +147,10 @@ class CMIP6GlobalAttributes(GlobalAttributes):
         source_id = self.get_source_id()
         cv_source_id = self.cv["source_id"][source_id]
         model_component = self.get_realm()
-        grid_description = cv_source_id["model_component"][model_component][
-            "description"
-        ]
+        grid_description = cv_source_id["model_component"][model_component]["description"]
         if grid_description == "none":
             # check if user has provided grid description
-            user_grid_description = self.rule_dict.get(
-                "description", self.rule_dict.get("grid", None)
-            )
+            user_grid_description = self.rule_dict.get("description", self.rule_dict.get("grid", None))
             if user_grid_description:
                 grid_description = user_grid_description
         return grid_description
@@ -175,9 +166,7 @@ class CMIP6GlobalAttributes(GlobalAttributes):
             nominal_resolution = cv_model_component["native_ominal_resolution"]
         if nominal_resolution == "none":
             # check if user has provided nominal resolution
-            user_nominal_resolution = self.rule_dict.get(
-                "nominal_resolution", self.rule_dict.get("resolution", None)
-            )
+            user_nominal_resolution = self.rule_dict.get("nominal_resolution", self.rule_dict.get("resolution", None))
             if user_nominal_resolution:
                 nominal_resolution = user_nominal_resolution
         return nominal_resolution
@@ -197,9 +186,7 @@ class CMIP6GlobalAttributes(GlobalAttributes):
             license_text = re.sub(r"\[.*?\]", "", license_text)
             license_text = license_text.format(institution_id, license_id, license_url)
         else:
-            license_text = license_text.format(
-                institution_id, license_id, license_url, further_info_url
-            )
+            license_text = license_text.format(institution_id, license_id, license_url, further_info_url)
         return license_text
 
     def get_experiment_id(self):
@@ -218,13 +205,10 @@ class CMIP6GlobalAttributes(GlobalAttributes):
             if user_activity_id:
                 if user_activity_id not in activity_ids:
                     raise ValueError(
-                        f"Activity ID '{user_activity_id}' is not valid. "
-                        f"Allowed values: {activity_ids}"
+                        f"Activity ID '{user_activity_id}' is not valid. " f"Allowed values: {activity_ids}"
                     )
                 return user_activity_id
-            raise ValueError(
-                f"Multiple activities are not supported, got: {activity_ids}"
-            )
+            raise ValueError(f"Multiple activities are not supported, got: {activity_ids}")
         return activity_ids[0]
 
     def get_sub_experiment_id(self):

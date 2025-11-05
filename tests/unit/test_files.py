@@ -7,12 +7,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pycmor.std_lib.files import (
-    file_timespan_tail,
-    get_offset,
-    save_dataset,
-    split_data_timespan,
-)
+from pycmor.std_lib.files import file_timespan_tail, get_offset, save_dataset, split_data_timespan
 
 
 @pytest.mark.parametrize(
@@ -162,9 +157,7 @@ def test_save_dataset(mocker):
 
     # Create a mock for the ga attribute
     ga_mock = Mock()
-    ga_mock.subdir_path.return_value = (
-        ""  # Return empty string to match the test's expectations
-    )
+    ga_mock.subdir_path.return_value = ""  # Return empty string to match the test's expectations
 
     rule = Mock()
     rule.ga = ga_mock

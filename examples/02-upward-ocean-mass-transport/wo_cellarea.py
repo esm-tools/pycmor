@@ -27,10 +27,7 @@ from pycmor.std_lib.units import ureg
 def nodes_to_levels(data, rule):
     mesh_path = rule.get("mesh_path")
     if mesh_path is None:
-        raise ValueError(
-            "Set `mesh_path` path in yaml config."
-            "Required for converting nodes to levels"
-        )
+        raise ValueError("Set `mesh_path` path in yaml config." "Required for converting nodes to levels")
     return pycmor.fesom_1p4.nodes_to_levels(data, rule)
 
 
@@ -38,8 +35,7 @@ def weight_by_cellarea_and_density(data, rule):
     gridfile = rule.get("grid_file")
     if gridfile is None:
         raise ValueError(
-            "Set `grid_file` in yaml config."
-            "Required for getting cell_area information from the grid file"
+            "Set `grid_file` in yaml config." "Required for getting cell_area information from the grid file"
         )
     grid = xr.open_dataset(gridfile)
     cellarea = grid["cell_area"]

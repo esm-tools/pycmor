@@ -72,9 +72,7 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
     def print_experiment_ids(self):
         """Print experiment ids with start and end years and parent experiment ids"""
         for k, v in self["experiment_id"].items():
-            print(
-                f"{k} {v['start_year']}-{v['end_year']} parent:{', '.join(v['parent_experiment_id'])}"
-            )
+            print(f"{k} {v['start_year']}-{v['end_year']} parent:{', '.join(v['parent_experiment_id'])}")
 
     @staticmethod
     def dict_from_json_file(path):
@@ -406,9 +404,7 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
         for exp_id, exp_data in self["experiment"].items():
             start = exp_data.get("start", exp_data.get("start-year", "N/A"))
             end = exp_data.get("end", exp_data.get("end-year", "N/A"))
-            parent = exp_data.get(
-                "parent-experiment", exp_data.get("parent_experiment_id", [])
-            )
+            parent = exp_data.get("parent-experiment", exp_data.get("parent_experiment_id", []))
 
             # Handle parent experiment format
             if isinstance(parent, list):

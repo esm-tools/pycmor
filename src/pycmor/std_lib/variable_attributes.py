@@ -10,9 +10,7 @@ from ..core.logging import logger
 from ..core.rule import Rule
 
 
-def set_variable_attrs(
-    ds: Union[xr.Dataset, xr.DataArray], rule: Rule
-) -> Union[xr.Dataset, xr.DataArray]:
+def set_variable_attrs(ds: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union[xr.Dataset, xr.DataArray]:
     if isinstance(ds, xr.Dataset):
         given_dtype = xr.Dataset
         da = ds[rule.model_variable]
@@ -64,9 +62,7 @@ def set_variable_attrs(
     elif given_dtype == xr.DataArray:
         return da
     else:
-        raise TypeError(
-            "Given data type is not an xarray Dataset or DataArray, refusing to continue!"
-        )
+        raise TypeError("Given data type is not an xarray Dataset or DataArray, refusing to continue!")
 
 
 # Alias name for the function

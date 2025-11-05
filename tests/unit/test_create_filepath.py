@@ -39,9 +39,7 @@ class TestCreateFilepath:
 
         # Mock pycmor config
         self.rule._pycmor_cfg = Mock()
-        self.rule._pycmor_cfg.get = Mock(
-            return_value=False
-        )  # disable subdirs by default
+        self.rule._pycmor_cfg.get = Mock(return_value=False)  # disable subdirs by default
 
         # Create temporary directory for output
         self.temp_dir = tempfile.mkdtemp()
@@ -94,9 +92,7 @@ class TestCreateFilepath:
         ds = self.create_test_dataset(has_time=False)
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = (
-            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
-        )
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_scalar_time(self):
@@ -110,9 +106,7 @@ class TestCreateFilepath:
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = (
-            f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
-        )
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_daily_frequency(self):
@@ -141,8 +135,7 @@ class TestCreateFilepath:
         filepath = create_filepath(ds, self.rule)
 
         expected_pattern = (
-            f"{self.temp_dir}/tas_6hrLev_AWI-AWI-CM-1-1-MR_historical_"
-            f"r1i1p1f1_gn_200001010000-200001011800.nc"
+            f"{self.temp_dir}/tas_6hrLev_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001010000-200001011800.nc"
         )
         assert filepath == expected_pattern
 
@@ -168,9 +161,7 @@ class TestCreateFilepath:
         ds = self.create_test_dataset(has_time=False)
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = (
-            f"{self.temp_dir}/tas_fx_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
-        )
+        expected_pattern = f"{self.temp_dir}/tas_fx_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_custom_institution(self):
@@ -230,8 +221,7 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/{cmor_var}_Amon_AWI-AWI-CM-1-1-MR_historical_"
-                f"r1i1p1f1_gn_200001-200012.nc"
+                f"{self.temp_dir}/{cmor_var}_Amon_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
@@ -257,8 +247,7 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_"
-                f"r1i1p1f1_{grid_label}_200001-200012.nc"
+                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_{grid_label}_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
@@ -272,17 +261,14 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_"
-                f"{variant_label}_gn_200001-200012.nc"
+                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_" f"{variant_label}_gn_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
     def test_filepath_with_cftime_coordinates(self):
         """Test filepath generation with cftime coordinates."""
         # Create dataset with cftime coordinates (common in climate models)
-        time_range = xr.cftime_range(
-            "2000-01-01", periods=12, freq="MS", calendar="noleap"
-        )
+        time_range = xr.cftime_range("2000-01-01", periods=12, freq="MS", calendar="noleap")
         ds = self.create_test_dataset(time_range=time_range)
 
         filepath = create_filepath(ds, self.rule)
@@ -333,13 +319,9 @@ class TestCreateFilepath:
         # <variable_id>_<table_id>_<source_id>_<experiment_id>_<member_id>_<grid_label>[_<time_range>].nc
         assert components[0] == "tas"  # variable_id
         assert components[1] == "Amon"  # table_id
-        assert (
-            components[2] == "AWI-AWI-CM-1-1-MR"
-        )  # source_id (current implementation uses institution-source_id)
+        assert components[2] == "AWI-AWI-CM-1-1-MR"  # source_id (current implementation uses institution-source_id)
         assert components[3] == "historical"  # experiment_id
-        assert (
-            components[4] == "r1i1p1f1"
-        )  # member_id (variant_label when sub_experiment_id="none")
+        assert components[4] == "r1i1p1f1"  # member_id (variant_label when sub_experiment_id="none")
         assert components[5] == "gn"  # grid_label
         assert components[6] == "200001-200012"  # time_range
 
@@ -404,15 +386,11 @@ class TestCreateFilepath:
 
         for i, component in enumerate(components):
             # Each component should only contain allowed characters
-            assert re.match(
-                r"^[a-zA-Z0-9-]+$", component
-            ), f"Component {i} '{component}' contains forbidden characters"
+            assert re.match(r"^[a-zA-Z0-9-]+$", component), f"Component {i} '{component}' contains forbidden characters"
 
         # Variable_id must not contain hyphens according to spec
         variable_id = components[0]
-        assert (
-            "-" not in variable_id
-        ), f"variable_id '{variable_id}' should not contain hyphens"
+        assert "-" not in variable_id, f"variable_id '{variable_id}' should not contain hyphens"
 
     def test_cmip6_time_range_precision(self):
         """Test that time range precision matches CMIP6 Table 2 specification."""
@@ -520,9 +498,7 @@ class TestCreateFilepath:
                 # Each component should only contain a-z, A-Z, 0-9, and hyphen
                 import re
 
-                assert re.match(
-                    r"^[a-zA-Z0-9-]+$", component
-                ), f"Component '{component}' contains forbidden characters"
+                assert re.match(r"^[a-zA-Z0-9-]+$", component), f"Component '{component}' contains forbidden characters"
 
     def test_time_invariant_fields(self):
         """Test filename generation for time-invariant (fx) fields."""
@@ -537,14 +513,10 @@ class TestCreateFilepath:
         # For fx frequency, time_range should be omitted
         # Expected: <variable_id>_<table_id>_<source_id>_<experiment_id>_<member_id>_<grid_label>.nc
         components = filename[:-3].split("_")
-        assert (
-            len(components) == 6
-        ), f"fx files should have 6 components, got {len(components)}: {components}"
+        assert len(components) == 6, f"fx files should have 6 components, got {len(components)}: {components}"
 
         # Should end with grid_label, not time_range
-        assert (
-            components[-1] == "gn"
-        ), f"Last component should be grid_label 'gn', got '{components[-1]}'"
+        assert components[-1] == "gn", f"Last component should be grid_label 'gn', got '{components[-1]}'"
 
     def test_climatology_suffix(self):
         """Test climatology suffix handling (though not implemented in current version)."""

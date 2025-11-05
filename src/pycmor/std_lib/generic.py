@@ -36,9 +36,7 @@ def load_data(data, rule_spec, *args, **kwargs):
     return data
 
 
-def linear_transform(
-    filepath: Path, execute: bool = False, slope: float = 1, offset: float = 0
-):
+def linear_transform(filepath: Path, execute: bool = False, slope: float = 1, offset: float = 0):
     """
     Applies a linear transformation to the data of a NetCDF file.
 
@@ -295,10 +293,7 @@ def sort_dimensions(data, rule_spec):
         elif isinstance(dimensions, list) or isinstance(dimensions, tuple):
             array_order = dimensions
         else:
-            logger.error(
-                "Invalid dimensions in data request variable: "
-                f"{rule_spec.data_request_variable}"
-            )
+            logger.error("Invalid dimensions in data request variable: " f"{rule_spec.data_request_variable}")
             raise ValueError("Invalid dimensions in data request variable")
 
     logger.info(f"Transposing dimensions of data from {data.dims} to {array_order}")

@@ -9,9 +9,7 @@ from xarray.core.utils import is_scalar
 
 def is_datetime_type(arr: np.ndarray) -> bool:
     "Checks if array elements are datetime objects or cftime objects"
-    return isinstance(
-        arr.item(0), tuple(cftime._cftime.DATE_TYPES.values())
-    ) or np.issubdtype(arr, np.datetime64)
+    return isinstance(arr.item(0), tuple(cftime._cftime.DATE_TYPES.values())) or np.issubdtype(arr, np.datetime64)
 
 
 def get_time_label(ds):
@@ -144,9 +142,7 @@ def freq_is_coarser_than_data(
 
     data_freq = pd.infer_freq(time_index)
     if data_freq is None:
-        raise ValueError(
-            "Could not infer frequency from the dataset's time coordinate."
-        )
+        raise ValueError("Could not infer frequency from the dataset's time coordinate.")
 
     delta1 = (ref_time + pd.tseries.frequencies.to_offset(freq)) - ref_time
     delta2 = (ref_time + pd.tseries.frequencies.to_offset(data_freq)) - ref_time

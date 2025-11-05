@@ -26,17 +26,9 @@ def cleanup():
     current_dir = Path.cwd()
 
     for item in current_dir.rglob("*"):
-        if (
-            item.is_file()
-            and item.name.startswith("slurm")
-            and item.name.endswith("out")
-        ):
+        if item.is_file() and item.name.startswith("slurm") and item.name.endswith("out"):
             rm_file(item)
-        if (
-            item.is_file()
-            and item.name.startswith("pymor")
-            and item.name.endswith("json")
-        ):
+        if item.is_file() and item.name.startswith("pymor") and item.name.endswith("json"):
             rm_file(item)
         if item.is_file() and item.name.endswith("nc"):
             rm_file(item)

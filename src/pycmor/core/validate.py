@@ -78,9 +78,7 @@ class PipelineSectionValidator(Validator):
     def _validate(self, document):
         super()._validate(document)
         if "steps" not in document and "uses" not in document:
-            self._error(
-                "document", 'At least one of "steps" or "uses" must be specified'
-            )
+            self._error("document", 'At least one of "steps" or "uses" must be specified')
 
 
 class RuleSectionValidator(DirectoryAwareValidator):

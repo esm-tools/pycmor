@@ -175,9 +175,7 @@ class CMIP6DataRequest(DataRequest):
     def from_git(cls, url: str = None, branch: str = "main") -> "CMIP6DataRequest":
         if url is None:
             url = cls.GIT_URL
-        raw_url = f"{url}/{branch}/Tables".replace(
-            "github.com", "raw.githubusercontent.com"
-        )
+        raw_url = f"{url}/{branch}/Tables".replace("github.com", "raw.githubusercontent.com")
         # Something for parsing the tables at the URL
         tables = list_files_in_directory(url, "Tables", branch=branch)
         # Something for downloading

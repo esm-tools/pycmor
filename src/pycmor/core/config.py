@@ -75,19 +75,9 @@ from importlib.resources import files
 
 from everett import InvalidKeyError
 from everett.ext.yamlfile import ConfigYamlEnv
-from everett.manager import (
-    ChoiceOf,
-    ConfigDictEnv,
-    ConfigManager,
-    ConfigOSEnv,
-    Option,
-    _get_component_name,
-    parse_bool,
-)
+from everett.manager import ChoiceOf, ConfigDictEnv, ConfigManager, ConfigOSEnv, Option, _get_component_name, parse_bool
 
-DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath(
-    "dimensionless_mappings.yaml"
-)
+DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath("dimensionless_mappings.yaml")
 
 
 def _parse_bool(value):
@@ -391,7 +381,5 @@ PymorConfigManager = PycmorConfigManager
 setattr(
     PycmorConfigManager,
     "from_pymor_cfg",
-    classmethod(
-        lambda cls, run_specific_cfg=None: cls.from_pycmor_cfg(run_specific_cfg)
-    ),
+    classmethod(lambda cls, run_specific_cfg=None: cls.from_pycmor_cfg(run_specific_cfg)),
 )

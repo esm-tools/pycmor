@@ -91,9 +91,7 @@ def calculate_bounds_1d(coord: xr.DataArray) -> xr.DataArray:
     return bounds_da
 
 
-def calculate_bounds_2d(
-    coord: xr.DataArray, vertices_dim: str = "vertices"
-) -> xr.DataArray:
+def calculate_bounds_2d(coord: xr.DataArray, vertices_dim: str = "vertices") -> xr.DataArray:
     """
     Calculate bounds for a 2D coordinate array (unstructured grids).
 
@@ -182,9 +180,7 @@ def add_bounds_from_coords(
 
         # Skip if bounds already exist
         if bounds_name in ds.data_vars or bounds_name in ds.coords:
-            logger.debug(
-                f"  → Bounds '{bounds_name}' already exist, skipping calculation"
-            )
+            logger.debug(f"  → Bounds '{bounds_name}' already exist, skipping calculation")
             continue
 
         # Calculate bounds based on dimensionality
@@ -294,9 +290,7 @@ def add_vertical_bounds(
 
         # Skip if bounds already exist
         if bounds_name in ds.data_vars or bounds_name in ds.coords:
-            logger.debug(
-                f"  → Vertical bounds '{bounds_name}' already exist, skipping calculation"
-            )
+            logger.debug(f"  → Vertical bounds '{bounds_name}' already exist, skipping calculation")
             continue
 
         # Only handle 1D vertical coordinates
@@ -338,16 +332,8 @@ def add_bounds_to_grid(grid: xr.Dataset) -> xr.Dataset:
     logger.info("[Bounds] Checking for coordinate bounds in grid")
 
     # Check for various lat/lon naming conventions
-    lat_names = [
-        name
-        for name in ["lat", "latitude"]
-        if name in grid.coords or name in grid.data_vars
-    ]
-    lon_names = [
-        name
-        for name in ["lon", "longitude"]
-        if name in grid.coords or name in grid.data_vars
-    ]
+    lat_names = [name for name in ["lat", "latitude"] if name in grid.coords or name in grid.data_vars]
+    lon_names = [name for name in ["lon", "longitude"] if name in grid.coords or name in grid.data_vars]
 
     coord_names = lat_names + lon_names
 

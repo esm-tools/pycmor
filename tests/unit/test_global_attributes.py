@@ -15,8 +15,7 @@ global_attributes = {
     "experiment_id": "piControl",
     "forcing_index": 1,
     "frequency": "day",
-    "grid": "FESOM 1.4 (unstructured grid in the horizontal with 1306775 wet "
-    "nodes; 46 levels; top grid cell 0-5 m)",
+    "grid": "FESOM 1.4 (unstructured grid in the horizontal with 1306775 wet " "nodes; 46 levels; top grid cell 0-5 m)",
     "grid_label": "gn",
     "initialization_index": 1,
     "institution": "Alfred Wegener Institute, Helmholtz Centre for Polar and "

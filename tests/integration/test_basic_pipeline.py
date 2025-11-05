@@ -37,9 +37,7 @@ def test_init(config):
     # breakpoint()
 
 
-@pytest.mark.skipif(
-    shutil.which("sbatch") is None, reason="sbatch is not available on this host"
-)
+@pytest.mark.skipif(shutil.which("sbatch") is None, reason="sbatch is not available on this host")
 @pytest.mark.parametrize(
     "config",
     [

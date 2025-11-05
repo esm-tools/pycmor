@@ -27,9 +27,7 @@ def add_to_report_log(func):
 
 
 def add_report_logger():
-    logger.add(
-        "pycmor_report.log", format="{time} {level} {message}", filter=report_filter
-    )
+    logger.add("pycmor_report.log", format="{time} {level} {message}", filter=report_filter)
 
 
 warnings.showwarning = showwarning

@@ -207,17 +207,13 @@ def timeavg(da: xr.DataArray, rule):
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_month.values[0] * magnitude
                         # NOTE: removing a day is requied to avoid overflow of the interval into next month
-                        new_offset = pd.to_timedelta(
-                            f"{ndays}d"
-                        ) * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 elif "YS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_year.values[0] * magnitude
-                        new_offset = pd.to_timedelta(
-                            f"{ndays}d"
-                        ) * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 else:
@@ -238,9 +234,7 @@ def timeavg(da: xr.DataArray, rule):
         elif drv.frequency == "1hrCM":
             ds = da.groupby("time.hour").mean("time")
         else:
-            raise ValueError(
-                f"Unknown Climatology {drv.frequency} in Table {drv.table_header.table_id}"
-            )
+            raise ValueError(f"Unknown Climatology {drv.frequency} in Table {drv.table_header.table_id}")
     else:
         raise ValueError(f"Unknown time method: {time_method}")
     return ds

@@ -4,10 +4,7 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 import xarray as xr
-from xarray.core.extensions import (
-    register_dataarray_accessor,
-    register_dataset_accessor,
-)
+from xarray.core.extensions import register_dataarray_accessor, register_dataset_accessor
 
 from .logging import logger
 from .time_utils import get_time_label
@@ -29,10 +26,7 @@ def _convert_cftime_to_ordinals(times_values):
     """Convert cftime objects to ordinal values."""
     ref_date = times_values[0]
     ordinals = np.array(
-        [
-            (t - ref_date).days + (t.hour / 24 + t.minute / 1440 + t.second / 86400)
-            for t in times_values
-        ]
+        [(t - ref_date).days + (t.hour / 24 + t.minute / 1440 + t.second / 86400) for t in times_values]
     )
 
     # Adjust to make ordinals absolute (add reference ordinal)
@@ -43,12 +37,7 @@ def _convert_cftime_to_ordinals(times_values):
         # If toordinal fails, use a simpler approach
         ordinals = np.array(
             [
-                t.year * 365.25
-                + t.month * 30.4375
-                + t.day
-                + t.hour / 24
-                + t.minute / 1440
-                + t.second / 86400
+                t.year * 365.25 + t.month * 30.4375 + t.day + t.hour / 24 + t.minute / 1440 + t.second / 86400
                 for t in times_values
             ]
         )
@@ -57,12 +46,7 @@ def _convert_cftime_to_ordinals(times_values):
 
 def _convert_standard_datetime_to_ordinals(times_values):
     """Convert standard datetime objects to ordinal values."""
-    return np.array(
-        [
-            t.toordinal() + t.hour / 24 + t.minute / 1440 + t.second / 86400
-            for t in times_values
-        ]
-    )
+    return np.array([t.toordinal() + t.hour / 24 + t.minute / 1440 + t.second / 86400 for t in times_values])
 
 
 def _convert_numeric_timestamps_to_ordinals(times_values):
@@ -102,9 +86,7 @@ def _convert_times_to_ordinals(times_values):
 
 
 # Core frequency inference
-def _infer_frequency_core(
-    times, tol=0.05, return_metadata=False, strict=False, calendar="standard", log=False
-):
+def _infer_frequency_core(times, tol=0.05, return_metadata=False, strict=False, calendar="standard", log=False):
     """
     Infer time frequency from datetime-like array, returning pandas-style frequency strings.
 
@@ -133,14 +115,8 @@ def _infer_frequency_core(
     """
     if len(times) < 2:
         if log:
-            log_frequency_check(
-                "Time Series", None, None, None, False, "too_short", strict
-            )
-        return (
-            FrequencyResult(None, None, None, False, "too_short")
-            if return_metadata
-            else None
-        )
+            log_frequency_check("Time Series", None, None, None, False, "too_short", strict)
+        return FrequencyResult(None, None, None, False, "too_short") if return_metadata else None
 
     # Handle both pandas-like objects (with .values) and plain lists/arrays
     try:
@@ -150,9 +126,7 @@ def _infer_frequency_core(
     except (AttributeError, TypeError, ValueError) as e:
         error_status = f"invalid_input: {str(e)}"
         if log:
-            log_frequency_check(
-                "Time Series", None, None, None, False, error_status, strict
-            )
+            log_frequency_check("Time Series", None, None, None, False, error_status, strict)
         if return_metadata:
             return FrequencyResult(None, None, None, False, error_status)
         return None
@@ -204,22 +178,14 @@ def _infer_frequency_core(
 
         if matched_freq is None:
             if log:
-                log_frequency_check(
-                    "Time Series", None, median_delta, None, False, "no_match", strict
-                )
-            return (
-                FrequencyResult(None, median_delta, None, False, "no_match")
-                if return_metadata
-                else None
-            )
+                log_frequency_check("Time Series", None, median_delta, None, False, "no_match", strict)
+            return FrequencyResult(None, median_delta, None, False, "no_match") if return_metadata else None
 
     is_exact = std_delta < tol * (base_freqs[matched_freq] * matched_step)
     status = "valid" if is_exact else "irregular"
 
     if strict:
-        expected_steps = (ordinals[-1] - ordinals[0]) / (
-            base_freqs[matched_freq] * matched_step
-        )
+        expected_steps = (ordinals[-1] - ordinals[0]) / (base_freqs[matched_freq] * matched_step)
         actual_steps = len(times) - 1
         if not np.all(np.abs(deltas - median_delta) <= tol * median_delta):
             status = "irregular"
@@ -242,17 +208,11 @@ def _infer_frequency_core(
             strict,
         )
 
-    return (
-        FrequencyResult(freq_str, median_delta, matched_step, is_exact, status)
-        if return_metadata
-        else freq_str
-    )
+    return FrequencyResult(freq_str, median_delta, matched_step, is_exact, status) if return_metadata else freq_str
 
 
 # xarray fallback
-def infer_frequency(
-    times, return_metadata=False, strict=False, calendar="standard", log=False
-):
+def infer_frequency(times, return_metadata=False, strict=False, calendar="standard", log=False):
     """
     Infer time frequency from datetime-like array, returning pandas-style frequency strings.
 
@@ -287,11 +247,7 @@ def infer_frequency(
         if freq is not None:
             if log:
                 log_frequency_check("Time Series", freq, None, 1, True, "valid", strict)
-            return (
-                FrequencyResult(freq, None, 1, True, "valid")
-                if return_metadata
-                else freq
-            )
+            return FrequencyResult(freq, None, 1, True, "valid") if return_metadata else freq
     except Exception:
         pass
     return _infer_frequency_core(
@@ -500,9 +456,7 @@ def is_resolution_fine_enough(
     includes a status indicating whether the time series is suitable for resampling.
     """
 
-    result = infer_frequency(
-        times, return_metadata=True, strict=strict, calendar=calendar, log=False
-    )
+    result = infer_frequency(times, return_metadata=True, strict=strict, calendar=calendar, log=False)
 
     if result is None:
         if log:
@@ -553,9 +507,7 @@ def is_resolution_fine_enough(
             target_display += f" (~{target_freq_str})"
 
         print("[Temporal Resolution Check]")
-        print(
-            f"  → Inferred Frequency     : {freq or 'unknown'} (Δ ≈ {delta:.4f} days)"
-        )
+        print(f"  → Inferred Frequency     : {freq or 'unknown'} (Δ ≈ {delta:.4f} days)")
         print(f"  → Target Approx Interval : {target_display}")
         print(f"  → Comparison Status      : {comparison_status}")
         print(f"  → Valid for Resampling   : {'✅' if is_valid else '❌'}")
@@ -617,10 +569,7 @@ class TimeFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._obj)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in DataArray."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in DataArray." " Please specify time_dim manually.")
 
         # Check if this is a DataArray with time coordinates or a time coordinate itself
         if hasattr(self._obj, "dims") and time_dim in self._obj.dims:
@@ -691,10 +640,7 @@ class TimeFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._obj)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in DataArray."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in DataArray." " Please specify time_dim manually.")
 
         # Check if this is a DataArray with time coordinates or a time coordinate itself
         if hasattr(self._obj, "dims") and time_dim in self._obj.dims:
@@ -704,9 +650,7 @@ class TimeFrequencyAccessor:
             # This is likely a time coordinate DataArray itself
             times = self._obj.values
 
-        return is_resolution_fine_enough(
-            times, target_approx_interval, calendar, strict, tolerance, log
-        )
+        return is_resolution_fine_enough(times, target_approx_interval, calendar, strict, tolerance, log)
 
     def resample_safe(
         self,
@@ -773,9 +717,7 @@ class TimeFrequencyAccessor:
         warnings.warn("resample_safe is incomplete, use resample instead", stacklevel=1)
         # Validate input arguments
         if target_approx_interval is None and freq_str is None:
-            raise ValueError(
-                "Either target_approx_interval or freq_str must be provided"
-            )
+            raise ValueError("Either target_approx_interval or freq_str must be provided")
 
         # Determine the frequency string to use for resampling
         if freq_str is not None:
@@ -804,10 +746,7 @@ class TimeFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._obj)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in DataArray."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in DataArray." " Please specify time_dim manually.")
 
         # Perform resolution check if target_approx_interval is provided
         if target_approx_interval is not None:
@@ -832,9 +771,7 @@ class TimeFrequencyAccessor:
         elif isinstance(method, dict):
             resampled = resampled.agg(method)
         else:
-            raise ValueError(
-                f"Unsupported method type: {type(method)}. Expected str or dict."
-            )
+            raise ValueError(f"Unsupported method type: {type(method)}. Expected str or dict.")
 
         return resampled
 
@@ -867,10 +804,7 @@ class DatasetFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._ds)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in Dataset."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in Dataset." " Please specify time_dim manually.")
 
         if time_dim not in self._ds:
             raise ValueError(f"Time dimension '{time_dim}' not found.")
@@ -941,9 +875,7 @@ class DatasetFrequencyAccessor:
         """
         # Validate input arguments
         if target_approx_interval is None and freq_str is None:
-            raise ValueError(
-                "Either target_approx_interval or freq_str must be provided"
-            )
+            raise ValueError("Either target_approx_interval or freq_str must be provided")
 
         # Determine the frequency string to use for resampling
         if freq_str is not None:
@@ -972,10 +904,7 @@ class DatasetFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._ds)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in Dataset."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in Dataset." " Please specify time_dim manually.")
 
         if time_dim not in self._ds:
             raise ValueError(f"Time dimension '{time_dim}' not found in dataset.")
@@ -1003,9 +932,7 @@ class DatasetFrequencyAccessor:
         elif isinstance(method, dict):
             resampled_ds = resampled.agg(method)
         else:
-            raise ValueError(
-                f"Unsupported method type: {type(method)}. Expected str or dict."
-            )
+            raise ValueError(f"Unsupported method type: {type(method)}. Expected str or dict.")
 
         return resampled_ds
 
@@ -1033,13 +960,8 @@ class DatasetFrequencyAccessor:
         if time_dim is None:
             time_dim = get_time_label(self._ds)
             if time_dim is None:
-                raise ValueError(
-                    "No datetime coordinate found in Dataset."
-                    " Please specify time_dim manually."
-                )
+                raise ValueError("No datetime coordinate found in Dataset." " Please specify time_dim manually.")
 
         if time_dim not in self._ds:
             raise ValueError(f"Time dimension '{time_dim}' not found.")
-        return self._ds[time_dim].timefreq.check_resolution(
-            target_approx_interval, **kwargs
-        )
+        return self._ds[time_dim].timefreq.check_resolution(target_approx_interval, **kwargs)
