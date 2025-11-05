@@ -26,17 +26,17 @@ jobs:
       - name: Lint with flake8 (syntax errors only)
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=CMIP7-CVs
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=CMIP7-CVs,CMIP7_DReq_Software,cmip6-cmor-tables
       - name: Run full flake8 check
         run: |
           # stop at any error
-          flake8 . --show-source --statistics --exclude=CMIP7-CVs
+          flake8 . --show-source --statistics --exclude=CMIP7-CVs,CMIP7_DReq_Software,cmip6-cmor-tables
       - name: Run isort
         run: |
-          isort --check . --skip CMIP7-CVs
+          isort --check . --skip CMIP7-CVs --skip CMIP7_DReq_Software --skip cmip6-cmor-tables
       - name: Run black
         run: |
-          black --check . --exclude=CMIP7-CVs
+          black --check . --exclude='(CMIP7-CVs|CMIP7_DReq_Software|cmip6-cmor-tables)'
       - name: Run yamllint
         run: |
           yamllint .
