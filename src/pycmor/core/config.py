@@ -39,30 +39,32 @@ Usage
 -----
 Here are some examples of how to use the configuration manager::
 
+    >>> from pycmor.core.config import PycmorConfigManager
     >>> pycmor_cfg = {}
     >>> config = PycmorConfigManager.from_pycmor_cfg(pycmor_cfg)
-
     >>> engine = config("xarray_engine")
     >>> print(f"Using xarray backend: {engine}")
     Using xarray backend: netcdf4
-
     >>> parallel = config("parallel")
     >>> print(f"Running in parallel: {parallel}")
     Running in parallel: True
 
-You can define a user file at ``${XDG_CONFIG_DIR}/pycmor/pycmor.yaml``::
+You can define a user file at ``${XDG_CONFIG_DIR}/pycmor/pycmor.yaml``. Here's a
+conceptual example (not executed in tests):
 
-    >>> import pathlib
-    >>> import yaml
-    >>> cfg_file = pathlib.Path("~/.config/pycmor/pycmor.yaml").expanduser()
-    >>> cfg_file.parent.mkdir(parents=True, exist_ok=True)
-    >>> cfg_to_dump = {"xarray_engine": "zarr"}
-    >>> with open(cfg_file, "w") as f:
-    ...     yaml.dump(cfg_to_dump, f)
-    >>> config = PycmorConfigManager.from_pycmor_cfg()
-    >>> engine = config("xarray_engine")
-    >>> print(f"Using xarray backend: {engine}")
-    Using xarray backend: zarr
+.. code-block:: python
+
+    import pathlib
+    import yaml
+    cfg_file = pathlib.Path("~/.config/pycmor/pycmor.yaml").expanduser()
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    cfg_to_dump = {"xarray_engine": "zarr"}
+    with open(cfg_file, "w") as f:
+        yaml.dump(cfg_to_dump, f)
+    config = PycmorConfigManager.from_pycmor_cfg()
+    engine = config("xarray_engine")
+    print(f"Using xarray backend: {engine}")
+    # Using xarray backend: zarr
 
 See Also
 --------

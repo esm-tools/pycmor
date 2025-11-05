@@ -155,6 +155,8 @@ def add_bounds_from_coords(
 
     Examples
     --------
+    >>> import xarray as xr
+    >>> import numpy as np
     >>> ds = xr.Dataset({
     ...     'temp': (['time', 'lat', 'lon'], np.random.rand(10, 5, 6)),
     ... }, coords={
@@ -162,7 +164,7 @@ def add_bounds_from_coords(
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> ds_with_bounds = add_bounds_from_coords(ds)
-    >>> print('lat_bnds' in ds_with_bounds)
+    >>> 'lat_bnds' in ds_with_bounds
     True
     """
     if coord_names is None:
@@ -244,6 +246,8 @@ def add_vertical_bounds(
 
     Examples
     --------
+    >>> import xarray as xr
+    >>> import numpy as np
     >>> ds = xr.Dataset({
     ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
     ... }, coords={
@@ -252,7 +256,7 @@ def add_vertical_bounds(
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> ds_with_bounds = add_vertical_bounds(ds)
-    >>> print('plev_bnds' in ds_with_bounds)
+    >>> 'plev_bnds' in ds_with_bounds
     True
 
     Notes

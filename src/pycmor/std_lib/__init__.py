@@ -349,6 +349,7 @@ def add_vertical_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[Da
     --------
     >>> import xarray as xr
     >>> import numpy as np
+    >>> from pycmor.core.rule import Rule
     >>> ds = xr.Dataset({
     ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
     ... }, coords={
@@ -356,8 +357,9 @@ def add_vertical_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[Da
     ...     'lat': np.linspace(-90, 90, 5),
     ...     'lon': np.linspace(0, 360, 6),
     ... })
+    >>> rule = Rule(cmor_variable='ta', model_variable='ta')
     >>> ds_with_bounds = add_vertical_bounds(ds, rule)
-    >>> print('plev_bnds' in ds_with_bounds)
+    >>> 'plev_bnds' in ds_with_bounds
     True
 
     Notes
