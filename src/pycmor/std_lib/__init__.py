@@ -358,7 +358,7 @@ def add_vertical_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[Da
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> rule = Rule(cmor_variable='ta', model_variable='ta')
-    >>> ds_with_bounds = add_vertical_bounds(ds, rule)
+    >>> ds_with_bounds = add_vertical_bounds(ds, rule)  # doctest: +ELLIPSIS
     >>> 'plev_bnds' in ds_with_bounds
     True
 
