@@ -1,6 +1,5 @@
 """Example data for the FESOM model."""
 
-import shutil
 import tarfile
 from pathlib import Path
 
