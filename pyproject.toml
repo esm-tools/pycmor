@@ -178,6 +178,7 @@ extend-exclude = '''
     | dist
     | cmip6-cmor-tables
     | CMIP7_DReq_Software
+    | CMIP7-CVs
   )/
   | _version\.py
   | versioneer\.py
@@ -196,6 +197,7 @@ ensure_newline_before_comments = true
 extend_skip_glob = [
     "cmip6-cmor-tables/*",
     "CMIP7_DReq_Software/*",
+    "CMIP7-CVs/*",
     "*/_version.py",
     "versioneer.py"
 ]
@@ -207,6 +209,7 @@ extend-ignore = ["E203", "W503"]
 extend-exclude = [
     "cmip6-cmor-tables/*",
     "CMIP7_DReq_Software/*",
+    "CMIP7-CVs/*",
     "_version.py",
     "versioneer.py",
 ]
@@ -358,42 +361,3 @@ dev = ["dev"]
 [tool.pixi.feature.dev.dependencies]
 pytest = "*"
 pip = ">=25.2,<26"
-
-[tool.flake8]
-max-line-length = 120
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    ".eggs",
-    "*.egg-info",
-    "_version.py",
-    "versioneer.py",
-    "cmip6-cmor-tables",
-    "CMIP7_DReq_Software",
-    "CMIP7-CVs",
-    "src/pycmor/webapp.py",
-]
-
-[tool.black]
-line-length = 120
-extend-exclude = '''
-/(
-    cmip6-cmor-tables
-    | CMIP7_DReq_Software
-    | CMIP7-CVs
-    | versioneer\.py
-    | webapp\.py
-)/
-'''
-
-[tool.isort]
-profile = "black"
-line_length = 120
-skip_glob = [
-    "cmip6-cmor-tables/*",
-    "CMIP7_DReq_Software/*",
-    "CMIP7-CVs/*",
-    "versioneer.py",
-]
