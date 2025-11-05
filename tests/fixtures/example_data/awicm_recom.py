@@ -13,8 +13,9 @@ URL = "https://nextcloud.awi.de/s/DaQjtTS9xB7o7pL/download/awicm_1p0_recom.tar"
 
 @pytest.fixture(scope="session")
 def awicm_1p0_recom_download_data(tmp_path_factory):
-    cache_dir = tmp_path_factory.getbasetemp() / "cached_data"
-    cache_dir.mkdir(exist_ok=True)
+    # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
+    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "awicm_1p0_recom.tar"
 
     if not data_path.exists():

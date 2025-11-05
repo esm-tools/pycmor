@@ -15,8 +15,9 @@ MESH_URL = "https://nextcloud.awi.de/s/FCPZmBJGeGaji4y/download/pi_mesh.tgz"
 
 @pytest.fixture(scope="session")
 def pi_uxarray_download_data(tmp_path_factory):
-    cache_dir = tmp_path_factory.getbasetemp() / "cached_data"
-    cache_dir.mkdir(exist_ok=True)
+    # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
+    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "pi_uxarray.tar"
 
     if not data_path.exists():
@@ -43,8 +44,9 @@ def pi_uxarray_data(pi_uxarray_download_data):
 
 @pytest.fixture(scope="session")
 def pi_uxarray_download_mesh(tmp_path_factory):
-    cache_dir = tmp_path_factory.getbasetemp() / "cached_data"
-    cache_dir.mkdir(exist_ok=True)
+    # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
+    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "pi_mesh.tar"
 
     if not data_path.exists():
