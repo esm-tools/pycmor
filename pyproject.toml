@@ -339,3 +339,22 @@ max-complexity = 10
 
 [tool.ruff.isort]
 known-first-party = ["pycmor"]
+[tool.pixi.project]
+name = "pycmor"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64"]
+
+[tool.pixi.dependencies]
+python = ">=3.10,<3.13"
+
+[tool.pixi.pypi-dependencies]
+pycmor = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.environments]
+dev = ["dev"]
+
+[tool.pixi.feature.dev.dependencies]
+pytest = "*"
+pip = ">=25.2,<26"

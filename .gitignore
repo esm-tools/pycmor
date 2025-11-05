@@ -51,3 +51,7 @@ sandbox/
 htmlcov/
 .ruff_cache/
 .mypy_cache/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
