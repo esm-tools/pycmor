@@ -604,7 +604,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
             pycmor-test:py3.9 \
-            bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.9.xml"
+            bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.9.xml"
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -638,7 +638,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
             pycmor-test:py3.10 \
-            bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.10.xml"
+            bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.10.xml"
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -672,7 +672,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
             pycmor-test:py3.11 \
-            bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.11.xml"
+            bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.11.xml"
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -706,7 +706,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
             pycmor-test:py3.12 \
-            bash -c "PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.12.xml"
+            bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.12.xml"
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
