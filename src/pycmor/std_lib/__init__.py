@@ -359,7 +359,8 @@ def add_vertical_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[Da
     ... })
     >>> rule = Rule(cmor_variable='ta', model_variable='ta')
     >>> ds_with_bounds = add_vertical_bounds(ds, rule)  # doctest: +ELLIPSIS
-    ...
+    ...INFO       → Calculating vertical bounds for 'plev'...
+    ...INFO       → Added vertical bounds variable 'plev_bnds'...
     >>> 'plev_bnds' in ds_with_bounds
     True
 
