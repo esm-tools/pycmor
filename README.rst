@@ -8,7 +8,7 @@
 
 .. image:: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml/badge.svg
     :target: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml
-.. image:: https://img.shields.io/pypi/v/py-cmor.svg
+.. image:: https://img.shields.io/pypi/v/pycmor.svg
     :target: https://pypi.python.org/pypi/pycmor
     :alt: Latest PyPI version
 .. image:: https://readthedocs.org/projects/pycmor/badge/?version=latest
