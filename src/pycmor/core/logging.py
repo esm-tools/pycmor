@@ -1,3 +1,4 @@
+import os
 import warnings
 from functools import wraps
 
@@ -32,4 +33,6 @@ def add_report_logger():
 
 warnings.showwarning = showwarning
 logger.remove()
-rich_handler_id = logger.add(RichHandler(), format="{message}", level="INFO")
+# Respect PYTHONLOGLEVEL environment variable, default to INFO
+log_level = os.environ.get("PYTHONLOGLEVEL", "INFO").upper()
+rich_handler_id = logger.add(RichHandler(), format="{message}", level=log_level)
