@@ -70,8 +70,8 @@ jobs:
           load: true
           tags: |
             pycmor-test:py3.9
-            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.sha }}
-            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.ref_name }}
+            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ substring(github.sha, 0, 7) }}
+            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.9
           cache-from: type=gha,scope=py3.9
@@ -118,8 +118,8 @@ jobs:
           load: true
           tags: |
             pycmor-test:py3.10
-            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.sha }}
-            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.ref_name }}
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ substring(github.sha, 0, 7) }}
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.10
           cache-from: type=gha,scope=py3.10
@@ -166,8 +166,8 @@ jobs:
           load: true
           tags: |
             pycmor-test:py3.11
-            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.sha }}
-            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.ref_name }}
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ substring(github.sha, 0, 7) }}
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.11
           cache-from: type=gha,scope=py3.11
@@ -214,8 +214,8 @@ jobs:
           load: true
           tags: |
             pycmor-test:py3.12
-            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.sha }}
-            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.ref_name }}
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ substring(github.sha, 0, 7) }}
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.12
           cache-from: type=gha,scope=py3.12
