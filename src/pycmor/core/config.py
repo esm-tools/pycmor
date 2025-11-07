@@ -208,9 +208,9 @@ class PycmorConfig:
             doc="Which missing value to use for xarray. Default is 1e30.",
             parser=float,
         )
-        xarray_engine = Option(
+        xarray_open_mfdataset_engine = Option(
             default="netcdf4",
-            doc="Which engine to use for xarray.",
+            doc="Which engine to use for xarray.open_mfdataset().",
             parser=ChoiceOf(
                 str,
                 choices=[
@@ -219,6 +219,14 @@ class PycmorConfig:
                     "zarr",
                 ],
             ),
+        )
+        xarray_open_mfdataset_parallel = Option(
+            default="yes",
+            doc=(
+                "Whether to use parallel processing when opening multiple files "
+                "with xarray.open_mfdataset(). Default is True."
+            ),
+            parser=_parse_bool,
         )
         xarray_skip_unit_attr_from_drv = Option(
             default="yes",
