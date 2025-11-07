@@ -70,28 +70,13 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
-          load: true
           tags: |
-            pycmor-test:py3.9
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.9
           cache-from: type=gha,scope=py3.9
           cache-to: type=gha,mode=max,scope=py3.9
-      - name: Export Docker image to tar
-        run: |
-          docker save pycmor-test:py3.9 -o /tmp/pycmor-test-py3.9.tar
-      - name: Cache Docker image
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/pycmor-test-py3.9.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.9
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-py3.9
-          path: /tmp/pycmor-test-py3.9.tar
 
   build-3-10:
     name: Build Test Image Python 3.10
@@ -121,28 +106,13 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
-          load: true
           tags: |
-            pycmor-test:py3.10
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.10
           cache-from: type=gha,scope=py3.10
           cache-to: type=gha,mode=max,scope=py3.10
-      - name: Export Docker image to tar
-        run: |
-          docker save pycmor-test:py3.10 -o /tmp/pycmor-test-py3.10.tar
-      - name: Cache Docker image
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/pycmor-test-py3.10.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.10
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-py3.10
-          path: /tmp/pycmor-test-py3.10.tar
 
   build-3-11:
     name: Build Test Image Python 3.11
@@ -172,28 +142,13 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
-          load: true
           tags: |
-            pycmor-test:py3.11
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.11
           cache-from: type=gha,scope=py3.11
           cache-to: type=gha,mode=max,scope=py3.11
-      - name: Export Docker image to tar
-        run: |
-          docker save pycmor-test:py3.11 -o /tmp/pycmor-test-py3.11.tar
-      - name: Cache Docker image
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/pycmor-test-py3.11.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.11
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-py3.11
-          path: /tmp/pycmor-test-py3.11.tar
 
   build-3-12:
     name: Build Test Image Python 3.12
@@ -223,28 +178,13 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
-          load: true
           tags: |
-            pycmor-test:py3.12
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
           build-args: |
             PYTHON_VERSION=3.12
           cache-from: type=gha,scope=py3.12
           cache-to: type=gha,mode=max,scope=py3.12
-      - name: Export Docker image to tar
-        run: |
-          docker save pycmor-test:py3.12 -o /tmp/pycmor-test-py3.12.tar
-      - name: Cache Docker image
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/pycmor-test-py3.12.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.12
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-py3.12
-          path: /tmp/pycmor-test-py3.12.tar
 
   # Meta test jobs - one per Python version
   test-meta-3-9:
@@ -255,15 +195,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.9.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.9
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.9.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -272,7 +212,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.9 \
+            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.9.xml"
       - name: Upload coverage reports
         if: always()
@@ -289,15 +229,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.10.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.10
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.10.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -306,7 +246,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.10 \
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.10.xml"
       - name: Upload coverage reports
         if: always()
@@ -323,15 +263,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.11.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.11
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.11.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -340,7 +280,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.11 \
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.11.xml"
       - name: Upload coverage reports
         if: always()
@@ -357,15 +297,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.12.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.12
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.12.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -374,7 +314,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.12 \
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.12.xml"
       - name: Upload coverage reports
         if: always()
@@ -392,15 +332,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.9.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.9
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.9.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -409,7 +349,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.9 \
+            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.9.xml"
       - name: Upload coverage reports
         if: always()
@@ -426,15 +366,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.10.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.10
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.10.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -443,7 +383,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.10 \
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.10.xml"
       - name: Upload coverage reports
         if: always()
@@ -460,15 +400,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.11.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.11
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.11.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -477,7 +417,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.11 \
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.11.xml"
       - name: Upload coverage reports
         if: always()
@@ -494,15 +434,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.12.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.12
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.12.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -511,7 +451,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.12 \
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.12.xml"
       - name: Upload coverage reports
         if: always()
@@ -529,15 +469,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.9.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.9
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.9.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -546,7 +486,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.9 \
+            ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.9.xml"
       - name: Upload coverage reports
         if: always()
@@ -563,15 +503,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.10.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.10
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.10.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -580,7 +520,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.10 \
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.10.xml"
       - name: Upload coverage reports
         if: always()
@@ -597,15 +537,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.11.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.11
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.11.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -614,7 +554,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.11 \
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.11.xml"
       - name: Upload coverage reports
         if: always()
@@ -631,15 +571,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.12.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.12
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.12.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -648,7 +588,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.12 \
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.12.xml"
       - name: Upload coverage reports
         if: always()
@@ -700,15 +640,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.10.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.10
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.10.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -717,7 +657,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.10 \
+            ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.10.xml"
       - name: Upload coverage reports
         if: always()
@@ -734,15 +674,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.11.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.11
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.11.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -751,7 +691,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.11 \
+            ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.11.xml"
       - name: Upload coverage reports
         if: always()
@@ -768,15 +708,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Restore cached Docker image
-        uses: actions/cache/restore@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          path: /tmp/pycmor-test-py3.12.tar
-          key: docker-image-${{ hashFiles('Dockerfile.test', 'pyproject.toml') }}-py3.12
-          fail-on-cache-miss: true
-      - name: Load Docker image
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull Docker image from GHCR
         run: |
-          docker load --input /tmp/pycmor-test-py3.12.tar
+          docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
@@ -785,7 +725,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
-            pycmor-test:py3.12 \
+            ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.12.xml"
       - name: Upload coverage reports
         if: always()
