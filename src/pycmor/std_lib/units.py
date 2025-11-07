@@ -131,6 +131,24 @@ def handle_chemicals(
     ValueError
         If the chemical symbol is not recognized.
 
+    Examples
+    --------
+    Register a chemical unit containing carbon:
+
+    >>> handle_chemicals("molC")
+    >>> ureg("molC")  # doctest: +ELLIPSIS
+    <Quantity(1, 'molC')>
+
+    Register a more complex chemical unit:
+
+    >>> handle_chemicals("kg molNa / m2")
+    >>> ureg("molNa")  # doctest: +ELLIPSIS
+    <Quantity(1, 'molNa')>
+
+    None input is handled gracefully:
+
+    >>> handle_chemicals(None)
+
     See Also
     --------
     ~chemicals.elements.periodic_table: Periodic table of elements
@@ -184,6 +202,52 @@ def handle_scalar_units(
     ------
     ValueError
         If the conversion between the specified units is not possible.
+
+    Examples
+    --------
+    Convert temperature with a scaling factor (0.001 degC to degC):
+
+    >>> import numpy as np
+    >>> da = xr.DataArray(
+    ...     np.array([[15000.0, 16000.0, 17000.0],
+    ...               [18000.0, 19000.0, 20000.0]]),
+    ...     dims=["lat", "lon"],
+    ...     coords={"lat": [0, 30], "lon": [0, 30, 60]},
+    ...     attrs={"units": "0.001 degC"}
+    ... )
+    >>> print(da)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (lat: 2, lon: 3)> ...
+    array([[15000., 16000., 17000.],
+           [18000., 19000., 20000.]])
+    Coordinates:
+      * lat      (lat) int64 ... 0 30
+      * lon      (lon) int64 ... 0 30 60
+    Attributes:
+        units:    0.001 degC
+    >>> result = handle_scalar_units(da, "0.001 degC", "K")
+    >>> print(result)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (lat: 2, lon: 3)> ...
+    array([[288.15, 289.15, 290.15],
+           [291.15, 292.15, 293.15]])
+    Coordinates:
+      * lat      (lat) int64 ... 0 30
+      * lon      (lon) int64 ... 0 30 60
+    Attributes:
+        units:    kelvin
+
+    Convert with a target unit that has a scaling factor:
+
+    >>> da = xr.DataArray(
+    ...     np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+    ...     dims=["time"],
+    ...     coords={"time": [0, 1, 2, 3, 4]},
+    ...     attrs={"units": "kg"}
+    ... )
+    >>> result = handle_scalar_units(da, "kg", "0.001 kg")
+    >>> print(result.values)
+    [1000. 2000. 3000. 4000. 5000.]
+    >>> print(result.attrs["units"])
+    gram
     """
     try:
         new_da = da.pint.quantify(from_unit)
@@ -236,6 +300,63 @@ def convert(
     ------
     ValueError
         If the conversion between the specified units is not possible.
+
+    Examples
+    --------
+    Simple temperature conversion from Celsius to Kelvin:
+
+    >>> import numpy as np
+    >>> da = xr.DataArray(
+    ...     np.array([[-10.0, 0.0, 10.0, 20.0, 30.0, 40.0]]),
+    ...     dims=["time", "lon"],
+    ...     coords={"time": [0], "lon": [0, 30, 60, 90, 120, 150]},
+    ...     attrs={"units": "degC"}
+    ... )
+    >>> print(da)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (time: 1, lon: 6)> ...
+    array([[-10.,   0.,  10.,  20.,  30.,  40.]])
+    Coordinates:
+      * time     (time) int64 ... 0
+      * lon      (lon) int64 ... 0 30 60 90 120 150
+    Attributes:
+        units:    degC
+    >>> result = convert(da, "degC", "K")
+    >>> print(result)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (time: 1, lon: 6)> ...
+    array([[263.15, 273.15, 283.15, 293.15, 303.15, 313.15]])
+    Coordinates:
+      * time     (time) int64 ... 0
+      * lon      (lon) int64 ... 0 30 60 90 120 150
+    Attributes:
+        units:    K
+
+    Convert pressure from Pascal to hectopascal:
+
+    >>> da = xr.DataArray(
+    ...     np.array([101325.0, 100000.0, 95000.0, 90000.0, 85000.0]),
+    ...     dims=["time"],
+    ...     coords={"time": [0, 1, 2, 3, 4]},
+    ...     attrs={"units": "Pa"}
+    ... )
+    >>> result = convert(da, "Pa", "hPa")
+    >>> print(result.values)
+    [1013.25 1000.    950.    900.    850.  ]
+    >>> print(result.attrs["units"])
+    hPa
+
+    Convert using dimensionless mapping (e.g., for fractions to percent):
+
+    >>> da = xr.DataArray(
+    ...     np.array([0.1, 0.25, 0.5, 0.75, 1.0]),
+    ...     dims=["time"],
+    ...     coords={"time": [0, 1, 2, 3, 4]},
+    ...     attrs={"units": "1"}
+    ... )
+    >>> result = convert(da, "1", "1", to_unit_dimensionless_mapping="%")
+    >>> print(result.values)
+    [ 10.  25.  50.  75. 100.]
+    >>> print(result.attrs["units"])
+    1
     """
 
     handle_chemicals(from_unit)
@@ -279,6 +400,74 @@ def handle_unit_conversion(
     -------
     xarray.DataArray
         The converted DataArray with the new unit.
+
+    Examples
+    --------
+    Convert temperature data according to a CMOR rule:
+
+    >>> import numpy as np
+    >>> from unittest.mock import Mock
+    >>> da = xr.DataArray(
+    ...     np.array([[263.15, 268.15, 273.15, 278.15, 283.15, 288.15],
+    ...               [273.15, 278.15, 283.15, 288.15, 293.15, 298.15],
+    ...               [283.15, 288.15, 293.15, 298.15, 303.15, 308.15],
+    ...               [293.15, 298.15, 303.15, 308.15, 313.15, 318.15],
+    ...               [303.15, 308.15, 313.15, 318.15, 323.15, 328.15]]),
+    ...     dims=["lat", "lon"],
+    ...     coords={"lat": [-60, -30, 0, 30, 60], "lon": [0, 30, 60, 90, 120, 150]},
+    ...     attrs={"units": "K"}
+    ... )
+    >>> print(da)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (lat: 5, lon: 6)> ...
+    array([[263.15, 268.15, 273.15, 278.15, 283.15, 288.15],
+           [273.15, 278.15, 283.15, 288.15, 293.15, 298.15],
+           [283.15, 288.15, 293.15, 298.15, 303.15, 308.15],
+           [293.15, 298.15, 303.15, 308.15, 313.15, 318.15],
+           [303.15, 308.15, 313.15, 318.15, 323.15, 328.15]])
+    Coordinates:
+      * lat      (lat) int64 ... -60 -30 0 30 60
+      * lon      (lon) int64 ... 0 30 60 90 120 150
+    Attributes:
+        units:    K
+    >>> mock_drv = Mock()
+    >>> mock_drv.units = "degC"
+    >>> mock_drv.variable_id = "tas"
+    >>> rule = Rule(data_request_variable=mock_drv)
+    >>> result = handle_unit_conversion(da, rule)
+    >>> print(result)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.DataArray (lat: 5, lon: 6)> ...
+    array([[-10.,  -5.,   0.,   5.,  10.,  15.],
+           [  0.,   5.,  10.,  15.,  20.,  25.],
+           [ 10.,  15.,  20.,  25.,  30.,  35.],
+           [ 20.,  25.,  30.,  35.,  40.,  45.],
+           [ 30.,  35.,  40.,  45.,  50.,  55.]])
+    Coordinates:
+      * lat      (lat) int64 ... -60 -30 0 30 60
+      * lon      (lon) int64 ... 0 30 60 90 120 150
+    Attributes:
+        units:    degC
+
+    Convert a Dataset by extracting a specific variable:
+
+    >>> ds = xr.Dataset({
+    ...     "temp": xr.DataArray(
+    ...         np.array([101325.0, 100000.0, 95000.0, 90000.0, 85000.0,
+    ...                   80000.0, 75000.0, 70000.0, 65000.0, 60000.0]),
+    ...         dims=["time"],
+    ...         coords={"time": range(10)},
+    ...         attrs={"units": "Pa"}
+    ...     )
+    ... })
+    >>> mock_drv = Mock()
+    >>> mock_drv.units = "hPa"
+    >>> mock_drv.variable_id = "psl"
+    >>> rule = Rule(data_request_variable=mock_drv, model_variable="temp")
+    >>> result = handle_unit_conversion(ds, rule)
+    >>> print(result["temp"].values)
+    [1013.25 1000.    950.    900.    850.    800.    750.    700.    650.
+      600.  ]
+    >>> print(result["temp"].attrs["units"])
+    hPa
     """
     if isinstance(da, xr.Dataset):
         model_variable = rule.model_variable
