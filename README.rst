@@ -4,14 +4,12 @@
 ``pycmor``: A Python package to simplify CMOR
 ===============================================
 
-.. image:: assets/Pycmor.png
-
 ``pycmor`` is a Python package to simplify the standardization of output into the Climate Model Output Rewriter (CMOR) standard.
 
 .. image:: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml/badge.svg
     :target: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml
 .. image:: https://img.shields.io/pypi/v/py-cmor.svg
-    :target: https://pypi.python.org/pypi/py-cmor
+    :target: https://pypi.python.org/pypi/pycmor
     :alt: Latest PyPI version
 .. image:: https://readthedocs.org/projects/pycmor/badge/?version=latest
     :target: https://pycmor.readthedocs.io/en/latest/?badge=latest
