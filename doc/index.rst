@@ -32,6 +32,7 @@ Contents
    cookbook
    developer_guide
    developer_setup
+   test_infrastructure
    roadmap
    API
 
