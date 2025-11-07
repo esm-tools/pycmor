@@ -70,6 +70,7 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
@@ -106,6 +107,7 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
@@ -142,6 +144,7 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
@@ -178,6 +181,7 @@ jobs:
           context: .
           file: ./Dockerfile.test
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ steps.vars.outputs.sha_short }}
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
