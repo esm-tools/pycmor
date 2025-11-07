@@ -230,7 +230,10 @@ class PycmorConfig:
         )
         xarray_open_mfdataset_parallel = Option(
             default="yes",
-            doc="Whether to use parallel processing when opening multiple files with xarray.open_mfdataset(). Default is True.",
+            doc=(
+                "Whether to use parallel processing when opening multiple files "
+                "with xarray.open_mfdataset(). Default is True."
+            ),
             parser=_parse_bool,
         )
         xarray_skip_unit_attr_from_drv = Option(
