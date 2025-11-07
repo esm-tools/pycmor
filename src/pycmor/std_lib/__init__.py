@@ -1,7 +1,8 @@
 """
-==========================
-The Pycmor Standard Library
-==========================
+===========================
+The PyCMOR Standard Library
+===========================
+
 The standard library contains functions that are included in the default
 pipelines, and are generally used as ``step`` functions. We expose several
 useful ones:
@@ -358,9 +359,7 @@ def add_vertical_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[Da
     ...     'lon': np.linspace(0, 360, 6),
     ... })
     >>> rule = Rule(cmor_variable='ta', model_variable='ta')
-    >>> ds_with_bounds = add_vertical_bounds(ds, rule)  # doctest: +ELLIPSIS
-    ...INFO       → Calculating vertical bounds for 'plev'...
-    ...INFO       → Added vertical bounds variable 'plev_bnds'...
+    >>> ds_with_bounds = add_vertical_bounds(ds, rule)
     >>> 'plev_bnds' in ds_with_bounds
     True
 
