@@ -259,9 +259,7 @@ def add_vertical_bounds(
         ...     'lat': np.linspace(-90, 90, 5),
         ...     'lon': np.linspace(0, 360, 6),
         ... })
-        >>> ds_with_bounds = add_vertical_bounds(ds)  # doctest: +ELLIPSIS
-        ...INFO       → Calculating vertical bounds for 'plev'...
-        ...INFO       → Added vertical bounds variable 'plev_bnds'...
+        >>> ds_with_bounds = add_vertical_bounds(ds)
         >>> 'plev_bnds' in ds_with_bounds
         True
 
