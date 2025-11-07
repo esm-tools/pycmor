@@ -1,3 +1,4 @@
+# pycmor.std_lib.add_vertical_bounds
 """
 Calculate coordinate bounds for lat/lon and other coordinates.
 
@@ -157,17 +158,16 @@ def add_bounds_from_coords(
     --------
     .. code-block:: python
 
-        >>> import xarray as xr
-        >>> import numpy as np
-        >>> ds = xr.Dataset({
-        ...     'temp': (['time', 'lat', 'lon'], np.random.rand(10, 5, 6)),
-        ... }, coords={
-        ...     'lat': np.linspace(-90, 90, 5),
-        ...     'lon': np.linspace(0, 360, 6),
-        ... })
-        >>> ds_with_bounds = add_bounds_from_coords(ds)
-        >>> 'lat_bnds' in ds_with_bounds
-        True
+        import xarray as xr
+        import numpy as np
+        ds = xr.Dataset({
+            'temp': (['time', 'lat', 'lon'], np.random.rand(10, 5, 6)),
+        }, coords={
+            'lat': np.linspace(-90, 90, 5),
+            'lon': np.linspace(0, 360, 6),
+        })
+        ds_with_bounds = add_bounds_from_coords(ds)
+        assert 'lat_bnds' in ds_with_bounds
     """
     if coord_names is None:
         coord_names = ["lat", "lon", "latitude", "longitude"]
@@ -250,18 +250,17 @@ def add_vertical_bounds(
     --------
     .. code-block:: python
 
-        >>> import xarray as xr
-        >>> import numpy as np
-        >>> ds = xr.Dataset({
-        ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
-        ... }, coords={
-        ...     'plev': [100000, 92500, 85000, 70000, 60000, 50000, 40000, 30000],
-        ...     'lat': np.linspace(-90, 90, 5),
-        ...     'lon': np.linspace(0, 360, 6),
-        ... })
-        >>> ds_with_bounds = add_vertical_bounds(ds)
-        >>> 'plev_bnds' in ds_with_bounds
-        True
+        import xarray as xr
+        import numpy as np
+        ds = xr.Dataset({
+            'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
+        }, coords={
+            'plev': [100000, 92500, 85000, 70000, 60000, 50000, 40000, 30000],
+            'lat': np.linspace(-90, 90, 5),
+            'lon': np.linspace(0, 360, 6),
+        })
+        ds_with_bounds = add_vertical_bounds(ds)
+        assert 'plev_bnds' in ds_with_bounds
 
     Notes
     -----
