@@ -290,9 +290,7 @@ def load_mfdataset(data, rule_spec):
     logger.info(f"Loading {len(all_files)} files using {engine} backend on xarray...")
     for f in all_files:
         logger.info(f"  * {f}")
-    mf_ds = xr.open_mfdataset(
-        all_files, parallel=parallel, use_cftime=True, engine=engine
-    )
+    mf_ds = xr.open_mfdataset(all_files, parallel=parallel, use_cftime=True, engine=engine)
     return mf_ds
 
 
