@@ -18,6 +18,7 @@ Contents
    pycmor_cli
    pycmor_configuration
    pycmor_saving_output
+   netcdf_chunking
    pycmor_aux_files
    table_explorer
    pycmor_on_slurm

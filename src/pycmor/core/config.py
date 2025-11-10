@@ -274,6 +274,48 @@ class PycmorConfig:
             doc="Whether the time axis is unlimited in xarray.",
             parser=_parse_bool,
         )
+        netcdf_enable_chunking = Option(
+            default="yes",
+            doc="Whether to enable internal NetCDF chunking for optimized I/O performance.",
+            parser=_parse_bool,
+        )
+        netcdf_chunk_algorithm = Option(
+            default="simple",
+            doc="Algorithm to use for calculating chunk sizes.",
+            parser=ChoiceOf(
+                str,
+                choices=[
+                    "simple",
+                    "even_divisor",
+                    "iterative",
+                ],
+            ),
+        )
+        netcdf_chunk_size = Option(
+            default="100MB",
+            doc="Target chunk size for NetCDF files. Can be specified as bytes (int) or string like '100MB'.",
+            parser=str,
+        )
+        netcdf_chunk_tolerance = Option(
+            default=0.5,
+            doc="Tolerance for chunk size matching (0.0-1.0). Used by even_divisor and iterative algorithms.",
+            parser=float,
+        )
+        netcdf_chunk_prefer_time = Option(
+            default="yes",
+            doc="Whether to prefer chunking along the time dimension for better I/O performance.",
+            parser=_parse_bool,
+        )
+        netcdf_compression_level = Option(
+            default=4,
+            doc="Compression level for NetCDF files (1-9). Higher values give better compression but slower I/O.",
+            parser=int,
+        )
+        netcdf_enable_compression = Option(
+            default="yes",
+            doc="Whether to enable zlib compression for NetCDF files.",
+            parser=_parse_bool,
+        )
 
 
 class PycmorConfigManager(ConfigManager):
