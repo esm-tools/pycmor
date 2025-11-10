@@ -6,6 +6,7 @@ yaml-files:
 ignore:
   - cmip6-cmor-tables/
   - CMIP7_DReq_Software/
+  - CMIP7-CVs/
 rules:
   line-length:
     max: 170
