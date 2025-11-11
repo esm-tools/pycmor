@@ -42,9 +42,9 @@ Here are some examples of how to use the configuration manager::
     >>> from pycmor.core.config import PycmorConfigManager
     >>> pycmor_cfg = {}
     >>> config = PycmorConfigManager.from_pycmor_cfg(pycmor_cfg)
-    >>> engine = config("xarray_engine")
+    >>> engine = config("xarray_open_mfdataset_engine")
     >>> print(f"Using xarray backend: {engine}")
-    Using xarray backend: h5netcdf
+    Using xarray backend: netcdf4
     >>> parallel = config("parallel")
     >>> print(f"Running in parallel: {parallel}")
     Running in parallel: True

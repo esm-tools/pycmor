@@ -39,7 +39,7 @@ def is_datetime_type(arr: np.ndarray) -> bool:
     >>> print(is_datetime_type(int_arr))
     False
     """
-    return isinstance(arr.item(0), tuple(cftime._cftime.DATE_TYPES.values())) or np.issubdtype(arr, np.datetime64)
+    return isinstance(arr.item(0), tuple(cftime._cftime.DATE_TYPES.values())) or np.issubdtype(arr.dtype, np.datetime64)
 
 
 def get_time_label(ds):

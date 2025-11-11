@@ -247,7 +247,7 @@ def handle_scalar_units(
     >>> print(result.values)
     [1000. 2000. 3000. 4000. 5000.]
     >>> print(result.attrs["units"])
-    gram
+    kilogram
     """
     try:
         new_da = da.pint.quantify(from_unit)
@@ -432,7 +432,7 @@ def handle_unit_conversion(
     >>> mock_drv = Mock()
     >>> mock_drv.units = "degC"
     >>> mock_drv.variable_id = "tas"
-    >>> rule = Rule(data_request_variable=mock_drv)
+    >>> rule = Rule(cmor_variable="tas", data_request_variable=mock_drv)
     >>> result = handle_unit_conversion(da, rule)
     >>> print(result)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
     <xarray.DataArray (lat: 5, lon: 6)> ...
@@ -461,7 +461,7 @@ def handle_unit_conversion(
     >>> mock_drv = Mock()
     >>> mock_drv.units = "hPa"
     >>> mock_drv.variable_id = "psl"
-    >>> rule = Rule(data_request_variable=mock_drv, model_variable="temp")
+    >>> rule = Rule(cmor_variable="psl", data_request_variable=mock_drv, model_variable="temp")
     >>> result = handle_unit_conversion(ds, rule)
     >>> print(result["temp"].values)
     [1013.25 1000.    950.    900.    850.    800.    750.    700.    650.
