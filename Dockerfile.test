@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set working directory and give ownership to MAMBA_USER
 WORKDIR /workspace
+RUN chown -R $MAMBA_USER:$MAMBA_USER /workspace
 
 # Switch to micromamba user for conda operations
 USER $MAMBA_USER
