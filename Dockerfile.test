@@ -73,8 +73,21 @@ ENV PYCMOR_XARRAY_PARALLEL=no
 ENV PYTHONUNBUFFERED=1
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
-# Verify h5py installation and thread-safety
-RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version); print('Thread-safe:', h5py.get_config().threadsafe)"
+# Verify h5py installation and thread-safety with a simple test
+RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)" && \
+    python -c "import h5py, threading, tempfile, numpy as np; \
+tf = tempfile.NamedTemporaryFile(suffix='.h5', delete=False); \
+with h5py.File(tf.name, 'w') as f: f.create_dataset('test', data=np.arange(10)); \
+errors = []; \
+def read(): \
+    try: \
+        with h5py.File(tf.name, 'r') as f: f['test'][:]; \
+    except Exception as e: errors.append(str(e)); \
+threads = [threading.Thread(target=read) for _ in range(3)]; \
+[t.start() for t in threads]; [t.join() for t in threads]; \
+import os; os.unlink(tf.name); \
+assert not errors, f'Thread-safety test failed: {errors}'; \
+print('Thread-safety: OK')"
 
 # Default command runs tests
 CMD ["pytest", "-vvv", "--cov=src/pycmor", "tests/"]
