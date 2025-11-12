@@ -89,7 +89,7 @@ def _parse_bool(value):
 
 
 # Structured definition of xarray-related configuration options
-# Format: {function_name: {kwarg_name: {default, doc, parser}}}
+# Format: Nested dict structure that becomes dot-separated or underscore-separated keys
 XARRAY_OPTIONS = {
     "open_mfdataset": {
         "engine": {
@@ -107,19 +107,28 @@ XARRAY_OPTIONS = {
             "parser": _parse_bool,
         },
     },
-    "defaults": {
-        "missing_value": {
-            "default": 1.0e30,
-            "doc": "Which missing value to use for xarray. Default is 1e30.",
-            "parser": float,
-        },
-        "skip_unit_attr_from_drv": {
-            "default": "yes",
-            "doc": (
-                "Whether to skip setting the unit attribute from the DataRequestVariable, "
-                "this can be handled via Pint"
-            ),
-            "parser": _parse_bool,
+    "default": {
+        "dataarray": {
+            "attrs": {
+                "missing_value": {
+                    "default": 1.0e30,
+                    "doc": (
+                        "Default missing value to use for xarray DataArray "
+                        "attributes and encoding. Default is 1e30."
+                    ),
+                    "parser": float,
+                },
+            },
+            "processing": {
+                "skip_unit_attr_from_drv": {
+                    "default": "yes",
+                    "doc": (
+                        "Whether to skip setting the unit attribute from the DataRequestVariable, "
+                        "this can be handled via Pint"
+                    ),
+                    "parser": _parse_bool,
+                },
+            },
         },
     },
     "time": {
@@ -162,16 +171,45 @@ XARRAY_OPTIONS = {
 }
 
 
-def _make_xarray_option(func_name, kwarg_name, spec):
+def _flatten_nested_dict(nested_dict, parent_key="", sep="_"):
     """
-    Factory to create xarray Option with both old and new key names.
+    Flatten a nested dictionary into dot-separated and underscore-separated keys.
 
     Parameters
     ----------
-    func_name : str
-        The xarray function name (e.g., "open_mfdataset", "time")
-    kwarg_name : str
-        The kwarg name (e.g., "engine", "parallel")
+    nested_dict : dict
+        Nested dictionary to flatten
+    parent_key : str
+        Parent key for recursion
+    sep : str
+        Separator for keys (default: '_')
+
+    Yields
+    ------
+    tuple
+        (flat_key, spec_dict) where flat_key is underscore-separated
+        and spec_dict contains 'default', 'doc', 'parser'
+    """
+    for key, value in nested_dict.items():
+        new_key = f"{parent_key}{sep}{key}" if parent_key else key
+
+        # Check if this is a leaf node (has 'default' key)
+        if isinstance(value, dict) and "default" in value:
+            # This is a leaf - it's an option spec
+            yield (new_key, value)
+        elif isinstance(value, dict):
+            # This is a branch - recurse deeper
+            yield from _flatten_nested_dict(value, new_key, sep=sep)
+
+
+def _make_xarray_option(key_path, spec):
+    """
+    Factory to create xarray Option with dotted alternate key.
+
+    Parameters
+    ----------
+    key_path : str
+        Underscore-separated key path (e.g., "default_dataarray_attrs_missing_value")
     spec : dict
         Option specification with default, doc, parser
 
@@ -180,13 +218,13 @@ def _make_xarray_option(func_name, kwarg_name, spec):
     Option
         Configured Option with alternate_keys for backward compatibility
     """
-    # New dotted notation for clearer hierarchy
-    new_key = f"xarray.{func_name}.{kwarg_name}"
+    # Create dotted notation for YAML nested structure
+    dotted_key = f"xarray.{key_path.replace('_', '.')}"
     return Option(
         default=spec["default"],
-        doc=f"{spec['doc']} (New key: {new_key})",
+        doc=f"{spec['doc']} (Dotted key: {dotted_key})",
         parser=spec.get("parser"),
-        alternate_keys=[new_key],
+        alternate_keys=[dotted_key],
     )
 
 
@@ -195,14 +233,14 @@ def _generate_xarray_options(cls):
     Dynamically add xarray options to Config class.
 
     This decorator generates Option attributes for all xarray-related
-    configuration based on the XARRAY_OPTIONS structure.
+    configuration based on the XARRAY_OPTIONS structure, supporting
+    arbitrary nesting depth.
     """
-    for func_name, kwargs_dict in XARRAY_OPTIONS.items():
-        for kwarg_name, option_spec in kwargs_dict.items():
-            # Old flat naming: xarray_open_mfdataset_engine
-            attr_name = f"xarray_{func_name}_{kwarg_name}"
-            option = _make_xarray_option(func_name, kwarg_name, option_spec)
-            setattr(cls.Config, attr_name, option)
+    for key_path, option_spec in _flatten_nested_dict(XARRAY_OPTIONS):
+        # Create attribute name: xarray_<flattened_path>
+        attr_name = f"xarray_{key_path}"
+        option = _make_xarray_option(key_path, option_spec)
+        setattr(cls.Config, attr_name, option)
     return cls
 
 
@@ -458,6 +496,115 @@ class PycmorConfigManager(ConfigManager):
             return self(key, parser=parser)
         except InvalidKeyError:
             return default
+
+
+# ---------------------------------------------------------------------------
+# Configuration injection decorator
+# ---------------------------------------------------------------------------
+
+
+def config_injector(config_manager=None, type_to_prefix_map=None):
+    """
+    Decorator that automatically injects config values into function calls based on parameter types.
+
+    This creates "dynamic partial functions" where the config system fills in arguments
+    automatically based on type annotations. If a parameter has a type annotation like
+    ``xarray.DataArray``, the decorator will look for config keys matching the pattern
+    ``xarray_<type_name>_<param_name>`` and inject those values if they exist.
+
+    Parameters
+    ----------
+    config_manager : PycmorConfigManager, optional
+        The config manager to use. If None, creates one with from_pycmor_cfg()
+    type_to_prefix_map : dict, optional
+        Mapping from type objects to config key prefixes.
+        Example: {xr.DataArray: "xarray_default_dataarray"}
+
+    Returns
+    -------
+    decorator
+        A decorator that injects config values into function calls
+
+    Examples
+    --------
+    >>> import xarray as xr
+    >>> from pycmor.core.config import config_injector
+    >>>
+    >>> # Define type mapping
+    >>> type_map = {xr.DataArray: "xarray_default_dataarray"}
+    >>>
+    >>> @config_injector(type_to_prefix_map=type_map)
+    ... def process_data(data: xr.DataArray, attrs_missing_value: float = None):
+    ...     # If attrs_missing_value not provided, decorator injects from config:
+    ...     # xarray_default_dataarray_attrs_missing_value
+    ...     print(f"Missing value: {attrs_missing_value}")
+    ...     return data
+    >>>
+    >>> # Call without providing attrs_missing_value - it gets injected from config
+    >>> result = process_data(my_data)  # Uses config value
+    >>> # Or override it
+    >>> result = process_data(my_data, attrs_missing_value=999)  # Uses 999
+    """
+    import functools
+    import inspect
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Get config manager
+            cfg = config_manager or PycmorConfigManager.from_pycmor_cfg()
+
+            # Get function signature
+            sig = inspect.signature(func)
+
+            # Build a mapping of parameter names to their positions
+            param_names = list(sig.parameters.keys())
+
+            # Determine which parameters were provided
+            provided_params = set()
+            for i, arg in enumerate(args):
+                if i < len(param_names):
+                    provided_params.add(param_names[i])
+            provided_params.update(kwargs.keys())
+
+            # Find which type prefix to use by looking at parameter type annotations
+            active_prefix = None
+            if type_to_prefix_map:
+                for param in sig.parameters.values():
+                    if param.annotation in type_to_prefix_map:
+                        active_prefix = type_to_prefix_map[param.annotation]
+                        break
+
+            # Build new kwargs by injecting config values
+            new_kwargs = dict(kwargs)
+
+            # If we found a matching type, inject config for all unprovided parameters
+            if active_prefix:
+                for param_name, param in sig.parameters.items():
+                    # Skip if already provided
+                    if param_name in provided_params:
+                        continue
+
+                    # Skip if no type annotation (e.g., *args, **kwargs)
+                    if param.annotation is inspect.Parameter.empty:
+                        continue
+
+                    # Build config key
+                    config_key = f"{active_prefix}_{param_name}"
+
+                    # Try to get value from config
+                    try:
+                        value = cfg(config_key)
+                        new_kwargs[param_name] = value
+                    except InvalidKeyError:
+                        # Key doesn't exist in config, skip (let default handle it)
+                        pass
+
+            return func(*args, **new_kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 # ---------------------------------------------------------------------------
