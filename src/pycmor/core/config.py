@@ -326,8 +326,9 @@ class PycmorConfigManager(ConfigManager):
         # Handled by ``manager.with_options`` below
 
         # Combine everything into a new PycmorConfigManager instance
+        # NOTE: Everett looks through environments in order, so first has highest priority
         manager = cls(
-            environments=[user_file, run_specific, env_vars],
+            environments=[env_vars, run_specific, user_file],
         )
         manager = manager.with_options(PycmorConfig)
         return manager
