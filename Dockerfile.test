@@ -1,32 +1,45 @@
 # Dockerfile for pycmor testing environment
-# Debian slim with system packages for NetCDF/HDF5
+# Uses micromamba for compatible HDF5/NetCDF/netcdf4-python stack
 
 ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim
+FROM mambaorg/micromamba:1.5.10
 
-# Install system dependencies including HDF5 and NetCDF libraries
+USER root
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     build-essential \
-    libhdf5-dev \
-    libnetcdf-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /workspace
 
-# Copy requirements first for better caching
-COPY pyproject.toml versioneer.py ./
-COPY src/pycmor/_version.py src/pycmor/_version.py
+# Switch to micromamba user for conda operations
+USER $MAMBA_USER
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip wheel setuptools
+# Install Python and scientific stack via micromamba (ensures compatibility)
+# This installs matching HDF5/NetCDF/netcdf4-python versions
+ARG PYTHON_VERSION
+RUN micromamba install -y -n base -c conda-forge \
+    python=${PYTHON_VERSION} \
+    hdf5 \
+    netcdf4 \
+    h5netcdf \
+    h5py \
+    pip \
+    && micromamba clean --all --yes
 
-# Copy the rest of the code
-COPY . .
+# Activate the base environment for subsequent commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
-# Install pycmor with dev dependencies
-RUN pip install --no-cache-dir ".[dev, fesom]"
+# Copy project files
+COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml versioneer.py ./
+COPY --chown=$MAMBA_USER:$MAMBA_USER src/pycmor/_version.py src/pycmor/_version.py
+COPY --chown=$MAMBA_USER:$MAMBA_USER . .
+
+# Install pycmor and dev dependencies via pip (uses conda's Python/libs)
+RUN pip install --no-cache-dir ".[dev,fesom]"
 
 # Set environment variables for testing
 ENV PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
@@ -34,7 +47,8 @@ ENV PYTHONUNBUFFERED=1
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
 # Verify installation
-RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)"
+RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)" && \
+    python -c "import netCDF4; print('netCDF4 version:', netCDF4.__version__)"
 
 # Default command runs tests
 CMD ["pytest", "-vvv", "--cov=src/pycmor", "tests/"]
