@@ -30,6 +30,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install black flake8 pytest isort yamllint
+      - name: Install package for linting
+        run: |
+          python -m pip install ".[dev, cmip7]"
       - name: Lint with flake8 (syntax errors only)
         run: |
           # stop the build if there are Python syntax errors or undefined names
@@ -220,6 +223,7 @@ jobs:
           mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
       - name: Test if data will work (Meta-Test) and generate coverage
         run: |
+<<<<<<< HEAD
           docker run --rm \
             -e HDF5_DEBUG=1 \
             -e NETCDF_DEBUG=1 \
@@ -231,6 +235,59 @@ jobs:
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.9.xml"
+||||||| merged common ancestors
+          python -m pip install ".[dev, fesom]"
+      - name: Test if data will work (Meta-Test)
+        run: |
+          export HDF5_DEBUG=1
+          export NETCDF_DEBUG=1
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor tests/meta/**.py
+      - name: Test with pytest (Unit)
+        run: |
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/unit/**.py
+      - name: Test with pytest (Integration)
+        run: |
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/integration/**.py
+      - name: Test with doctest
+        run: |
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor --cov-append src/
+      - name: Generate coverage report
+        run: |
+          python -m coverage xml -o coverage-${{ matrix.python-version }}.xml
+=======
+          python -m pip install ".[dev, fesom, cmip7]"
+      - name: Test if data will work (Meta-Test)
+        run: |
+          export HDF5_DEBUG=1
+          export NETCDF_DEBUG=1
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor tests/meta/**.py
+      - name: Test with pytest (Unit)
+        run: |
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/unit/**.py
+      - name: Test with pytest (Integration)
+        run: |
+          export XARRAY_ENGINE=h5netcdf
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          pytest -vvv -s --cov=src/pycmor --cov-append tests/integration/**.py
+      - name: Test with doctest
+        run: |
+          export PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
+          PYTHONPATH=src pytest -v --doctest-modules --cov=src/pycmor --cov-append src/
+      - name: Generate coverage report
+        run: |
+          python -m coverage xml -o coverage-${{ matrix.python-version }}.xml
+>>>>>>> origin/feat/CMIP7globalattrs
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4

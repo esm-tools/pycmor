@@ -105,8 +105,13 @@ GENERAL_SCHEMA = {
             },
             "CMIP_Tables_Dir": {
                 "type": "string",
-                "required": True,
+                "required": False,  # Not required for CMIP7
                 "is_directory": True,
+            },
+            "CMIP7_DReq_metadata": {
+                "type": "string",
+                "required": False,  # Required only for CMIP7
+                "is_directory": False,
             },
         },
     },
@@ -147,7 +152,14 @@ RULES_SCHEMA = {
             "allow_unknown": True,
             "schema": {
                 "name": {"type": "string", "required": False},
-                "cmor_variable": {"type": "string", "required": True},
+                "cmor_variable": {
+                    "type": "string",
+                    "required": False,
+                },  # Not required if compound_name provided
+                "compound_name": {
+                    "type": "string",
+                    "required": False,
+                },  # CMIP7 compound name
                 "model_variable": {"type": "string", "required": False},
                 "input_type": {
                     "type": "string",
@@ -197,15 +209,44 @@ RULES_SCHEMA = {
                     "required": True,
                     "is_directory": True,
                 },
-                "instition_id": {"type": "string", "required": False},
+                "institution_id": {
+                    "type": "string",
+                    "required": False,
+                },  # Fixed typo, required for CMIP7
+                "instition_id": {
+                    "type": "string",
+                    "required": False,
+                },  # Keep for backward compatibility (typo)
                 "experiment_id": {"type": "string", "required": True},
                 "adjust_timestamp": {"type": "string", "required": False},
                 "further_info_url": {"type": "string", "required": False},
                 # "model_component" examples:
                 # aerosol, atmos, land, landIce, ocnBgchem, ocean, seaIce
-                "model_component": {"type": "string", "required": True},
+                "model_component": {
+                    "type": "string",
+                    "required": False,
+                },  # Not required if compound_name provided
+                "realm": {
+                    "type": "string",
+                    "required": False,
+                },  # CMIP7 alternative to model_component
                 "grid_label": {"type": "string", "required": True},
                 "array_order": {"type": "list", "required": False},
+                # CMIP7-specific fields
+                "frequency": {
+                    "type": "string",
+                    "required": False,
+                },  # Can come from compound_name
+                "table_id": {
+                    "type": "string",
+                    "required": False,
+                },  # Can come from compound_name
+                "grid": {"type": "string", "required": False},  # Grid description
+                "nominal_resolution": {
+                    "type": "string",
+                    "required": False,
+                },  # Model resolution
+                # Time coordinate fields
                 "time_units": {
                     "type": "string",
                     "required": False,
