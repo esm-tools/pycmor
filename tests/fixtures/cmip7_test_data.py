@@ -143,10 +143,7 @@ def cmip7_experiments_file(tmp_path, cmip7_sample_experiments_data):
 @pytest.fixture
 def cmip7_interface_with_metadata(cmip7_metadata_file):
     """Create a CMIP7Interface instance with loaded metadata."""
-    from pycmor.data_request.cmip7_interface import (
-        CMIP7_API_AVAILABLE,
-        CMIP7Interface,
-    )
+    from pycmor.data_request.cmip7_interface import CMIP7_API_AVAILABLE, CMIP7Interface
 
     if not CMIP7_API_AVAILABLE:
         pytest.skip("CMIP7 API not available")
@@ -159,10 +156,7 @@ def cmip7_interface_with_metadata(cmip7_metadata_file):
 @pytest.fixture
 def cmip7_interface_with_all_data(cmip7_metadata_file, cmip7_experiments_file):
     """Create a CMIP7Interface instance with metadata and experiments loaded."""
-    from pycmor.data_request.cmip7_interface import (
-        CMIP7_API_AVAILABLE,
-        CMIP7Interface,
-    )
+    from pycmor.data_request.cmip7_interface import CMIP7_API_AVAILABLE, CMIP7Interface
 
     if not CMIP7_API_AVAILABLE:
         pytest.skip("CMIP7 API not available")

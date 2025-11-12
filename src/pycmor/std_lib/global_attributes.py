@@ -58,10 +58,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         so we use the CMIP6 list as a baseline for compatibility.
         """
         # Check if CMIP7 CV has the list
-        if (
-            "required_global_attributes" in self.cv
-            and self.cv["required_global_attributes"]
-        ):
+        if "required_global_attributes" in self.cv and self.cv["required_global_attributes"]:
             return self.cv["required_global_attributes"]
 
         # Fallback to CMIP6-compatible list
@@ -145,9 +142,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         )
         d = pattern.match(label)
         if d is None:
-            raise ValueError(
-                f"`label` must be of the form 'r<int>i<int>p<int>f<int>', Got: {label}"
-            )
+            raise ValueError(f"`label` must be of the form 'r<int>i<int>p<int>f<int>', Got: {label}")
         d = {name: int(val) for name, val in d.groupdict().items()}
         return d
 
@@ -241,14 +236,10 @@ class CMIP7GlobalAttributes(GlobalAttributes):
 
         if realm is None:
             # Fallback to user-provided value
-            realm = self.rule_dict.get(
-                "realm", self.rule_dict.get("model_component", None)
-            )
+            realm = self.rule_dict.get("realm", self.rule_dict.get("model_component", None))
 
         if realm is None:
-            raise ValueError(
-                "Realm/modeling_realm not found in variable metadata or rule_dict"
-            )
+            raise ValueError("Realm/modeling_realm not found in variable metadata or rule_dict")
 
         return realm
 
@@ -276,9 +267,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         CMIP7 doesn't yet have source_id CV with resolution info,
         so we use user-provided nominal resolution.
         """
-        user_resolution = self.rule_dict.get(
-            "nominal_resolution", self.rule_dict.get("resolution", None)
-        )
+        user_resolution = self.rule_dict.get("nominal_resolution", self.rule_dict.get("resolution", None))
         if user_resolution:
             return user_resolution
 
@@ -378,13 +367,10 @@ class CMIP7GlobalAttributes(GlobalAttributes):
                 if user_activity_id:
                     if user_activity_id not in activities:
                         raise ValueError(
-                            f"Activity ID '{user_activity_id}' is not valid. "
-                            f"Allowed values: {activities}"
+                            f"Activity ID '{user_activity_id}' is not valid. " f"Allowed values: {activities}"
                         )
                     return user_activity_id
-                raise ValueError(
-                    f"Multiple activities are not supported, got: {activities}"
-                )
+                raise ValueError(f"Multiple activities are not supported, got: {activities}")
 
             if len(activities) == 1:
                 return activities[0]
@@ -394,9 +380,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         if user_activity_id:
             return user_activity_id
 
-        raise ValueError(
-            f"Could not determine activity_id for experiment '{experiment_id}'"
-        )
+        raise ValueError(f"Could not determine activity_id for experiment '{experiment_id}'")
 
     def get_sub_experiment_id(self):
         """
@@ -410,9 +394,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         if "experiment" in self.cv and experiment_id in self.cv["experiment"]:
             exp_data = self.cv["experiment"][experiment_id]
             # CMIP7 may use different field name
-            sub_exp = exp_data.get(
-                "sub-experiment", exp_data.get("sub_experiment_id", ["none"])
-            )
+            sub_exp = exp_data.get("sub-experiment", exp_data.get("sub_experiment_id", ["none"]))
             if isinstance(sub_exp, list):
                 return " ".join(sub_exp)
             return str(sub_exp)

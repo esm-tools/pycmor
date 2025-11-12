@@ -127,53 +127,37 @@ def cmip6_config():
 def test_cmip7_minimal_config_validates(cmip7_minimal_config):
     """Test that minimal CMIP7 configuration validates."""
     # Validate general section
-    assert GENERAL_VALIDATOR.validate(
-        {"general": cmip7_minimal_config["general"]}
-    ), GENERAL_VALIDATOR.errors
+    assert GENERAL_VALIDATOR.validate({"general": cmip7_minimal_config["general"]}), GENERAL_VALIDATOR.errors
 
     # Validate rules section
-    assert RULES_VALIDATOR.validate(
-        {"rules": cmip7_minimal_config["rules"]}
-    ), RULES_VALIDATOR.errors
+    assert RULES_VALIDATOR.validate({"rules": cmip7_minimal_config["rules"]}), RULES_VALIDATOR.errors
 
 
 def test_cmip7_full_config_validates(cmip7_full_config):
     """Test that full CMIP7 configuration validates."""
     # Validate general section
-    assert GENERAL_VALIDATOR.validate(
-        {"general": cmip7_full_config["general"]}
-    ), GENERAL_VALIDATOR.errors
+    assert GENERAL_VALIDATOR.validate({"general": cmip7_full_config["general"]}), GENERAL_VALIDATOR.errors
 
     # Validate rules section
-    assert RULES_VALIDATOR.validate(
-        {"rules": cmip7_full_config["rules"]}
-    ), RULES_VALIDATOR.errors
+    assert RULES_VALIDATOR.validate({"rules": cmip7_full_config["rules"]}), RULES_VALIDATOR.errors
 
 
 def test_cmip7_without_compound_name_validates(cmip7_without_compound_name):
     """Test that CMIP7 config without compound name validates."""
     # Validate general section
-    assert GENERAL_VALIDATOR.validate(
-        {"general": cmip7_without_compound_name["general"]}
-    ), GENERAL_VALIDATOR.errors
+    assert GENERAL_VALIDATOR.validate({"general": cmip7_without_compound_name["general"]}), GENERAL_VALIDATOR.errors
 
     # Validate rules section
-    assert RULES_VALIDATOR.validate(
-        {"rules": cmip7_without_compound_name["rules"]}
-    ), RULES_VALIDATOR.errors
+    assert RULES_VALIDATOR.validate({"rules": cmip7_without_compound_name["rules"]}), RULES_VALIDATOR.errors
 
 
 def test_cmip6_config_validates(cmip6_config):
     """Test that CMIP6 configuration still validates."""
     # Validate general section
-    assert GENERAL_VALIDATOR.validate(
-        {"general": cmip6_config["general"]}
-    ), GENERAL_VALIDATOR.errors
+    assert GENERAL_VALIDATOR.validate({"general": cmip6_config["general"]}), GENERAL_VALIDATOR.errors
 
     # Validate rules section
-    assert RULES_VALIDATOR.validate(
-        {"rules": cmip6_config["rules"]}
-    ), RULES_VALIDATOR.errors
+    assert RULES_VALIDATOR.validate({"rules": cmip6_config["rules"]}), RULES_VALIDATOR.errors
 
 
 def test_cmip7_requires_cv_dir():
@@ -319,9 +303,7 @@ rules:
     config = yaml.safe_load(yaml_content)
 
     # Validate general section
-    assert GENERAL_VALIDATOR.validate(
-        {"general": config["general"]}
-    ), GENERAL_VALIDATOR.errors
+    assert GENERAL_VALIDATOR.validate({"general": config["general"]}), GENERAL_VALIDATOR.errors
 
     # Validate rules section
     assert RULES_VALIDATOR.validate({"rules": config["rules"]}), RULES_VALIDATOR.errors

@@ -12,11 +12,7 @@ This module tests the CMIP7 data request interface, including:
 
 import pytest
 
-from pycmor.data_request.cmip7_interface import (
-    CMIP7_API_AVAILABLE,
-    CMIP7Interface,
-    get_cmip7_interface,
-)
+from pycmor.data_request.cmip7_interface import CMIP7_API_AVAILABLE, CMIP7Interface, get_cmip7_interface
 
 
 class TestCMIP7InterfaceInit:
@@ -25,9 +21,7 @@ class TestCMIP7InterfaceInit:
     def test_init_requires_api(self):
         """Test that initialization fails without API."""
         if not CMIP7_API_AVAILABLE:
-            with pytest.raises(
-                ImportError, match="CMIP7 Data Request API is not available"
-            ):
+            with pytest.raises(ImportError, match="CMIP7 Data Request API is not available"):
                 CMIP7Interface()
         else:
             interface = CMIP7Interface()
@@ -96,10 +90,7 @@ class TestLoadExperimentsData:
         """Test loading experiments data from a JSON file."""
         assert cmip7_interface_with_all_data._experiments_data is not None
         assert "experiment" in cmip7_interface_with_all_data._experiments_data
-        assert (
-            "historical"
-            in cmip7_interface_with_all_data._experiments_data["experiment"]
-        )
+        assert "historical" in cmip7_interface_with_all_data._experiments_data["experiment"]
 
     def test_load_experiments_data_file_not_found(self, cmip7_interface_with_metadata):
         """Test error handling when experiments file doesn't exist."""
@@ -112,9 +103,7 @@ class TestGetVariableMetadata:
 
     def test_get_variable_metadata_success(self, cmip7_interface_with_metadata):
         """Test getting metadata for an existing variable."""
-        metadata = cmip7_interface_with_metadata.get_variable_metadata(
-            "atmos.tas.tavg-h2m-hxy-u.mon.GLB"
-        )
+        metadata = cmip7_interface_with_metadata.get_variable_metadata("atmos.tas.tavg-h2m-hxy-u.mon.GLB")
         assert metadata is not None
         assert metadata["standard_name"] == "air_temperature"
         assert metadata["units"] == "K"
@@ -122,9 +111,7 @@ class TestGetVariableMetadata:
 
     def test_get_variable_metadata_not_found(self, cmip7_interface_with_metadata):
         """Test getting metadata for a non-existent variable."""
-        metadata = cmip7_interface_with_metadata.get_variable_metadata(
-            "nonexistent.var.branding.freq.region"
-        )
+        metadata = cmip7_interface_with_metadata.get_variable_metadata("nonexistent.var.branding.freq.region")
         assert metadata is None
 
     def test_get_variable_metadata_without_loading(self):
@@ -149,9 +136,7 @@ class TestGetVariableByCMIP6Name:
 
     def test_get_variable_by_cmip6_name_not_found(self, cmip7_interface_with_metadata):
         """Test getting metadata for non-existent CMIP6 name."""
-        metadata = cmip7_interface_with_metadata.get_variable_by_cmip6_name(
-            "Nonexistent.var"
-        )
+        metadata = cmip7_interface_with_metadata.get_variable_by_cmip6_name("Nonexistent.var")
         assert metadata is None
 
     def test_get_variable_by_cmip6_name_without_loading(self):
@@ -178,36 +163,26 @@ class TestFindVariableVariants:
 
     def test_find_variants_with_realm_filter(self, cmip7_interface_with_metadata):
         """Test finding variants filtered by realm."""
-        variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", realm="atmos"
-        )
+        variants = cmip7_interface_with_metadata.find_variable_variants("clt", realm="atmos")
         assert len(variants) == 2
 
         # Test with non-matching realm
-        variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", realm="ocean"
-        )
+        variants = cmip7_interface_with_metadata.find_variable_variants("clt", realm="ocean")
         assert len(variants) == 0
 
     def test_find_variants_with_frequency_filter(self, cmip7_interface_with_metadata):
         """Test finding variants filtered by frequency."""
-        variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", frequency="mon"
-        )
+        variants = cmip7_interface_with_metadata.find_variable_variants("clt", frequency="mon")
         assert len(variants) == 1
         assert variants[0]["frequency"] == "mon"
 
     def test_find_variants_with_region_filter(self, cmip7_interface_with_metadata):
         """Test finding variants filtered by region."""
-        variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", region="GLB"
-        )
+        variants = cmip7_interface_with_metadata.find_variable_variants("clt", region="GLB")
         assert len(variants) == 2
 
         # Test with non-matching region
-        variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", region="30S-90S"
-        )
+        variants = cmip7_interface_with_metadata.find_variable_variants("clt", region="30S-90S")
         assert len(variants) == 0
 
     def test_find_variants_with_multiple_filters(self, cmip7_interface_with_metadata):
@@ -238,9 +213,7 @@ class TestGetVariablesForExperiment:
 
     def test_get_all_priorities(self, cmip7_interface_with_all_data):
         """Test getting all priorities for an experiment."""
-        vars_dict = cmip7_interface_with_all_data.get_variables_for_experiment(
-            "historical"
-        )
+        vars_dict = cmip7_interface_with_all_data.get_variables_for_experiment("historical")
         assert "Core" in vars_dict
         assert "High" in vars_dict
         assert len(vars_dict["Core"]) == 2
@@ -248,9 +221,7 @@ class TestGetVariablesForExperiment:
 
     def test_get_specific_priority(self, cmip7_interface_with_all_data):
         """Test getting variables for a specific priority."""
-        core_vars = cmip7_interface_with_all_data.get_variables_for_experiment(
-            "historical", priority="Core"
-        )
+        core_vars = cmip7_interface_with_all_data.get_variables_for_experiment("historical", priority="Core")
         assert len(core_vars) == 2
         assert "atmos.tas.tavg-h2m-hxy-u.mon.GLB" in core_vars
 
@@ -262,9 +233,7 @@ class TestGetVariablesForExperiment:
     def test_get_priority_not_found(self, cmip7_interface_with_all_data):
         """Test error when priority doesn't exist for experiment."""
         with pytest.raises(ValueError, match="Priority 'Medium' not found"):
-            cmip7_interface_with_all_data.get_variables_for_experiment(
-                "historical", priority="Medium"
-            )
+            cmip7_interface_with_all_data.get_variables_for_experiment("historical", priority="Medium")
 
     def test_get_without_loading_experiments(self, cmip7_interface_with_metadata):
         """Test that error is raised if experiments data not loaded."""
@@ -314,9 +283,7 @@ class TestParseCompoundName:
 
     def test_parse_valid_compound_name(self, cmip7_interface_with_metadata):
         """Test parsing a valid CMIP7 compound name."""
-        parsed = cmip7_interface_with_metadata.parse_compound_name(
-            "atmos.tas.tavg-h2m-hxy-u.mon.GLB"
-        )
+        parsed = cmip7_interface_with_metadata.parse_compound_name("atmos.tas.tavg-h2m-hxy-u.mon.GLB")
         assert parsed["realm"] == "atmos"
         assert parsed["variable"] == "tas"
         assert parsed["branding"] == "tavg-h2m-hxy-u"
@@ -427,9 +394,7 @@ class TestIntegrationScenarios:
         assert len(all_variants) == 2
 
         # Filter to monthly only
-        monthly_variants = cmip7_interface_with_metadata.find_variable_variants(
-            "clt", frequency="mon"
-        )
+        monthly_variants = cmip7_interface_with_metadata.find_variable_variants("clt", frequency="mon")
         assert len(monthly_variants) == 1
 
         # Get the metadata
@@ -440,9 +405,7 @@ class TestIntegrationScenarios:
     def test_experiment_to_variables_workflow(self, cmip7_interface_with_all_data):
         """Test getting variables for an experiment and accessing metadata."""
         # Get Core variables for historical
-        core_vars = cmip7_interface_with_all_data.get_variables_for_experiment(
-            "historical", priority="Core"
-        )
+        core_vars = cmip7_interface_with_all_data.get_variables_for_experiment("historical", priority="Core")
         assert len(core_vars) == 2
 
         # Get metadata for each variable

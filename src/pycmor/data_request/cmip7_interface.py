@@ -46,10 +46,7 @@ try:
     logger.debug("CMIP7 Data Request API loaded successfully")
 except ImportError as e:
     CMIP7_API_AVAILABLE = False
-    logger.warning(
-        f"CMIP7 Data Request API not available: {e}. "
-        "Install with: pip install CMIP7-data-request-api"
-    )
+    logger.warning(f"CMIP7 Data Request API not available: {e}. " "Install with: pip install CMIP7-data-request-api")
     dreq_content = None
     export_dreq_lists_json = None
 
@@ -85,8 +82,7 @@ class CMIP7Interface:
         """Initialize the CMIP7 interface."""
         if not CMIP7_API_AVAILABLE:
             raise ImportError(
-                "CMIP7 Data Request API is not available. "
-                "Install with: pip install CMIP7-data-request-api"
+                "CMIP7 Data Request API is not available. " "Install with: pip install CMIP7-data-request-api"
             )
 
         self._metadata = None
@@ -145,9 +141,7 @@ class CMIP7Interface:
             logger.info(f"Loading CMIP7 metadata from file: {metadata_file}")
             with open(metadata_file, "r") as f:
                 self._metadata = json.load(f)
-            self._version = self._metadata.get("Header", {}).get(
-                "dreq content version", version
-            )
+            self._version = self._metadata.get("Header", {}).get("dreq content version", version)
         else:
             # Use the API to export metadata
             logger.info(f"Loading CMIP7 metadata for version: {version}")
@@ -159,9 +153,7 @@ class CMIP7Interface:
                 "then use load_metadata(metadata_file='path/to/metadata.json')"
             )
 
-        logger.info(
-            f"Loaded metadata for {len(self._metadata.get('Compound Name', {}))} variables"
-        )
+        logger.info(f"Loaded metadata for {len(self._metadata.get('Compound Name', {}))} variables")
         return self._metadata
 
     def load_experiments_data(self, experiments_file: Union[str, Path]) -> Dict:
@@ -330,17 +322,12 @@ class CMIP7Interface:
             If experiments data not loaded or experiment not found.
         """
         if self._experiments_data is None:
-            raise ValueError(
-                "Experiments data not loaded. Call load_experiments_data() first."
-            )
+            raise ValueError("Experiments data not loaded. Call load_experiments_data() first.")
 
         experiments = self._experiments_data.get("experiment", {})
         if experiment not in experiments:
             available = list(experiments.keys())
-            raise ValueError(
-                f"Experiment '{experiment}' not found. "
-                f"Available experiments: {available[:10]}..."
-            )
+            raise ValueError(f"Experiment '{experiment}' not found. " f"Available experiments: {available[:10]}...")
 
         exp_data = experiments[experiment]
 
@@ -369,9 +356,7 @@ class CMIP7Interface:
             If experiments data not loaded.
         """
         if self._experiments_data is None:
-            raise ValueError(
-                "Experiments data not loaded. Call load_experiments_data() first."
-            )
+            raise ValueError("Experiments data not loaded. Call load_experiments_data() first.")
 
         return list(self._experiments_data.get("experiment", {}).keys())
 
@@ -428,9 +413,7 @@ class CMIP7Interface:
             "region": parts[4],
         }
 
-    def build_compound_name(
-        self, realm: str, variable: str, branding: str, frequency: str, region: str
-    ) -> str:
+    def build_compound_name(self, realm: str, variable: str, branding: str, frequency: str, region: str) -> str:
         """
         Build a CMIP7 compound name from components.
 
@@ -471,9 +454,7 @@ class CMIP7Interface:
 
 
 # Convenience function
-def get_cmip7_interface(
-    version: str = "v1.2.2.2", metadata_file: Optional[Union[str, Path]] = None
-) -> CMIP7Interface:
+def get_cmip7_interface(version: str = "v1.2.2.2", metadata_file: Optional[Union[str, Path]] = None) -> CMIP7Interface:
     """
     Get a CMIP7Interface instance with metadata loaded.
 

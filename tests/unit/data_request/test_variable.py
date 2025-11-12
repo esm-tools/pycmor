@@ -19,6 +19,4 @@ def test_cmip7_from_vendored_json():
     # Skip this test - vendored JSON is limited, full testing done in test_cmip7_interface.py
     import pytest
 
-    pytest.skip(
-        "Vendored all_var_info.json has limited data. Full CMIP7 testing in test_cmip7_interface.py"
-    )
+    pytest.skip("Vendored all_var_info.json has limited data. Full CMIP7 testing in test_cmip7_interface.py")

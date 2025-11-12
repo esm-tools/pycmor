@@ -279,15 +279,12 @@ class CMORizer:
                     self.cmip7_interface.load_experiments_data(str(experiments_file))
                     logger.info("CMIP7 interface initialized with experiments data")
                 else:
-                    logger.info(
-                        "CMIP7 interface initialized (without experiments data)"
-                    )
+                    logger.info("CMIP7 interface initialized (without experiments data)")
             else:
                 self.cmip7_interface = None
                 if metadata_file:
                     logger.warning(
-                        f"CMIP7 metadata file not found: {metadata_file}. "
-                        "CMIP7 interface will not be available."
+                        f"CMIP7 metadata file not found: {metadata_file}. " "CMIP7 interface will not be available."
                     )
                 else:
                     logger.debug(
@@ -299,8 +296,7 @@ class CMORizer:
             self.cmip7_interface = None
             if self.cmor_version == "CMIP7" and not CMIP7_API_AVAILABLE:
                 logger.warning(
-                    "CMIP7 Data Request API not available. "
-                    "Install with: pip install CMIP7-data-request-api"
+                    "CMIP7 Data Request API not available. " "Install with: pip install CMIP7-data-request-api"
                 )
 
     def _post_init_populate_rules_with_tables(self):

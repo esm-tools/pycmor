@@ -12,19 +12,11 @@ from .table import (
     DataRequestTable,
     DataRequestTableHeader,
 )
-from .variable import (
-    CMIP6DataRequestVariable,
-    CMIP7DataRequestVariable,
-    DataRequestVariable,
-)
+from .variable import CMIP6DataRequestVariable, CMIP7DataRequestVariable, DataRequestVariable
 
 # Import CMIP7 interface if available
 try:
-    from .cmip7_interface import (
-        CMIP7_API_AVAILABLE,
-        CMIP7Interface,
-        get_cmip7_interface,
-    )
+    from .cmip7_interface import CMIP7_API_AVAILABLE, CMIP7Interface, get_cmip7_interface
 except ImportError:
     CMIP7Interface = None
     get_cmip7_interface = None

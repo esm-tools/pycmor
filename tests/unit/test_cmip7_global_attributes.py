@@ -280,15 +280,11 @@ def test_cmip7_attributes_are_strings(sample_cmip7_rule):
 
     # All attributes should be strings for netCDF compliance
     for key, value in attrs.items():
-        assert isinstance(
-            value, str
-        ), f"Attribute '{key}' is not a string: {type(value)}"
+        assert isinstance(value, str), f"Attribute '{key}' is not a string: {type(value)}"
 
 
 @pytest.mark.skipif(
-    not pytest.importorskip(
-        "pycmor.data_request.cmip7_interface", reason="CMIP7 API not available"
-    ),
+    not pytest.importorskip("pycmor.data_request.cmip7_interface", reason="CMIP7 API not available"),
     reason="CMIP7 API not available",
 )
 def test_cmip7_global_attributes_with_data_request(sample_cmip7_rule):
