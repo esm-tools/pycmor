@@ -227,7 +227,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.9.xml"
       - name: Upload coverage reports
@@ -266,7 +267,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.10.xml"
       - name: Upload coverage reports
@@ -305,7 +307,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.11.xml"
       - name: Upload coverage reports
@@ -344,7 +347,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.12.xml"
       - name: Upload coverage reports
@@ -382,7 +386,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.9.xml"
       - name: Upload coverage reports
@@ -419,7 +424,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.10.xml"
       - name: Upload coverage reports
@@ -456,7 +462,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.11.xml"
       - name: Upload coverage reports
@@ -493,7 +500,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.12.xml"
       - name: Upload coverage reports
@@ -531,7 +539,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.9.xml"
       - name: Upload coverage reports
@@ -568,7 +577,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.10.xml"
       - name: Upload coverage reports
@@ -605,7 +615,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.11.xml"
       - name: Upload coverage reports
@@ -642,7 +653,8 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.12.xml"
       - name: Upload coverage reports
@@ -678,7 +690,8 @@ jobs:
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.9.xml"
       - name: Upload coverage reports
@@ -713,7 +726,8 @@ jobs:
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.10.xml"
       - name: Upload coverage reports
@@ -748,7 +762,8 @@ jobs:
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.11.xml"
       - name: Upload coverage reports
@@ -783,7 +798,8 @@ jobs:
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
+            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.12.xml"
       - name: Upload coverage reports
