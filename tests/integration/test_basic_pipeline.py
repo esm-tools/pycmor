@@ -16,11 +16,7 @@ from pycmor.core.logging import logger
     "config",
     [
         pytest.param("test_config_cmip6", id="CMIP6"),
-        pytest.param(
-            "test_config_cmip7",
-            id="CMIP7",
-            marks=pytest.mark.xfail(reason="NotImplementedError"),
-        ),
+        pytest.param("test_config_cmip7", id="CMIP7"),
     ],
     indirect=True,
 )
@@ -42,11 +38,7 @@ def test_init(config):
     "config",
     [
         pytest.param("test_config_cmip6", id="CMIP6"),
-        pytest.param(
-            "test_config_cmip7",
-            id="CMIP7",
-            marks=pytest.mark.xfail(reason="NotImplementedError"),
-        ),
+        pytest.param("test_config_cmip7", id="CMIP7"),
     ],
     indirect=True,
 )

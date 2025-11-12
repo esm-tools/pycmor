@@ -53,7 +53,6 @@ def test_process_native(pi_uxarray_config, pi_uxarray_data):
     cmorizer.process()
 
 
-@pytest.mark.xfail(reason="NotImplementedError")
 def test_process_cmip7(pi_uxarray_config_cmip7, pi_uxarray_data):
     logger.info(f"Processing {pi_uxarray_config_cmip7}")
     with open(pi_uxarray_config_cmip7, "r") as f:
