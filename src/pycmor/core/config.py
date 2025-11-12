@@ -330,6 +330,7 @@ class PycmorConfigManager(ConfigManager):
         manager = cls(
             environments=[env_vars, run_specific, user_file],
         )
+        manager = manager.with_namespace("pycmor")
         manager = manager.with_options(PycmorConfig)
         return manager
 
