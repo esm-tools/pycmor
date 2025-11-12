@@ -88,6 +88,121 @@ def _parse_bool(value):
     return parse_bool(value)
 
 
+# Structured definition of xarray-related configuration options
+# Format: {function_name: {kwarg_name: {default, doc, parser}}}
+XARRAY_OPTIONS = {
+    "open_mfdataset": {
+        "engine": {
+            "default": "netcdf4",
+            "doc": "Which engine to use for xarray.open_mfdataset().",
+            "parser": ChoiceOf(str, choices=["netcdf4", "h5netcdf", "zarr"]),
+        },
+        "parallel": {
+            "default": "yes",
+            "doc": "Whether to use parallel processing when opening multiple files with xarray.open_mfdataset().",
+            "parser": _parse_bool,
+        },
+    },
+    "defaults": {
+        "missing_value": {
+            "default": 1.0e30,
+            "doc": "Which missing value to use for xarray. Default is 1e30.",
+            "parser": float,
+        },
+        "skip_unit_attr_from_drv": {
+            "default": "yes",
+            "doc": (
+                "Whether to skip setting the unit attribute from the DataRequestVariable, "
+                "this can be handled via Pint"
+            ),
+            "parser": _parse_bool,
+        },
+    },
+    "time": {
+        "dtype": {
+            "default": "float64",
+            "doc": "The dtype to use for time axis in xarray.",
+            "parser": ChoiceOf(str, choices=["float64", "datetime64[ns]"]),
+        },
+        "enable_set_axis": {
+            "default": "yes",
+            "doc": "Whether to enable setting the axis for the time axis in xarray.",
+            "parser": _parse_bool,
+        },
+        "remove_fill_value_attr": {
+            "default": "yes",
+            "doc": "Whether to remove the fill_value attribute from the time axis in xarray.",
+            "parser": _parse_bool,
+        },
+        "set_long_name": {
+            "default": "yes",
+            "doc": "Whether to set the long name for the time axis in xarray.",
+            "parser": _parse_bool,
+        },
+        "set_standard_name": {
+            "default": "yes",
+            "doc": "Whether to set the standard name for the time axis in xarray.",
+            "parser": _parse_bool,
+        },
+        "taxis_str": {
+            "default": "T",
+            "doc": "Which axis to set for the time axis in xarray.",
+            "parser": str,
+        },
+        "unlimited": {
+            "default": "yes",
+            "doc": "Whether the time axis is unlimited in xarray.",
+            "parser": _parse_bool,
+        },
+    },
+}
+
+
+def _make_xarray_option(func_name, kwarg_name, spec):
+    """
+    Factory to create xarray Option with both old and new key names.
+
+    Parameters
+    ----------
+    func_name : str
+        The xarray function name (e.g., "open_mfdataset", "time")
+    kwarg_name : str
+        The kwarg name (e.g., "engine", "parallel")
+    spec : dict
+        Option specification with default, doc, parser
+
+    Returns
+    -------
+    Option
+        Configured Option with alternate_keys for backward compatibility
+    """
+    # New dotted notation for clearer hierarchy
+    new_key = f"xarray.{func_name}.{kwarg_name}"
+    return Option(
+        default=spec["default"],
+        doc=f"{spec['doc']} (New key: {new_key})",
+        parser=spec.get("parser"),
+        alternate_keys=[new_key],
+    )
+
+
+def _generate_xarray_options(cls):
+    """
+    Dynamically add xarray options to Config class.
+
+    This decorator generates Option attributes for all xarray-related
+    configuration based on the XARRAY_OPTIONS structure.
+    """
+    for func_name, kwargs_dict in XARRAY_OPTIONS.items():
+        for kwarg_name, option_spec in kwargs_dict.items():
+            # Old flat naming: xarray_open_mfdataset_engine
+            attr_name = f"xarray_{func_name}_{kwarg_name}"
+            option = _make_xarray_option(func_name, kwarg_name, option_spec)
+            setattr(cls.Config, attr_name, option)
+    return cls
+
+
+@_generate_xarray_options
 class PycmorConfig:
     class Config:
         # [FIXME] Keep the list of all options alphabetical!
@@ -203,77 +318,8 @@ class PycmorConfig:
             doc="Whether or not to issue a warning if no rule is found for every single DataRequestVariable",
             parser=_parse_bool,
         )
-        xarray_default_missing_value = Option(
-            default=1.0e30,
-            doc="Which missing value to use for xarray. Default is 1e30.",
-            parser=float,
-        )
-        xarray_open_mfdataset_engine = Option(
-            default="netcdf4",
-            doc="Which engine to use for xarray.open_mfdataset().",
-            parser=ChoiceOf(
-                str,
-                choices=[
-                    "netcdf4",
-                    "h5netcdf",
-                    "zarr",
-                ],
-            ),
-        )
-        xarray_open_mfdataset_parallel = Option(
-            default="yes",
-            doc=(
-                "Whether to use parallel processing when opening multiple files "
-                "with xarray.open_mfdataset(). Default is True."
-            ),
-            parser=_parse_bool,
-        )
-        xarray_skip_unit_attr_from_drv = Option(
-            default="yes",
-            doc="Whether to skip setting the unit attribute from the DataRequestVariable, this can be handled via Pint",
-            parser=_parse_bool,
-        )
-        xarray_time_dtype = Option(
-            default="float64",
-            doc="The dtype to use for time axis in xarray.",
-            parser=ChoiceOf(
-                str,
-                choices=[
-                    "float64",
-                    "datetime64[ns]",
-                ],
-            ),
-        )
-        xarray_time_enable_set_axis = Option(
-            default="yes",
-            doc="Whether to enable setting the axis for the time axis in xarray.",
-            parser=_parse_bool,
-        )
-        xarray_time_remove_fill_value_attr = Option(
-            default="yes",
-            doc="Whether to remove the fill_value attribute from the time axis in xarray.",
-            parser=_parse_bool,
-        )
-        xarray_time_set_long_name = Option(
-            default="yes",
-            doc="Whether to set the long name for the time axis in xarray.",
-            parser=_parse_bool,
-        )
-        xarray_time_set_standard_name = Option(
-            default="yes",
-            doc="Whether to set the standard name for the time axis in xarray.",
-            parser=_parse_bool,
-        )
-        xarray_time_taxis_str = Option(
-            default="T",
-            doc="Which axis to set for the time axis in xarray.",
-            parser=str,
-        )
-        xarray_time_unlimited = Option(
-            default="yes",
-            doc="Whether the time axis is unlimited in xarray.",
-            parser=_parse_bool,
-        )
+        # NOTE: xarray_* options are dynamically generated by @_generate_xarray_options decorator
+        # See XARRAY_OPTIONS structure above for definitions
 
 
 class PycmorConfigManager(ConfigManager):
