@@ -284,6 +284,8 @@ class PycmorConfigManager(ConfigManager):
 
     _XDG_CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", "~/.config")
     """str : The XDG configuration directory."""
+    _NAMESPACE = "pycmor"
+    """str : The namespace for all configuration keys."""
     _CONFIG_FILES = [
         str(f)
         for f in [
@@ -303,36 +305,61 @@ class PycmorConfigManager(ConfigManager):
     """List[str] : The list of configuration files to check for user configuration."""
 
     @classmethod
-    def from_pycmor_cfg(cls, run_specific_cfg=None):
+    def _create_environments(cls, run_specific_cfg=None):
         """
-        Create a PycmorConfigManager with the appropriate hierarchy.
+        Build the environment stack in priority order (highest first).
 
         Parameters
         ----------
-        run_specific_cfg : dict
-            Optional. Overrides specific values for this run.
+        run_specific_cfg : dict, optional
+            Run-specific configuration overrides.
+
+        Returns
+        -------
+        list
+            List of environment objects in priority order (first has highest priority).
         """
-        # Configuration higherarchy (highest to lowest priority):
-        # 5. Command-line switches
-        # Not implemented here
-        # 4. Environment variables
-        env_vars = ConfigOSEnv()
-        # 3. Run-specific configuration
-        run_specific = ConfigDictEnv(run_specific_cfg or {})
+        return [
+            ConfigOSEnv(),  # Highest: Environment variables
+            ConfigDictEnv(run_specific_cfg or {}),  # Run-specific configuration
+            ConfigYamlEnv(cls._CONFIG_FILES),  # Lowest: User config file
+        ]
 
-        # 2. User config file
-        user_file = ConfigYamlEnv(cls._CONFIG_FILES)
-        # 1. Hardcoded defaults
-        # Handled by ``manager.with_options`` below
+    @classmethod
+    def _configure_manager(cls, manager):
+        """
+        Apply namespace and options to manager.
 
-        # Combine everything into a new PycmorConfigManager instance
-        # NOTE: Everett looks through environments in order, so first has highest priority
-        manager = cls(
-            environments=[env_vars, run_specific, user_file],
-        )
-        manager = manager.with_namespace("pycmor")
-        manager = manager.with_options(PycmorConfig)
-        return manager
+        Parameters
+        ----------
+        manager : PycmorConfigManager
+            The manager instance to configure.
+
+        Returns
+        -------
+        PycmorConfigManager
+            The configured manager with namespace and options applied.
+        """
+        return manager.with_namespace(cls._NAMESPACE).with_options(PycmorConfig)
+
+    @classmethod
+    def from_pycmor_cfg(cls, run_specific_cfg=None):
+        """
+        Create a fully configured PycmorConfigManager.
+
+        Parameters
+        ----------
+        run_specific_cfg : dict, optional
+            Run-specific configuration overrides.
+
+        Returns
+        -------
+        PycmorConfigManager
+            Fully configured manager instance.
+        """
+        environments = cls._create_environments(run_specific_cfg)
+        manager = cls(environments=environments)
+        return cls._configure_manager(manager)
 
     # NOTE(PG): Need to override this method, the original implementation in the parent class
     # explicitly uses ConfigManager (not cls) to create the clone instance.
