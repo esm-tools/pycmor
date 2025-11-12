@@ -98,8 +98,12 @@ XARRAY_OPTIONS = {
             "parser": ChoiceOf(str, choices=["netcdf4", "h5netcdf", "zarr"]),
         },
         "parallel": {
-            "default": "yes",
-            "doc": "Whether to use parallel processing when opening multiple files with xarray.open_mfdataset().",
+            "default": "no",
+            "doc": (
+                "Whether to use parallel file opening in xarray.open_mfdataset(). "
+                "Note: requires thread-safe HDF5/NetCDF-C libraries. "
+                "Use 'no' for safe sequential file opening (Dask still parallelizes computation)."
+            ),
             "parser": _parse_bool,
         },
     },

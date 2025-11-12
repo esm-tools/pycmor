@@ -224,7 +224,7 @@ jobs:
             -e HDF5_DEBUG=1 \
             -e NETCDF_DEBUG=1 \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -263,7 +263,7 @@ jobs:
             -e HDF5_DEBUG=1 \
             -e NETCDF_DEBUG=1 \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -302,7 +302,7 @@ jobs:
             -e HDF5_DEBUG=1 \
             -e NETCDF_DEBUG=1 \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -341,7 +341,7 @@ jobs:
             -e HDF5_DEBUG=1 \
             -e NETCDF_DEBUG=1 \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -379,7 +379,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -416,7 +416,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -453,7 +453,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -490,7 +490,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -528,7 +528,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -565,7 +565,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -602,7 +602,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \
@@ -639,7 +639,7 @@ jobs:
         run: |
           docker run --rm \
             -e PYCMOR_XARRAY_OPEN_MFDATASET_ENGINE=netcdf4 \
-            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=yes \
+            -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
             -v ${{ runner.temp }}/.cache/pycmor:/root/.cache/pycmor \

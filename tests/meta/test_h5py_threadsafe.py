@@ -129,10 +129,11 @@ def test_xarray_open_mfdataset_engines(engine, parallel):
     """Test xarray.open_mfdataset with different engines and parallel settings."""
     import xarray as xr
 
-    # h5netcdf with parallel=True causes segfaults due to thread-safety issues
-    # See: https://github.com/h5netcdf/h5netcdf/issues
-    if engine == "h5netcdf" and parallel:
-        pytest.skip("h5netcdf does not support parallel=True reliably")
+    # Both engines require thread-safe HDF5/NetCDF-C for parallel file opening
+    # System packages in Debian/Ubuntu are NOT compiled with thread-safety
+    # parallel=True causes segfaults with standard library builds
+    if parallel:
+        pytest.skip("parallel=True requires thread-safe HDF5/NetCDF-C libraries (not available in system packages)")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create multiple test files
@@ -157,13 +158,13 @@ def test_xarray_open_mfdataset_engines(engine, parallel):
 
 @pytest.mark.parametrize("engine", ["h5netcdf", "netcdf4"])
 def test_xarray_open_mfdataset_with_dask_client(engine):
-    """Test xarray.open_mfdataset with a Dask client (simulating actual usage)."""
+    """Test xarray.open_mfdataset with a Dask client using parallel=False for file opening.
+
+    Note: This uses parallel=False for file opening (safe) but Dask still
+    parallelizes the computation (which is what we actually want).
+    """
     import xarray as xr
     from dask.distributed import Client, LocalCluster
-
-    # h5netcdf with parallel=True causes segfaults - skip for h5netcdf
-    if engine == "h5netcdf":
-        pytest.skip("h5netcdf does not support parallel=True with Dask reliably")
 
     # Create a Dask cluster like in actual tests
     cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=True, silence_logs=False)
@@ -186,12 +187,13 @@ def test_xarray_open_mfdataset_with_dask_client(engine):
                 ds.to_netcdf(test_file, engine=engine)
                 files.append(str(test_file))
 
-            # Open with open_mfdataset using parallel=True (uses Dask client if available)
+            # Open with open_mfdataset using parallel=False (safe file opening)
+            # Dask still parallelizes the computation via the client
             ds_multi = xr.open_mfdataset(
-                files, engine=engine, parallel=True, combine="nested", concat_dim="time", use_cftime=True
+                files, engine=engine, parallel=False, combine="nested", concat_dim="time", use_cftime=True
             )
 
-            # Perform a computation that uses Dask
+            # Perform a computation that uses Dask (THIS is where parallelism happens)
             mean_temp = ds_multi.temperature.mean().compute()
 
             # Verify computation succeeded
@@ -305,9 +307,10 @@ def test_actual_fesom_files_with_open_mfdataset(engine, parallel):
 
     import xarray as xr
 
-    # h5netcdf with parallel=True causes segfaults due to thread-safety issues
-    if engine == "h5netcdf" and parallel:
-        pytest.skip("h5netcdf does not support parallel=True reliably")
+    # Both engines require thread-safe HDF5/NetCDF-C for parallel file opening
+    # System packages are NOT compiled with thread-safety
+    if parallel:
+        pytest.skip("parallel=True requires thread-safe HDF5/NetCDF-C libraries (not available in system packages)")
 
     fesom_dir = (
         Path.home()
