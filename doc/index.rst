@@ -28,6 +28,7 @@ Contents
    including_subcommand_plugins
    pycmor_fesom
    timeaveraging_frequencies
+   cmip7_controlled_vocabularies
    cookbook
    developer_guide
    developer_setup
