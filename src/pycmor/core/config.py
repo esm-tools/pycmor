@@ -113,8 +113,7 @@ XARRAY_OPTIONS = {
                 "missing_value": {
                     "default": 1.0e30,
                     "doc": (
-                        "Default missing value to use for xarray DataArray "
-                        "attributes and encoding. Default is 1e30."
+                        "Default missing value to use for xarray DataArray " "attributes and encoding. Default is 1e30."
                     ),
                     "parser": float,
                 },
