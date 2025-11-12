@@ -113,6 +113,10 @@ fesom = [
     "pyfesom2",
 ]
 
+cmip7 = [
+    "CMIP7-data-request-api",
+]
+
 [project.urls]
 Homepage = "https://github.com/esm-tools/pycmor"
 Repository = "https://github.com/esm-tools/pycmor"

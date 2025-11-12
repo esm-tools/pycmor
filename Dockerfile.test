@@ -41,7 +41,7 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER src/pycmor/_version.py src/pycmor/_version.
 COPY --chown=$MAMBA_USER:$MAMBA_USER . .
 
 # Install pycmor and dev dependencies via pip (uses conda's Python/libs)
-RUN pip install --no-cache-dir ".[dev,fesom]"
+RUN pip install --no-cache-dir ".[dev,fesom,cmip7]"
 
 # Set environment variables for testing
 ENV PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
