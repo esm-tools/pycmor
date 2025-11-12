@@ -314,7 +314,7 @@ class PycmorConfig:
             parser=_parse_bool,
         )
         warn_on_no_rule = Option(
-            default="yes",
+            default="no",
             doc="Whether or not to issue a warning if no rule is found for every single DataRequestVariable",
             parser=_parse_bool,
         )
