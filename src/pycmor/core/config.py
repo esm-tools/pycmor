@@ -527,6 +527,7 @@ def config_injector(config_manager=None, type_to_prefix_map=None):
     Examples
     --------
     >>> import xarray as xr
+    >>> import numpy as np
     >>> from pycmor.core.config import config_injector
     >>>
     >>> # Define type mapping
@@ -536,13 +537,19 @@ def config_injector(config_manager=None, type_to_prefix_map=None):
     ... def process_data(data: xr.DataArray, attrs_missing_value: float = None):
     ...     # If attrs_missing_value not provided, decorator injects from config:
     ...     # xarray_default_dataarray_attrs_missing_value
-    ...     print(f"Missing value: {attrs_missing_value}")
-    ...     return data
+    ...     return attrs_missing_value
+    >>>
+    >>> # Create test data
+    >>> my_data = xr.DataArray(np.array([1, 2, 3]), dims=['x'])
     >>>
     >>> # Call without providing attrs_missing_value - it gets injected from config
     >>> result = process_data(my_data)  # Uses config value
+    >>> result == 1e+30  # Default from config
+    True
     >>> # Or override it
-    >>> result = process_data(my_data, attrs_missing_value=999)  # Uses 999
+    >>> result = process_data(my_data, attrs_missing_value=999)
+    >>> result == 999
+    True
     """
     import functools
     import inspect
