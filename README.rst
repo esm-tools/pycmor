@@ -41,6 +41,10 @@ To get started, you can install it via ``pip``::
 
     pip install pycmor
 
+For CMIP7 support, install with the optional CMIP7 dependency::
+
+    pip install pycmor[cmip7]
+
 Then you can run the main command line interface. Start out by getting some help::
 
     pycmor --help
