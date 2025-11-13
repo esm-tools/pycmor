@@ -150,20 +150,22 @@ class CMIP7Interface:
             logger.info(f"Loading CMIP7 metadata for version: {version} using API")
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
+                output_file = tmpdir_path / "metadata.json"
                 # Export metadata using the command-line tool
-                logger.debug(f"Exporting CMIP7 data request to temporary directory: {tmpdir_path}")
+                # Signature: export_dreq_lists_json VERSION OUTPUT_FILE [options]
+                logger.debug(f"Exporting CMIP7 data request to: {output_file}")
                 result = subprocess.run(
-                    ["export_dreq_lists_json", "--version", version, "--output-dir", str(tmpdir_path)],
+                    ["export_dreq_lists_json", version, str(output_file)],
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode != 0:
                     raise RuntimeError(
                         f"Failed to export CMIP7 metadata: {result.stderr}\n"
-                        f"You may need to run: export_dreq_lists_json --version {version} --output-dir <path>"
+                        f"You may need to run: export_dreq_lists_json {version} <output_file>"
                     )
                 # Load the generated metadata file
-                metadata_file = tmpdir_path / "all_var_info.json"
+                metadata_file = output_file
                 if not metadata_file.exists():
                     raise FileNotFoundError(
                         f"Metadata file not found after export: {metadata_file}. "
@@ -493,8 +495,10 @@ def get_cmip7_interface(version: str = "v1.2.2.2", metadata_file: Optional[Union
 
     Examples
     --------
-    >>> interface = get_cmip7_interface(metadata_file='dreq_v1.2.2.2_metadata.json')
+    >>> interface = get_cmip7_interface()  # Downloads and loads v1.2.2.2
     >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
+    >>> print(metadata['standard_name'])  # doctest: +ELLIPSIS
+    'air_temperature'
     """
     interface = CMIP7Interface()
     interface.load_metadata(version, metadata_file=metadata_file)
