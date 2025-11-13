@@ -143,15 +143,36 @@ class CMIP7Interface:
                 self._metadata = json.load(f)
             self._version = self._metadata.get("Header", {}).get("dreq content version", version)
         else:
-            # Use the API to export metadata
-            logger.info(f"Loading CMIP7 metadata for version: {version}")
-            # For now, we expect the user to have run export_dreq_lists_json
-            # and provide the metadata file path
-            raise NotImplementedError(
-                "Direct API loading not yet implemented. "
-                "Please run export_dreq_lists_json to generate metadata file, "
-                "then use load_metadata(metadata_file='path/to/metadata.json')"
-            )
+            # Use the API to export metadata directly
+            import subprocess
+            import tempfile
+
+            logger.info(f"Loading CMIP7 metadata for version: {version} using API")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmpdir_path = Path(tmpdir)
+                # Export metadata using the command-line tool
+                logger.debug(f"Exporting CMIP7 data request to temporary directory: {tmpdir_path}")
+                result = subprocess.run(
+                    ["export_dreq_lists_json", "--version", version, "--output-dir", str(tmpdir_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"Failed to export CMIP7 metadata: {result.stderr}\n"
+                        f"You may need to run: export_dreq_lists_json --version {version} --output-dir <path>"
+                    )
+                # Load the generated metadata file
+                metadata_file = tmpdir_path / "all_var_info.json"
+                if not metadata_file.exists():
+                    raise FileNotFoundError(
+                        f"Metadata file not found after export: {metadata_file}. "
+                        f"Expected files in {tmpdir_path}: {list(tmpdir_path.glob('*'))}"
+                    )
+                logger.debug(f"Reading metadata from: {metadata_file}")
+                with open(metadata_file, "r") as f:
+                    self._metadata = json.load(f)
+                self._version = version
 
         logger.info(f"Loaded metadata for {len(self._metadata.get('Compound Name', {}))} variables")
         return self._metadata
