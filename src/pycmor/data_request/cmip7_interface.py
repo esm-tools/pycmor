@@ -17,18 +17,26 @@ Usage:
 ------
 >>> from pycmor.data_request import CMIP7Interface
 >>> interface = CMIP7Interface()
+>>> metadata_dict = interface.load_metadata('v1.2.2.2')  # doctest: +ELLIPSIS
+>>> len(metadata_dict.get('Compound Name', {})) > 0
+True
 >>>
 >>> # Get metadata by CMIP7 compound name
->>> metadata = interface.get_variable_metadata('atmos.clt.tavg-u-hxy-u.mon.GLB')
+>>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
+>>> metadata is not None
+True
+>>> metadata['standard_name']  # doctest: +ELLIPSIS
+'air_temperature'
 >>>
 >>> # Get metadata by CMIP6 compound name (backward compatibility)
->>> metadata = interface.get_variable_by_cmip6_name('Amon.clt')
+>>> metadata = interface.get_variable_by_cmip6_name('Amon.tas')
+>>> metadata is not None
+True
 >>>
 >>> # Find all variants of a variable
->>> variants = interface.find_variable_variants('clt')
->>>
->>> # Get variables for an experiment
->>> vars_hist = interface.get_variables_for_experiment('historical', 'v1.2.2.2')
+>>> variants = interface.find_variable_variants('tas', realm='atmos')
+>>> len(variants) > 0
+True
 """
 
 import json
