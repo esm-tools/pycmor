@@ -231,6 +231,11 @@ addopts = [
     "--cov=pycmor",
     "--cov-report=term-missing",
     "-m", "not slow",
+    "--log-disable=distributed",
+    "--log-disable=distributed.core",
+    "--log-disable=distributed.scheduler",
+    "--log-disable=distributed.nanny",
+    "--log-disable=prefect",
 ]
 testpaths = ["tests"]
 markers = [
