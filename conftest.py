@@ -1,4 +1,19 @@
+import logging
+
 from tests.utils.constants import TEST_ROOT  # noqa: F401
+
+
+def pytest_configure(config):
+    """Configure pytest and suppress noisy third-party logs."""
+    # Suppress noisy logs from distributed/dask/prefect during tests
+    logging.getLogger("distributed").setLevel(logging.WARNING)
+    logging.getLogger("distributed.core").setLevel(logging.WARNING)
+    logging.getLogger("distributed.scheduler").setLevel(logging.WARNING)
+    logging.getLogger("distributed.nanny").setLevel(logging.WARNING)
+    logging.getLogger("distributed.worker").setLevel(logging.WARNING)
+    logging.getLogger("distributed.http.proxy").setLevel(logging.WARNING)
+    logging.getLogger("prefect").setLevel(logging.WARNING)
+
 
 pytest_plugins = [
     "tests.fixtures.CMIP_Tables_Dir",
