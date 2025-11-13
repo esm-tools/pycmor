@@ -232,6 +232,7 @@ def timeavg(da: xr.DataArray, rule):
     >>> mock_table_header = SimpleNamespace(approx_interval="30.0", table_id="Amon")
     >>> mock_drv = SimpleNamespace(frequency="mon", table_header=mock_table_header)
     >>> rule = SimpleNamespace(data_request_variable=mock_drv)
+    >>> rule.get = lambda key, default=None: getattr(rule, key, default)
 
     Apply monthly averaging:
 
@@ -262,6 +263,7 @@ def timeavg(da: xr.DataArray, rule):
     >>> mock_table_header_pt = SimpleNamespace(approx_interval="0.125", table_id="3hrPt")
     >>> mock_drv_pt = SimpleNamespace(frequency="3hrPt", table_header=mock_table_header_pt)
     >>> rule_pt = SimpleNamespace(data_request_variable=mock_drv_pt)
+    >>> rule_pt.get = lambda key, default=None: getattr(rule_pt, key, default)
     >>> result_pt = timeavg(da_hourly, rule_pt)
     >>> print("OUTPUT - 3-hourly instantaneous samples:")  # doctest: +ELLIPSIS
     OUTPUT - 3-hourly instantaneous samples:
@@ -276,6 +278,7 @@ def timeavg(da: xr.DataArray, rule):
     ...     data_request_variable=mock_drv,
     ...     adjust_timestamp=0.5
     ... )
+    >>> rule_adjusted.get = lambda key, default=None: getattr(rule_adjusted, key, default)
     >>> result_adjusted = timeavg(da, rule_adjusted)
     >>> print("OUTPUT - Monthly mean with mid-month timestamps:")  # doctest: +ELLIPSIS
     OUTPUT - Monthly mean with mid-month timestamps:

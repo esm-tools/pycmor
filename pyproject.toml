@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 name = "pycmor"
 description = "Makes CMOR Simple"
 readme = {file = "README.rst", content-type = "text/x-rst"}
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Paul Gierz", email = "pgierz@awi.de"},
 ]
@@ -33,7 +33,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Atmospheric Science",
     "Topic :: Scientific/Engineering :: Oceanography",
-    "License :: OSI Approved :: MIT License",
 ]
 
 keywords = ["cmor", "climate", "data", "netcdf", "cmip"]
@@ -112,6 +111,10 @@ fesom = [
     #
     #             $ gh pr view 215 --repo fesom/pyfesom2
     "pyfesom2",
+]
+
+cmip7 = [
+    "CMIP7-data-request-api",
 ]
 
 [project.urls]

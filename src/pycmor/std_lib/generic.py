@@ -94,22 +94,16 @@ def linear_transform(filepath: Path, execute: bool = False, slope: float = 1, of
     ...         dims=['time']
     ...     )
     ... })
-    >>> print("INPUT:")
-    >>> print(data.temperature.values)
-    INPUT:
-    [10. 20. 30.]
+    >>> print("INPUT:", data.temperature.values)
+    INPUT: [10. 20. 30.]
     >>> # Apply transformation: Celsius to Kelvin (slope=1, offset=273.15)
     >>> transformed = data * 1 + 273.15
-    >>> print("OUTPUT (C to K):")
-    >>> print(transformed.temperature.values)
-    OUTPUT (C to K):
-    [283.15 293.15 303.15]
+    >>> print("OUTPUT (C to K):", transformed.temperature.values)
+    OUTPUT (C to K): [283.15 293.15 303.15]
     >>> # Apply transformation: Double and add 5
     >>> transformed = data * 2 + 5
-    >>> print("OUTPUT (2x + 5):")
-    >>> print(transformed.temperature.values)
-    OUTPUT (2x + 5):
-    [25. 45. 65.]
+    >>> print("OUTPUT (2x + 5):", transformed.temperature.values)
+    OUTPUT (2x + 5): [25. 45. 65.]
     """
     if execute:
         ds = xr.open_dataset(filepath)
@@ -146,34 +140,24 @@ def invert_z_axis(filepath: Path, execute: bool = False, flip_sign: bool = False
     ...         coords={'z': [0, 10, 20], 'x': [0, 1]}
     ...     )
     ... })
-    >>> print("INPUT z-axis:")
-    >>> print(data.z.values)
-    INPUT z-axis:
-    [ 0 10 20]
-    >>> print("INPUT temperature:")
-    >>> print(data.temperature.values)  # doctest: +NORMALIZE_WHITESPACE
-    INPUT temperature:
-    [[10. 15.]
+    >>> print("INPUT z-axis:", data.z.values)
+    INPUT z-axis: [ 0 10 20]
+    >>> print("INPUT temperature:", data.temperature.values)  # doctest: +NORMALIZE_WHITESPACE
+    INPUT temperature: [[10. 15.]
      [20. 25.]
      [30. 35.]]
     >>> # Invert z-axis order
     >>> inverted = data.reindex(z=data.z[::-1])
-    >>> print("OUTPUT z-axis (inverted order):")
-    >>> print(inverted.z.values)
-    OUTPUT z-axis (inverted order):
-    [20 10  0]
-    >>> print("OUTPUT temperature (inverted):")
-    >>> print(inverted.temperature.values)  # doctest: +NORMALIZE_WHITESPACE
-    OUTPUT temperature (inverted):
-    [[30. 35.]
+    >>> print("OUTPUT z-axis (inverted order):", inverted.z.values)
+    OUTPUT z-axis (inverted order): [20 10  0]
+    >>> print("OUTPUT temperature (inverted):", inverted.temperature.values)  # doctest: +NORMALIZE_WHITESPACE
+    OUTPUT temperature (inverted): [[30. 35.]
      [20. 25.]
      [10. 15.]]
     >>> # Flip sign of z-axis
     >>> inverted['z'] = inverted.z * -1
-    >>> print("OUTPUT z-axis (flipped sign):")
-    >>> print(inverted.z.values)
-    OUTPUT z-axis (flipped sign):
-    [-20 -10   0]
+    >>> print("OUTPUT z-axis (flipped sign):", inverted.z.values)
+    OUTPUT z-axis (flipped sign): [-20 -10   0]
     """
     if execute:
         ds = xr.open_dataset(filepath)
@@ -224,10 +208,8 @@ def create_cmor_directories(config: dict) -> dict:
     ...     'grid_label': 'gn',
     ...     'version': 'v20191018'
     ... }
-    >>> print("INPUT config keys:")
-    >>> print(sorted([k for k in config.keys() if k != 'output_root']))  # doctest: +ELLIPSIS
-    INPUT config keys:
-    ['activity_id', 'experiment_id', 'grid_label', 'institution_id', 'member_id', ...]
+    >>> print("INPUT config keys:", sorted([k for k in config.keys() if k != 'output_root']))  # doctest: +ELLIPSIS
+    INPUT config keys: ['activity_id', 'experiment_id', 'grid_label', 'institution_id', 'member_id', ...]
     >>> # Create directory structure
     >>> result = create_cmor_directories(config)  # doctest: +SKIP
     >>> print("OUTPUT has output_dir:", 'output_dir' in result)  # doctest: +SKIP
@@ -364,17 +346,11 @@ def dummy_logic_step(data, rule_spec, *args, **kwargs):
     ...     dims=['time'],
     ...     attrs={'original': 'value'}
     ... )
-    >>> print("INPUT attributes:")
-    >>> print(data.attrs)
-    INPUT attributes:
-    {'original': 'value'}
+    >>> print("INPUT attributes:", data.attrs)
+    INPUT attributes: {'original': 'value'}
     >>> # Add dummy attribute
     >>> rule_spec = SimpleNamespace()
     >>> result = dummy_logic_step(data, rule_spec)
-    >>> print("OUTPUT attributes:")
-    >>> print(dict(result.attrs))  # doctest: +ELLIPSIS
-    OUTPUT attributes:
-    {...'dummy_attribute': 'dummy_value'...}
     >>> print("Has dummy_attribute:", 'dummy_attribute' in result.attrs)
     Has dummy_attribute: True
     >>> print("dummy_attribute value:", result.attrs['dummy_attribute'])
@@ -414,10 +390,8 @@ def dummy_save_data(data, rule_spec, *args, **kwargs):
     ...     np.array([1.0, 2.0, 3.0]),
     ...     dims=['time']
     ... )
-    >>> print("INPUT:")
-    >>> print(data.values)
-    INPUT:
-    [1. 2. 3.]
+    >>> print("INPUT:", data.values)
+    INPUT: [1. 2. 3.]
     >>> # Save data (creates temporary file)
     >>> rule_spec = SimpleNamespace()
     >>> result = dummy_save_data(data, rule_spec)  # doctest: +SKIP
@@ -463,10 +437,8 @@ def dummy_sleep(data, rule_spec, *arg, **kwargs):
     ...     np.array([1.0, 2.0, 3.0]),
     ...     dims=['time']
     ... )
-    >>> print("INPUT:")
-    >>> print(data.values)
-    INPUT:
-    [1. 2. 3.]
+    >>> print("INPUT:", data.values)
+    INPUT: [1. 2. 3.]
     >>> # Sleep function (skipped to avoid delays in tests)
     >>> rule_spec = SimpleNamespace()
     >>> result = dummy_sleep(data, rule_spec)  # doctest: +SKIP
@@ -512,17 +484,13 @@ def show_data(data, rule_spec, *args, **kwargs):
     ...     dims=['time'],
     ...     name='temperature'
     ... )
-    >>> print("INPUT:")
-    >>> print(data.values)
-    INPUT:
-    [1. 2. 3.]
+    >>> print("INPUT:", data.values)
+    INPUT: [1. 2. 3.]
     >>> # show_data returns data unchanged
     >>> rule_spec = SimpleNamespace()
     >>> result = show_data(data, rule_spec)
-    >>> print("OUTPUT (unchanged):")
-    >>> print(result.values)
-    OUTPUT (unchanged):
-    [1. 2. 3.]
+    >>> print("OUTPUT (unchanged):", result.values)
+    OUTPUT (unchanged): [1. 2. 3.]
     >>> print("OUTPUT equals INPUT:", np.array_equal(result.values, data.values))
     OUTPUT equals INPUT: True
     """
@@ -558,36 +526,25 @@ def get_variable(data, rule_spec, *args, **kwargs):
     ...     'pressure': xr.DataArray([1013.0, 1015.0, 1012.0], dims=['time']),
     ...     'humidity': xr.DataArray([60.0, 65.0, 70.0], dims=['time'])
     ... })
-    >>> print("INPUT dataset variables:")
-    >>> print(list(data.data_vars))
-    INPUT dataset variables:
-    ['temperature', 'pressure', 'humidity']
-    >>> print("INPUT temperature values:")
-    >>> print(data['temperature'].values)
-    [20. 25. 30.]
+    >>> print("INPUT dataset variables:", list(data.data_vars))
+    INPUT dataset variables: ['temperature', 'pressure', 'humidity']
+    >>> print("INPUT temperature values:", data['temperature'].values)
+    INPUT temperature values: [20. 25. 30.]
     >>> # Create mock rule_spec with model_variable attribute
     >>> rule_spec = SimpleNamespace(model_variable='temperature')
     >>> # Extract specific variable
     >>> result = get_variable(data, rule_spec)
-    >>> print("OUTPUT (extracted 'temperature'):")
-    >>> print(result.values)
-    OUTPUT (extracted 'temperature'):
-    [20. 25. 30.]
-    >>> print("OUTPUT type:")
-    >>> print(type(result).__name__)
-    OUTPUT type:
-    DataArray
-    >>> print("OUTPUT name:")
-    >>> print(result.name)
-    OUTPUT name:
-    temperature
+    >>> print("OUTPUT (extracted 'temperature'):", result.values)
+    OUTPUT (extracted 'temperature'): [20. 25. 30.]
+    >>> print("OUTPUT type:", type(result).__name__)
+    OUTPUT type: DataArray
+    >>> print("OUTPUT name:", result.name)
+    OUTPUT name: temperature
     >>> # Extract a different variable
     >>> rule_spec2 = SimpleNamespace(model_variable='pressure')
     >>> result2 = get_variable(data, rule_spec2)
-    >>> print("OUTPUT (extracted 'pressure'):")
-    >>> print(result2.values)
-    OUTPUT (extracted 'pressure'):
-    [1013. 1015. 1012.]
+    >>> print("OUTPUT (extracted 'pressure'):", result2.values)
+    OUTPUT (extracted 'pressure'): [1013. 1015. 1012.]
     """
     return data[rule_spec.model_variable]
 
@@ -627,23 +584,19 @@ def resample_monthly(data, rule_spec, *args, **kwargs):
     ...     dims=['time'],
     ...     coords={'time': times}
     ... )
-    >>> print("INPUT time range:")
-    >>> print(f"{str(data.time.values[0])[:10]} to {str(data.time.values[-1])[:10]}")
-    INPUT time range:
-    2020-01-01 to 2020-03-31
+    >>> print("INPUT time range:", f"{str(data.time.values[0])[:10]} to {str(data.time.values[-1])[:10]}")
+    INPUT time range: 2020-01-01 to 2020-03-31
     >>> print("INPUT data points:", len(data))
     INPUT data points: 91
-    >>> print("INPUT first 3 values (Jan):")
-    >>> print(data.values[:3])
-    [10. 10. 10.]
+    >>> print("INPUT first 3 values (Jan):", data.values[:3])
+    INPUT first 3 values (Jan): [10. 10. 10.]
     >>> # Resample to monthly means
     >>> rule_spec = SimpleNamespace()
     >>> monthly = resample_monthly(data, rule_spec)
     >>> print("OUTPUT data points:", len(monthly))
     OUTPUT data points: 3
-    >>> print("OUTPUT monthly means:")
-    >>> print(monthly.values)
-    [10. 20. 30.]
+    >>> print("OUTPUT monthly means:", monthly.values)
+    OUTPUT monthly means: [10. 20. 30.]
     >>> print("OUTPUT time dimension preserved:", 'time' in monthly.dims)
     OUTPUT time dimension preserved: True
     """
@@ -692,23 +645,19 @@ def resample_yearly(data, rule_spec, *args, **kwargs):
     ...     dims=['time'],
     ...     coords={'time': times}
     ... )
-    >>> print("INPUT time range:")
-    >>> print(f"{str(data.time.values[0])[:10]} to {str(data.time.values[-1])[:10]}")
-    INPUT time range:
-    2020-01-01 to 2022-12-01
+    >>> print("INPUT time range:", f"{str(data.time.values[0])[:10]} to {str(data.time.values[-1])[:10]}")
+    INPUT time range: 2020-01-01 to 2022-12-01
     >>> print("INPUT data points:", len(data))
     INPUT data points: 36
-    >>> print("INPUT first 3 values (2020):")
-    >>> print(data.values[:3])
-    [10. 10. 10.]
+    >>> print("INPUT first 3 values (2020):", data.values[:3])
+    INPUT first 3 values (2020): [10. 10. 10.]
     >>> # Resample to yearly means
     >>> rule_spec = SimpleNamespace()
     >>> yearly = resample_yearly(data, rule_spec)
     >>> print("OUTPUT data points:", len(yearly))
     OUTPUT data points: 3
-    >>> print("OUTPUT yearly means:")
-    >>> print(yearly.values)
-    [10. 20. 30.]
+    >>> print("OUTPUT yearly means:", yearly.values)
+    OUTPUT yearly means: [10. 20. 30.]
     >>> print("OUTPUT time dimension preserved:", 'time' in yearly.dims)
     OUTPUT time dimension preserved: True
     """
@@ -757,9 +706,8 @@ def multiyear_monthly_mean(data, rule_spec, *args, **kwargs):
     ... )
     >>> print("INPUT time points:", len(data))
     INPUT time points: 24
-    >>> print("INPUT first 6 values:")
-    >>> print(data.values[:6])
-    [10. 20. 30. 10. 20. 30.]
+    >>> print("INPUT first 6 values:", data.values[:6])
+    INPUT first 6 values: [10. 20. 30. 10. 20. 30.]
     >>> print("INPUT covers 2 years: 2020 and 2021")
     INPUT covers 2 years: 2020 and 2021
     >>> # Compute multi-year monthly mean (climatology)
@@ -767,14 +715,12 @@ def multiyear_monthly_mean(data, rule_spec, *args, **kwargs):
     >>> climatology = multiyear_monthly_mean(data, rule_spec)
     >>> print("OUTPUT months:", len(climatology))
     OUTPUT months: 12
-    >>> print("OUTPUT climatology values (repeating pattern):")
-    >>> print(climatology.values)
-    [10. 20. 30. 10. 20. 30. 10. 20. 30. 10. 20. 30.]
+    >>> print("OUTPUT climatology values (repeating pattern):", climatology.values)
+    OUTPUT climatology values (repeating pattern): [10. 20. 30. 10. 20. 30. 10. 20. 30. 10. 20. 30.]
     >>> print("OUTPUT has 'month' coordinate:", 'month' in climatology.coords)
     OUTPUT has 'month' coordinate: True
-    >>> print("OUTPUT month range:")
-    >>> print(climatology.month.values)
-    [ 1  2  3  4  5  6  7  8  9 10 11 12]
+    >>> print("OUTPUT month range:", climatology.month.values)
+    OUTPUT month range: [ 1  2  3  4  5  6  7  8  9 10 11 12]
     """
     multiyear_monthly_mean = data.groupby("time.month").mean(dim="time")
     return multiyear_monthly_mean
@@ -806,24 +752,18 @@ def trigger_compute(data, rule_spec, *args, **kwargs):
     ...     np.array([1.0, 2.0, 3.0]),
     ...     dims=['time']
     ... )
-    >>> print("INPUT:")
-    >>> print(data.values)
-    INPUT:
-    [1. 2. 3.]
+    >>> print("INPUT:", data.values)
+    INPUT: [1. 2. 3.]
     >>> # Trigger compute (no-op for eager numpy arrays)
     >>> rule_spec = SimpleNamespace()
     >>> result = trigger_compute(data, rule_spec)
-    >>> print("OUTPUT:")
-    >>> print(result.values)
-    OUTPUT:
-    [1. 2. 3.]
+    >>> print("OUTPUT:", result.values)
+    OUTPUT: [1. 2. 3.]
     >>> # Create lazy data with simple operation
     >>> lazy_data = data + 10  # This might be lazy in dask
     >>> computed = trigger_compute(lazy_data, rule_spec)
-    >>> print("OUTPUT (computed):")
-    >>> print(computed.values)
-    OUTPUT (computed):
-    [11. 12. 13.]
+    >>> print("OUTPUT (computed):", computed.values)
+    OUTPUT (computed): [11. 12. 13.]
     """
     if hasattr(data, "compute"):
         return data.compute()
@@ -858,15 +798,12 @@ def rename_dims(data, rule_spec):
     ...     dims=['lev', 'rlat', 'rlon'],
     ...     coords={'lev': [0, 10, 20], 'rlat': [0, 1, 2, 3], 'rlon': [0, 1, 2, 3, 4]}
     ... )
-    >>> print("INPUT dimensions:")
-    >>> print(list(data.dims))
-    INPUT dimensions:
-    ['lev', 'rlat', 'rlon']
+    >>> print("INPUT dimensions:", list(data.dims))
+    INPUT dimensions: ['lev', 'rlat', 'rlon']
     >>> print("INPUT shape:", data.shape)
     INPUT shape: (3, 4, 5)
-    >>> print("INPUT coordinates:")
-    >>> print(list(data.coords))
-    ['lev', 'rlat', 'rlon']
+    >>> print("INPUT coordinates:", list(data.coords))
+    INPUT coordinates: ['lev', 'rlat', 'rlon']
     >>> # Create rule_spec with dimension mapping (model names -> CMOR names)
     >>> rule_spec = SimpleNamespace(
     ...     model_dim={'lev': 'plev', 'rlat': 'lat', 'rlon': 'lon'}
@@ -874,28 +811,21 @@ def rename_dims(data, rule_spec):
     >>> rule_spec.get = lambda key, default=None: getattr(rule_spec, key, default)
     >>> # Rename dimensions
     >>> renamed = rename_dims(data, rule_spec)
-    >>> print("OUTPUT dimensions:")
-    >>> print(list(renamed.dims))
-    OUTPUT dimensions:
-    ['plev', 'lat', 'lon']
+    >>> print("OUTPUT dimensions:", list(renamed.dims))
+    OUTPUT dimensions: ['plev', 'lat', 'lon']
     >>> print("OUTPUT shape (unchanged):", renamed.shape)
     OUTPUT shape (unchanged): (3, 4, 5)
-    >>> print("OUTPUT coordinates:")
-    >>> print(list(renamed.coords))
-    OUTPUT coordinates:
-    ['plev', 'lat', 'lon']
+    >>> print("OUTPUT coordinates:", list(renamed.coords))
+    OUTPUT coordinates: ['plev', 'lat', 'lon']
     >>> # Verify coordinate values are preserved
-    >>> print("OUTPUT plev values:")
-    >>> print(renamed.plev.values)
-    [ 0 10 20]
+    >>> print("OUTPUT plev values:", renamed.plev.values)
+    OUTPUT plev values: [ 0 10 20]
     >>> # Test with no model_dim attribute (no-op)
     >>> rule_spec_no_dim = SimpleNamespace()
     >>> rule_spec_no_dim.get = lambda key, default=None: None
     >>> unchanged = rename_dims(data, rule_spec_no_dim)
-    >>> print("OUTPUT (no rename) dimensions:")
-    >>> print(list(unchanged.dims))
-    OUTPUT (no rename) dimensions:
-    ['lev', 'rlat', 'rlon']
+    >>> print("OUTPUT (no rename) dimensions:", list(unchanged.dims))
+    OUTPUT (no rename) dimensions: ['lev', 'rlat', 'rlon']
     """
     # Check if the rule_spec has a model_dim attribute
     if rule_spec.get("model_dim"):
@@ -942,37 +872,31 @@ def sort_dimensions(data, rule_spec):
     ...     dims=['lon', 'lat', 'time'],
     ...     coords={'lon': [0, 1], 'lat': [0, 1, 2], 'time': [0, 1, 2, 3]}
     ... )
-    >>> print("INPUT dimensions:")
-    >>> print(list(data.dims))
-    INPUT dimensions:
-    ['lon', 'lat', 'time']
+    >>> print("INPUT dimensions:", list(data.dims))
+    INPUT dimensions: ['lon', 'lat', 'time']
     >>> print("INPUT shape:", data.shape)
     INPUT shape: (2, 3, 4)
     >>> print("INPUT data[0, 0, :]:", data.values[0, 0, :])
-    [0 1 2 3]
+    INPUT data[0, 0, :]: [0 1 2 3]
     >>> # Create rule_spec with desired dimension order
     >>> rule_spec = SimpleNamespace(array_order=['time', 'lat', 'lon'])
     >>> rule_spec.get = lambda key, default=None: getattr(rule_spec, key, default)
     >>> # Sort dimensions to CMOR standard order (time, lat, lon)
     >>> sorted_data = sort_dimensions(data, rule_spec)
-    >>> print("OUTPUT dimensions:")
-    >>> print(list(sorted_data.dims))
-    OUTPUT dimensions:
-    ['time', 'lat', 'lon']
+    >>> print("OUTPUT dimensions:", list(sorted_data.dims))
+    OUTPUT dimensions: ['time', 'lat', 'lon']
     >>> print("OUTPUT shape:", sorted_data.shape)
     OUTPUT shape: (4, 3, 2)
     >>> # Verify data is correctly transposed
     >>> print("OUTPUT data[:, 0, 0]:", sorted_data.values[:, 0, 0])
-    [0 1 2 3]
+    OUTPUT data[:, 0, 0]: [0 1 2 3]
     >>> # Test with string dimensions (space-separated)
     >>> drv = SimpleNamespace(dimensions="time lat lon")
     >>> rule_spec2 = SimpleNamespace(data_request_variable=drv)
     >>> rule_spec2.get = lambda key, default=None: getattr(rule_spec2, key, default)
     >>> sorted_data2 = sort_dimensions(data, rule_spec2)
-    >>> print("OUTPUT dimensions (from string):")
-    >>> print(list(sorted_data2.dims))
-    OUTPUT dimensions (from string):
-    ['time', 'lat', 'lon']
+    >>> print("OUTPUT dimensions (from string):", list(sorted_data2.dims))
+    OUTPUT dimensions (from string): ['time', 'lat', 'lon']
     """
     missing_dims = rule_spec.get("sort_dimensions_missing_dims", "raise")
 

@@ -18,6 +18,13 @@ from rich.progress import track
 from ..data_request.collection import DataRequest
 from ..data_request.table import DataRequestTable
 from ..data_request.variable import DataRequestVariable
+
+# Import CMIP7 interface if available
+try:
+    from ..data_request.cmip7_interface import CMIP7_API_AVAILABLE, CMIP7Interface
+except ImportError:
+    CMIP7Interface = None
+    CMIP7_API_AVAILABLE = False
 from ..std_lib.global_attributes import GlobalAttributes
 from ..std_lib.timeaverage import _frequency_from_approx_interval
 from .aux_files import attach_files_to_rule
@@ -117,6 +124,7 @@ class CMORizer:
         self._post_init_create_rules()
         self._post_init_create_data_request_tables()
         self._post_init_create_data_request()
+        self._post_init_create_cmip7_interface()
         self._post_init_populate_rules_with_tables()
         self._post_init_populate_rules_with_dimensionless_unit_mappings()
         self._post_init_populate_rules_with_aux_files()
@@ -236,6 +244,60 @@ class CMORizer:
         data_request_factory = create_factory(DataRequest)
         DataRequestClass = data_request_factory.get(self.cmor_version)
         self.data_request = DataRequestClass.from_directory(table_dir)
+
+    def _post_init_create_cmip7_interface(self):
+        """
+        Initialize CMIP7 interface if available and configured.
+
+        This method creates an optional CMIP7Interface instance that can be used
+        for advanced queries and metadata lookups. The interface is only created
+        if:
+        1. The CMOR version is CMIP7
+        2. The CMIP7 Data Request API is available
+        3. A metadata file is configured in general_cfg
+
+        The metadata file should be generated using the official CMIP7 API:
+            export_dreq_lists_json -a -m metadata.json v1.2.2.2 experiments.json
+
+        Configuration example:
+            general:
+                cmor_version: CMIP7
+                cmip7_metadata_file: /path/to/dreq_v1.2.2.2_metadata.json
+                cmip7_experiments_file: /path/to/dreq_v1.2.2.2.json  # optional
+        """
+        if self.cmor_version == "CMIP7" and CMIP7_API_AVAILABLE:
+            metadata_file = self._general_cfg.get("cmip7_metadata_file")
+
+            if metadata_file and Path(metadata_file).exists():
+                logger.info("Initializing CMIP7 interface...")
+                self.cmip7_interface = CMIP7Interface()
+                self.cmip7_interface.load_metadata(metadata_file=str(metadata_file))
+
+                # Optionally load experiments data if configured
+                experiments_file = self._general_cfg.get("cmip7_experiments_file")
+                if experiments_file and Path(experiments_file).exists():
+                    self.cmip7_interface.load_experiments_data(str(experiments_file))
+                    logger.info("CMIP7 interface initialized with experiments data")
+                else:
+                    logger.info("CMIP7 interface initialized (without experiments data)")
+            else:
+                self.cmip7_interface = None
+                if metadata_file:
+                    logger.warning(
+                        f"CMIP7 metadata file not found: {metadata_file}. " "CMIP7 interface will not be available."
+                    )
+                else:
+                    logger.debug(
+                        "No CMIP7 metadata file configured. "
+                        "CMIP7 interface will not be available. "
+                        "To enable, set 'cmip7_metadata_file' in general config."
+                    )
+        else:
+            self.cmip7_interface = None
+            if self.cmor_version == "CMIP7" and not CMIP7_API_AVAILABLE:
+                logger.warning(
+                    "CMIP7 Data Request API not available. " "Install with: pip install CMIP7-data-request-api"
+                )
 
     def _post_init_populate_rules_with_tables(self):
         """

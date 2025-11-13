@@ -26,7 +26,7 @@ def set_variable_attrs(ds: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union
         raise TypeError("Input must be an xarray Dataset or DataArray")
 
     # Use the associated data_request_variable to set the variable attributes
-    missing_value = rule._pymor_cfg("xarray_default_missing_value")
+    missing_value = rule._pymor_cfg("xarray_default_dataarray_attrs_missing_value")
     attrs = rule.data_request_variable.attrs.copy()  # avoid modifying original
 
     # Set missing value in attrs if not present
@@ -34,7 +34,7 @@ def set_variable_attrs(ds: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union
         if attrs.get(attr) is None:
             attrs[attr] = missing_value
 
-    skip_setting_unit_attr = rule._pymor_cfg("xarray_skip_unit_attr_from_drv")
+    skip_setting_unit_attr = rule._pymor_cfg("xarray_default_dataarray_processing_skip_unit_attr_from_drv")
     if skip_setting_unit_attr:
         attrs.pop("units", None)
 

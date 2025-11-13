@@ -1,80 +1,56 @@
 # Dockerfile for pycmor testing environment
-# Debian slim with custom thread-safe HDF5 and NetCDF
+# Uses micromamba for compatible HDF5/NetCDF/netcdf4-python stack
 
 ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim
+FROM mambaorg/micromamba:1.5.10
 
-# HDF5 and NetCDF versions
-ENV HDF5_VERSION=1.14.3
-ENV NETCDF_C_VERSION=4.9.2
+USER root
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     build-essential \
-    wget \
-    m4 \
-    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Build HDF5 from source with thread safety ENABLED
-RUN cd /tmp && \
-    wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.14/hdf5-${HDF5_VERSION}/src/hdf5-${HDF5_VERSION}.tar.gz && \
-    tar -xzf hdf5-${HDF5_VERSION}.tar.gz && \
-    cd hdf5-${HDF5_VERSION} && \
-    ./configure \
-        --prefix=/usr/local \
-        --enable-threadsafe \
-        --enable-unsupported && \
-    make -j$(nproc) && \
-    make install && \
-    cd /tmp && \
-    rm -rf hdf5-${HDF5_VERSION}* && \
-    ldconfig
-
-# Build NetCDF-C from source
-RUN cd /tmp && \
-    wget https://github.com/Unidata/netcdf-c/archive/refs/tags/v${NETCDF_C_VERSION}.tar.gz && \
-    tar -xzf v${NETCDF_C_VERSION}.tar.gz && \
-    cd netcdf-c-${NETCDF_C_VERSION} && \
-    CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" \
-    ./configure \
-        --prefix=/usr/local \
-        --disable-dap \
-        --disable-libxml2 \
-        --disable-byterange && \
-    make -j$(nproc) && \
-    make install && \
-    cd /tmp && \
-    rm -rf netcdf-c-${NETCDF_C_VERSION}* && \
-    ldconfig
-
-# Set working directory
+# Set working directory and give ownership to MAMBA_USER
 WORKDIR /workspace
+RUN chown -R $MAMBA_USER:$MAMBA_USER /workspace && \
+    chmod -R 755 /workspace
 
-# Copy requirements first for better caching
-COPY pyproject.toml versioneer.py ./
-COPY src/pycmor/_version.py src/pycmor/_version.py
+# Switch to micromamba user for conda operations
+USER $MAMBA_USER
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip wheel setuptools
+# Install Python and scientific stack via micromamba (ensures compatibility)
+# This installs matching HDF5/NetCDF/netcdf4-python versions
+ARG PYTHON_VERSION
+RUN micromamba install -y -n base -c conda-forge \
+    python=${PYTHON_VERSION} \
+    hdf5 \
+    netcdf4 \
+    h5netcdf \
+    h5py \
+    pip \
+    && micromamba clean --all --yes
 
-# Copy the rest of the code
-COPY . .
+# Activate the base environment for subsequent commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
-# Install pycmor with dev dependencies
-# Force rebuild of h5py against our thread-safe HDF5
-RUN HDF5_DIR=/usr/local pip install --no-cache-dir --no-binary=h5py ".[dev, fesom]"
+# Copy project files
+COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml versioneer.py ./
+COPY --chown=$MAMBA_USER:$MAMBA_USER src/pycmor/_version.py src/pycmor/_version.py
+COPY --chown=$MAMBA_USER:$MAMBA_USER . .
+
+# Install pycmor and dev dependencies via pip (uses conda's Python/libs)
+RUN pip install --no-cache-dir ".[dev,fesom,cmip7]"
 
 # Set environment variables for testing
-ENV XARRAY_ENGINE=h5netcdf
 ENV PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
-ENV PYCMOR_XARRAY_PARALLEL=no
 ENV PYTHONUNBUFFERED=1
 ENV HDF5_USE_FILE_LOCKING=FALSE
 
-# Verify h5py installation
-RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)"
+# Verify installation
+RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)" && \
+    python -c "import netCDF4; print('netCDF4 version:', netCDF4.__version__)"
 
 # Default command runs tests
 CMD ["pytest", "-vvv", "--cov=src/pycmor", "tests/"]
