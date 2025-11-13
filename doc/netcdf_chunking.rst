@@ -1,11 +1,11 @@
 ============================
-NetCDF Chunking Guide
+Usage: NetCDF Chunking Guide
 ============================
 
 Overview
 ========
 
-pycmor now supports internal NetCDF chunking to optimize I/O performance when reading and writing climate data files. Chunking divides the data into smaller blocks that can be read and written more efficiently, especially for datasets with specific access patterns.
+`pycmor` supports internal NetCDF chunking to optimize I/O performance when reading and writing climate data files. Chunking divides the data into smaller blocks that can be read and written more efficiently, especially for datasets with specific access patterns.
 
 Why Chunking Matters
 =====================
