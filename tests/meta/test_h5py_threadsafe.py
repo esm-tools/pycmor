@@ -86,11 +86,13 @@ def test_h5py_parallel_file_access():
 @pytest.mark.parametrize("engine", ["h5netcdf", "netcdf4"])
 def test_xarray_engine_with_dask(engine):
     """Test xarray engines (h5netcdf and netcdf4) work with Dask parallel operations."""
+    import logging
+
     import xarray as xr
     from dask.distributed import Client, LocalCluster
 
     # Create a small Dask cluster
-    cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=True, silence_logs=False)
+    cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=True, silence_logs=logging.WARNING)
     client = Client(cluster)
 
     try:
@@ -163,11 +165,13 @@ def test_xarray_open_mfdataset_with_dask_client(engine):
     Note: This uses parallel=False for file opening (safe) but Dask still
     parallelizes the computation (which is what we actually want).
     """
+    import logging
+
     import xarray as xr
     from dask.distributed import Client, LocalCluster
 
     # Create a Dask cluster like in actual tests
-    cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=True, silence_logs=False)
+    cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=True, silence_logs=logging.WARNING)
     client = Client(cluster)
 
     try:
