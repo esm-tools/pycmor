@@ -645,17 +645,32 @@ class CMIP7DataRequestTable(DataRequestTable):
 
     @classmethod
     def table_dict_from_directory(cls, path) -> dict:
-        path = pathlib.Path(path)  # noop if already a Path
+        """
+        Create tables from directory or use packaged data.
+
+        For CMIP7, this method uses the packaged all_var_info.json
+        instead of looking in the directory, since CMIP7 data is
+        distributed with pycmor rather than in a separate repository.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path parameter (ignored for CMIP7, kept for API compatibility)
+
+        Returns
+        -------
+        dict
+            Dictionary mapping table_id to CMIP7DataRequestTable objects
+        """
+        # Use packaged data for CMIP7
+        _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
+        with open(_all_var_info, "r") as f:
+            all_var_info = json.load(f)
+
         tables = {}
-        try:
-            with open(path / "all_var_info.json", "r") as f:
-                all_var_info = json.load(f)
-        except FileNotFoundError:
-            logger.error(f"No all_var_info.json found in {path}.")
-            logger.error("It is currently possible to only create tables from the all_var_info.json file!")
-            logger.error("Sorry...")
-            raise FileNotFoundError
-        table_ids = set(k.split(".")[0] for k in all_var_info["Compound Name"].keys())
+        table_ids = set(
+            v.get("cmip6_cmor_table") for v in all_var_info["Compound Name"].values() if v.get("cmip6_cmor_table")
+        )
         for table_id in table_ids:
             table = cls.from_all_var_info(table_id, all_var_info)
             tables[table_id] = table
