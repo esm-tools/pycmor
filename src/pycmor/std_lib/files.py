@@ -416,33 +416,22 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
     prefer_time = getattr(rule, "netcdf_chunk_prefer_time", prefer_time)
 
     # Calculate chunks based on algorithm
+    chunk_functions = {
+        "simple": calculate_chunks_simple,
+        "even_divisor": calculate_chunks_even_divisor,
+        "iterative": calculate_chunks_iterative,
+    }
     try:
-        if chunk_algorithm == "simple":
-            chunks = calculate_chunks_simple(
-                ds,
-                target_chunk_size=chunk_size,
-                prefer_time_chunking=prefer_time,
-            )
-        elif chunk_algorithm == "even_divisor":
-            chunks = calculate_chunks_even_divisor(
-                ds,
-                target_chunk_size=chunk_size,
-                size_tolerance=chunk_tolerance,
-            )
-        elif chunk_algorithm == "iterative":
-            chunks = calculate_chunks_iterative(
-                ds,
-                target_chunk_size=chunk_size,
-                size_tolerance=chunk_tolerance,
-            )
-        else:
-            logger.warning(f"Unknown chunk algorithm: {chunk_algorithm}, using simple")
-            chunks = calculate_chunks_simple(
-                ds,
-                target_chunk_size=chunk_size,
-                prefer_time_chunking=prefer_time,
-            )
-
+        chunk_function = chunk_functions[chunk_algorithm]
+    except KeyError:
+        logger.warning(f"Unknown chunk algorithm: {chunk_algorithm}, using simple")
+        chunk_function = calculate_chunks_simple
+    try:
+        chunks = chunk_function(
+            ds,
+            target_chunk_size=chunk_size,
+            prefer_time_chunking=prefer_time,
+        )
         # Generate encoding with chunks and compression
         encoding = get_encoding_with_chunks(
             ds,
@@ -450,10 +439,8 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
             compression_level=compression_level,
             enable_compression=enable_compression,
         )
-
         logger.info(f"Calculated NetCDF chunks: {chunks}")
         return encoding
-
     except Exception as e:
         logger.warning(f"Failed to calculate chunks: {e}. Proceeding without chunking.")
         return {}
