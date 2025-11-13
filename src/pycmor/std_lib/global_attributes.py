@@ -152,22 +152,22 @@ class CMIP7GlobalAttributes(GlobalAttributes):
     def get_physics_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["physics_index"])
+        return str(components["physics_index"])
 
     def get_forcing_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["forcing_index"])
+        return str(components["forcing_index"])
 
     def get_initialization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["initialization_index"])
+        return str(components["initialization_index"])
 
     def get_realization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["realization_index"])
+        return str(components["realization_index"])
 
     # ========================================================================
     # Source and institution attributes
@@ -613,22 +613,22 @@ class CMIP6GlobalAttributes(GlobalAttributes):
     def get_physics_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["physics_index"])
+        return str(components["physics_index"])
 
     def get_forcing_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["forcing_index"])
+        return str(components["forcing_index"])
 
     def get_initialization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["initialization_index"])
+        return str(components["initialization_index"])
 
     def get_realization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return int(components["realization_index"])
+        return str(components["realization_index"])
 
     def get_source_id(self):
         return self.rule_dict["source_id"]
