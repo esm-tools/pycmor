@@ -1,4 +1,6 @@
-# import pytest
+import os
+
+import pytest
 from pyfesom2.load_mesh_data import fesom_mesh
 
 from pycmor.core.aux_files import attach_files_to_rule
@@ -26,6 +28,10 @@ def test_aux_files_attach_simple_file(pi_uxarray_temp_rule, tmp_path):
     assert rule.aux == {"aux1": "Hello, pytest!"}
 
 
+@pytest.mark.skipif(
+    not os.getenv("PYCMOR_USE_REAL_TEST_DATA"),
+    reason="FESOM mesh loading requires real mesh data (set PYCMOR_USE_REAL_TEST_DATA=1)",
+)
 def test_aux_files_attach_fesom_mesh(fesom_2p6_esmtools_temp_rule, fesom_2p6_pimesh_esm_tools_data):
     mesh = fesom_2p6_pimesh_esm_tools_data / "input/fesom/mesh/pi"
     rule = fesom_2p6_esmtools_temp_rule
