@@ -196,6 +196,26 @@ def _create_minimal_mesh_files(mesh_dir: Path):
             depth = -100.0 * (i // 10)
             f.write(f"{i:8d} {lon:14.7f}  {lat:14.7f} {depth:14.7f}        0\n")
 
+    # elem3d.out: 3D element connectivity (tetrahedra)
+    with open(mesh_dir / "elem3d.out", "w") as f:
+        f.write("10\n")  # 10 3D elements
+        for i in range(1, 11):
+            n1, n2, n3, n4 = i, i + 1, i + 2, i + 10
+            f.write(f"{n1:8d} {n2:8d} {n3:8d} {n4:8d}\n")
+
+    # aux3d.out: auxiliary 3D info (layer indices)
+    # Format: num_layers \n layer_start_indices...
+    with open(mesh_dir / "aux3d.out", "w") as f:
+        f.write("3\n")  # 3 vertical layers
+        f.write("       1\n")  # Layer 1 starts at node 1
+        f.write("      11\n")  # Layer 2 starts at node 11
+        f.write("      21\n")  # Layer 3 starts at node 21
+
+    # depth.out: depth values at each node
+    with open(mesh_dir / "depth.out", "w") as f:
+        for i in range(10):
+            f.write(f"   {-100.0 - i * 50:.1f}\n")
+
 
 @pytest.fixture(scope="session")
 def pi_uxarray_mesh(request):
