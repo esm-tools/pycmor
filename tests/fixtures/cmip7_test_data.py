@@ -196,7 +196,7 @@ def cmip7_data_request_dir(tmp_path_factory):
     version = "v1.2.2.2"
 
     result = subprocess.run(
-        ["export_dreq_lists_json", version, str(output_file)],
+        ["export_dreq_lists_json", "-a", version, str(output_file)],
         capture_output=True,
         text=True,
     )
@@ -204,7 +204,7 @@ def cmip7_data_request_dir(tmp_path_factory):
     if result.returncode != 0:
         pytest.skip(
             f"Failed to generate CMIP7 metadata: {result.stderr}\n"
-            f"Command: export_dreq_lists_json {version} {output_file}"
+            f"Command: export_dreq_lists_json -a {version} {output_file}"
         )
 
     if not output_file.exists():
