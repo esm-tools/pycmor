@@ -1,6 +1,8 @@
 """Example data for the FESOM model."""
 
 import os
+import shutil
+import subprocess
 import tarfile
 from pathlib import Path
 
@@ -12,8 +14,8 @@ from tests.fixtures.stub_generator import generate_stub_files
 URL = "https://nextcloud.awi.de/s/swqyFgbL2jjgjRo/download/pi_uxarray.tar"
 """str : URL to download the example data from."""
 
-MESH_URL = "https://nextcloud.awi.de/s/FCPZmBJGeGaji4y/download/pi_mesh.tgz"
-"""str : URL to download the mesh data from."""
+MESH_GIT_REPO = "https://gitlab.awi.de/fesom/pi"
+"""str : Git repository URL for the FESOM PI mesh data."""
 
 
 @pytest.fixture(scope="session")
@@ -104,47 +106,64 @@ def pi_uxarray_data(request):
 
 @pytest.fixture(scope="session")
 def pi_uxarray_download_mesh(tmp_path_factory):
+    """
+    Clone FESOM PI mesh from GitLab using git-lfs.
+    Uses persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp.
+    """
     # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
     cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    data_path = cache_dir / "pi_mesh.tar"
+    mesh_dir = cache_dir / "pi_mesh_git"
 
-    if not data_path.exists():
-        print(f"Downloading mesh data from {MESH_URL}...")
-        try:
-            response = requests.get(MESH_URL, timeout=30)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            error_msg = (
-                f"Failed to download mesh data from {MESH_URL}\n"
-                f"Error type: {type(e).__name__}\n"
-                f"Error details: {str(e)}\n"
+    if mesh_dir.exists() and (mesh_dir / ".git").exists():
+        print(f"Using cached git mesh repository: {mesh_dir}")
+        return mesh_dir
+
+    # Clone the repository with git-lfs
+    print(f"Cloning FESOM PI mesh from {MESH_GIT_REPO}...")
+    try:
+        # Check if git-lfs is available
+        result = subprocess.run(["git", "lfs", "version"], capture_output=True, text=True, timeout=10, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "git-lfs is not installed. Please install git-lfs to download mesh data.\n"
+                "See: https://git-lfs.github.com/"
             )
-            if hasattr(e, "response") and e.response is not None:
-                error_msg += (
-                    f"HTTP Status Code: {e.response.status_code}\n"
-                    f"Response Headers: {dict(e.response.headers)}\n"
-                    f"Response Content (first 500 chars): {e.response.text[:500]}\n"
-                )
+
+        # Remove directory if it exists but is incomplete
+        if mesh_dir.exists():
+            shutil.rmtree(mesh_dir)
+
+        # Clone with git-lfs
+        result = subprocess.run(
+            ["git", "clone", MESH_GIT_REPO, str(mesh_dir)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+        if result.returncode != 0:
+            error_msg = (
+                f"Failed to clone mesh repository from {MESH_GIT_REPO}\n"
+                f"Git error: {result.stderr}\n"
+                f"Git output: {result.stdout}\n"
+            )
             print(error_msg)
-            raise RuntimeError(error_msg) from e
+            raise RuntimeError(error_msg)
 
-        with open(data_path, "wb") as f:
-            f.write(response.content)
-        print(f"Data downloaded: {data_path}.")
-    else:
-        print(f"Using cached data: {data_path}.")
+        print(f"Mesh repository cloned to: {mesh_dir}")
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"Git clone timed out after {e.timeout} seconds") from e
+    except FileNotFoundError as e:
+        raise RuntimeError("git command not found. Please install git.") from e
 
-    return data_path
+    return mesh_dir
 
 
 @pytest.fixture(scope="session")
 def pi_uxarray_real_mesh(pi_uxarray_download_mesh):
-    data_dir = Path(pi_uxarray_download_mesh).parent
-    with tarfile.open(pi_uxarray_download_mesh, "r") as tar:
-        tar.extractall(data_dir)
-
-    return data_dir / "pi"
+    """Return the cloned git repository directory containing FESOM PI mesh files."""
+    return pi_uxarray_download_mesh
 
 
 @pytest.fixture(scope="session")
