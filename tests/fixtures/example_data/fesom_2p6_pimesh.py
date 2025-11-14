@@ -1,10 +1,13 @@
 """Example data for the FESOM model."""
 
+import os
 import tarfile
 from pathlib import Path
 
 import pytest
 import requests
+
+from tests.fixtures.stub_generator import generate_stub_files
 
 URL = "https://nextcloud.awi.de/s/AL2cFQx5xGE473S/download/fesom_2p6_pimesh.tar"
 """str : URL to download the example data from."""
@@ -47,7 +50,7 @@ def fesom_2p6_esm_tools_download_data(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
+def fesom_2p6_pimesh_esm_tools_real_data(fesom_2p6_esm_tools_download_data):
     data_dir = Path(fesom_2p6_esm_tools_download_data).parent / "fesom_2p6_pimesh"
     if not data_dir.exists():
         with tarfile.open(fesom_2p6_esm_tools_download_data, "r") as tar:
@@ -58,3 +61,37 @@ def fesom_2p6_pimesh_esm_tools_data(fesom_2p6_esm_tools_download_data):
 
     print(f">>> RETURNING: {data_dir / 'fesom_2p6_pimesh' }")
     return data_dir / "fesom_2p6_pimesh"
+
+
+@pytest.fixture(scope="session")
+def fesom_2p6_pimesh_esm_tools_stub_data(tmp_path_factory):
+    """Generate stub data from YAML manifest."""
+    manifest_file = Path(__file__).parent.parent / "stub_data" / "fesom_2p6_pimesh.yaml"
+    output_dir = tmp_path_factory.mktemp("fesom_2p6_pimesh")
+
+    # Generate stub files
+    stub_dir = generate_stub_files(manifest_file, output_dir)
+
+    # Return the equivalent path structure that real data returns
+    # (should match what fesom_2p6_pimesh_esm_tools_real_data returns)
+    return stub_dir
+
+
+@pytest.fixture(scope="session")
+def fesom_2p6_pimesh_esm_tools_data(
+    request, fesom_2p6_pimesh_esm_tools_stub_data, fesom_2p6_pimesh_esm_tools_real_data
+):
+    """Router fixture: return stub or real data based on marker/env var."""
+    # Check for environment variable
+    use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
+
+    # Check for pytest marker
+    if hasattr(request, "node") and request.node.get_closest_marker("real_data"):
+        use_real = True
+
+    if use_real:
+        print("Using real downloaded test data")
+        return fesom_2p6_pimesh_esm_tools_real_data
+    else:
+        print("Using stub test data")
+        return fesom_2p6_pimesh_esm_tools_stub_data

@@ -235,6 +235,7 @@ addopts = [
 testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "real_data: marks tests to use real downloaded data instead of stubs (requires PYCMOR_USE_REAL_TEST_DATA=1 or marker)",
 ]
 filterwarnings = [
     "ignore:Import\\(s\\) unavailable to set up matplotlib support:UserWarning",

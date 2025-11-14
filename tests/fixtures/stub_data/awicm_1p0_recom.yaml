@@ -1,0 +1,363 @@
+source_directory: /Users/pgierz/.cache/pycmor/test_data/awicm_1p0_recom/awicm_1p0_recom
+files:
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-02.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-02 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-03.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-03 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-04.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-04 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-05.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-05 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-06.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-06 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-07.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-07 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-08.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-08 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-09.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-09 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-10.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-10 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+- path: awi-esm-1-1-lr_kh800/piControl/outdata/fesom/thetao_fesom_2686-01-11.nc
+  dataset:
+    dimensions:
+      time: 1
+      nodes_3d: 3668773
+    coordinates:
+      time:
+        dtype: object
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          standard_name: time
+          long_name: time
+          axis: T
+        sample_value: '2686-01-11 00:00:00'
+    variables:
+      thetao:
+        dtype: float32
+        dims:
+        - time
+        - nodes_3d
+        shape:
+        - 1
+        - 3668773
+        attrs:
+          units: degC
+          CDI_grid_type: unstructured
+          description: sea water potential temperature
+    attrs:
+      CDI: Climate Data Interface version 2.2.1 (https://mpimet.mpg.de/cdi)
+      Conventions: CF-1.6
+      output_schedule: 'unit: d first: 1 rate: 1'
+      history: 'Wed Nov 20 09:22:35 2024: cdo splitdate thetao_fesom_26860101.nc thetao_fesom_'
+      CDO: Climate Data Operators version 2.2.0 (https://mpimet.mpg.de/cdo)
+total_files: 10

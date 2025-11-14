@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 import requests
 
+from tests.fixtures.stub_generator import generate_stub_files
+
 URL = "https://nextcloud.awi.de/s/DaQjtTS9xB7o7pL/download/awicm_1p0_recom.tar"
 """str : URL to download the example data from."""
 
@@ -111,7 +113,7 @@ def awicm_1p0_recom_download_data(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def awicm_1p0_recom_data(awicm_1p0_recom_download_data):
+def awicm_1p0_recom_real_data(awicm_1p0_recom_download_data):
     import shutil
 
     data_dir = Path(awicm_1p0_recom_download_data).parent / "awicm_1p0_recom"
@@ -151,3 +153,36 @@ def awicm_1p0_recom_data(awicm_1p0_recom_download_data):
 
     print(f">>> RETURNING: {final_data_path}")
     return final_data_path
+
+
+@pytest.fixture(scope="session")
+def awicm_1p0_recom_stub_data(tmp_path_factory):
+    """Generate stub data from YAML manifest."""
+    manifest_file = Path(__file__).parent.parent / "stub_data" / "awicm_1p0_recom.yaml"
+    output_dir = tmp_path_factory.mktemp("awicm_1p0_recom")
+
+    # Generate stub files
+    stub_dir = generate_stub_files(manifest_file, output_dir)
+
+    # Return the equivalent path structure that real data returns
+    # (should match what awicm_1p0_recom_real_data returns)
+    # The stub_dir contains awi-esm-1-1-lr_kh800/piControl/... structure
+    return stub_dir
+
+
+@pytest.fixture(scope="session")
+def awicm_1p0_recom_data(request, awicm_1p0_recom_stub_data, awicm_1p0_recom_real_data):
+    """Router fixture: return stub or real data based on marker/env var."""
+    # Check for environment variable
+    use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
+
+    # Check for pytest marker
+    if hasattr(request, "node") and request.node.get_closest_marker("real_data"):
+        use_real = True
+
+    if use_real:
+        print("Using real downloaded test data")
+        return awicm_1p0_recom_real_data
+    else:
+        print("Using stub test data")
+        return awicm_1p0_recom_stub_data
