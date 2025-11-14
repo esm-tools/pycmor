@@ -209,6 +209,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -220,7 +227,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test if data will work (Meta-Test) and generate coverage
         run: |
           docker run --rm \
@@ -230,7 +237,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.9.xml"
@@ -249,6 +256,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -260,7 +274,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test if data will work (Meta-Test) and generate coverage
         run: |
           docker run --rm \
@@ -270,7 +284,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.10.xml"
@@ -289,6 +303,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -300,7 +321,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test if data will work (Meta-Test) and generate coverage
         run: |
           docker run --rm \
@@ -310,7 +331,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.11.xml"
@@ -329,6 +350,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -340,7 +368,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test if data will work (Meta-Test) and generate coverage
         run: |
           docker run --rm \
@@ -350,7 +378,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/meta/**.py && python -m coverage xml -o /workspace/coverage-meta-3.12.xml"
@@ -370,6 +398,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -381,7 +416,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
           docker run --rm \
@@ -389,7 +424,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.9.xml"
@@ -408,6 +443,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -419,7 +461,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
           docker run --rm \
@@ -427,7 +469,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.10.xml"
@@ -446,6 +488,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -457,7 +506,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
           docker run --rm \
@@ -465,7 +514,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.11.xml"
@@ -484,6 +533,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -495,7 +551,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
           docker run --rm \
@@ -503,7 +559,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/unit/**.py && python -m coverage xml -o /workspace/coverage-unit-3.12.xml"
@@ -523,6 +579,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -534,7 +597,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Integration) and generate coverage
         run: |
           docker run --rm \
@@ -542,7 +605,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.9.xml"
@@ -561,6 +624,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -572,7 +642,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Integration) and generate coverage
         run: |
           docker run --rm \
@@ -580,7 +650,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.10.xml"
@@ -599,6 +669,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -610,7 +687,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Integration) and generate coverage
         run: |
           docker run --rm \
@@ -618,7 +695,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.11.xml"
@@ -637,6 +714,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -648,7 +732,7 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Integration) and generate coverage
         run: |
           docker run --rm \
@@ -656,7 +740,7 @@ jobs:
             -e PYCMOR_XARRAY_OPEN_MFDATASET_PARALLEL=no \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "pytest -vvv -s --cov=src/pycmor tests/integration/**.py && python -m coverage xml -o /workspace/coverage-integration-3.12.xml"
@@ -676,6 +760,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -687,13 +778,13 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with doctest and generate coverage
         run: |
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.9-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.9.xml"
@@ -712,6 +803,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -723,13 +821,13 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with doctest and generate coverage
         run: |
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.10-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.10.xml"
@@ -748,6 +846,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -759,13 +864,13 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with doctest and generate coverage
         run: |
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.11-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.11.xml"
@@ -784,6 +889,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache test data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pycmor/test_data
+          key: pycmor-test-data-v1
+          restore-keys: |
+            pycmor-test-data-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -795,13 +907,13 @@ jobs:
           docker pull ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }}
       - name: Create persistent cache directory
         run: |
-          mkdir -p ${{ runner.temp }}/.cache/pycmor/test_data
+          mkdir -p ~/.cache/pycmor/test_data
       - name: Test with doctest and generate coverage
         run: |
           docker run --rm \
             -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300 \
             -v ${{ github.workspace }}:/workspace \
-            -v ${{ runner.temp }}/.cache/pycmor:/home/mambauser/.cache/pycmor \
+            -v ~/.cache/pycmor:/home/mambauser/.cache/pycmor \
             --user root \
             ghcr.io/esm-tools/pycmor-testground:py3.12-${{ github.head_ref || github.ref_name }} \
             bash -c "PYTHONPATH=src PYTHONLOGLEVEL=CRITICAL pytest -v --doctest-modules --cov=src/pycmor src/ && python -m coverage xml -o /workspace/coverage-doctest-3.12.xml"
