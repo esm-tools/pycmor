@@ -53,13 +53,12 @@ def test_process_native(pi_uxarray_config, pi_uxarray_data):
     cmorizer.process()
 
 
-def test_process_cmip7(pi_uxarray_config_cmip7, pi_uxarray_data, cmip7_data_request_dir):
+def test_process_cmip7(pi_uxarray_config_cmip7, pi_uxarray_data):
     logger.info(f"Processing {pi_uxarray_config_cmip7}")
     with open(pi_uxarray_config_cmip7, "r") as f:
         cfg = yaml.safe_load(f)
 
-    # Update CMIP7 config to use the fixture-provided directory
-    cfg["general"]["CMIP_Tables_Dir"] = str(cmip7_data_request_dir)
+    # CMIP7 uses packaged data - no CMIP_Tables_Dir needed
 
     for rule in cfg["rules"]:
         for input in rule["inputs"]:

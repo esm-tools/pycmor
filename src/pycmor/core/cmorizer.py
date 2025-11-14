@@ -229,18 +229,24 @@ class CMORizer:
         Loads all the tables from table directory as a mapping object.
         A shortened version of the filename (i.e., ``CMIP6_Omon.json`` -> ``Omon``) is used as the mapping key.
         The same key format is used in CMIP6_table_id.json
+
+        For CMIP7, CMIP_Tables_Dir is optional since tables are loaded from packaged data.
         """
         data_request_table_factory = create_factory(DataRequestTable)
         DataRequestTableClass = data_request_table_factory.get(self.cmor_version)
-        table_dir = Path(self._general_cfg["CMIP_Tables_Dir"])
+        # CMIP7 uses packaged data, so CMIP_Tables_Dir is optional
+        table_dir = Path(self._general_cfg.get("CMIP_Tables_Dir", "."))
         tables = DataRequestTableClass.table_dict_from_directory(table_dir)
         self._general_cfg["tables"] = self.tables = tables
 
     def _post_init_create_data_request(self):
         """
         Creates a DataRequest object from the tables directory.
+
+        For CMIP7, CMIP_Tables_Dir is optional since data request is loaded from packaged data.
         """
-        table_dir = self._general_cfg["CMIP_Tables_Dir"]
+        # CMIP7 uses packaged data, so CMIP_Tables_Dir is optional
+        table_dir = self._general_cfg.get("CMIP_Tables_Dir", ".")
         data_request_factory = create_factory(DataRequest)
         DataRequestClass = data_request_factory.get(self.cmor_version)
         self.data_request = DataRequestClass.from_directory(table_dir)

@@ -20,15 +20,13 @@ from pycmor.core.logging import logger
     ],
     indirect=True,
 )
-def test_init(config, request, cmip7_data_request_dir):
+def test_init(config, request):
     disable_run_logger()  # Turns off Prefect's extra logging layer, for testing
     logger.info(f"Processing {config}")
     with open(config, "r") as f:
         cfg = yaml.safe_load(f)
 
-    # Update CMIP7 config to use the fixture-provided directory
-    if "CMIP7" in request.node.nodeid:
-        cfg["general"]["CMIP_Tables_Dir"] = str(cmip7_data_request_dir)
+    # CMIP7 uses packaged data - no CMIP_Tables_Dir needed
 
     cmorizer = CMORizer.from_dict(cfg)
     # If we get this far, it was possible to construct
@@ -47,14 +45,12 @@ def test_init(config, request, cmip7_data_request_dir):
     ],
     indirect=True,
 )
-def test_process(config, request, cmip7_data_request_dir):
+def test_process(config, request):
     logger.info(f"Processing {config}")
     with open(config, "r") as f:
         cfg = yaml.safe_load(f)
 
-    # Update CMIP7 config to use the fixture-provided directory
-    if "CMIP7" in request.node.nodeid:
-        cfg["general"]["CMIP_Tables_Dir"] = str(cmip7_data_request_dir)
+    # CMIP7 uses packaged data - no CMIP_Tables_Dir needed
 
     cmorizer = CMORizer.from_dict(cfg)
     cmorizer.process()

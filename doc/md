@@ -1,0 +1,218 @@
+<table>
+<tbody>
+<tr>
+<td>Test Infrastructure as Code (Testground)</td>
+</tr>
+</tbody>
+</table>
+<h1 id="overview">Overview</h1>
+<p>The <code>pycmor</code> test suite runs in containerized environments
+defined by <code>Dockerfile.test</code>. These containers, called
+<strong>testgrounds</strong>, are published to GitHub Container Registry
+(GHCR) to enable reproducible testing and easy access to test
+environments.</p>
+<p>This approach treats test infrastructure as code: the Dockerfile is
+the declarative specification, and the resulting container images are
+the infrastructure artifacts.</p>
+<h1 id="why-testgrounds">Why Testgrounds?</h1>
+<dl>
+<dt><strong>Reproducibility</strong></dt>
+<dd>
+<p>Pull the exact test environment used for any commit or release</p>
+</dd>
+<dt><strong>Efficiency</strong></dt>
+<dd>
+<p>Pre-built images speed up CI runs and local development</p>
+</dd>
+<dt><strong>Consistency</strong></dt>
+<dd>
+<p>Everyone tests against the same environment</p>
+</dd>
+<dt><strong>Traceability</strong></dt>
+<dd>
+<p>Tag scheme makes it easy to find the right environment</p>
+</dd>
+</dl>
+<h1 id="architecture">Architecture</h1>
+<h2 id="container-image-tagging-scheme">Container Image Tagging
+Scheme</h2>
+<p>Images are published to
+<code>ghcr.io/esm-tools/pycmor-testground</code> with the following
+naming pattern:</p>
+<pre class="text"><code>ghcr.io/esm-tools/pycmor-testground:py&lt;version&gt;-&lt;identifier&gt;</code></pre>
+<p>Where:</p>
+<ul>
+<li><code>&lt;version&gt;</code>: Python version (3.9, 3.10, 3.11,
+3.12)</li>
+<li><code>&lt;identifier&gt;</code>: Either:
+<ul>
+<li><code>&lt;commit-sha&gt;</code>: Full Git commit SHA (for exact
+reproducibility)</li>
+<li><code>&lt;branch-name&gt;</code>: Branch name (for latest on that
+branch)</li>
+<li><code>v&lt;semver&gt;</code>: Semantic version tag (for releases,
+future feature)</li>
+</ul></li>
+</ul>
+<h2 id="examples">Examples</h2>
+<p>Get the testground for Python 3.10 from a specific commit:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-a7f2c1b...</span></code></pre></div>
+<p>Get the latest testground for Python 3.10 on the
+<code>prep-release</code> branch:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-prep-release</span></code></pre></div>
+<p>Get the testground for Python 3.10 from version 1.1.0 (future):</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-v1.1.0</span></code></pre></div>
+<h1 id="cicd-workflow">CI/CD Workflow</h1>
+<h2 id="build-process">Build Process</h2>
+<p>On every push, the CI workflow:</p>
+<ol type="1">
+<li><strong>Authenticates</strong> with GitHub Container Registry using
+<code>GITHUB_TOKEN</code></li>
+<li><strong>Builds</strong> Docker images for each Python version
+(3.9-3.12)</li>
+<li><strong>Tags</strong> each image with:
+<ul>
+<li>Commit SHA tag: <code>py3.X-${{ github.sha }}</code></li>
+<li>Branch/ref tag: <code>py3.X-${{ github.ref_name }}</code></li>
+</ul></li>
+<li><strong>Pushes</strong> images to GHCR</li>
+<li><strong>Exports</strong> images as tar archives for immediate use in
+test jobs</li>
+<li><strong>Uploads</strong> tar archives as workflow artifacts</li>
+<li><strong>Caches</strong> tar archives for faster subsequent runs</li>
+</ol>
+<h2 id="test-consumption">Test Consumption</h2>
+<p>Test jobs:</p>
+<ol type="1">
+<li><strong>Restore</strong> the cached Docker image tar file</li>
+<li><strong>Load</strong> the image into Docker</li>
+<li><strong>Run</strong> tests inside the container</li>
+<li><strong>Upload</strong> coverage reports as artifacts</li>
+</ol>
+<p>This approach means:</p>
+<ul>
+<li>Images are built once and reused across all test jobs</li>
+<li>Each test suite runs in the same environment</li>
+<li>Images are available in GHCR for future use</li>
+</ul>
+<h1 id="using-testgrounds-locally">Using Testgrounds Locally</h1>
+<h2 id="pull-a-testground">Pull a Testground</h2>
+<p>To run tests locally in the same environment as CI:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the latest from your current branch</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> rev-parse <span class="at">--abbrev-ref</span> HEAD  <span class="co"># Get your branch name</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-<span class="op">&lt;</span>branch-name<span class="op">&gt;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Or get a specific commit</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-<span class="op">&lt;</span>commit-sha<span class="op">&gt;</span></span></code></pre></div>
+<h2 id="run-tests-in-testground">Run Tests in Testground</h2>
+<p>Mount your local code and run tests:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> run <span class="at">--rm</span> <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span> <span class="va">$(</span><span class="bu">pwd</span><span class="va">)</span>:/workspace <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  ghcr.io/esm-tools/pycmor-testground:py3.10-prep-release <span class="dt">\</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  bash <span class="at">-c</span> <span class="st">&quot;cd /workspace &amp;&amp; pytest&quot;</span></span></code></pre></div>
+<h2 id="build-a-testground-locally">Build a Testground Locally</h2>
+<p>To build the testground yourself (useful when modifying
+<code>Dockerfile.test</code>):</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> build <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-f</span> Dockerfile.test <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--build-arg</span> PYTHON_VERSION=3.10 <span class="dt">\</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-t</span> pycmor-testground:py3.10-local <span class="dt">\</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  .</span></code></pre></div>
+<h1 id="future-improvements">Future Improvements</h1>
+<p>Planned enhancements to reduce registry spam and improve
+efficiency:</p>
+<h2 id="conditional-publishing">Conditional Publishing</h2>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Only push to registry on main/release branches</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">push</span><span class="kw">:</span><span class="at"> ${{ github.event_name != &#39;pull_request&#39; }}</span></span></code></pre></div>
+<p>This will:</p>
+<ul>
+<li><strong>On PR push</strong>: Build and cache, but don't push to
+GHCR</li>
+<li><strong>On merge to main</strong>: Push with branch tag</li>
+<li><strong>On git tag/release</strong>: Push with semver tag + update
+<code>latest</code></li>
+</ul>
+<h2 id="cleanup-policy">Cleanup Policy</h2>
+<p>Implement a cleanup policy to remove old development images:</p>
+<ul>
+<li>Keep all release tags (<code>v*</code>) forever</li>
+<li>Keep main branch tags for 90 days</li>
+<li>Keep commit SHA tags for 30 days</li>
+<li>Keep PR branch tags for 7 days</li>
+</ul>
+<h2 id="multi-architecture-support">Multi-Architecture Support</h2>
+<p>Build images for both AMD64 and ARM64:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">platforms</span><span class="kw">:</span><span class="at"> linux/amd64,linux/arm64</span></span></code></pre></div>
+<p>This enables testing on Apple Silicon Macs natively.</p>
+<h1 id="infrastructure-as-code-principles">Infrastructure as Code
+Principles</h1>
+<p>This testground system follows Infrastructure as Code (IaC)
+principles:</p>
+<dl>
+<dt><strong>Declarative Specification</strong></dt>
+<dd>
+<p><code>Dockerfile.test</code> declares the exact environment</p>
+</dd>
+<dt><strong>Version Control</strong></dt>
+<dd>
+<p>Dockerfile is in Git, versioned alongside code</p>
+</dd>
+<dt><strong>Reproducibility</strong></dt>
+<dd>
+<p>Same Dockerfile + same base image = same environment</p>
+</dd>
+<dt><strong>Automation</strong></dt>
+<dd>
+<p>CI builds and publishes automatically</p>
+</dd>
+<dt><strong>Immutability</strong></dt>
+<dd>
+<p>Images are immutable; changes require new builds</p>
+</dd>
+<dt><strong>Traceability</strong></dt>
+<dd>
+<p>Tags link images to specific code versions</p>
+</dd>
+</dl>
+<h1 id="troubleshooting">Troubleshooting</h1>
+<h2 id="image-pull-fails">Image Pull Fails</h2>
+<p>If you can't pull from GHCR:</p>
+<ol type="1">
+<li><p>Ensure you're authenticated:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="va">$GITHUB_TOKEN</span> <span class="kw">|</span> <span class="ex">docker</span> login ghcr.io <span class="at">-u</span> USERNAME <span class="at">--password-stdin</span></span></code></pre></div></li>
+<li><p>Check package visibility settings (must be public or you need
+read access)</p></li>
+<li><p>Verify the tag exists:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">gh</span> api /orgs/esm-tools/packages/container/pycmor-testground/versions</span></code></pre></div></li>
+</ol>
+<h2 id="old-images-not-updating">Old Images Not Updating</h2>
+<p>Branch tags are updated on each push. If you have an old version:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-prep-release</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># This always gets the latest</span></span></code></pre></div>
+<p>If still old, clear local cache:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> rmi ghcr.io/esm-tools/pycmor-testground:py3.10-prep-release</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> pull ghcr.io/esm-tools/pycmor-testground:py3.10-prep-release</span></code></pre></div>
+<h1 id="related-documentation">Related Documentation</h1>
+<ul>
+<li><code class="interpreted-text" role="doc">developer_guide</code> -
+Main developer guide</li>
+<li><code class="interpreted-text" role="doc">developer_setup</code> -
+Setting up development environment</li>
+<li><a
+href="https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry">GitHub
+Container Registry docs</a></li>
+<li><a href="https://github.com/docker/build-push-action">Docker
+build-push-action</a></li>
+</ul>

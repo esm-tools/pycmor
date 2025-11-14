@@ -12,7 +12,7 @@ general:
   cmor_version: "CMIP7"
   mip: "CMIP"
   frequency: "mon"
-  CMIP_Tables_Dir: "./CMIP7_DReq_Software/scripts/variable_info/"
+  # CMIP_Tables_Dir is optional for CMIP7 (uses packaged data)
   CV_Dir: "./cmip6-cmor-tables/CMIP6_CVs"
 pipelines:
   - name: "test_pipeline"
