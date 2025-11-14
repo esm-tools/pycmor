@@ -173,7 +173,7 @@ def cmip7_interface_with_all_data(cmip7_metadata_file, cmip7_experiments_file):
 def cmip7_data_request_dir(tmp_path_factory):
     """Create CMIP7 data request directory with metadata JSON file.
 
-    This fixture runs export_dreq_lists_json to generate the required
+    This fixture runs get_variables_metadata to generate the required
     metadata file in the CMIP7_DReq_Software/scripts/variable_info/ directory
     structure expected by CMIP7 tests.
 
@@ -182,21 +182,21 @@ def cmip7_data_request_dir(tmp_path_factory):
     Path
         Path to the created CMIP7_DReq_Software/scripts/variable_info directory
     """
-    # Check if export_dreq_lists_json command is available
-    if not shutil.which("export_dreq_lists_json"):
-        pytest.skip("export_dreq_lists_json command not available (CMIP7 Data Request API not installed)")
+    # Check if get_variables_metadata command is available
+    if not shutil.which("get_variables_metadata"):
+        pytest.skip("get_variables_metadata command not available (CMIP7 Data Request API not installed)")
 
     # Create the directory structure
     base_dir = tmp_path_factory.mktemp("cmip7_test")
     variable_info_dir = base_dir / "CMIP7_DReq_Software" / "scripts" / "variable_info"
     variable_info_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate metadata JSON file using export_dreq_lists_json
+    # Generate metadata JSON file using get_variables_metadata
     output_file = variable_info_dir / "all_vars_info.json"
     version = "v1.2.2.2"
 
     result = subprocess.run(
-        ["export_dreq_lists_json", "-a", version, str(output_file)],
+        ["get_variables_metadata", version, str(output_file)],
         capture_output=True,
         text=True,
     )
@@ -204,7 +204,7 @@ def cmip7_data_request_dir(tmp_path_factory):
     if result.returncode != 0:
         pytest.skip(
             f"Failed to generate CMIP7 metadata: {result.stderr}\n"
-            f"Command: export_dreq_lists_json -a {version} {output_file}"
+            f"Command: get_variables_metadata {version} {output_file}"
         )
 
     if not output_file.exists():
