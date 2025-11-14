@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import xarray as xr
 
@@ -5,7 +7,10 @@ import pycmor
 import pycmor.fesom_2p1.regridding
 
 
-@pytest.mark.real_data
+@pytest.mark.skipif(
+    not os.getenv("PYCMOR_USE_REAL_TEST_DATA"),
+    reason="FESOM regridding requires real mesh data (set PYCMOR_USE_REAL_TEST_DATA=1)",
+)
 def test_regridding(fesom_pi_mesh_config, fesom_2p6_pimesh_esm_tools_data, pi_uxarray_mesh):
     config = fesom_pi_mesh_config
     rule = pycmor.core.rule.Rule.from_dict(config["rules"][0])
