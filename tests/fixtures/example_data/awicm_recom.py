@@ -164,10 +164,43 @@ def awicm_1p0_recom_stub_data(tmp_path_factory):
     # Generate stub files
     stub_dir = generate_stub_files(manifest_file, output_dir)
 
+    # Create mesh files (always generate them even if not all tests need them)
+    mesh_dir = stub_dir / "awi-esm-1-1-lr_kh800" / "piControl" / "input" / "fesom" / "mesh"
+    mesh_dir.mkdir(parents=True, exist_ok=True)
+    _create_minimal_mesh_files(mesh_dir)
+
     # Return the equivalent path structure that real data returns
     # (should match what awicm_1p0_recom_real_data returns)
     # The stub_dir contains awi-esm-1-1-lr_kh800/piControl/... structure
     return stub_dir
+
+
+def _create_minimal_mesh_files(mesh_dir: Path):
+    """Create minimal FESOM mesh files for testing."""
+    # nod2d.out: 2D nodes (lon, lat)
+    with open(mesh_dir / "nod2d.out", "w") as f:
+        f.write("10\n")
+        for i in range(1, 11):
+            lon = 300.0 + i * 0.1
+            lat = 74.0 + i * 0.05
+            f.write(f"{i:8d} {lon:14.7f}  {lat:14.7f}        0\n")
+
+    # elem2d.out: 2D element connectivity
+    with open(mesh_dir / "elem2d.out", "w") as f:
+        f.write("5\n")
+        for i in range(1, 6):
+            n1, n2, n3 = i, i + 1, i + 2
+            f.write(f"{i:8d} {n1:8d} {n2:8d}\n")
+            f.write(f"{n2:8d} {n3:8d} {(i % 8) + 1:8d}\n")
+
+    # nod3d.out: 3D nodes (lon, lat, depth)
+    with open(mesh_dir / "nod3d.out", "w") as f:
+        f.write("30\n")
+        for i in range(1, 31):
+            lon = 300.0 + (i % 10) * 0.1
+            lat = 74.0 + (i % 10) * 0.05
+            depth = -100.0 * (i // 10)
+            f.write(f"{i:8d} {lon:14.7f}  {lat:14.7f} {depth:14.7f}        0\n")
 
 
 @pytest.fixture(scope="session")
