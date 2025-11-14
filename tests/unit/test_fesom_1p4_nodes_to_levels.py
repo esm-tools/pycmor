@@ -1,8 +1,10 @@
+import pytest
 import xarray as xr
 
 from pycmor.fesom_1p4 import indicies_from_mesh, interpolate_dataarray, load_mesh
 
 
+@pytest.mark.real_data
 def test_nodes_to_levels_with_awicm_1p0_recom_data(awicm_1p0_recom_data):
     outdata_path_stub = "awi-esm-1-1-lr_kh800/piControl/outdata/fesom/"
     outdata_files = sorted(list((awicm_1p0_recom_data / outdata_path_stub).iterdir()))

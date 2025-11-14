@@ -1,9 +1,11 @@
+import pytest
 import xarray as xr
 
 import pycmor
 import pycmor.fesom_2p1.regridding
 
 
+@pytest.mark.real_data
 def test_regridding(fesom_pi_mesh_config, fesom_2p6_pimesh_esm_tools_data, pi_uxarray_mesh):
     config = fesom_pi_mesh_config
     rule = pycmor.core.rule.Rule.from_dict(config["rules"][0])
