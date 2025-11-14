@@ -45,9 +45,7 @@ class Rule:
             The DataRequestVariables this rule should create
         """
         self.name = name
-        self.inputs = [
-            InputFileCollection.from_dict(inp_dict) for inp_dict in (inputs or [])
-        ]
+        self.inputs = [InputFileCollection.from_dict(inp_dict) for inp_dict in (inputs or [])]
         self.cmor_variable = cmor_variable
         self.pipelines = pipelines or [pipeline.DefaultPipeline()]
         self.tables = tables or []
@@ -115,13 +113,9 @@ class Rule:
         """
         if hasattr(self, key) and not force:
             if warn:
-                warnings.warn(
-                    f"Attribute {key} already exists. Use force=True to overwrite."
-                )
+                warnings.warn(f"Attribute {key} already exists. Use force=True to overwrite.")
             else:
-                raise AttributeError(
-                    f"Attribute {key} already exists. Use force=True to overwrite."
-                )
+                raise AttributeError(f"Attribute {key} already exists. Use force=True to overwrite.")
         return setattr(self, key, value)
 
     def __str__(self):
@@ -212,9 +206,7 @@ class Rule:
         """Add a data request variable to the rule."""
         self.data_request_variables.append(drv)
         # Filter out Nones
-        self.data_request_variables = [
-            v for v in self.data_request_variable if v is not None
-        ]
+        self.data_request_variables = [v for v in self.data_request_variable if v is not None]
 
     def remove_data_request_variable(self, drv):
         """Remove a data request variable from the rule."""
@@ -274,13 +266,9 @@ class Rule:
         )
         # attribute `creation_date` is the time-stamp of inputs directory
         try:
-            afile = next(
-                f for file_collection in self.inputs for f in file_collection.files
-            )
+            afile = next(f for file_collection in self.inputs for f in file_collection.files)
             afile = pathlib.Path(afile)
-            dir_timestamp = datetime.datetime.fromtimestamp(
-                afile.parent.stat().st_ctime
-            )
+            dir_timestamp = datetime.datetime.fromtimestamp(afile.parent.stat().st_ctime)
         except FileNotFoundError:
             # No input files, so use the current time -- this is a fallback triggered for test cases
             dir_timestamp = datetime.datetime.now()

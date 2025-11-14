@@ -176,9 +176,7 @@ def show_selected_variable(varname):
         r.append(dict(table=t, frequency=f, timemethod=kind))  # , select=False))
     r = sorted(r, key=lambda x: x["table"])
     df = pd.DataFrame(r)
-    event = st.dataframe(
-        df, on_select="rerun", selection_mode=["multi-row"], use_container_width=True
-    )
+    event = st.dataframe(df, on_select="rerun", selection_mode=["multi-row"], use_container_width=True)
     if event.selection:
         indices = event.selection["rows"]
         _tids = list(df.loc[indices].table)
@@ -200,9 +198,7 @@ def show_selected_variable(varname):
                 return ["background-color: white" for i in range(ncols)]
 
             if len(df_info.columns) > 1:
-                st.dataframe(
-                    df_info.style.apply(styler, axis=1), use_container_width=True
-                )
+                st.dataframe(df_info.style.apply(styler, axis=1), use_container_width=True)
             else:
                 st.dataframe(df_info, use_container_width=True)
     return
@@ -246,11 +242,7 @@ if table_source == "github":
         if url.endswith("json"):
             tbl_files = [url]
         else:
-            tbl_files = [
-                (url.rstrip("/") + "/" + f)
-                for f in table_files
-                if f not in ignored_table_files
-            ]
+            tbl_files = [(url.rstrip("/") + "/" + f) for f in table_files if f not in ignored_table_files]
 
     def load_data_from_github(f, ctx):
         st.runtime.scriptrunner.add_script_run_ctx(threading.current_thread(), ctx)
@@ -332,24 +324,16 @@ if table_source:
     var_references = defaultdict(set)
     for vname, items in var_to_tbl.items():
         var_references[len(items)].add(vname)
-    var_references = {
-        counts: sorted(vnames) for counts, vnames in var_references.items()
-    }
+    var_references = {counts: sorted(vnames) for counts, vnames in var_references.items()}
 
 if var_to_tbl:
     st.markdown("## Variables")
     if var_references and len(var_references) > 1:
-        filtered_variables = st.checkbox(
-            "Filter variable list by number of references to tables"
-        )
+        filtered_variables = st.checkbox("Filter variable list by number of references to tables")
         if filtered_variables:
-            counts = st.select_slider(
-                "Number of references", options=sorted(var_references)
-            )
+            counts = st.select_slider("Number of references", options=sorted(var_references))
             variables = var_references[counts]
 
-    varname = st.selectbox(
-        f"Select Variable (count: {len(variables)})", variables, index=None
-    )
+    varname = st.selectbox(f"Select Variable (count: {len(variables)})", variables, index=None)
     if varname:
         show_selected_variable(varname)

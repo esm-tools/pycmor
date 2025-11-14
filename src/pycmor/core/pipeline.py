@@ -94,9 +94,7 @@ class Pipeline:
         raw_steps = copy.deepcopy(self._steps)
         prefect_tasks = []
         for i, step in enumerate(self._steps):
-            logger.debug(
-                f"[{i+1}/{len(self._steps)}] Converting step {step.__name__} to Prefect task."
-            )
+            logger.debug(f"[{i+1}/{len(self._steps)}] Converting step {step.__name__} to Prefect task.")
             prefect_tasks.append(
                 Task(
                     fn=step,
@@ -131,9 +129,7 @@ class Pipeline:
         cmor_name = rule_spec.get("cmor_name")
         rule_name = rule_spec.get("name", cmor_name)
         if self._cluster is None:
-            logger.warning(
-                "No cluster assigned to this pipeline. Using local Dask cluster."
-            )
+            logger.warning("No cluster assigned to this pipeline. Using local Dask cluster.")
             dask_scheduler_address = None
         else:
             dask_scheduler_address = self._cluster.scheduler.address
@@ -174,15 +170,11 @@ class Pipeline:
 
     @classmethod
     def from_qualname_list(cls, qualnames: list, name=None, **kwargs):
-        return cls.from_list(
-            [get_callable_by_name(name) for name in qualnames], name=name, **kwargs
-        )
+        return cls.from_list([get_callable_by_name(name) for name in qualnames], name=name, **kwargs)
 
     @classmethod
     def from_callable_strings(cls, step_strings: list, name=None, **kwargs):
-        return cls.from_list(
-            [get_callable(name) for name in step_strings], name=name, **kwargs
-        )
+        return cls.from_list([get_callable(name) for name in step_strings], name=name, **kwargs)
 
     @classmethod
     def from_dict(cls, data):

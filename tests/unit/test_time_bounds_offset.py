@@ -47,9 +47,7 @@ def test_monthly_frequency_with_offset():
 
     # For the last month, the end bound should be 15th of the next month
     last_month = times[-1].to_numpy()
-    next_month = (times[-1] + pd.offsets.MonthBegin(1)).to_numpy() + np.timedelta64(
-        14, "D"
-    )
+    next_month = (times[-1] + pd.offsets.MonthBegin(1)).to_numpy() + np.timedelta64(14, "D")
     assert bounds[-1, 0] == last_month
     assert bounds[-1, 1] == next_month
 

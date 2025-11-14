@@ -3,11 +3,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from pycmor.core.infer_freq import (
-    infer_frequency,
-    is_resolution_fine_enough,
-    log_frequency_check,
-)
+from pycmor.core.infer_freq import infer_frequency, is_resolution_fine_enough, log_frequency_check
 from pycmor.core.time_utils import get_time_label, is_datetime_type
 
 
@@ -37,9 +33,7 @@ def test_infer_monthly_frequency(regular_monthly_time):
 
 
 def test_infer_irregular_time(irregular_time):
-    freq, delta, _, exact, status = infer_frequency(
-        irregular_time, return_metadata=True
-    )
+    freq, delta, _, exact, status = infer_frequency(irregular_time, return_metadata=True)
     assert freq is not None
     assert not exact
     assert status in ("irregular", "missing_steps")
@@ -51,17 +45,13 @@ def test_short_time_series(short_time):
 
 
 def test_resolution_check_finer_than_month(regular_monthly_time):
-    result = is_resolution_fine_enough(
-        regular_monthly_time, target_approx_interval=30.5, calendar="360_day"
-    )
+    result = is_resolution_fine_enough(regular_monthly_time, target_approx_interval=30.5, calendar="360_day")
     assert result["comparison_status"] == "finer"
     assert result["is_valid_for_resampling"]
 
 
 def test_resolution_check_equal_to_month(regular_monthly_time):
-    result = is_resolution_fine_enough(
-        regular_monthly_time, target_approx_interval=30.0, calendar="360_day"
-    )
+    result = is_resolution_fine_enough(regular_monthly_time, target_approx_interval=30.0, calendar="360_day")
     assert result["comparison_status"] in ("equal", "finer")
     assert result["is_valid_for_resampling"]
 
@@ -72,9 +62,7 @@ def test_resolution_check_too_sparse():
         cftime.Datetime360Day(2000, 4, 1),
         cftime.Datetime360Day(2000, 7, 1),
     ]
-    result = is_resolution_fine_enough(
-        times, target_approx_interval=30.4375, calendar="360_day"
-    )
+    result = is_resolution_fine_enough(times, target_approx_interval=30.4375, calendar="360_day")
     assert result["comparison_status"] == "coarser"
     assert not result["is_valid_for_resampling"]
 
@@ -95,9 +83,7 @@ def test_accessor_on_dataset(regular_monthly_time):
 def test_strict_mode_detection():
     # Intentionally skip one time step
     times = [cftime.Datetime360Day(2000, m, 15) for m in (1, 2, 4, 5)]
-    result = is_resolution_fine_enough(
-        times, target_approx_interval=30.0, calendar="360_day", strict=True
-    )
+    result = is_resolution_fine_enough(times, target_approx_interval=30.0, calendar="360_day", strict=True)
     assert result["comparison_status"] == "missing_steps"
     assert not result["is_valid_for_resampling"]
 
@@ -106,9 +92,7 @@ def test_dataarray_resample_safe_pass(regular_monthly_time):
     da = xr.DataArray([1, 2, 3, 4], coords={"time": regular_monthly_time}, dims="time")
 
     # Should pass and return resampled array
-    resampled = da.timefreq.resample_safe(
-        freq_str="M", target_approx_interval=30.4375, calendar="360_day"
-    )
+    resampled = da.timefreq.resample_safe(freq_str="M", target_approx_interval=30.4375, calendar="360_day")
 
     assert isinstance(resampled, xr.DataArray)
     assert "time" in resampled.dims
@@ -119,9 +103,7 @@ def test_dataset_resample_safe_pass(regular_monthly_time):
     ds = xr.Dataset({"pr": da})
 
     # Should pass and return resampled dataset
-    resampled_ds = ds.timefreq.resample_safe(
-        freq_str="M", target_approx_interval=30.4375, calendar="360_day"
-    )
+    resampled_ds = ds.timefreq.resample_safe(freq_str="M", target_approx_interval=30.4375, calendar="360_day")
 
     assert isinstance(resampled_ds, xr.Dataset)
     assert "time" in resampled_ds.dims
@@ -138,20 +120,14 @@ def test_resample_safe_fails_on_coarse_resolution():
     da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
 
     with pytest.raises(ValueError, match="time resolution too coarse"):
-        da.timefreq.resample_safe(
-            freq_str="M", target_approx_interval=30.4375, calendar="360_day"
-        )
+        da.timefreq.resample_safe(freq_str="M", target_approx_interval=30.4375, calendar="360_day")
 
 
 def test_resample_safe_with_mean(regular_monthly_time):
-    da = xr.DataArray(
-        [1.0, 2.0, 3.0, 4.0], coords={"time": regular_monthly_time}, dims="time"
-    )
+    da = xr.DataArray([1.0, 2.0, 3.0, 4.0], coords={"time": regular_monthly_time}, dims="time")
 
     # Should apply 'mean' over each monthly bin
-    resampled = da.timefreq.resample_safe(
-        freq_str="M", target_approx_interval=30.0, calendar="360_day", method="mean"
-    )
+    resampled = da.timefreq.resample_safe(freq_str="M", target_approx_interval=30.0, calendar="360_day", method="mean")
 
     assert np.allclose(resampled.values, [1.0, 2.0, 3.0, 4.0])
 
@@ -168,9 +144,7 @@ def test_missing_steps_daily_gaps():
         cftime.Datetime360Day(2000, 1, 8),  # Day 8
     ]
 
-    result = infer_frequency(
-        times_with_gaps, return_metadata=True, strict=True, calendar="360_day"
-    )
+    result = infer_frequency(times_with_gaps, return_metadata=True, strict=True, calendar="360_day")
 
     assert result.frequency == "D"
     assert result.status == "missing_steps"
@@ -189,9 +163,7 @@ def test_missing_steps_weekly_gaps():
         cftime.Datetime360Day(2000, 1, 29),  # Week 5
     ]
 
-    result = infer_frequency(
-        times_weekly_gaps, return_metadata=True, strict=True, calendar="360_day"
-    )
+    result = infer_frequency(times_weekly_gaps, return_metadata=True, strict=True, calendar="360_day")
 
     assert result.frequency == "7D"
     assert result.status == "missing_steps"
@@ -209,9 +181,7 @@ def test_missing_steps_vs_irregular():
         cftime.Datetime360Day(2000, 3, 10),  # 24 days
     ]
 
-    result_irregular = infer_frequency(
-        times_irregular, return_metadata=True, strict=True, calendar="360_day"
-    )
+    result_irregular = infer_frequency(times_irregular, return_metadata=True, strict=True, calendar="360_day")
 
     # Should be irregular, not missing_steps
     assert result_irregular.status == "irregular"
@@ -225,9 +195,7 @@ def test_missing_steps_vs_irregular():
         cftime.Datetime360Day(2000, 1, 6),  # Day 6
     ]
 
-    result_missing = infer_frequency(
-        times_missing, return_metadata=True, strict=True, calendar="360_day"
-    )
+    result_missing = infer_frequency(times_missing, return_metadata=True, strict=True, calendar="360_day")
 
     # Should be missing_steps
     assert result_missing.status == "missing_steps"
@@ -244,16 +212,12 @@ def test_missing_steps_requires_strict_mode():
     ]
 
     # Without strict mode: should be "irregular"
-    result_non_strict = infer_frequency(
-        times_with_gaps, return_metadata=True, strict=False, calendar="360_day"
-    )
+    result_non_strict = infer_frequency(times_with_gaps, return_metadata=True, strict=False, calendar="360_day")
 
     assert result_non_strict.status == "irregular"
 
     # With strict mode: should be "missing_steps"
-    result_strict = infer_frequency(
-        times_with_gaps, return_metadata=True, strict=True, calendar="360_day"
-    )
+    result_strict = infer_frequency(times_with_gaps, return_metadata=True, strict=True, calendar="360_day")
 
     assert result_strict.status == "missing_steps"
 
@@ -277,9 +241,7 @@ def test_consistent_is_exact_and_status():
     )
 
     # With strict=True: should detect irregularity and set is_exact=False
-    result_strict = infer_frequency(
-        times_with_offsets, return_metadata=True, strict=True
-    )
+    result_strict = infer_frequency(times_with_offsets, return_metadata=True, strict=True)
 
     # Both status and is_exact should indicate irregularity
     assert result_strict.status == "irregular"
@@ -287,9 +249,7 @@ def test_consistent_is_exact_and_status():
     assert result_strict.frequency == "M"
 
     # With strict=False: should be valid (less strict tolerance)
-    result_non_strict = infer_frequency(
-        times_with_offsets, return_metadata=True, strict=False
-    )
+    result_non_strict = infer_frequency(times_with_offsets, return_metadata=True, strict=False)
 
     # Should be valid with non-strict mode
     assert result_non_strict.status == "valid"
@@ -312,17 +272,11 @@ def test_is_datetime_type_numpy_datetime64():
 def test_is_datetime_type_cftime_objects():
     """Test is_datetime_type with cftime datetime objects."""
     # Test different cftime calendar types
-    cftime_360day = np.array(
-        [cftime.Datetime360Day(2000, 1, 1), cftime.Datetime360Day(2000, 1, 2)]
-    )
+    cftime_360day = np.array([cftime.Datetime360Day(2000, 1, 1), cftime.Datetime360Day(2000, 1, 2)])
 
-    cftime_noleap = np.array(
-        [cftime.DatetimeNoLeap(2000, 1, 1), cftime.DatetimeNoLeap(2000, 1, 2)]
-    )
+    cftime_noleap = np.array([cftime.DatetimeNoLeap(2000, 1, 1), cftime.DatetimeNoLeap(2000, 1, 2)])
 
-    cftime_gregorian = np.array(
-        [cftime.DatetimeGregorian(2000, 1, 1), cftime.DatetimeGregorian(2000, 1, 2)]
-    )
+    cftime_gregorian = np.array([cftime.DatetimeGregorian(2000, 1, 1), cftime.DatetimeGregorian(2000, 1, 2)])
 
     assert is_datetime_type(cftime_360day)
     assert is_datetime_type(cftime_noleap)
@@ -423,9 +377,7 @@ def test_mixed_calendar_types():
 
     # Test no-leap calendar
     times_noleap = [cftime.DatetimeNoLeap(2000, m, 15) for m in range(1, 5)]
-    result_noleap = infer_frequency(
-        times_noleap, calendar="noleap", return_metadata=True
-    )
+    result_noleap = infer_frequency(times_noleap, calendar="noleap", return_metadata=True)
     assert result_noleap.frequency == "M"
 
 
@@ -472,9 +424,7 @@ def test_irregular_time_series_logging(capsys):
         cftime.Datetime360Day(2000, 3, 10),  # 24 days
     ]
 
-    result = infer_frequency(
-        irregular_times, log=True, strict=True, return_metadata=True
-    )
+    result = infer_frequency(irregular_times, log=True, strict=True, return_metadata=True)
     assert result.status == "irregular"
 
     # Check that logging occurred
@@ -494,16 +444,12 @@ def test_very_short_time_series_edge_cases():
 def test_numpy_datetime64_with_different_units():
     """Test numpy datetime64 arrays with different time units."""
     # Test with nanosecond precision
-    times_ns = np.array(
-        ["2000-01-01", "2000-01-02", "2000-01-03"], dtype="datetime64[ns]"
-    )
+    times_ns = np.array(["2000-01-01", "2000-01-02", "2000-01-03"], dtype="datetime64[ns]")
     result_ns = infer_frequency(times_ns, return_metadata=True)
     assert result_ns.frequency == "D"
 
     # Test with second precision
-    times_s = np.array(
-        ["2000-01-01", "2000-01-02", "2000-01-03"], dtype="datetime64[s]"
-    )
+    times_s = np.array(["2000-01-01", "2000-01-02", "2000-01-03"], dtype="datetime64[s]")
     result_s = infer_frequency(times_s, return_metadata=True)
     assert result_s.frequency == "D"
 
@@ -518,9 +464,7 @@ def test_resample_safe_error_paths():
 
     # Should raise error when trying to resample to finer resolution
     with pytest.raises(ValueError, match="time resolution too coarse"):
-        da.timefreq.resample_safe(
-            freq_str="M", target_approx_interval=30.4375  # Monthly interval
-        )
+        da.timefreq.resample_safe(freq_str="M", target_approx_interval=30.4375)  # Monthly interval
 
 
 def test_different_strict_mode_behaviors():
@@ -534,16 +478,12 @@ def test_different_strict_mode_behaviors():
     ]
 
     # Non-strict mode might still detect irregularity for very irregular data
-    result_non_strict = infer_frequency(
-        times_with_offsets, strict=False, return_metadata=True
-    )
+    result_non_strict = infer_frequency(times_with_offsets, strict=False, return_metadata=True)
     # Just check that we get a result
     assert result_non_strict.status in ["valid", "irregular"]
 
     # Strict mode should detect irregularity
-    result_strict = infer_frequency(
-        times_with_offsets, strict=True, return_metadata=True
-    )
+    result_strict = infer_frequency(times_with_offsets, strict=True, return_metadata=True)
     assert result_strict.status in ["irregular", "missing_steps"]
 
 
@@ -573,9 +513,7 @@ def test_get_time_label_dataset_with_time_coord():
 
     # Create dataset with time coordinate
     time_coord = pd.date_range("2000-01-01", periods=10)
-    ds = xr.Dataset(
-        {"temperature": (["time"], np.random.rand(10))}, coords={"time": time_coord}
-    )
+    ds = xr.Dataset({"temperature": (["time"], np.random.rand(10))}, coords={"time": time_coord})
 
     result = get_time_label(ds)
     assert result == "time"
@@ -621,9 +559,7 @@ def test_get_time_label_cftime_coordinates():
     """Test get_time_label with cftime datetime coordinates."""
     # Create dataset with cftime coordinates
     cftime_coords = [cftime.Datetime360Day(2000, m, 15) for m in range(1, 6)]
-    ds = xr.Dataset(
-        {"temperature": (["time"], np.random.rand(5))}, coords={"time": cftime_coords}
-    )
+    ds = xr.Dataset({"temperature": (["time"], np.random.rand(5))}, coords={"time": cftime_coords})
 
     result = get_time_label(ds)
     assert result == "time"
@@ -644,9 +580,7 @@ def test_get_time_label_no_datetime_coords():
 def test_get_time_label_dataset_with_non_datetime_time_coord():
     """Test get_time_label with Dataset where 'time' coord is not datetime."""
     # Create dataset with 'time' coordinate that's not datetime
-    ds = xr.Dataset(
-        {"data": (["time"], np.random.rand(5))}, coords={"time": [1, 2, 3, 4, 5]}
-    )
+    ds = xr.Dataset({"data": (["time"], np.random.rand(5))}, coords={"time": [1, 2, 3, 4, 5]})
 
     result = get_time_label(ds)
     assert result is None
@@ -739,9 +673,7 @@ def test_dataarray_check_resolution_with_manual_time_dim():
     da = xr.DataArray([1, 2, 3], coords={"T": times}, dims="T")
 
     # Test with manual specification
-    result = da.timefreq.check_resolution(
-        target_approx_interval=30.0, time_dim="T", log=False
-    )
+    result = da.timefreq.check_resolution(target_approx_interval=30.0, time_dim="T", log=False)
 
     assert "inferred_interval" in result
     assert "comparison_status" in result
@@ -809,9 +741,7 @@ def test_dataset_check_resolution_with_manual_time_dim():
     ds = xr.Dataset({"temp": (["T"], [20, 21, 22])}, coords={"T": times})
 
     # Test with manual specification
-    result = ds.timefreq.check_resolution(
-        target_approx_interval=30.0, time_dim="T", log=False
-    )
+    result = ds.timefreq.check_resolution(target_approx_interval=30.0, time_dim="T", log=False)
 
     assert "inferred_interval" in result
     assert "comparison_status" in result
@@ -858,9 +788,7 @@ def test_dataset_check_resolution_invalid_time_dim_error():
 
     # Should raise error when time_dim doesn't exist
     with pytest.raises(ValueError, match="Time dimension 'nonexistent' not found"):
-        ds.timefreq.check_resolution(
-            target_approx_interval=30.0, time_dim="nonexistent"
-        )
+        ds.timefreq.check_resolution(target_approx_interval=30.0, time_dim="nonexistent")
 
 
 # Tests for different calendar types and modes
@@ -874,9 +802,7 @@ def test_check_resolution_with_different_calendars():
     ]
     da_noleap = xr.DataArray([1, 2, 3], coords={"time": times_noleap}, dims="time")
 
-    result_noleap = da_noleap.timefreq.check_resolution(
-        target_approx_interval=31.0, calendar="noleap", log=False
-    )
+    result_noleap = da_noleap.timefreq.check_resolution(target_approx_interval=31.0, calendar="noleap", log=False)
 
     assert "inferred_interval" in result_noleap
     # Just check that we get a result - the exact validity depends on the inferred interval
@@ -890,9 +816,7 @@ def test_check_resolution_with_different_calendars():
     ]
     da_360 = xr.DataArray([1, 2, 3], coords={"time": times_360}, dims="time")
 
-    result_360 = da_360.timefreq.check_resolution(
-        target_approx_interval=30.0, calendar="360_day", log=False
-    )
+    result_360 = da_360.timefreq.check_resolution(target_approx_interval=30.0, calendar="360_day", log=False)
 
     assert "inferred_interval" in result_360
     assert result_360["is_valid_for_resampling"]
@@ -909,14 +833,10 @@ def test_check_resolution_with_strict_mode():
     da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
 
     # Test with strict=True
-    result_strict = da.timefreq.check_resolution(
-        target_approx_interval=30.0, strict=True, log=False
-    )
+    result_strict = da.timefreq.check_resolution(target_approx_interval=30.0, strict=True, log=False)
 
     # Test with strict=False
-    result_non_strict = da.timefreq.check_resolution(
-        target_approx_interval=30.0, strict=False, log=False
-    )
+    result_non_strict = da.timefreq.check_resolution(target_approx_interval=30.0, strict=False, log=False)
 
     # Both should have results, but strict mode might be more restrictive
     assert "inferred_interval" in result_strict
@@ -953,14 +873,10 @@ def test_check_resolution_tolerance_parameter():
     da = xr.DataArray([1, 2, 3], coords={"time": times}, dims="time")
 
     # Test with tight tolerance
-    result_tight = da.timefreq.check_resolution(
-        target_approx_interval=30.0, tolerance=0.001, log=False
-    )
+    result_tight = da.timefreq.check_resolution(target_approx_interval=30.0, tolerance=0.001, log=False)
 
     # Test with loose tolerance
-    result_loose = da.timefreq.check_resolution(
-        target_approx_interval=30.0, tolerance=1.0, log=False
-    )
+    result_loose = da.timefreq.check_resolution(target_approx_interval=30.0, tolerance=1.0, log=False)
 
     # Both should have results
     assert "inferred_interval" in result_tight

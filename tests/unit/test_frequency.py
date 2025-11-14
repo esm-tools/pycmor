@@ -18,10 +18,7 @@ def test_mon_is_sorted_before_dec():
 
 
 def test_3hr_and_3hrPt_have_same_sort_order():
-    assert (
-        Frequency.for_name("3hr").approx_interval
-        == Frequency.for_name("3hrPt").approx_interval
-    )
+    assert Frequency.for_name("3hr").approx_interval == Frequency.for_name("3hrPt").approx_interval
 
 
 def test_3hr_does_not_equal_3hrPt():

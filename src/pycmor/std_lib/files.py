@@ -212,8 +212,7 @@ def create_filepath(ds, rule):
     frequency_str = rule.data_request_variable.frequency
     if frequency_str == "fx" or not time_range:
         filepath = (
-            f"{out_dir}/{name}_{table_id}_{institution}-{source_id}_"
-            f"{experiment_id}_{label}_{grid}{clim_suffix}.nc"
+            f"{out_dir}/{name}_{table_id}_{institution}-{source_id}_" f"{experiment_id}_{label}_{grid}{clim_suffix}.nc"
         )
     else:
         filepath = (
@@ -245,9 +244,7 @@ def get_offset(rule):
             offset = pd.Timedelta(offset)
         else:
             # offset is a float value scaled by the approx_interval
-            approx_interval = float(
-                rule.data_request_variable.table_header.approx_interval
-            )
+            approx_interval = float(rule.data_request_variable.table_header.approx_interval)
             dt = pd.Timedelta(approx_interval, unit="d")
             offset = dt * float(offset)
     return offset
@@ -348,9 +345,7 @@ def _save_dataset_with_native_timespan(
                 )
 
                 # Replace the time coordinate with the encoded values
-                ds[time_label] = xr.DataArray(
-                    encoded_values, dims=[time_label], attrs=ds[time_label].attrs.copy()
-                )
+                ds[time_label] = xr.DataArray(encoded_values, dims=[time_label], attrs=ds[time_label].attrs.copy())
 
             # Set time units and calendar as attributes for consistency
             # Only set if they are actual strings (not Mock objects)
@@ -492,9 +487,7 @@ def save_dataset(da: xr.DataArray, rule):
         )
 
         # Replace the time coordinate with the encoded values
-        da[time_label] = xr.DataArray(
-            encoded_values, dims=[time_label], attrs=da[time_label].attrs.copy()
-        )
+        da[time_label] = xr.DataArray(encoded_values, dims=[time_label], attrs=da[time_label].attrs.copy())
 
     # Set time units and calendar as attributes (for metadata)
     # Only set if they are actual strings (not Mock objects)
@@ -535,9 +528,7 @@ def save_dataset(da: xr.DataArray, rule):
         )
     else:
         file_timespan_as_offset = pd.tseries.frequencies.to_offset(file_timespan)
-        file_timespan_as_dt = (
-            pd.Timestamp.now() + file_timespan_as_offset - pd.Timestamp.now()
-        )
+        file_timespan_as_dt = pd.Timestamp.now() + file_timespan_as_offset - pd.Timestamp.now()
         approx_interval = float(rule.data_request_variable.table_header.approx_interval)
         dt = pd.Timedelta(approx_interval, unit="d")
         if file_timespan_as_dt < dt:

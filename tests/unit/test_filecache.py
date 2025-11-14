@@ -73,9 +73,7 @@ class TestFilecache:
         mock_path_instance.open = mock_open(read_data="")
         cache = Filecache.load()
         assert cache.df.empty
-        mock_path_instance.parent.mkdir.assert_called_once_with(
-            exist_ok=True, parents=True
-        )
+        mock_path_instance.parent.mkdir.assert_called_once_with(exist_ok=True, parents=True)
         mock_path_instance.touch.assert_called_once()
 
     @patch("builtins.open")
@@ -119,9 +117,7 @@ class TestFilecache:
         mock_ds.close = Mock()
         mock_open_dataset.return_value = mock_ds
         cache = Filecache()
-        with patch.object(
-            cache, "_infer_freq_from_file", return_value="ME"
-        ) as mock_infer_freq:
+        with patch.object(cache, "_infer_freq_from_file", return_value="ME") as mock_infer_freq:
             record = cache._make_record(sample_netcdf_file)
             assert isinstance(record, pd.Series)
             assert record["filename"] == os.path.basename(sample_netcdf_file)
@@ -133,9 +129,7 @@ class TestFilecache:
             assert record["units"] == "K"
             assert record["freq"] == "ME"
             assert record["steps"] == 12
-            mock_infer_freq.assert_called_once_with(
-                sample_netcdf_file, mock_ds, mock_ds.time.to_pandas.return_value
-            )
+            mock_infer_freq.assert_called_once_with(sample_netcdf_file, mock_ds, mock_ds.time.to_pandas.return_value)
 
     def test_add_file_new(self, sample_cache_data):  # noqa: F811  # noqa: F811
         """Test adding a new file to cache."""
@@ -180,9 +174,7 @@ class TestFilecache:
             "mtime": 1234567890,
             "checksum": "imohash:test123",
         }
-        test_data = pd.concat(
-            [test_data, pd.DataFrame([test_record])], ignore_index=True
-        )
+        test_data = pd.concat([test_data, pd.DataFrame([test_record])], ignore_index=True)
         cache = Filecache(test_data)
         result = cache.infer_freq(test_filename)
         assert result == "M"

@@ -33,9 +33,7 @@ with open("API.rst", "w") as rst:
     rst.write("=============================\n")
     rst.write("Reference: Code Documentation\n")
     rst.write("=============================\n")
-    rst.write(
-        "This documentation is primarily intended for developers and contributors!\n\n"
-    )
+    rst.write("This documentation is primarily intended for developers and contributors!\n\n")
     rst.write(".. toctree::\n")
     rst.write("   :glob:\n\n")
     rst.write("   api/*")

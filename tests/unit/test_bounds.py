@@ -3,11 +3,7 @@
 import numpy as np
 import xarray as xr
 
-from pycmor.std_lib.bounds import (
-    add_bounds_from_coords,
-    add_bounds_to_grid,
-    calculate_bounds_1d,
-)
+from pycmor.std_lib.bounds import add_bounds_from_coords, add_bounds_to_grid, calculate_bounds_1d
 
 
 def test_calculate_bounds_1d_regular_grid():
@@ -47,9 +43,7 @@ def test_calculate_bounds_1d_irregular_grid():
 
     # Check that bounds are continuous (most important property)
     for i in range(len(lat) - 1):
-        np.testing.assert_almost_equal(
-            bounds[i, 1].values, bounds[i + 1, 0].values, decimal=10
-        )
+        np.testing.assert_almost_equal(bounds[i, 1].values, bounds[i + 1, 0].values, decimal=10)
 
     # For irregular grids, coordinate values should be within their bounds
     for i in range(len(lat)):

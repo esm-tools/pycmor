@@ -1,0 +1,18 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203,W503
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    _version.py,
+    versioneer.py,
+    cmip6-cmor-tables,
+    CMIP7_DReq_Software,
+    CMIP7-CVs,
+    src/pycmor/webapp.py
+per-file-ignores =
+    */_version.py:E203

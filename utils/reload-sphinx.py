@@ -37,9 +37,7 @@ class ReloadHandler(FileSystemEventHandler):
 
 
 if __name__ == "__main__":
-    path = (
-        "doc/*rst"  # Directory to watch (change to your Sphinx documentation directory)
-    )
+    path = "doc/*rst"  # Directory to watch (change to your Sphinx documentation directory)
     command = "cd doc && make html"  # Command to rebuild and serve your site
     event_handler = ReloadHandler(command)
     observer = Observer()

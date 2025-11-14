@@ -12,9 +12,7 @@ PROGRESSIVE_STEPS = [STEPS[: i + 1] for i in range(len(STEPS))]
 # There is a segfault somewhere in the code, so I'd like to find out where it is...
 @pytest.mark.skip
 @pytest.mark.parametrize("steps", PROGRESSIVE_STEPS)
-def test_process_progressive_pipeline(
-    fesom_2p6_pimesh_esm_tools_config, fesom_2p6_pimesh_esm_tools_data, steps
-):
+def test_process_progressive_pipeline(fesom_2p6_pimesh_esm_tools_config, fesom_2p6_pimesh_esm_tools_data, steps):
     logger.info(f"Processing {fesom_2p6_pimesh_esm_tools_config} with {steps}")
     with open(fesom_2p6_pimesh_esm_tools_config, "r") as f:
         cfg = yaml.safe_load(f)
@@ -22,9 +20,7 @@ def test_process_progressive_pipeline(
         cfg["pipelines"] = []
     for rule in cfg["rules"]:
         for input in rule["inputs"]:
-            input["path"] = input["path"].replace(
-                "REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data)
-            )
+            input["path"] = input["path"].replace("REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data))
         rule["pipelines"] = ["default"]
     cfg["pipelines"].append({"name": "default", "steps": []})
     pipeline = cfg["pipelines"][0]
@@ -39,9 +35,7 @@ def test_init(fesom_2p6_pimesh_esm_tools_config, fesom_2p6_pimesh_esm_tools_data
         cfg = yaml.safe_load(f)
     for rule in cfg["rules"]:
         for input in rule["inputs"]:
-            input["path"] = input["path"].replace(
-                "REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data)
-            )
+            input["path"] = input["path"].replace("REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data))
     CMORizer.from_dict(cfg)
     # If we get this far, it was possible to construct
     # the object, so this test passes:
@@ -54,8 +48,6 @@ def test_process(fesom_2p6_pimesh_esm_tools_config, fesom_2p6_pimesh_esm_tools_d
         cfg = yaml.safe_load(f)
     for rule in cfg["rules"]:
         for input in rule["inputs"]:
-            input["path"] = input["path"].replace(
-                "REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data)
-            )
+            input["path"] = input["path"].replace("REPLACE_ME", str(fesom_2p6_pimesh_esm_tools_data))
     cmorizer = CMORizer.from_dict(cfg)
     cmorizer.process()

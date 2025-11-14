@@ -4,14 +4,12 @@
 ``pycmor``: A Python package to simplify CMOR
 ===============================================
 
-.. image:: assets/Pycmor.png
-
 ``pycmor`` is a Python package to simplify the standardization of output into the Climate Model Output Rewriter (CMOR) standard.
 
 .. image:: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml/badge.svg
     :target: https://github.com/esm-tools/pycmor/actions/workflows/CI-test.yaml
-.. image:: https://img.shields.io/pypi/v/py-cmor.svg
-    :target: https://pypi.python.org/pypi/py-cmor
+.. image:: https://img.shields.io/pypi/v/pycmor.svg
+    :target: https://pypi.python.org/pypi/pycmor
     :alt: Latest PyPI version
 .. image:: https://readthedocs.org/projects/pycmor/badge/?version=latest
     :target: https://pycmor.readthedocs.io/en/latest/?badge=latest
@@ -28,7 +26,7 @@
   "Makes CMOR Simple" :-)
 
 ``pycmor`` is designed as a wrapper around various CMORization tools and NetCDF
-command line tools to make reformatting data into CMIP6 compliant format as simple
+command line tools to make reformatting data into CMIP6 and CMIP7 compliant format as simple
 and flexible as possible.
 
 The package is designed to be modular and extensible, with a plugin system that allows
@@ -40,6 +38,10 @@ package in their own scripts.
 To get started, you can install it via ``pip``::
 
     pip install pycmor
+
+For CMIP7 support, install with the optional CMIP7 dependency::
+
+    pip install pycmor[cmip7]
 
 Then you can run the main command line interface. Start out by getting some help::
 

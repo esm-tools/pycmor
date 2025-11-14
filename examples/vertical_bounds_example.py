@@ -51,9 +51,7 @@ def example_pressure_levels():
     print(ds_with_bounds)
     print("\nPressure level bounds (first 3 levels):")
     print(ds_with_bounds["plev_bnds"][:3].values)
-    print(
-        "\nBounds attribute added to plev:", ds_with_bounds["plev"].attrs.get("bounds")
-    )
+    print("\nBounds attribute added to plev:", ds_with_bounds["plev"].attrs.get("bounds"))
 
 
 def example_ocean_depth():
@@ -121,21 +119,15 @@ def example_irregular_levels():
     ds_with_bounds = add_vertical_bounds(ds)
 
     print("\nCalculated bounds:")
-    for i, (level, bounds) in enumerate(
-        zip(ds_with_bounds["plev"].values, ds_with_bounds["plev_bnds"].values)
-    ):
-        print(
-            f"  Level {i}: {level:8.0f} Pa  →  [{bounds[0]:8.0f}, {bounds[1]:8.0f}] Pa"
-        )
+    for i, (level, bounds) in enumerate(zip(ds_with_bounds["plev"].values, ds_with_bounds["plev_bnds"].values)):
+        print(f"  Level {i}: {level:8.0f} Pa  →  [{bounds[0]:8.0f}, {bounds[1]:8.0f}] Pa")
 
     # Verify continuity
     print("\nVerifying bounds continuity:")
     for i in range(len(plev) - 1):
         upper = ds_with_bounds["plev_bnds"][i, 1].values
         lower_next = ds_with_bounds["plev_bnds"][i + 1, 0].values
-        print(
-            f"  Level {i} upper bound = Level {i+1} lower bound: {upper:.1f} == {lower_next:.1f}"
-        )
+        print(f"  Level {i} upper bound = Level {i+1} lower bound: {upper:.1f} == {lower_next:.1f}")
 
 
 def example_usage_in_pipeline():

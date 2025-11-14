@@ -16,9 +16,7 @@ def sample_data():
     dates = pd.date_range("2023-01-01", "2023-12-31", freq="D")
     values = np.random.rand(len(dates))
     # Create chunked data array
-    return xr.DataArray(values, coords={"time": dates}, dims=["time"]).chunk(
-        {"time": 30}
-    )  # Chunk by month
+    return xr.DataArray(values, coords={"time": dates}, dims=["time"]).chunk({"time": 30})  # Chunk by month
 
 
 @pytest.fixture
@@ -41,9 +39,7 @@ def sample_rule():
     class MockRule(dict):
         def __init__(self, table_id="Amon", approx_interval="30", frequency=None):
             super().__init__()
-            self.data_request_variable = MockDataRequestVariable(
-                MockTable(table_id, approx_interval, frequency)
-            )
+            self.data_request_variable = MockDataRequestVariable(MockTable(table_id, approx_interval, frequency))
             self.adjust_timestamp = None
 
     return MockRule
@@ -118,9 +114,7 @@ def test_climatology_hourly(sample_data, sample_rule):
     # Create hourly data first
     hourly_dates = pd.date_range("2023-01-01", "2023-01-07", freq="h")
     hourly_values = np.random.rand(len(hourly_dates))
-    hourly_data = xr.DataArray(
-        hourly_values, coords={"time": hourly_dates}, dims=["time"]
-    ).chunk(
+    hourly_data = xr.DataArray(hourly_values, coords={"time": hourly_dates}, dims=["time"]).chunk(
         {"time": 24}
     )  # Chunk by day
 
@@ -160,9 +154,7 @@ def test__get_time_method(frequency_name, expected):
 
 
 def test__frequency_from_approx_interval_decade():
-    assert (
-        pycmor.std_lib.timeaverage._frequency_from_approx_interval("3650") == "10YS"
-    )  # Decade conversion
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("3650") == "10YS"  # Decade conversion
 
 
 def test__frequency_from_approx_interval_year():
@@ -204,9 +196,7 @@ def test__frequency_from_approx_interval_hour():
     assert (
         pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.08333") == "2h"
     )  # Approximately two hours in days
-    assert (
-        pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.5") == "12h"
-    )  # Half a day in hours
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.5") == "12h"  # Half a day in hours
 
 
 def test__frequency_from_approx_interval_minute():
@@ -223,9 +213,7 @@ def test__frequency_from_approx_interval_minute():
 
 
 def test__frequency_from_approx_interval_second():
-    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval(
-        "0.000011574"
-    ) in {
+    assert pycmor.std_lib.timeaverage._frequency_from_approx_interval("0.000011574") in {
         "s",
         "1s",
     }  # Approximately one second in days

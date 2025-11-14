@@ -15,19 +15,14 @@ def test_parallel_process(CMIP_Tables_Dir):
     mock_client.submit.return_value = "known_value"
 
     # Mock the gather method to return a list of known values
-    mock_client.gather.return_value = [
-        "known_value" for _ in range(5)
-    ]  # assuming there are 5 rules
+    mock_client.gather.return_value = ["known_value" for _ in range(5)]  # assuming there are 5 rules
 
     # Use patch to replace Client with our mock_client in the context of this test
     with patch("pycmor.cmorizer.Client", return_value=mock_client):
         pycmor_cfg = {"parallel": True}
         general_cfg = {"CMIP_Tables_Dir": CMIP_Tables_Dir}
         pipelines_cfg = [TestingPipeline()]
-        rules_cfg = [
-            {"name": f"rule_{i}", "cmor_variable": ["tas"], "input_patterns": [".*"]}
-            for i in range(5)
-        ]
+        rules_cfg = [{"name": f"rule_{i}", "cmor_variable": ["tas"], "input_patterns": [".*"]} for i in range(5)]
         cmorizer = CMORizer(pycmor_cfg, general_cfg, pipelines_cfg, rules_cfg)
         results = cmorizer.parallel_process()
 

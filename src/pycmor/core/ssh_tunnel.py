@@ -43,12 +43,8 @@ def ssh_tunnel_cli(
     """
     Create an SSH tunnel to access Prefect and Dask dashboards on a remote compute node.
     """
-    dask_link = click.style(
-        f"http://localhost:{local_dask_port}/status", fg="blue", underline=True
-    )
-    prefect_link = click.style(
-        f"http://localhost:{local_prefect_port}", fg="blue", underline=True
-    )
+    dask_link = click.style(f"http://localhost:{local_dask_port}/status", fg="blue", underline=True)
+    prefect_link = click.style(f"http://localhost:{local_prefect_port}", fg="blue", underline=True)
 
     ssh_command = (
         f"ssh -nNT "

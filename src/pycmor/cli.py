@@ -22,11 +22,7 @@ from .dev import utils as dev_utils
 from .fesom_1p4.nodes_to_levels import convert
 from .scripts.update_dimensionless_mappings import update_dimensionless_mappings
 
-MAX_FRAMES = int(
-    os.environ.get(
-        "PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)
-    )
-)
+MAX_FRAMES = int(os.environ.get("PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)))
 """
 str: The maximum number of frames to show in the traceback if there is an error. Default to 3
 """
@@ -56,9 +52,7 @@ def pymor_cli_group(func):
     func = click_loguru.logging_options(func)
     func = click.group()(func)
     func = click_loguru.stash_subcommand()(func)
-    func = click.version_option(
-        version=VERSION, prog_name="PyCMOR - Makes CMOR Simple"
-    )(func)
+    func = click.version_option(version=VERSION, prog_name="PyCMOR - Makes CMOR Simple")(func)
     return func
 
 
@@ -225,9 +219,7 @@ def config(config_file, verbose, quiet, logfile, profile_mem):
                 GENERAL_VALIDATOR.errors,
             ]
         ):
-            logger.success(
-                f"Configuration {config_file} is valid for general settings, rules, and pipelines!"
-            )
+            logger.success(f"Configuration {config_file} is valid for general settings, rules, and pipelines!")
         for key, error in {
             **GENERAL_VALIDATOR.errors,
             **PIPELINES_VALIDATOR.errors,

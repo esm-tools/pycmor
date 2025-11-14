@@ -61,12 +61,8 @@ def scalar_r2g(al, be, ga, rlon, rlat):
     rotate_matrix[0, 0] = np.cos(ga) * np.cos(al) - np.sin(ga) * np.cos(be) * np.sin(al)
     rotate_matrix[0, 1] = np.cos(ga) * np.sin(al) + np.sin(ga) * np.cos(be) * np.cos(al)
     rotate_matrix[0, 2] = np.sin(ga) * np.sin(be)
-    rotate_matrix[1, 0] = -np.sin(ga) * np.cos(al) - np.cos(ga) * np.cos(be) * np.sin(
-        al
-    )
-    rotate_matrix[1, 1] = -np.sin(ga) * np.sin(al) + np.cos(ga) * np.cos(be) * np.cos(
-        al
-    )
+    rotate_matrix[1, 0] = -np.sin(ga) * np.cos(al) - np.cos(ga) * np.cos(be) * np.sin(al)
+    rotate_matrix[1, 1] = -np.sin(ga) * np.sin(al) + np.cos(ga) * np.cos(be) * np.cos(al)
     rotate_matrix[1, 2] = np.cos(ga) * np.sin(be)
     rotate_matrix[2, 0] = np.sin(be) * np.sin(al)
     rotate_matrix[2, 1] = -np.sin(be) * np.cos(al)
@@ -121,9 +117,7 @@ def load_mesh(path, abg=[50, 15, -90], get3d=True, usepickle=True, usejoblib=Fal
     python_version = "3"
     path = os.path.abspath(path)
     if usepickle and usejoblib:
-        raise ValueError(
-            "Both `usepickle` and `usejoblib` set to True, select only one"
-        )
+        raise ValueError("Both `usepickle` and `usejoblib` set to True, select only one")
 
     if usepickle:
         pickle_file = os.path.join(path, "pickle_mesh_py3")
@@ -342,9 +336,7 @@ class fesom_mesh(object):
                 self.lump2[n] = self.lump2[n] + self.voltri[j]
         self.lump2 = self.lump2 / 3.0
 
-        self.x2, self.y2 = scalar_r2g(
-            self.alpha, self.beta, self.gamma, self.x2, self.y2
-        )
+        self.x2, self.y2 = scalar_r2g(self.alpha, self.beta, self.gamma, self.x2, self.y2)
         d = self.x2[self.elem].max(axis=1) - self.x2[self.elem].min(axis=1)
         self.no_cyclic_elem = [i for (i, val) in enumerate(d) if val < 100]
 
@@ -366,9 +358,7 @@ class fesom_mesh(object):
 
         with open(self.aux3dfile) as f:
             self.nlev = int(next(f))
-            self.n32 = np.fromiter(
-                f, dtype=np.int32, count=self.n2d * self.nlev
-            ).reshape(self.n2d, self.nlev)
+            self.n32 = np.fromiter(f, dtype=np.int32, count=self.n2d * self.nlev).reshape(self.n2d, self.nlev)
 
         self.topo = np.zeros(shape=(self.n2d))
         for prof in self.n32:

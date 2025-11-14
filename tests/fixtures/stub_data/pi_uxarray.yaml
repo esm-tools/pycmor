@@ -1,0 +1,2490 @@
+source_directory: /Users/pgierz/.cache/pycmor/test_data/pi_uxarray
+files:
+- path: Av.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz: 48
+      time: 1
+      elem: 5839
+    coordinates:
+      nz:
+        dtype: float64
+        dims:
+        - nz
+        shape:
+        - 48
+        attrs:
+          long_name: depth at layer interface
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      Av:
+        dtype: float32
+        dims:
+        - time
+        - nz
+        - elem
+        shape:
+        - 1
+        - 48
+        - 5839
+        attrs:
+          description: vertical viscosity Av
+          long_name: vertical viscosity Av
+          units: m2/s
+          location: face
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: Kv.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz: 48
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz:
+        dtype: float64
+        dims:
+        - nz
+        shape:
+        - 48
+        attrs:
+          long_name: depth at layer interface
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      Kv:
+        dtype: float32
+        dims:
+        - time
+        - nz
+        - nod2
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          description: vertical diffusivity Kv
+          long_name: vertical diffusivity Kv
+          units: m2/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: MLD1.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      MLD1:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: Mixed Layer Depth
+          long_name: Mixed Layer Depth
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: MLD2.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      MLD2:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: Mixed Layer Depth
+          long_name: Mixed Layer Depth
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: MLD3.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      MLD3:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: Mixed Layer Depth
+          long_name: Mixed Layer Depth
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: N2.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz: 48
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz:
+        dtype: float64
+        dims:
+        - nz
+        shape:
+        - 48
+        attrs:
+          long_name: depth at layer interface
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      N2:
+        dtype: float32
+        dims:
+        - time
+        - nz
+        - nod2
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          description: brunt väisälä
+          long_name: brunt väisälä
+          units: 1/s2
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: a_ice.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      a_ice:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: ice concentration
+          long_name: ice concentration
+          units: '%'
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: fesom.1985.ice.restart/area.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      area:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: '%'
+          long_name: ice concentration [0 to 1]
+    attrs: {}
+- path: fesom.1985.ice.restart/hice.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      hice:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m
+          long_name: effective ice thickness
+    attrs: {}
+- path: fesom.1985.ice.restart/hsnow.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      hsnow:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m
+          long_name: effective snow thickness
+    attrs: {}
+- path: fesom.1985.ice.restart/uice.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      uice:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m/s
+          long_name: zonal velocity
+    attrs: {}
+- path: fesom.1985.ice.restart/vice.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      vice:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m
+          long_name: meridional velocity
+    attrs: {}
+- path: fesom.1985.oce.restart/hbar.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      hbar:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m
+          long_name: ALE surface elevation
+    attrs: {}
+- path: fesom.1985.oce.restart/hnode.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      hnode:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: m
+          long_name: nodal layer thickness
+    attrs: {}
+- path: fesom.1985.oce.restart/salt.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      salt:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: psu
+          long_name: salinity
+    attrs: {}
+- path: fesom.1985.oce.restart/salt_AB.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      salt_AB:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: psu
+          long_name: salinity, Adams-Bashforth
+    attrs: {}
+- path: fesom.1985.oce.restart/salt_M1.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      salt_M1:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: psu
+          long_name: salinity, Adams-Bashforth
+    attrs: {}
+- path: fesom.1985.oce.restart/ssh.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      ssh:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: m
+          long_name: sea surface elevation
+    attrs: {}
+- path: fesom.1985.oce.restart/ssh_rhs_old.nc
+  dataset:
+    dimensions:
+      time: 1
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      ssh_rhs_old:
+        dtype: float64
+        dims:
+        - time
+        - node
+        shape:
+        - 1
+        - 3140
+        attrs:
+          units: '?'
+          long_name: RHS for the elevation
+    attrs: {}
+- path: fesom.1985.oce.restart/temp.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      temp:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: degC
+          long_name: potential temperature
+    attrs: {}
+- path: fesom.1985.oce.restart/temp_AB.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      temp_AB:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: degC
+          long_name: potential temperature, Adams-Bashforth
+    attrs: {}
+- path: fesom.1985.oce.restart/temp_M1.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      temp_M1:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - node
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          units: degC
+          long_name: potential temperature, Adams-Bashforth
+    attrs: {}
+- path: fesom.1985.oce.restart/u.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      elem: 5839
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      u:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          units: m/s
+          long_name: zonal velocity
+    attrs: {}
+- path: fesom.1985.oce.restart/urhs_AB.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      elem: 5839
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      urhs_AB:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          units: m/s
+          long_name: Adams-Bashforth for u (n-1 for AB2 and n-2 for AB3)
+    attrs: {}
+- path: fesom.1985.oce.restart/v.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      elem: 5839
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      v:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          units: m/s
+          long_name: meridional velocity
+    attrs: {}
+- path: fesom.1985.oce.restart/vrhs_AB.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz_1: 47
+      elem: 5839
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      vrhs_AB:
+        dtype: float64
+        dims:
+        - time
+        - nz_1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          units: m/s
+          long_name: Adams-Bashforth for v (n-1 for AB2 and n-2 for AB3)
+    attrs: {}
+- path: fesom.1985.oce.restart/w.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz: 48
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      w:
+        dtype: float64
+        dims:
+        - time
+        - nz
+        - node
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          units: m/s
+          long_name: vertical velocity
+    attrs: {}
+- path: fesom.1985.oce.restart/w_expl.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz: 48
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      w_expl:
+        dtype: float64
+        dims:
+        - time
+        - nz
+        - node
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          units: m/s
+          long_name: vertical velocity
+    attrs: {}
+- path: fesom.1985.oce.restart/w_impl.nc
+  dataset:
+    dimensions:
+      time: 1
+      nz: 48
+      node: 3140
+    coordinates:
+      time:
+        dtype: float64
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+        sample_value: '2678040.0'
+    variables:
+      iter:
+        dtype: int32
+        dims:
+        - time
+        shape:
+        - 1
+        attrs: {}
+      w_impl:
+        dtype: float64
+        dims:
+        - time
+        - nz
+        - node
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          units: m/s
+          long_name: vertical velocity
+    attrs: {}
+- path: fesom.mesh.diag.nc
+  dataset:
+    dimensions:
+      nz: 48
+      nz1: 47
+      elem: 5839
+      nod2: 3140
+      n3: 3
+      n2: 2
+      edg_n: 8986
+      N: 8
+      n4: 4
+    coordinates:
+      nz:
+        dtype: float64
+        dims:
+        - nz
+        shape:
+        - 48
+        attrs:
+          long_name: depth of levels
+          standard_name: ''
+          units: meters
+          positive: down
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth of layers
+          positive: down
+    variables:
+      fesom_mesh:
+        dtype: int32
+        dims: []
+        shape: []
+        attrs:
+          cf_role: mesh_topology
+          long_name: Topology data of 2D unstructured mesh
+          topology_dimension: 2
+          node_coordinates: lon lat
+          face_node_connectivity: face_nodes
+          face_dimension: elem
+          edge_node_connectivity: edge_nodes
+          edge_dimension: edg_n
+          face_edge_connectivity: face_edges
+          face_face_connectivity: face_links
+          edge_face_connectivity: edge_face_links
+      elem_area:
+        dtype: float64
+        dims:
+        - elem
+        shape:
+        - 5839
+        attrs:
+          long_name: element areas
+      nlevels_nod2D:
+        dtype: int32
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: number of levels below nodes
+      nlevels:
+        dtype: int32
+        dims:
+        - elem
+        shape:
+        - 5839
+        attrs:
+          long_name: number of levels below elements
+      nod_in_elem2D_num:
+        dtype: int32
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: number of elements containing the node
+      nod_part:
+        dtype: int32
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: nodal partitioning at the cold start
+      elem_part:
+        dtype: int32
+        dims:
+        - elem
+        shape:
+        - 5839
+        attrs:
+          long_name: element partitioning at the cold start
+      zbar_e_bottom:
+        dtype: float64
+        dims:
+        - elem
+        shape:
+        - 5839
+        attrs:
+          long_name: element bottom dep
+      zbar_n_bottom:
+        dtype: float64
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: nodal bottom depth
+      lon:
+        dtype: float64
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: longitude
+          standard_name: longitude
+          units: degrees_east
+      lat:
+        dtype: float64
+        dims:
+        - nod2
+        shape:
+        - 3140
+        attrs:
+          long_name: latitude
+          standard_name: latitude
+          units: degrees_north
+      nod_area:
+        dtype: float64
+        dims:
+        - nz
+        - nod2
+        shape:
+        - 48
+        - 3140
+        attrs:
+          long_name: nodal areas
+      face_nodes:
+        dtype: int32
+        dims:
+        - n3
+        - elem
+        shape:
+        - 3
+        - 5839
+        attrs:
+          long_name: Maps every triangular face to its three corner nodes.
+          standard_name: face
+          units: ''
+          cf_role: face_node_connectivity
+          start_index: 1
+          location: face
+      edge_nodes:
+        dtype: int32
+        dims:
+        - n2
+        - edg_n
+        shape:
+        - 2
+        - 8986
+        attrs:
+          long_name: Maps every edge to the two nodes that it connects
+          standard_name: edge
+          units: ''
+          cf_role: edge_node_connectivity
+          start_index: 1
+      face_edges:
+        dtype: int32
+        dims:
+        - n3
+        - elem
+        shape:
+        - 3
+        - 5839
+        attrs:
+          long_name: Maps every triangular face to its three edges.
+          standard_name: face_edges
+          units: ''
+          cf_role: face_edge_connectivity
+      face_links:
+        dtype: float64
+        dims:
+        - n3
+        - elem
+        shape:
+        - 3
+        - 5839
+        attrs:
+          long_name: neighbor faces for faces
+          standard_name: face_links
+          units: ''
+          cf_role: face_face_connectivity
+          comment: missing neighbor faces are indicated using _FillValue
+      edge_face_links:
+        dtype: float64
+        dims:
+        - n2
+        - edg_n
+        shape:
+        - 2
+        - 8986
+        attrs:
+          long_name: neighbor faces for edges
+          standard_name: edge_face_links
+          units: ''
+          cf_role: edge_face_connectivity
+          comment: missing neighbor faces are indicated using _FillValue
+          start_index: 1
+      nod_in_elem2D:
+        dtype: int32
+        dims:
+        - N
+        - nod2
+        shape:
+        - 8
+        - 3140
+        attrs:
+          long_name: elements containing the node
+      edge_cross_dxdy:
+        dtype: float64
+        dims:
+        - n4
+        - edg_n
+        shape:
+        - 4
+        - 8986
+        attrs:
+          long_name: edge cross distancess
+      gradient_sca_x:
+        dtype: float64
+        dims:
+        - n3
+        - elem
+        shape:
+        - 3
+        - 5839
+        attrs:
+          long_name: x component of a gradient at nodes of an element
+      gradient_sca_y:
+        dtype: float64
+        dims:
+        - n3
+        - elem
+        shape:
+        - 3
+        - 5839
+        attrs:
+          long_name: y component of a gradient at nodes of an element
+    attrs:
+      Conventions: UGRID-1.0
+- path: fh.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      fh:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: heat flux
+          long_name: heat flux
+          units: W
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: fw.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      fw:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: fresh water flux
+          long_name: fresh water flux
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: m_ice.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      m_ice:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: ice height
+          long_name: ice height
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: m_snow.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      m_snow:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: snow height
+          long_name: snow height
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: salt.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      salt:
+        dtype: float64
+        dims:
+        - time
+        - nz1
+        - nod2
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          description: salinity
+          long_name: salinity
+          units: psu
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: ssh.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      ssh:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: sea surface elevation
+          long_name: sea surface elevation
+          units: m
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: sss.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      sss:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: sea surface salinity
+          long_name: sea surface salinity
+          units: psu
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: sst.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      sst:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: sea surface temperature
+          long_name: sea surface temperature
+          units: C
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: temp.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      temp:
+        dtype: float32
+        dims:
+        - time
+        - nz1
+        - nod2
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          description: temperature
+          long_name: temperature
+          units: C
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: tx_sur.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      elem: 5839
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      tx_sur:
+        dtype: float32
+        dims:
+        - time
+        - elem
+        shape:
+        - 1
+        - 5839
+        attrs:
+          description: zonal wind str. to ocean
+          long_name: zonal wind str. to ocean
+          units: N/m2
+          location: face
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: ty_sur.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      elem: 5839
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      ty_sur:
+        dtype: float32
+        dims:
+        - time
+        - elem
+        shape:
+        - 1
+        - 5839
+        attrs:
+          description: meridional wind str. to ocean
+          long_name: meridional wind str. to ocean
+          units: N/m2
+          location: face
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: u.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      elem: 5839
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      u:
+        dtype: float32
+        dims:
+        - time
+        - nz1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          description: zonal velocity
+          long_name: zonal velocity
+          units: m/s
+          location: face
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: uice.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      uice:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: ice velocity x
+          long_name: ice velocity x
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: unod.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      unod:
+        dtype: float32
+        dims:
+        - time
+        - nz1
+        - nod2
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          description: zonal velocity at nodes
+          long_name: zonal velocity at nodes
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: v.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      elem: 5839
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      v:
+        dtype: float32
+        dims:
+        - time
+        - nz1
+        - elem
+        shape:
+        - 1
+        - 47
+        - 5839
+        attrs:
+          description: meridional velocity
+          long_name: meridional velocity
+          units: m/s
+          location: face
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: vice.fesom.1985.nc
+  dataset:
+    dimensions:
+      time: 1
+      nod2: 3140
+    coordinates:
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      vice:
+        dtype: float32
+        dims:
+        - time
+        - nod2
+        shape:
+        - 1
+        - 3140
+        attrs:
+          description: ice velocity y
+          long_name: ice velocity y
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: vnod.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz1: 47
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz1:
+        dtype: float64
+        dims:
+        - nz1
+        shape:
+        - 47
+        attrs:
+          long_name: depth at layer midpoint
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      vnod:
+        dtype: float32
+        dims:
+        - time
+        - nz1
+        - nod2
+        shape:
+        - 1
+        - 47
+        - 3140
+        attrs:
+          description: meridional velocity at nodes
+          long_name: meridional velocity at nodes
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+- path: w.fesom.1985.nc
+  dataset:
+    dimensions:
+      nz: 48
+      time: 1
+      nod2: 3140
+    coordinates:
+      nz:
+        dtype: float64
+        dims:
+        - nz
+        shape:
+        - 48
+        attrs:
+          long_name: depth at layer interface
+          units: m
+          positive: down
+          axis: Z
+      time:
+        dtype: datetime64[ns]
+        dims:
+        - time
+        shape:
+        - 1
+        attrs:
+          long_name: time
+          standard_name: time
+          axis: T
+          stored_direction: increasing
+        sample_value: '1985-01-31T23:54:00.000000000'
+    variables:
+      w:
+        dtype: float32
+        dims:
+        - time
+        - nz
+        - nod2
+        shape:
+        - 1
+        - 48
+        - 3140
+        attrs:
+          description: vertical velocity
+          long_name: vertical velocity
+          units: m/s
+          location: node
+          mesh: fesom_mesh
+    attrs:
+      Conventions: UGRID-1.0
+      FESOM_model: FESOM2
+      FESOM_website: fesom.de
+      FESOM_git_SHA: e900ff01
+      FESOM_MeshPath: /pool/data/AWICM/FESOM2/MESHES_FESOM2.1/pi/
+      FESOM_mesh_representative_checksum: ''
+      FESOM_ClimateDataPath: /pool/data/AWICM/FESOM2/INITIAL/phc3.0/
+      FESOM_which_ALE: zstar
+      FESOM_mix_scheme: KPP
+      FESOM_use_partial_cell: 0
+      FESOM_force_rotation: -1
+      FESOM_include_fleapyear: -1
+      FESOM_use_floatice: 0
+      FESOM_whichEVP: 1
+      FESOM_evp_rheol_steps: 120
+      FESOM_opt_visc: 7
+      FESOM_use_wsplit: -1
+      FESOM_autorotate_back_to_geo: -1
+total_files: 48

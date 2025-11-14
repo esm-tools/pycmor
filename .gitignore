@@ -44,3 +44,14 @@ doc/api/
 doc/API.rst
 .direnv
 sandbox/
+
+# Modern Python build artifacts
+*.whl
+.pytest_cache/
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

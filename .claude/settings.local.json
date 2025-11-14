@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(black utils/generate_test_stubs.py tests/fixtures/stub_generator.py)",
+      "Bash(flake8 utils/generate_test_stubs.py tests/fixtures/stub_generator.py --max-line-length=120)",
+      "Bash(black tests/fixtures/example_data/awicm_recom.py)",
+      "Bash(black tests/meta/test_xarray_open_mfdataset.py tests/meta/test_pyfesom_load_mesh.py)",
+      "Bash(black tests/fixtures/example_data/awicm_recom.py tests/fixtures/example_data/pi_uxarray.py tests/fixtures/example_data/fesom_2p6_pimesh.py)",
+      "Bash(flake8 tests/fixtures/example_data/awicm_recom.py tests/fixtures/example_data/pi_uxarray.py tests/fixtures/example_data/fesom_2p6_pimesh.py --max-line-length=120)",
+      "Bash(git add tests/fixtures/example_data/awicm_recom.py tests/fixtures/example_data/pi_uxarray.py tests/fixtures/example_data/fesom_2p6_pimesh.py)",
+      "Bash(black tests/fixtures/stub_generator.py)",
+      "Bash(flake8 tests/fixtures/stub_generator.py --max-line-length=120)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

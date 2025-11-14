@@ -43,9 +43,7 @@ from ..core.rule import Rule
 from .bounds import add_bounds_to_grid
 
 
-def setgrid(
-    da: Union[xr.Dataset, xr.DataArray], rule: Rule
-) -> Union[xr.Dataset, xr.DataArray]:
+def setgrid(da: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union[xr.Dataset, xr.DataArray]:
     """
     Appends grid information to data file if necessary coordinate dimensions exits in data file.
     Renames dimensions in data file to match the dimension names in grid file if necessary.
@@ -80,24 +78,16 @@ def setgrid(
         if dim in da.sizes:
             can_merge = True
             if da.sizes[dim] != dimsize:
-                raise ValueError(
-                    f"Mismatch dimension sizes {dim} {dimsize} (grid) {da.sizes[dim]} (data)"
-                )
+                raise ValueError(f"Mismatch dimension sizes {dim} {dimsize} (grid) {da.sizes[dim]} (data)")
             logger.info(f"  → Dimension '{dim}' : ✅ Found (size={dimsize})")
         else:
-            logger.info(
-                f"  → Dimension '{dim}' : ❌ Not found, checking for size matches..."
-            )
+            logger.info(f"  → Dimension '{dim}' : ❌ Not found, checking for size matches...")
             for name, _size in da.sizes.items():
                 if dimsize == _size:
                     can_merge = True
                     to_rename[name] = dim
-                    logger.info(
-                        f"    • Found size match  : '{name}' ({_size}) → '{dim}' ({dimsize})"
-                    )
-    logger.info(
-        f"  → Merge Status       : {'✅ Possible' if can_merge else '❌ Not possible'}"
-    )
+                    logger.info(f"    • Found size match  : '{name}' ({_size}) → '{dim}' ({dimsize})")
+    logger.info(f"  → Merge Status       : {'✅ Possible' if can_merge else '❌ Not possible'}")
 
     if can_merge:
         if to_rename:
