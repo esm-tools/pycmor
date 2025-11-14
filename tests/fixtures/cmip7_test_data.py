@@ -3,6 +3,8 @@ Fixtures and test data for CMIP7 interface tests.
 """
 
 import json
+import shutil
+import subprocess
 
 import pytest
 
@@ -165,3 +167,47 @@ def cmip7_interface_with_all_data(cmip7_metadata_file, cmip7_experiments_file):
     interface.load_metadata(metadata_file=cmip7_metadata_file)
     interface.load_experiments_data(cmip7_experiments_file)
     return interface
+
+
+@pytest.fixture(scope="session")
+def cmip7_data_request_dir(tmp_path_factory):
+    """Create CMIP7 data request directory with metadata JSON file.
+
+    This fixture runs export_dreq_lists_json to generate the required
+    metadata file in the CMIP7_DReq_Software/scripts/variable_info/ directory
+    structure expected by CMIP7 tests.
+
+    Returns
+    -------
+    Path
+        Path to the created CMIP7_DReq_Software/scripts/variable_info directory
+    """
+    # Check if export_dreq_lists_json command is available
+    if not shutil.which("export_dreq_lists_json"):
+        pytest.skip("export_dreq_lists_json command not available (CMIP7 Data Request API not installed)")
+
+    # Create the directory structure
+    base_dir = tmp_path_factory.mktemp("cmip7_test")
+    variable_info_dir = base_dir / "CMIP7_DReq_Software" / "scripts" / "variable_info"
+    variable_info_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate metadata JSON file using export_dreq_lists_json
+    output_file = variable_info_dir / "all_vars_info.json"
+    version = "v1.2.2.2"
+
+    result = subprocess.run(
+        ["export_dreq_lists_json", version, str(output_file)],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        pytest.skip(
+            f"Failed to generate CMIP7 metadata: {result.stderr}\n"
+            f"Command: export_dreq_lists_json {version} {output_file}"
+        )
+
+    if not output_file.exists():
+        pytest.skip(f"Metadata file not found after export: {output_file}")
+
+    return variable_info_dir
