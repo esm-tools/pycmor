@@ -186,6 +186,7 @@ def generate_stub_manifest(input_dir: Path, output_file: Path) -> None:
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
+            indent=2,
         )
 
     print(f"\n✓ Generated manifest with {len(files_metadata)} files")
