@@ -270,4 +270,104 @@ def generate_stub_files(manifest_file: Path, output_dir: Path) -> Path:
 
     print(f"✓ Generated {len(manifest.get('files', []))} stub files")
 
+    # Generate minimal mesh files if needed
+    _generate_mesh_stubs(output_dir, manifest)
+
     return output_dir
+
+
+def _generate_mesh_stubs(output_dir: Path, manifest: dict):
+    """
+    Generate minimal FESOM mesh files for stub testing.
+
+    Creates minimal versions of FESOM mesh files (nod2d.out, elem2d.out, etc.)
+    that are sufficient for tests that check for mesh file existence and basic
+    structure, without requiring full mesh data.
+
+    Parameters
+    ----------
+    output_dir : Path
+        Output directory where mesh files should be created
+    manifest : dict
+        Manifest dictionary that may contain mesh_paths key
+    """
+    # Check if manifest specifies mesh paths
+    mesh_paths = manifest.get("mesh_paths", [])
+    if not mesh_paths:
+        # Infer mesh paths from common patterns in file paths
+        mesh_paths = _infer_mesh_paths(output_dir, manifest)
+
+    for mesh_path_str in mesh_paths:
+        mesh_path = output_dir / mesh_path_str
+        mesh_path.mkdir(parents=True, exist_ok=True)
+
+        # Create minimal nod2d.out (node coordinates)
+        # Format: num_nodes \n node_id lon lat flag
+        nod2d_file = mesh_path / "nod2d.out"
+        with open(nod2d_file, "w") as f:
+            f.write("10\n")  # 10 nodes for minimal mesh
+            for i in range(1, 11):
+                lon = 300.0 + i * 0.1
+                lat = 74.0 + i * 0.05
+                f.write(f"{i:8d} {lon:14.7f}  {lat:14.7f}        0\n")
+
+        # Create minimal elem2d.out (element connectivity)
+        # Format: num_elements \n elem_id node1 node2 \n node2 node3 node4
+        elem2d_file = mesh_path / "elem2d.out"
+        with open(elem2d_file, "w") as f:
+            f.write("5\n")  # 5 elements
+            for i in range(1, 6):
+                n1, n2, n3 = i, i + 1, i + 2
+                f.write(f"{i:8d} {n1:8d} {n2:8d}\n")
+                f.write(f"{n2:8d} {n3:8d} {(i % 8) + 1:8d}\n")
+
+        print(f"  Created mesh files in {mesh_path_str}")
+
+
+def _infer_mesh_paths(output_dir: Path, manifest: dict) -> list:
+    """
+    Infer mesh directory paths from file paths in manifest.
+
+    Looks for common FESOM mesh path patterns like:
+    - awi-esm-1-1-lr_kh800/piControl/input/fesom/mesh
+    - input/fesom/mesh/pi
+    - fesom_2p6_pimesh/input/fesom/mesh/pi
+    - . (root directory for pi_uxarray mesh files)
+
+    Parameters
+    ----------
+    output_dir : Path
+        Output directory
+    manifest : dict
+        Manifest containing file paths
+
+    Returns
+    -------
+    list
+        List of mesh directory paths (relative to output_dir)
+    """
+    mesh_paths = set()
+
+    # Check if any files suggest a mesh directory structure
+    for file_meta in manifest.get("files", []):
+        file_path = file_meta["path"]
+
+        # Pattern 1: awi-esm-1-1-lr_kh800/piControl/input/fesom/mesh
+        if "/piControl/outdata/fesom/" in file_path or "/piControl/input/" in file_path:
+            # Extract base path and add mesh directory
+            parts = file_path.split("/")
+            if "piControl" in parts:
+                idx = parts.index("piControl")
+                mesh_path = "/".join(parts[: idx + 1]) + "/input/fesom/mesh"
+                mesh_paths.add(mesh_path)
+
+        # Pattern 2: fesom_2p6_pimesh structure - input/fesom/mesh/pi
+        if "fesom_2p6_pimesh" in file_path or "/input/fesom" in file_path:
+            mesh_paths.add("input/fesom/mesh/pi")
+
+        # Pattern 3: pi_uxarray - files directly in pi/ directory, mesh also in root
+        # Check if file is in a simple "pi/" structure with fesom.mesh.diag.nc
+        if file_path.startswith("pi/") and "fesom.mesh.diag.nc" in [f["path"] for f in manifest.get("files", [])]:
+            mesh_paths.add(".")  # Mesh files go in root of output_dir
+
+    return list(mesh_paths)
