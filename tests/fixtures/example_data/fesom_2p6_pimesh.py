@@ -78,9 +78,7 @@ def fesom_2p6_pimesh_esm_tools_stub_data(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def fesom_2p6_pimesh_esm_tools_data(
-    request, fesom_2p6_pimesh_esm_tools_stub_data, fesom_2p6_pimesh_esm_tools_real_data
-):
+def fesom_2p6_pimesh_esm_tools_data(request):
     """Router fixture: return stub or real data based on marker/env var."""
     # Check for environment variable
     use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
@@ -91,7 +89,7 @@ def fesom_2p6_pimesh_esm_tools_data(
 
     if use_real:
         print("Using real downloaded test data")
-        return fesom_2p6_pimesh_esm_tools_real_data
+        return request.getfixturevalue("fesom_2p6_pimesh_esm_tools_real_data")
     else:
         print("Using stub test data")
-        return fesom_2p6_pimesh_esm_tools_stub_data
+        return request.getfixturevalue("fesom_2p6_pimesh_esm_tools_stub_data")

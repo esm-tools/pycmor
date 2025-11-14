@@ -81,25 +81,25 @@ def pi_uxarray_stub_data(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def pi_uxarray_data(request, pi_uxarray_real_data, pi_uxarray_stub_data):
+def pi_uxarray_data(request):
     """
-    Router fixture that returns either real or stub data based on:
-    1. The PYCMOR_USE_STUB_DATA environment variable
-    2. The use_stub_data pytest marker
+    Router fixture that returns stub data by default, or real data if:
+    1. The PYCMOR_USE_REAL_TEST_DATA environment variable is set
+    2. The real_data pytest marker is present
     """
     # Check for environment variable
-    use_stub = os.environ.get("PYCMOR_USE_STUB_DATA", "").lower() in ("1", "true", "yes")
+    use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
 
     # Check for pytest marker
-    if hasattr(request, "node") and request.node.get_closest_marker("use_stub_data"):
-        use_stub = True
+    if hasattr(request, "node") and request.node.get_closest_marker("real_data"):
+        use_real = True
 
-    if use_stub:
-        print("Using STUB data for pi_uxarray")
-        return pi_uxarray_stub_data
-    else:
+    if use_real:
         print("Using REAL data for pi_uxarray")
-        return pi_uxarray_real_data
+        return request.getfixturevalue("pi_uxarray_real_data")
+    else:
+        print("Using STUB data for pi_uxarray")
+        return request.getfixturevalue("pi_uxarray_stub_data")
 
 
 @pytest.fixture(scope="session")
@@ -167,22 +167,22 @@ def pi_uxarray_stub_mesh(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def pi_uxarray_mesh(request, pi_uxarray_real_mesh, pi_uxarray_stub_mesh):
+def pi_uxarray_mesh(request):
     """
-    Router fixture that returns either real or stub mesh based on:
-    1. The PYCMOR_USE_STUB_DATA environment variable
-    2. The use_stub_data pytest marker
+    Router fixture that returns stub mesh by default, or real mesh if:
+    1. The PYCMOR_USE_REAL_TEST_DATA environment variable is set
+    2. The real_data pytest marker is present
     """
     # Check for environment variable
-    use_stub = os.environ.get("PYCMOR_USE_STUB_DATA", "").lower() in ("1", "true", "yes")
+    use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
 
     # Check for pytest marker
-    if hasattr(request, "node") and request.node.get_closest_marker("use_stub_data"):
-        use_stub = True
+    if hasattr(request, "node") and request.node.get_closest_marker("real_data"):
+        use_real = True
 
-    if use_stub:
-        print("Using STUB mesh for pi_uxarray")
-        return pi_uxarray_stub_mesh
-    else:
+    if use_real:
         print("Using REAL mesh for pi_uxarray")
-        return pi_uxarray_real_mesh
+        return request.getfixturevalue("pi_uxarray_real_mesh")
+    else:
+        print("Using STUB mesh for pi_uxarray")
+        return request.getfixturevalue("pi_uxarray_stub_mesh")

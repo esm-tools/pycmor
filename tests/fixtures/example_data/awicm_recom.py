@@ -171,7 +171,7 @@ def awicm_1p0_recom_stub_data(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def awicm_1p0_recom_data(request, awicm_1p0_recom_stub_data, awicm_1p0_recom_real_data):
+def awicm_1p0_recom_data(request):
     """Router fixture: return stub or real data based on marker/env var."""
     # Check for environment variable
     use_real = os.getenv("PYCMOR_USE_REAL_TEST_DATA", "").lower() in ("1", "true", "yes")
@@ -182,7 +182,9 @@ def awicm_1p0_recom_data(request, awicm_1p0_recom_stub_data, awicm_1p0_recom_rea
 
     if use_real:
         print("Using real downloaded test data")
-        return awicm_1p0_recom_real_data
+        # Request real data fixture lazily
+        return request.getfixturevalue("awicm_1p0_recom_real_data")
     else:
         print("Using stub test data")
-        return awicm_1p0_recom_stub_data
+        # Request stub data fixture lazily
+        return request.getfixturevalue("awicm_1p0_recom_stub_data")
