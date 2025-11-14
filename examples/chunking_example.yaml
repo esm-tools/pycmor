@@ -1,0 +1,99 @@
+# Example pycmor configuration with NetCDF chunking enabled
+# This file demonstrates how to configure chunking for optimal I/O performance
+
+# Global chunking configuration
+# These settings apply to all variables unless overridden in individual rules
+
+# Enable internal NetCDF chunking (default: yes)
+netcdf_enable_chunking: yes
+
+# Chunking algorithm to use (default: simple)
+# Options: simple, even_divisor, iterative
+netcdf_chunk_algorithm: simple
+
+# Target chunk size (default: 100MB)
+# Can be specified as integer (bytes) or string like '50MB', '1GB'
+netcdf_chunk_size: 100MB
+
+# Chunk size tolerance for even_divisor and iterative algorithms (default: 0.5)
+# Range: 0.0-1.0, higher values allow more flexibility in chunk size
+netcdf_chunk_tolerance: 0.5
+
+# Prefer chunking along time dimension (default: yes)
+# Recommended for time-series analysis
+netcdf_chunk_prefer_time: yes
+
+# Compression level (default: 4)
+# Range: 1-9, where 1=fastest/less compression, 9=slowest/best compression
+netcdf_compression_level: 4
+
+# Enable zlib compression (default: yes)
+netcdf_enable_compression: yes
+
+# Other pycmor settings
+cmor_table_dir: ./cmip6-cmor-tables/Tables/
+output_dir: /path/to/output/dir
+
+# Define processing pipelines
+pipelines:
+  - id: standard_pipe
+    actions:
+      - set_cmor_metadata: null
+      - convert_units: null
+
+# Define rules for variables
+rules:
+  # Example 1: Use default chunking settings
+  - model_variable: temp
+    cmor_variable: tas
+    cmor_table: CMIP6_Amon.json
+    model_component: atmosphere
+    input_patterns:
+      - /path/to/data/*_tas.nc
+    pipelines: [standard_pipe]
+
+  # Example 2: Override chunking for high-resolution ocean data
+  - model_variable: salt
+    cmor_variable: so
+    cmor_table: CMIP6_Omon.json
+    model_component: ocean
+    input_patterns:
+      - /path/to/data/*_so.nc
+    # Override with larger chunks and higher compression for ocean data
+    netcdf_chunk_algorithm: even_divisor
+    netcdf_chunk_size: 200MB
+    netcdf_chunk_tolerance: 0.6
+    netcdf_compression_level: 6
+
+  # Example 3: Optimize for 3D atmospheric fields
+  - model_variable: ua
+    cmor_variable: ua
+    cmor_table: CMIP6_6hrPlev.json
+    model_component: atmosphere
+    input_patterns:
+      - /path/to/data/*_ua.nc
+    # Use iterative algorithm for complex 3D data
+    netcdf_chunk_algorithm: iterative
+    netcdf_chunk_size: 150MB
+    netcdf_chunk_prefer_time: yes
+
+  # Example 4: Small chunks for high-frequency data
+  - model_variable: pr
+    cmor_variable: pr
+    cmor_table: CMIP6_3hr.json
+    model_component: atmosphere
+    input_patterns:
+      - /path/to/data/*_pr.nc
+    # Smaller chunks for 3-hourly data
+    netcdf_chunk_size: 50MB
+    netcdf_compression_level: 5
+
+  # Example 5: Disable chunking for a specific variable
+  - model_variable: orog
+    cmor_variable: orog
+    cmor_table: CMIP6_fx.json
+    model_component: atmosphere
+    input_patterns:
+      - /path/to/data/orog.nc
+    # Fixed fields don't benefit from chunking
+    netcdf_enable_chunking: no
