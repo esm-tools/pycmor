@@ -74,7 +74,7 @@ def generate_random_data(shape: tuple, dtype: np.dtype, fill_value: Any = None) 
         return np.zeros(shape, dtype=dtype)
 
 
-def create_coordinate(coord_meta: Dict[str, Any]) -> xr.DataArray:
+def create_coordinate(coord_meta: Dict[str, Any], file_index: int = 0) -> xr.DataArray:
     """
     Create a coordinate DataArray from metadata.
 
@@ -82,6 +82,8 @@ def create_coordinate(coord_meta: Dict[str, Any]) -> xr.DataArray:
     ----------
     coord_meta : Dict[str, Any]
         Coordinate metadata (dtype, dims, shape, attrs)
+    file_index : int, optional
+        Index of the file being generated (for varying time coordinates)
 
     Returns
     -------
@@ -95,14 +97,28 @@ def create_coordinate(coord_meta: Dict[str, Any]) -> xr.DataArray:
     # Special handling for time coordinates
     if "sample_value" in coord_meta:
         # Use sample value to infer time range
-        # Handle out-of-range dates by using a default range
+        # Handle out-of-range dates by using a default range with file_index offset
         try:
             sample = pd.Timestamp(coord_meta["sample_value"])
+            # For out-of-range dates, this will fail and we'll use fallback
             data = pd.date_range(sample, periods=shape[0], freq="D").values
         except (ValueError, pd.errors.OutOfBoundsDatetime):
-            # Fallback to a default date range for out-of-bounds years
-            sample = pd.Timestamp("2000-01-01")
-            data = pd.date_range(sample, periods=shape[0], freq="D").values
+            # Fallback to a default date range, but offset by file_index to ensure uniqueness
+            # Parse the sample value to extract day offset if possible
+            import re
+
+            sample_str = coord_meta["sample_value"]
+            # Try to extract day from date string like "2686-01-02 00:00:00"
+            match = re.search(r"\d{4}-\d{2}-(\d{2})", sample_str)
+            if match:
+                day_offset = int(match.group(1)) - 1  # Day 1 -> offset 0, Day 2 -> offset 1
+            else:
+                day_offset = file_index
+
+            # Create time coordinate with unique offset
+            base = pd.Timestamp("2000-01-01")
+            start = base + pd.Timedelta(days=day_offset)
+            data = pd.date_range(start, periods=shape[0], freq="D").values
     else:
         # Generate random data
         data = generate_random_data(shape, dtype)
@@ -155,7 +171,7 @@ def create_variable(var_meta: Dict[str, Any], coords: Dict[str, xr.DataArray]) -
     return var
 
 
-def create_dataset_from_metadata(metadata: Dict[str, Any]) -> xr.Dataset:
+def create_dataset_from_metadata(metadata: Dict[str, Any], file_index: int = 0) -> xr.Dataset:
     """
     Create an xarray Dataset from metadata dictionary.
 
@@ -163,6 +179,8 @@ def create_dataset_from_metadata(metadata: Dict[str, Any]) -> xr.Dataset:
     ----------
     metadata : Dict[str, Any]
         Dataset metadata (dimensions, coordinates, variables, attrs)
+    file_index : int, optional
+        Index of the file being generated (for varying time coordinates)
 
     Returns
     -------
@@ -172,7 +190,7 @@ def create_dataset_from_metadata(metadata: Dict[str, Any]) -> xr.Dataset:
     # Create coordinates
     coords = {}
     for coord_name, coord_meta in metadata.get("coordinates", {}).items():
-        coords[coord_name] = create_coordinate(coord_meta)
+        coords[coord_name] = create_coordinate(coord_meta, file_index)
 
     # Create variables
     data_vars = {}
@@ -234,7 +252,7 @@ def generate_stub_files(manifest_file: Path, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate each file
-    for file_meta in manifest.get("files", []):
+    for file_index, file_meta in enumerate(manifest.get("files", [])):
         file_path = Path(file_meta["path"])
         output_path = output_dir / file_path
 
@@ -243,8 +261,8 @@ def generate_stub_files(manifest_file: Path, output_dir: Path) -> Path:
         # Create output subdirectories
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Generate dataset
-        ds = create_dataset_from_metadata(file_meta["dataset"])
+        # Generate dataset with file index for unique time coordinates
+        ds = create_dataset_from_metadata(file_meta["dataset"], file_index)
 
         # Write NetCDF
         ds.to_netcdf(output_path)
