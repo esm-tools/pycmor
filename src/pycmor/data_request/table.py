@@ -290,7 +290,7 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
 
         # Filter by CMIP6 table name for backward compatibility
         all_vars_for_table = {
-            k: v for k, v in all_var_info["Compound Name"].items() if v.get("cmip6_table") == table_name
+            k: v for k, v in all_var_info["Compound Name"].items() if v.get("cmip6_cmor_table") == table_name
         }
 
         if not all_vars_for_table:
@@ -638,7 +638,7 @@ class CMIP7DataRequestTable(DataRequestTable):
         header = CMIP7DataRequestTableHeader.from_all_var_info(table_name, all_var_info)
         variables = []
         for var_name, var_dict in all_var_info["Compound Name"].items():
-            if var_dict["cmip6_cmor_table"] == table_name:
+            if var_dict.get("cmip6_cmor_table") == table_name:
                 variables.append(CMIP7DataRequestVariable.from_dict(var_dict))
         return cls(header, variables)
 
