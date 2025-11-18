@@ -159,18 +159,22 @@ class CMIP7Interface:
 
             # 1. Check environment variable
             env_metadata_dir = os.getenv("PYCMOR_CMIP7_METADATA_DIR")
+            logger.debug(f"PYCMOR_CMIP7_METADATA_DIR={env_metadata_dir}")
             if env_metadata_dir:
                 env_cache_path = Path(env_metadata_dir) / f"{version}.json"
+                logger.debug(f"Checking env var path: {env_cache_path} (exists={env_cache_path.exists()})")
                 if env_cache_path.exists():
                     cached_file = env_cache_path
 
             # 2. Check standard cache locations
             if not cached_file:
+                logger.debug(f"Path.home() = {Path.home()}")
                 cache_locations = [
                     Path.home() / ".cache" / "pycmor" / "cmip7_metadata" / f"{version}.json",
                     Path("/home/mambauser") / ".cache" / "pycmor" / "cmip7_metadata" / f"{version}.json",
                 ]
                 for cache_path in cache_locations:
+                    logger.debug(f"Checking cache path: {cache_path} (exists={cache_path.exists()})")
                     if cache_path.exists():
                         cached_file = cache_path
                         break
@@ -190,17 +194,19 @@ class CMIP7Interface:
                     tmpdir_path = Path(tmpdir)
                     output_file = tmpdir_path / "metadata.json"
                     # Export metadata using the command-line tool
-                    # Signature: export_dreq_lists_json VERSION OUTPUT_FILE [options]
+                    # Uses -a (all opportunities) and -m (variables metadata output)
+                    # We need both the main output and the metadata output
                     logger.debug(f"Exporting CMIP7 data request to: {output_file}")
+                    experiments_file = tmpdir_path / "experiments.json"
                     result = subprocess.run(
-                        ["export_dreq_lists_json", version, str(output_file)],
+                        ["export_dreq_lists_json", "-a", version, str(experiments_file), "-m", str(output_file)],
                         capture_output=True,
                         text=True,
                     )
                     if result.returncode != 0:
                         raise RuntimeError(
                             f"Failed to export CMIP7 metadata: {result.stderr}\n"
-                            f"You may need to run: export_dreq_lists_json {version} <output_file>"
+                            f"You may need to run: export_dreq_lists_json -a {version} <experiments_file> -m <metadata_file>"
                         )
                     # Load the generated metadata file
                     metadata_file = output_file
