@@ -44,6 +44,11 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER . .
 # Install pycmor and dev dependencies via pip (uses conda's Python/libs)
 RUN pip install --no-cache-dir ".[dev,fesom,cmip7]"
 
+# Pre-generate CMIP7 metadata for doctests (v1.2.2.2)
+# This caches the metadata so doctests don't need to wait for API calls
+RUN mkdir -p /home/$MAMBA_USER/.cache/pycmor/cmip7_metadata && \
+    export_dreq_lists_json v1.2.2.2 /home/$MAMBA_USER/.cache/pycmor/cmip7_metadata/v1.2.2.2.json
+
 # Set environment variables for testing
 ENV PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
 ENV PYTHONUNBUFFERED=1

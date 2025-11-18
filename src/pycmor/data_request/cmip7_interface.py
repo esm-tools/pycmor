@@ -151,38 +151,48 @@ class CMIP7Interface:
                 self._metadata = json.load(f)
             self._version = self._metadata.get("Header", {}).get("dreq content version", version)
         else:
-            # Use the API to export metadata directly
-            import subprocess
-            import tempfile
+            # Check for cached metadata file first
+            cache_dir = Path.home() / ".cache" / "pycmor" / "cmip7_metadata"
+            cached_file = cache_dir / f"{version}.json"
 
-            logger.info(f"Loading CMIP7 metadata for version: {version} using API")
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tmpdir_path = Path(tmpdir)
-                output_file = tmpdir_path / "metadata.json"
-                # Export metadata using the command-line tool
-                # Signature: export_dreq_lists_json VERSION OUTPUT_FILE [options]
-                logger.debug(f"Exporting CMIP7 data request to: {output_file}")
-                result = subprocess.run(
-                    ["export_dreq_lists_json", version, str(output_file)],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(
-                        f"Failed to export CMIP7 metadata: {result.stderr}\n"
-                        f"You may need to run: export_dreq_lists_json {version} <output_file>"
-                    )
-                # Load the generated metadata file
-                metadata_file = output_file
-                if not metadata_file.exists():
-                    raise FileNotFoundError(
-                        f"Metadata file not found after export: {metadata_file}. "
-                        f"Expected files in {tmpdir_path}: {list(tmpdir_path.glob('*'))}"
-                    )
-                logger.debug(f"Reading metadata from: {metadata_file}")
-                with open(metadata_file, "r") as f:
+            if cached_file.exists():
+                logger.info(f"Loading CMIP7 metadata from cache: {cached_file}")
+                with open(cached_file, "r") as f:
                     self._metadata = json.load(f)
                 self._version = version
+            else:
+                # Use the API to export metadata directly
+                import subprocess
+                import tempfile
+
+                logger.info(f"Loading CMIP7 metadata for version: {version} using API")
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    tmpdir_path = Path(tmpdir)
+                    output_file = tmpdir_path / "metadata.json"
+                    # Export metadata using the command-line tool
+                    # Signature: export_dreq_lists_json VERSION OUTPUT_FILE [options]
+                    logger.debug(f"Exporting CMIP7 data request to: {output_file}")
+                    result = subprocess.run(
+                        ["export_dreq_lists_json", version, str(output_file)],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.returncode != 0:
+                        raise RuntimeError(
+                            f"Failed to export CMIP7 metadata: {result.stderr}\n"
+                            f"You may need to run: export_dreq_lists_json {version} <output_file>"
+                        )
+                    # Load the generated metadata file
+                    metadata_file = output_file
+                    if not metadata_file.exists():
+                        raise FileNotFoundError(
+                            f"Metadata file not found after export: {metadata_file}. "
+                            f"Expected files in {tmpdir_path}: {list(tmpdir_path.glob('*'))}"
+                        )
+                    logger.debug(f"Reading metadata from: {metadata_file}")
+                    with open(metadata_file, "r") as f:
+                        self._metadata = json.load(f)
+                    self._version = version
 
         logger.info(f"Loaded metadata for {len(self._metadata.get('Compound Name', {}))} variables")
         return self._metadata
