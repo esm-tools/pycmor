@@ -152,10 +152,19 @@ class CMIP7Interface:
             self._version = self._metadata.get("Header", {}).get("dreq content version", version)
         else:
             # Check for cached metadata file first
-            cache_dir = Path.home() / ".cache" / "pycmor" / "cmip7_metadata"
-            cached_file = cache_dir / f"{version}.json"
+            # Try multiple cache locations (e.g., when running as root in Docker)
+            cache_locations = [
+                Path.home() / ".cache" / "pycmor" / "cmip7_metadata" / f"{version}.json",
+                Path("/home/mambauser") / ".cache" / "pycmor" / "cmip7_metadata" / f"{version}.json",
+            ]
 
-            if cached_file.exists():
+            cached_file = None
+            for cache_path in cache_locations:
+                if cache_path.exists():
+                    cached_file = cache_path
+                    break
+
+            if cached_file:
                 logger.info(f"Loading CMIP7 metadata from cache: {cached_file}")
                 with open(cached_file, "r") as f:
                     self._metadata = json.load(f)
