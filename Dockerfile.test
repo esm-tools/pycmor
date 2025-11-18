@@ -57,6 +57,7 @@ RUN mkdir -p /home/$MAMBA_USER/.cache/pycmor/cmip7_metadata && \
 ENV PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=300
 ENV PYTHONUNBUFFERED=1
 ENV HDF5_USE_FILE_LOCKING=FALSE
+ENV PYCMOR_CMIP7_METADATA_DIR=/home/mambauser/.cache/pycmor/cmip7_metadata
 
 # Verify installation
 RUN python -c "import h5py; print('h5py version:', h5py.__version__); print('HDF5 version:', h5py.version.hdf5_version)" && \
