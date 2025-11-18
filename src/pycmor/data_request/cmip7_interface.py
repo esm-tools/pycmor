@@ -206,7 +206,8 @@ class CMIP7Interface:
                     if result.returncode != 0:
                         raise RuntimeError(
                             f"Failed to export CMIP7 metadata: {result.stderr}\n"
-                            f"You may need to run: export_dreq_lists_json -a {version} <experiments_file> -m <metadata_file>"
+                            f"You may need to run: export_dreq_lists_json -a {version} "
+                            f"<experiments_file> -m <metadata_file>"
                         )
                     # Load the generated metadata file
                     metadata_file = output_file
