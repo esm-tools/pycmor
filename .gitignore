@@ -1,3 +1,6 @@
+# AI Helpers
+.claude/
+# Python Stuff
 *.py[cod]
 .ipynb_checkpoints
 
