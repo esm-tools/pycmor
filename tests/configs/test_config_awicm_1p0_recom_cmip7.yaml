@@ -5,8 +5,8 @@ pycmor:
   minimum_jobs: 8
   maximum_jobs: 10
 general:
-  name: "test"
-  description: "This is a test configuration"
+  name: "fesom_2p6_pimesh"
+  description: "This is a test configuration using esm-tools generated test data on PI Mesh"
   maintainer: "pgierz"
   email: "pgierz@awi.de"
   cmor_version: "CMIP7"
@@ -14,60 +14,32 @@ general:
   frequency: "mon"
   # CV_Dir: "./CMIP7-CVs"  # Optional for CMIP7
   # CMIP_Tables_Dir is not needed for CMIP7 (uses packaged data)
-pipelines:
-  - name: "test_pipeline"
-    uses: "pycmor.core.pipeline.TestingPipeline"
-  - name: "my_pipeline"
-    steps:
-      - "pycmor.std_lib.generic.dummy_load_data"
-      - "pycmor.std_lib.units.handle_unit_conversion"
-      - "pycmor.std_lib.generic.dummy_save_data"
-  - name: "sleeper_pipeline"
-    steps:
-      - "pycmor.std_lib.generic.dummy_sleep"
 rules:
-  - name: "tas_rule"
-    pipelines: ["my_pipeline"]
-    enabled: true
-    description: "This is a test rule"
-    cmor_variable: "tas"
-    input_type: "xr.DataArray"
-    input_source: "xr_tutorial"
-    output_directory: .
-    variant_label: r1i1p1f1
-    experiment_id: piControl
-    source_id: "AWI-CM-1-1-HR"
-    model_component: ocean
+  - name: "temp_with_levels"
+    experiment_id: "piControl"
+    output_directory: "./output"
+    source_id: "FESOM"
+    institution_id: "AWI"
     grid_label: gn
+    variant_label: "r1i1p1f1"
+    model_component: "ocean"
     inputs:
-      - path: "./"
-        pattern: "test_input"
-      - path: "./some/other/path"
-        pattern: "test_input2"
-  - name: test_rule3
-    enabled: false
-    inputs:
-      - path: "/a/b/c"
-        pattern: ".*"
-    cmor_variable: "so"
-    output_directory: .
-    variant_label: r1i1p1f1
-    experiment_id: piControl
-    source_id: "AWI-CM-1-1-HR"
-    model_component: ocean
-    grid_label: gn
-  - name: test_rule4
+      - path: "REPLACE_ME/outdata/fesom"
+        pattern: "thetao.fesom..*.nc"
     cmor_variable: "thetao"
-    pipelines: ["sleeper_pipeline"]
-    output_directory: .
-    variant_label: r1i1p1f1
-    experiment_id: piControl
-    source_id: "AWI-CM-1-1-HR"
-    model_component: ocean
-    grid_label: gn
-    inputs:
-      - path: "/a/b/c"
-        pattern: ".*"
+    model_variable: "thetao"
+    mesh_path: "REPLACE_ME/input/fesom/mesh"
+    pipelines:
+      - level_regridder
+pipelines:
+  - name: level_regridder
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.fesom_1p4.nodes_to_levels
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
 distributed:
   worker:
     memory:

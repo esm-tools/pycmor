@@ -2,8 +2,8 @@ pycmor:
   warn_on_no_rule: False
   parallel: False
 general:
-  name: "pi_uxarray"
-  description: "This is a test configuration using the UXArray test data on PI Mesh"
+  name: "fesom_2p6_pimesh"
+  description: "This is a test configuration using esm-tools generated test data on PI Mesh"
   maintainer: "pgierz"
   email: "pgierz@awi.de"
   cmor_version: "CMIP7"
@@ -16,11 +16,17 @@ rules:
     experiment_id: "piControl"
     output_directory: "./output"
     source_id: "AWI-CM-1-1-HR"
+    institution_id: "AWI"
+    model_component: "ocean"
+    grid_label: gn
     variant_label: "r1i1p1f1"
     inputs:
-      - path: "REPLACE_ME"
+      - path: "REPLACE_ME/outdata/fesom"
         pattern: "temp.fesom..*.nc"
     cmor_variable: "thetao"
     model_variable: "temp"
-    model_component: ocean
-    grid_label: gn
+    sort_dimensions_missing_dims: "warn"
+    model_dim:
+      nz1: "olevel"
+      time: "longitude" # This is fake and knowingly wrong! Just for the test...
+      nod2: "latitude" # Also fake!

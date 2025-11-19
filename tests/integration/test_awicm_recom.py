@@ -1,12 +1,21 @@
+import pytest
 import yaml
 
 from pycmor.core.cmorizer import CMORizer
 from pycmor.core.logging import logger
 
 
-def test_process(awicm_1p0_recom_config, awicm_1p0_recom_data):
-    logger.info(f"Processing {awicm_1p0_recom_config}")
-    with open(awicm_1p0_recom_config, "r") as f:
+@pytest.mark.parametrize(
+    "config_fixture",
+    [
+        pytest.param("awicm_1p0_recom_config", id="CMIP6"),
+        pytest.param("awicm_1p0_recom_config_cmip7", id="CMIP7"),
+    ],
+)
+def test_process(config_fixture, awicm_1p0_recom_data, request):
+    config = request.getfixturevalue(config_fixture)
+    logger.info(f"Processing {config}")
+    with open(config, "r") as f:
         cfg = yaml.safe_load(f)
     for rule in cfg["rules"]:
         for input in rule["inputs"]:
