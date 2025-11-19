@@ -18,6 +18,11 @@ URL = "https://nextcloud.awi.de/s/DaQjtTS9xB7o7pL/download/awicm_1p0_recom.tar"
 EXPECTED_SHA256 = None
 """str : Expected SHA256 checksum of the downloaded tar file."""
 
+PYCMOR_TEST_DATA_CACHE_DIR = Path(
+    os.getenv("PYCMOR_TEST_DATA_CACHE_DIR")
+    or Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache") / "pycmor" / "test_data"
+)
+
 
 def verify_file_integrity(file_path, expected_sha256=None):
     """
@@ -57,7 +62,7 @@ def verify_file_integrity(file_path, expected_sha256=None):
 @pytest.fixture(scope="session")
 def awicm_1p0_recom_download_data(tmp_path_factory):
     # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
-    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir = PYCMOR_TEST_DATA_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "awicm_1p0_recom.tar"
 

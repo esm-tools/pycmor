@@ -17,7 +17,10 @@ URL = "https://nextcloud.awi.de/s/swqyFgbL2jjgjRo/download/pi_uxarray.tar"
 MESH_GIT_REPO = "https://gitlab.awi.de/fesom/pi"
 """str : Git repository URL for the FESOM PI mesh data."""
 
-PYCMOR_TEST_DATA_CACHE_DIR = Path(os.env.get("PYCMOR_TEST_DATA_CACHE_DIR")) or Path.home() / ".cache" / "pycmor" / "test_data"
+PYCMOR_TEST_DATA_CACHE_DIR = Path(
+    os.getenv("PYCMOR_TEST_DATA_CACHE_DIR")
+    or Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache") / "pycmor" / "test_data"
+)
 
 
 @pytest.fixture(scope="session")

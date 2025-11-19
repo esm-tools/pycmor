@@ -12,11 +12,16 @@ from tests.fixtures.stub_generator import generate_stub_files
 URL = "https://nextcloud.awi.de/s/AL2cFQx5xGE473S/download/fesom_2p6_pimesh.tar"
 """str : URL to download the example data from."""
 
+PYCMOR_TEST_DATA_CACHE_DIR = Path(
+    os.getenv("PYCMOR_TEST_DATA_CACHE_DIR")
+    or Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache") / "pycmor" / "test_data"
+)
+
 
 @pytest.fixture(scope="session")
 def fesom_2p6_esm_tools_download_data(tmp_path_factory):
     # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
-    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir = PYCMOR_TEST_DATA_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "fesom_2p6_pimesh.tar"
 
