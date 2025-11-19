@@ -54,14 +54,14 @@ Quick Start
    print(result.frequency)     # 'M'
    print(result.is_exact)      # True
    print(result.status)        # 'valid'
-   
+
    # Check if resolution is fine enough for resampling
    check = da.timefreq.check_resolution(target_approx_interval=30.4375)
    print(check['is_valid_for_resampling'])  # True
-   
+
    # Safe resampling with automatic resolution validation
    resampled = da.timefreq.resample_safe(
-       freq_str="M", 
+       freq_str="M",
        target_approx_interval=30.4375,
        calendar="360_day",
        method="mean"
@@ -73,13 +73,13 @@ Quick Start
 
    # Infer frequency from dataset's time dimension
    info = ds.timefreq.infer_frequency(time_dim="time", log=False)
-   
+
    # Check resolution for entire dataset
    check = ds.timefreq.check_resolution(
-       target_approx_interval=30.4375, 
+       target_approx_interval=30.4375,
        time_dim="time"
    )
-   
+
    # Safe dataset resampling
    resampled_ds = ds.timefreq.resample_safe(
        freq_str="M",
@@ -113,7 +113,7 @@ When ``return_metadata=True``, frequency inference functions return a ``Frequenc
 
    # Get detailed metadata
    result = infer_frequency(times, return_metadata=True)
-   
+
    # Access fields by name (much cleaner than tuple unpacking!)
    if result.frequency:
        print(f"Found {result.frequency} frequency")

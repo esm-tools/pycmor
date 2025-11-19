@@ -155,7 +155,7 @@ Output:
    # Parse a CMIP7 compound name
    parsed = interface.parse_compound_name('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
    print(parsed)
-   # {'realm': 'atmos', 'variable': 'tas', 'branding': 'tavg-h2m-hxy-u', 
+   # {'realm': 'atmos', 'variable': 'tas', 'branding': 'tavg-h2m-hxy-u',
    #  'frequency': 'mon', 'region': 'GLB'}
 
    # Build a compound name from components
@@ -363,7 +363,7 @@ Use Case 2: Finding Variables for Your Model
 
    # Filter for monthly atmospheric variables
    monthly_atmos = [
-       v for v in core_vars 
+       v for v in core_vars
        if v.startswith('atmos.') and '.mon.' in v
    ]
 
@@ -424,16 +424,16 @@ Add the metadata file path to your pycmor configuration:
    if cmorizer.cmip7_interface:
        # Query variables during runtime
        variants = cmorizer.cmip7_interface.find_variable_variants(
-           'tas', 
+           'tas',
            frequency='mon',
            region='GLB'
        )
-       
+
        # Get detailed metadata
        metadata = cmorizer.cmip7_interface.get_variable_metadata(
            'atmos.tas.tavg-h2m-hxy-u.mon.GLB'
        )
-       
+
        # Check which experiments require a variable
        experiments = cmorizer.cmip7_interface.get_all_experiments()
        print(f"Available experiments: {experiments}")
