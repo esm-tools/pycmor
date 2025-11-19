@@ -74,16 +74,12 @@ def year_bounds_major_digits(first, last, step, binning_digit, return_type=int):
     to the bounds list and the process continues until the last year is reached.
     """
     # NOTE(PG): This is a bit hacky and difficult to read, but all the tests pass...
-    logger.debug(
-        f"Running year_bounds_major_digits({first=}, {last=}, {step=}, {binning_digit=})"
-    )
+    logger.debug(f"Running year_bounds_major_digits({first=}, {last=}, {step=}, {binning_digit=})")
     if binning_digit >= 10:
         raise ValueError("Give a binning_digit less than 10")
     bounds = []
     current_location = bin_start = first
-    first_bin_is_undersized = binning_digit in [
-        i % 10 for i in range(first, first + step)
-    ]
+    first_bin_is_undersized = binning_digit in [i % 10 for i in range(first, first + step)]
     bin_end = "underfull bin" if first_bin_is_undersized else bin_start + step
     logger.debug(f"first_bin_is_undersized: {first_bin_is_undersized}")
     first_bin_empty = True
@@ -99,18 +95,14 @@ def year_bounds_major_digits(first, last, step, binning_digit, return_type=int):
                     ones_digit = current_location % 10
                 else:
                     bounds.append([bin_start, current_location - 1])
-                    logger.debug(
-                        f"Appending bounds {bin_start=}, {current_location-1=}"
-                    )
+                    logger.debug(f"Appending bounds {bin_start=}, {current_location-1=}")
                     first_bin_empty = False
                     bin_start = current_location
             else:
                 # Go until you hit the next binning digit
                 if ones_digit == binning_digit:
                     bounds.append([bin_start, current_location - 1])
-                    logger.debug(
-                        f"Appending bounds {bin_start=}, {current_location-1=}"
-                    )
+                    logger.debug(f"Appending bounds {bin_start=}, {current_location-1=}")
                     first_bin_empty = False
                     bin_start = current_location
                 else:
@@ -120,9 +112,7 @@ def year_bounds_major_digits(first, last, step, binning_digit, return_type=int):
             current_location += 1
             if current_location == bin_end or current_location > last:
                 bounds.append([bin_start, min(current_location - 1, last)])
-                logger.debug(
-                    f"Appending bounds {bin_start=}, {min(current_location-1, last)=}"
-                )
+                logger.debug(f"Appending bounds {bin_start=}, {min(current_location-1, last)=}")
                 bin_start = current_location
     if return_type is int:
         return [[int(i) for i in bound] for bound in bounds]
@@ -177,10 +167,7 @@ def date_ranges_from_year_bounds(year_bounds, freq: str = "M", **kwargs):
     **kwargs :
         Additional keyword arguments to pass to the date_range function.
     """
-    bounds = [
-        (pendulum.datetime(start, 1, 1), pendulum.datetime(end, 12, 31))
-        for start, end in year_bounds
-    ]
+    bounds = [(pendulum.datetime(start, 1, 1), pendulum.datetime(end, 12, 31)) for start, end in year_bounds]
     return date_ranges_from_bounds(bounds, freq, **kwargs)
 
 

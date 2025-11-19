@@ -228,9 +228,7 @@ def test_save_dataset_saves_to_multiple_files(tmp_path):
 def test_save_dataset_with_custom_time_settings(tmp_path):
     """Test that custom time units and calendar are correctly applied when saving datasets."""
     # Create a simple dataset with time dimension
-    dates = xr.date_range(
-        start="2000-01-01", periods=2, freq="D", calendar="noleap", use_cftime=True
-    )
+    dates = xr.date_range(start="2000-01-01", periods=2, freq="D", calendar="noleap", use_cftime=True)
     da = xr.DataArray(
         np.arange(2),
         coords=[dates],
@@ -283,9 +281,7 @@ def test_save_dataset_with_custom_time_settings(tmp_path):
         nc_calendar = getattr(time_var_nc, "calendar", None)
 
         # Test against the NetCDF file directly
-        assert (
-            nc_units == custom_units
-        ), f"NetCDF units do not match. Expected {custom_units}, got {nc_units}"
+        assert nc_units == custom_units, f"NetCDF units do not match. Expected {custom_units}, got {nc_units}"
         assert (
             nc_calendar == custom_calendar
         ), f"NetCDF calendar does not match. Expected {custom_calendar}, got {nc_calendar}"

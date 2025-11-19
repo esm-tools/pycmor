@@ -1,0 +1,73 @@
+pycmor:
+  version: "unreleased"
+  use_xarray_backend: True
+  warn_on_no_rule: False
+  minimum_jobs: 8
+  maximum_jobs: 10
+general:
+  name: "fesom_2p6_pimesh"
+  description: "This is a test configuration using esm-tools generated test data on PI Mesh"
+  maintainer: "pgierz"
+  email: "pgierz@awi.de"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  frequency: "mon"
+  CV_Dir: "/dev/null"  # FIXME: CV_Dir should not be required for CMIP7, refactor validator
+  # CMIP_Tables_Dir is not needed for CMIP7 (uses packaged data)
+rules:
+  - name: "temp_with_levels"
+    experiment_id: "piControl"
+    output_directory: "./output"
+    source_id: "FESOM"
+    institution_id: "AWI"
+    grid_label: gn
+    variant_label: "r1i1p1f1"
+    model_component: "ocean"
+    inputs:
+      - path: "REPLACE_ME/outdata/fesom"
+        pattern: "thetao.fesom..*.nc"
+    cmor_variable: "thetao"
+    model_variable: "thetao"
+    mesh_path: "REPLACE_ME/input/fesom/mesh"
+    pipelines:
+      - level_regridder
+pipelines:
+  - name: level_regridder
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.fesom_1p4.nodes_to_levels
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+distributed:
+  worker:
+    memory:
+      target: 0.6 # Target 60% of worker memory usage
+      spill: 0.7 # Spill to disk when 70% of memory is used
+      pause: 0.8 # Pause workers if memory usage exceeds 80%
+      terminate: 0.95 # Terminate workers at 95% memory usage
+    resources:
+      CPU: 4 # Assign 4 CPUs per worker
+    death-timeout: 60 # Worker timeout if no heartbeat (seconds)
+# SLURM-specific settings for launching workers
+jobqueue:
+  slurm:
+    queue: compute # SLURM queue/partition to submit jobs
+    project: ab0246 # SLURM project/account name
+    cores: 4 # Number of cores per worker
+    memory: 128GB # Memory per worker
+    walltime: '00:30:00' # Maximum walltime per job
+    # interface: ib0 # Network interface for communication
+    job-extra: # Additional SLURM job options
+      - '--exclusive' # Run on exclusive nodes
+    # How to launch workers and scheduler
+    worker-template:
+      # Command to launch a Dask worker via SLURM
+      command: |
+        srun --ntasks=1 --cpus-per-task=4 --mem=128G dask-worker \
+          --nthreads 4 --memory-limit 128GB --death-timeout 60
+    # Command to launch the Dask scheduler
+    scheduler-template:
+      command: |
+        srun --ntasks=1 --cpus-per-task=1 dask-scheduler

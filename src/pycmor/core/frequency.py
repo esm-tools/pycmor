@@ -165,9 +165,7 @@ ALL = [
     Frequency("1hrCM", 1.0 / 24, TimeMethods.CLIMATOLOGY),
     Frequency("fx", 0, TimeMethods.NONE),
     Frequency("monC", 30.0, TimeMethods.CLIMATOLOGY),
-    Frequency(
-        "subhrPt", 0.017361, TimeMethods.INSTANTANEOUS
-    ),  # there is no subhr time:mean
+    Frequency("subhrPt", 0.017361, TimeMethods.INSTANTANEOUS),  # there is no subhr time:mean
 ]
 
 # Adding a global reference to ALL frequencies

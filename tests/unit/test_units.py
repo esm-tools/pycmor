@@ -80,9 +80,7 @@ def test_can_handle_simple_chemical_elements(rule_with_mass_units, mocker):
     to_unit = "g"
     rule_spec = rule_with_mass_units
     # Mock the getter of the property
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = to_unit
@@ -97,9 +95,7 @@ def test_can_handle_chemical_elements(rule_with_data_request, mocker):
     from_unit = "mmolC/m2/d"
     to_unit = "kg m-2 s-1"
     # Mock the getter of the property
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = to_unit
@@ -116,9 +112,7 @@ def test_user_defined_units_takes_precedence_over_units_in_dataarray(
     rule_spec = rule_with_data_request
     to_unit = "g"
     rule_spec.model_unit = "molC"
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = to_unit
@@ -141,9 +135,7 @@ def test_recognizes_previous_defined_chemical_elements():
 
 @pytest.mark.skip(reason="No use case for this test (??)")
 @pytest.mark.parametrize("from_unit", ["m/s", None, ""])
-def test_when_target_units_is_None_overrides_existing_units(
-    rule_with_data_request, from_unit
-):
+def test_when_target_units_is_None_overrides_existing_units(rule_with_data_request, from_unit):
     rule_spec = rule_with_data_request
     drv = rule_spec.data_request_variable
     if hasattr(drv, "unit"):
@@ -155,9 +147,7 @@ def test_when_target_units_is_None_overrides_existing_units(
 
 
 @pytest.mark.parametrize("from_unit", ["m/s", None])
-def test_when_tartget_unit_is_empty_string_raises_error(
-    rule_with_data_request, from_unit
-):
+def test_when_tartget_unit_is_empty_string_raises_error(rule_with_data_request, from_unit):
     rule_spec = rule_with_data_request
     rule_spec.model_unit = ""
     da = xr.DataArray(10, attrs={"units": from_unit})
@@ -174,27 +164,21 @@ def test_not_defined_unit_checker(rule_with_data_request):
         new_da = handle_unit_conversion(da, rule_spec)  # noqa: F841
 
 
-@pytest.mark.skip(
-    reason="The new API does not allow for a DataRequestVariable to not have units"
-)
+@pytest.mark.skip(reason="The new API does not allow for a DataRequestVariable to not have units")
 def test_data_request_missing_unit(rule_with_data_request):
     """Test for missing unit attribute in the data request"""
     rule_spec = rule_with_data_request
     del rule_spec.data_request_variable.units
     da = xr.DataArray(10, name="var1", attrs={"units": "kg m-2 s-1"})
 
-    with pytest.raises(
-        AttributeError, match="DataRequestVariable' object has no attribute 'unit'"
-    ):
+    with pytest.raises(AttributeError, match="DataRequestVariable' object has no attribute 'unit'"):
         new_da = handle_unit_conversion(da, rule_spec)  # noqa: F841
 
 
 def test_data_request_not_defined_unit(rule_with_data_request, mocker):
     """Test the checker for unit not defined in the data request"""
     rule_spec = rule_with_data_request
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = None
@@ -209,9 +193,7 @@ def test_dimensionless_unit_missing_in_unit_mapping(rule_with_data_request, mock
     """Test the checker for missing dimensionless unit in the unit mappings"""
     rule_spec = rule_with_data_request
     rule_spec.dimensionless_unit_mappings = {"var1": {"0.001": "g/kg"}}
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = "0.1"
@@ -266,9 +248,7 @@ def test_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
 def test_catch_unit_conversion_problem(rule_with_data_request, mocker):
     """Test the checker for unit conversion problem"""
     rule_spec = rule_with_data_request
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
 
     # Set the return value for the property
     mock_getter.return_value = "broken_kg m-2 s-1"
@@ -307,9 +287,7 @@ def test_scalar_units_with_g_g_to_0001_g_kg(rule_sos, CMIP_Tables_Dir, CV_dir):
 
 def test_scalar_units_1000_kg_to_1000_kg(rule_with_data_request, mocker):
     rule_spec = rule_with_data_request
-    mock_getter = mocker.patch.object(
-        type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock
-    )
+    mock_getter = mocker.patch.object(type(rule_spec.data_request_variable), "units", new_callable=mocker.PropertyMock)
     # Set the return value for the property
     mock_getter.return_value = "1e3 kg"
     da = xr.DataArray(10, name="var1", attrs={"units": "1e3 kg"})

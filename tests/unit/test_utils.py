@@ -14,17 +14,11 @@ def test_get_callable_by_name_with_class_method():
 
 
 def test_get_callable_by_name_with_nested_callable():
-    assert (
-        get_callable_by_name("os.path.supports_unicode_filenames")
-        == os.path.supports_unicode_filenames
-    )
+    assert get_callable_by_name("os.path.supports_unicode_filenames") == os.path.supports_unicode_filenames
 
 
 def test_get_callable_with_from_import():
-    assert (
-        get_callable_by_name("pycmor.core.utils.get_callable_by_name")
-        == get_callable_by_name
-    )
+    assert get_callable_by_name("pycmor.core.utils.get_callable_by_name") == get_callable_by_name
 
 
 def test_get_callable_with_mini_from_import():

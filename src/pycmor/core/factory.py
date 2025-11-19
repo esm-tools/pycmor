@@ -28,9 +28,7 @@ def create_factory(klass):
         @staticmethod
         def _retrieve_from_registry(subclass_type):
             if subclass_type not in klass._registry:
-                raise ValueError(
-                    f"No subclass {subclass_type} registered for {klass.__name__}"
-                )
+                raise ValueError(f"No subclass {subclass_type} registered for {klass.__name__}")
             return klass._registry[subclass_type]
 
         @staticmethod
@@ -67,9 +65,7 @@ def create_factory(klass):
                 def create_factory_method(method_name):
                     @staticmethod
                     def factory_method(subclass_type, *args, **kwargs):
-                        klass_instance = KlassFactory._retrieve_from_registry(
-                            subclass_type
-                        )
+                        klass_instance = KlassFactory._retrieve_from_registry(subclass_type)
                         return getattr(klass_instance, method_name)(*args, **kwargs)
 
                     return factory_method

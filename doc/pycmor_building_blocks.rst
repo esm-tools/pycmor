@@ -113,7 +113,7 @@ Example configuration:
       - name: historical_experiment
         cmor_variable: "tas"
         # ... other required fields ...
-        
+
         # Custom time configuration
         time_units: "days since 1850-01-01"  # CF-compliant time units
         time_calendar: "proleptic_gregorian"  # Calendar type

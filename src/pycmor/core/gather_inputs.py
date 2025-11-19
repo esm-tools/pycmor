@@ -45,9 +45,7 @@ class InputFileCollection:
     def files(self):
         files = []
         for file in list(self.path.iterdir()):
-            if self.pattern.match(
-                file.name
-            ):  # Check if the filename matches the pattern
+            if self.pattern.match(file.name):  # Check if the filename matches the pattern
                 files.append(file)
         return files
 
@@ -110,9 +108,7 @@ def _input_pattern_from_env(config: dict) -> re.Pattern:
     """
     # Resolve env var name, preferring pycmor key and default but falling back to legacy
     env_var_name = None
-    for addr, default in zip(
-        _PATTERN_ENV_VAR_NAME_ADDRS, _PATTERN_ENV_VAR_NAME_DEFAULTS
-    ):
+    for addr, default in zip(_PATTERN_ENV_VAR_NAME_ADDRS, _PATTERN_ENV_VAR_NAME_DEFAULTS):
         try:
             env_var_name = dpath.get(config, addr)
             if env_var_name:
@@ -210,16 +206,10 @@ def _filter_by_year(
     year_end : int
         The end year to filter by.
     """
-    return [
-        f
-        for f in files
-        if year_start <= int(fpattern.match(f.name).group("year")) <= year_end
-    ]
+    return [f for f in files if year_start <= int(fpattern.match(f.name).group("year")) <= year_end]
 
 
-def _sort_by_year(
-    files: List[pathlib.Path], fpattern: re.Pattern
-) -> List[pathlib.Path]:
+def _sort_by_year(files: List[pathlib.Path], fpattern: re.Pattern) -> List[pathlib.Path]:
     """
     Sorts a list of files by the year in their name.
     """
@@ -245,9 +235,7 @@ def _files_to_string(files: List[pathlib.Path], sep=",") -> str:
     return sep.join(str(f) for f in files)
 
 
-def _validate_rule_has_marked_regex(
-    rule: dict, required_marks: List[str] = ["year"]
-) -> bool:
+def _validate_rule_has_marked_regex(rule: dict, required_marks: List[str] = ["year"]) -> bool:
     """
     Validates that a rule has a marked regular expression.
 
@@ -302,9 +290,7 @@ def load_mfdataset(data, rule_spec):
     logger.info(f"Loading {len(all_files)} files using {engine} backend on xarray...")
     for f in all_files:
         logger.info(f"  * {f}")
-    mf_ds = xr.open_mfdataset(
-        all_files, parallel=parallel, use_cftime=True, engine=engine
-    )
+    mf_ds = xr.open_mfdataset(all_files, parallel=parallel, use_cftime=True, engine=engine)
     return mf_ds
 
 

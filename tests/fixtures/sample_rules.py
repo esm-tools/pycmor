@@ -309,9 +309,7 @@ def rule_after_cmip6_cmorizer_init(tmp_path, CMIP_Tables_Dir, CV_dir):
     # Set other attributes
     rule.dimensionless_unit_mappings = {}
     rule.aux = AuxiliaryFile(name="mesh", path="/some/mesh/file.nc")
-    rule.data_request_variable = data_request.variables.get(
-        f"Oday.{rule.cmor_variable}"
-    )
+    rule.data_request_variable = data_request.variables.get(f"Oday.{rule.cmor_variable}")
 
     # Set the controlled vocabularies
     controlled_vocabularies_factory = create_factory(ControlledVocabularies)

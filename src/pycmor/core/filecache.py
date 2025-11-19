@@ -294,15 +294,11 @@ class Filecache:
         record["freq"] = self._infer_freq_from_file(filename, ds, t)
         record["steps"] = t.size
         record["variable"] = list(ds.data_vars.keys()).pop()
-        record["units"] = [
-            val.attrs.get("units") for val in ds.data_vars.values()
-        ].pop()
+        record["units"] = [val.attrs.get("units") for val in ds.data_vars.values()].pop()
         ds.close()
         return pd.Series(record)
 
-    def _infer_freq_from_file(
-        self, filename: str, ds: xr.Dataset, time_series: pd.Series
-    ) -> str:
+    def _infer_freq_from_file(self, filename: str, ds: xr.Dataset, time_series: pd.Series) -> str:
         """
         Infer frequency from a file's time steps, with fallback to multi-file approach.
 
@@ -323,9 +319,7 @@ class Filecache:
         # Convert time series to timestamps, handling cftime objects
         try:
             if hasattr(time_series.iloc[0], "strftime"):  # cftime object
-                timestamps = [
-                    pd.Timestamp(t.strftime("%Y-%m-%d %H:%M:%S")) for t in time_series
-                ]
+                timestamps = [pd.Timestamp(t.strftime("%Y-%m-%d %H:%M:%S")) for t in time_series]
             else:
                 timestamps = [pd.Timestamp(t) for t in time_series]
         except Exception:
@@ -334,9 +328,7 @@ class Filecache:
         # Strategy 1: Try to infer from single file if it has enough time steps (>2)
         if len(timestamps) > 2:
             try:
-                freq = infer_frequency(
-                    timestamps, log=False
-                )  # Don't log for single file attempts
+                freq = infer_frequency(timestamps, log=False)  # Don't log for single file attempts
                 if freq is not None:
                     return freq
             except Exception:
@@ -481,9 +473,7 @@ class Filecache:
             if variable in info.columns:
                 return info[variable]
             else:
-                raise ValueError(
-                    f"Variable not found. Possible variables: {list(info.columns)}"
-                )
+                raise ValueError(f"Variable not found. Possible variables: {list(info.columns)}")
         return info
 
     def details(self) -> pd.DataFrame:
@@ -504,9 +494,7 @@ class Filecache:
         """
         return self.df.variable.unique().tolist()
 
-    def frequency(
-        self, *, filename: Optional[str] = None, variable: Optional[str] = None
-    ) -> str:
+    def frequency(self, *, filename: Optional[str] = None, variable: Optional[str] = None) -> str:
         """
         Return the frequency of a variable or a file.
 
@@ -525,16 +513,10 @@ class Filecache:
         if filename is None and variable is None:
             return dict(self.df[["variable", "freq"]].drop_duplicates().values.tolist())
         if variable:
-            return (
-                self.df[self.df.variable == variable]["freq"]
-                .drop_duplicates()
-                .squeeze()
-            )
+            return self.df[self.df.variable == variable]["freq"].drop_duplicates().squeeze()
         if filename:
             name = Path(filename).name
-            return (
-                (self.df[self.df.filename == name])["freq"].drop_duplicates().squeeze()
-            )
+            return (self.df[self.df.filename == name])["freq"].drop_duplicates().squeeze()
 
     def show_range(self, *, variable: Optional[str] = None) -> pd.DataFrame:
         """
@@ -623,31 +605,23 @@ class Filecache:
         df = self.df
         if variable:
             known_variables = self.variables()
-            assert (
-                variable in known_variables
-            ), f"{variable} is not in {known_variables}"
+            assert variable in known_variables, f"{variable} is not in {known_variables}"
             df = self.df[self.df.variable == variable]
         if start:
             start_ts = pd.Timestamp(start)
             _start = df["start"].apply(pd.Timestamp)
             is_valid = start_ts >= _start.min()
             if not is_valid:
-                raise ValueError(
-                    f"Start date {start} is out-of-bounds. Valid range: {_start.min()} - {_start.max()}"
-                )
+                raise ValueError(f"Start date {start} is out-of-bounds. Valid range: {_start.min()} - {_start.max()}")
         if end:
             end_ts = pd.Timestamp(end)
             _end = df["end"].apply(pd.Timestamp)
             is_valid = end_ts <= _end.max()
             if not is_valid:
-                raise ValueError(
-                    f"End date {end} is out-of-bounds. Valid range: {_end.min()} - {_end.max()}"
-                )
+                raise ValueError(f"End date {end} is out-of-bounds. Valid range: {_end.min()} - {_end.max()}")
         return True
 
-    def files(
-        self, *, variable: Optional[str] = None, fullpath: bool = True
-    ) -> List[str]:
+    def files(self, *, variable: Optional[str] = None, fullpath: bool = True) -> List[str]:
         """
         Return the list of files in the cache.
 

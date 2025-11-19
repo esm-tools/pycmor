@@ -10,9 +10,7 @@ from ..core.logging import logger
 from ..core.rule import Rule
 
 
-def set_variable_attrs(
-    ds: Union[xr.Dataset, xr.DataArray], rule: Rule
-) -> Union[xr.Dataset, xr.DataArray]:
+def set_variable_attrs(ds: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union[xr.Dataset, xr.DataArray]:
     if isinstance(ds, xr.Dataset):
         given_dtype = xr.Dataset
         da = ds[rule.model_variable]
@@ -28,7 +26,7 @@ def set_variable_attrs(
         raise TypeError("Input must be an xarray Dataset or DataArray")
 
     # Use the associated data_request_variable to set the variable attributes
-    missing_value = rule._pymor_cfg("xarray_default_missing_value")
+    missing_value = rule._pymor_cfg("xarray_default_dataarray_attrs_missing_value")
     attrs = rule.data_request_variable.attrs.copy()  # avoid modifying original
 
     # Set missing value in attrs if not present
@@ -36,7 +34,7 @@ def set_variable_attrs(
         if attrs.get(attr) is None:
             attrs[attr] = missing_value
 
-    skip_setting_unit_attr = rule._pymor_cfg("xarray_skip_unit_attr_from_drv")
+    skip_setting_unit_attr = rule._pymor_cfg("xarray_default_dataarray_processing_skip_unit_attr_from_drv")
     if skip_setting_unit_attr:
         attrs.pop("units", None)
 
@@ -64,9 +62,7 @@ def set_variable_attrs(
     elif given_dtype == xr.DataArray:
         return da
     else:
-        raise TypeError(
-            "Given data type is not an xarray Dataset or DataArray, refusing to continue!"
-        )
+        raise TypeError("Given data type is not an xarray Dataset or DataArray, refusing to continue!")
 
 
 # Alias name for the function

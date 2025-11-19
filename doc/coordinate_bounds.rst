@@ -124,7 +124,7 @@ The ``add_vertical_bounds`` step is automatically included in the ``DefaultPipel
 
    # The default pipeline includes add_vertical_bounds automatically
    pipeline = DefaultPipeline()
-   
+
    # Process your data - vertical bounds added automatically if applicable
    result = pipeline.run(data, rule_spec)
 

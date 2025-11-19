@@ -117,11 +117,7 @@ class CerberusSchemaDirective(SphinxDirective):
             row += nodes.entry("", nodes.paragraph(text=field_type))
 
             # Required
-            required = (
-                "Required"
-                if isinstance(value, dict) and value.get("required", False)
-                else "Optional"
-            )
+            required = "Required" if isinstance(value, dict) and value.get("required", False) else "Optional"
             row += nodes.entry("", nodes.paragraph(text=required))
 
             default_value = get_default(value)
@@ -144,15 +140,11 @@ class CerberusSchemaDirective(SphinxDirective):
                                 level + 1,
                             )
                         else:
-                            add_schema_to_table(
-                                nested_schema, tbody, full_key, level + 1
-                            )
+                            add_schema_to_table(nested_schema, tbody, full_key, level + 1)
                     elif isinstance(nested_schema, list):
                         add_schema_to_table(nested_schema, tbody, full_key, level + 1)
                 elif value.get("type") == "dict":
-                    add_schema_to_table(
-                        value.get("schema", {}), tbody, full_key, level + 1
-                    )
+                    add_schema_to_table(value.get("schema", {}), tbody, full_key, level + 1)
 
         def get_default(value):
             if not isinstance(value, dict):

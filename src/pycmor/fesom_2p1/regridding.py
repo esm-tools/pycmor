@@ -151,9 +151,7 @@ def fesom2regular(
     distances_file = "distances_{}_{}_{}_{}_{}_{}_{}_{}".format(
         mesh.n2d, left, right, down, up, lonNumber, latNumber, kk
     )
-    inds_file = "inds_{}_{}_{}_{}_{}_{}_{}_{}".format(
-        mesh.n2d, left, right, down, up, lonNumber, latNumber, kk
-    )
+    inds_file = "inds_{}_{}_{}_{}_{}_{}_{}_{}".format(mesh.n2d, left, right, down, up, lonNumber, latNumber, kk)
     qhull_file = "qhull_{}".format(mesh.n2d)
 
     distances_paths.append(os.path.join(mesh.path, distances_file))
@@ -181,9 +179,7 @@ def fesom2regular(
     if how == "nn":
         for distances_path in distances_paths:
             if os.path.isfile(distances_path):
-                logging.info(
-                    "Note: using precalculated file from {}".format(distances_path)
-                )
+                logging.info("Note: using precalculated file from {}".format(distances_path))
                 try:
                     distances = joblib.load(distances_path)
                     loaded_distances = True
@@ -202,9 +198,7 @@ def fesom2regular(
                     # Same as above...something is wrong
                     continue
         if not (loaded_distances and loaded_inds):
-            distances, inds = create_indexes_and_distances(
-                mesh, lons, lats, k=kk, n_jobs=n_jobs
-            )
+            distances, inds = create_indexes_and_distances(mesh, lons, lats, k=kk, n_jobs=n_jobs)
             if dumpfile:
                 for distances_path in distances_paths:
                     try:
@@ -230,9 +224,7 @@ def fesom2regular(
     elif how == "idist":
         for distances_path in distances_paths:
             if os.path.isfile(distances_path):
-                logging.info(
-                    "Note: using precalculated file from {}".format(distances_path)
-                )
+                logging.info("Note: using precalculated file from {}".format(distances_path))
                 try:
                     distances = joblib.load(distances_path)
                     loaded_distances = True
@@ -251,9 +243,7 @@ def fesom2regular(
                     # Same as above...something is wrong
                     continue
         if not (loaded_distances and loaded_inds):
-            distances, inds = create_indexes_and_distances(
-                mesh, lons, lats, k=kk, n_jobs=n_jobs
-            )
+            distances, inds = create_indexes_and_distances(mesh, lons, lats, k=kk, n_jobs=n_jobs)
             if dumpfile:
                 for distances_path in distances_paths:
                     try:
@@ -281,9 +271,7 @@ def fesom2regular(
     elif how == "linear":
         for qhull_path in qhull_paths:
             if os.path.isfile(qhull_path):
-                logging.info(
-                    "Note: using precalculated file from {}".format(qhull_path)
-                )
+                logging.info("Note: using precalculated file from {}".format(qhull_path))
                 try:
                     qh = joblib.load(qhull_path)
                     loaded_qhull = True
@@ -308,12 +296,8 @@ def fesom2regular(
     elif how == "cubic":
         for qhull_path in qhull_paths:
             if os.path.isfile(qhull_path):
-                logging.info(
-                    "Note: using precalculated file from {}".format(qhull_path)
-                )
-                logging.info(
-                    "Note: using precalculated file from {}".format(qhull_path)
-                )
+                logging.info("Note: using precalculated file from {}".format(qhull_path))
+                logging.info("Note: using precalculated file from {}".format(qhull_path))
                 try:
                     qh = joblib.load(qhull_path)
                     loaded_qhull = True
@@ -358,9 +342,7 @@ def regrid_to_regular(data, rule):
     interpolated = data.chunk({"time": 1}).map_blocks(
         fesom2regular,
         kwargs={"mesh": mesh, "lons": lon, "lats": lat},
-        template=xr.DataArray(
-            np.empty((len(data["time"]), 360, 180)), dims=["time", "lon", "lat"]
-        ).chunk({"time": 1}),
+        template=xr.DataArray(np.empty((len(data["time"]), 360, 180)), dims=["time", "lon", "lat"]).chunk({"time": 1}),
     )
     return interpolated
 

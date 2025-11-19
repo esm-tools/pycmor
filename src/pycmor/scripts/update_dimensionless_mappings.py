@@ -69,17 +69,14 @@ def extract_variables_from_tables(tables_path):
                 unit = var_info["units"]
 
                 # Check if this is a dimensionless unit or contains special keywords
-                is_special = is_dimensionless_unit(unit) or any(
-                    keyword in unit for keyword in SPECIAL_KEYWORDS
-                )
+                is_special = is_dimensionless_unit(unit) or any(keyword in unit for keyword in SPECIAL_KEYWORDS)
 
                 if is_special:
                     standard_name = var_info.get("standard_name", "not_specified")
 
                     # Only add if not already in our dictionary or if this has a standard_name and previous doesn't
                     if var_name not in variables or (
-                        standard_name != "not_specified"
-                        and variables[var_name]["standard_name"] == "not_specified"
+                        standard_name != "not_specified" and variables[var_name]["standard_name"] == "not_specified"
                     ):
 
                         variables[var_name] = {
@@ -106,8 +103,7 @@ def update_yaml_file(yaml_path, variables):
 
     # Create the new YAML content
     yaml_content = (
-        "# In general:\n# model_variable_name:  # standard_name\n#   "
-        "cmor_unit_string: pint_friendly_SI_units\n\n"
+        "# In general:\n# model_variable_name:  # standard_name\n#   " "cmor_unit_string: pint_friendly_SI_units\n\n"
     )
 
     # Process all variables

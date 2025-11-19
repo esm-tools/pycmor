@@ -1,3 +1,4 @@
+import os
 import warnings
 from functools import wraps
 
@@ -27,11 +28,11 @@ def add_to_report_log(func):
 
 
 def add_report_logger():
-    logger.add(
-        "pycmor_report.log", format="{time} {level} {message}", filter=report_filter
-    )
+    logger.add("pycmor_report.log", format="{time} {level} {message}", filter=report_filter)
 
 
 warnings.showwarning = showwarning
 logger.remove()
-rich_handler_id = logger.add(RichHandler(), format="{message}", level="INFO")
+# Respect PYTHONLOGLEVEL environment variable, default to INFO
+log_level = os.environ.get("PYTHONLOGLEVEL", "INFO").upper()
+rich_handler_id = logger.add(RichHandler(), format="{message}", level=log_level)

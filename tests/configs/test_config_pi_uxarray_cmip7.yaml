@@ -9,8 +9,8 @@ general:
   cmor_version: "CMIP7"
   mip: "CMIP"
   frequency: "mon"
-  CV_Dir: "./cmip6-cmor-tables/CMIP6_CVs"
-  CMIP_Tables_Dir: "./CMIP7_DReq_Software/scripts/variable_info/"
+  CV_Dir: "/dev/null"  # FIXME: CV_Dir should not be required for CMIP7, refactor validator
+  # CMIP_Tables_Dir is not needed for CMIP7 (uses packaged data)
 rules:
   - name: "temp"
     experiment_id: "piControl"

@@ -30,4 +30,3 @@ Then, in your pipeline, you can use the step ``pycmor.fesom.regrid_to_regular``:
     - name: my_pipeline
       steps:
         - pycmor.fesom.regrid_to_regular
-

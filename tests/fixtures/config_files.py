@@ -41,3 +41,13 @@ def fesom_2p6_pimesh_esm_tools_config():
 @pytest.fixture
 def awicm_1p0_recom_config():
     return TEST_ROOT / "configs" / "test_config_awicm_1p0_recom.yaml"
+
+
+@pytest.fixture
+def awicm_1p0_recom_config_cmip7():
+    return TEST_ROOT / "configs" / "test_config_awicm_1p0_recom_cmip7.yaml"
+
+
+@pytest.fixture
+def fesom_2p6_pimesh_esm_tools_config_cmip7():
+    return TEST_ROOT / "configs" / "test_config_fesom_2p6_pimesh_cmip7.yaml"

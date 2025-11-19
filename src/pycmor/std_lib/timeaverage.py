@@ -51,6 +51,26 @@ def _get_time_method(frequency: str) -> str:
     -------
     str
         The corresponding time method ('INSTANTANEOUS', 'CLIMATOLOGY', or 'MEAN').
+
+    Examples
+    --------
+    >>> print(_get_time_method("mon"))
+    MEAN
+
+    >>> print(_get_time_method("day"))
+    MEAN
+
+    >>> print(_get_time_method("3hrPt"))
+    INSTANTANEOUS
+
+    >>> print(_get_time_method("6hrPt"))
+    INSTANTANEOUS
+
+    >>> print(_get_time_method("monC"))
+    CLIMATOLOGY
+
+    >>> print(_get_time_method("1hrCM"))
+    CLIMATOLOGY
     """
     if frequency.endswith("Pt"):
         return "INSTANTANEOUS"
@@ -81,6 +101,32 @@ def _frequency_from_approx_interval(interval: str):
     ------
     ValueError
         If the interval cannot be converted to a float.
+
+    Examples
+    --------
+    >>> print(_frequency_from_approx_interval("1.0"))
+    1D
+
+    >>> print(_frequency_from_approx_interval("7"))
+    7D
+
+    >>> print(_frequency_from_approx_interval("30"))
+    1MS
+
+    >>> print(_frequency_from_approx_interval("365"))
+    1YS
+
+    >>> print(_frequency_from_approx_interval("0.125"))
+    3h
+
+    >>> print(_frequency_from_approx_interval("0.0416666"))
+    1h
+
+    >>> try:
+    ...     _frequency_from_approx_interval("not_a_number")
+    ... except ValueError as e:
+    ...     print(f"Error: {e}")
+    Error: Invalid interval: not_a_number
     """
     try:
         interval = float(interval)
@@ -157,6 +203,87 @@ def timeavg(da: xr.DataArray, rule):
     -------
     xr.DataArray
         The time averaged data array.
+
+    Examples
+    --------
+    First, create a simple daily dataset with temperature data:
+
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> import xarray as xr
+    >>> from types import SimpleNamespace
+    >>> dates = pd.date_range("2023-01-01", periods=90, freq="D")
+    >>> temps = 15 + 5 * np.sin(np.arange(90) * 2 * np.pi / 30)
+    >>> da = xr.DataArray(
+    ...     temps,
+    ...     dims=["time"],
+    ...     coords={"time": dates},
+    ...     name="temperature"
+    ... )
+    >>> print("INPUT - Daily data:")  # doctest: +ELLIPSIS
+    INPUT - Daily data:
+    >>> print(f"Time dimension: {len(da.time)} points")  # doctest: +ELLIPSIS
+    Time dimension: 90 points
+    >>> print(f"Time range: {da.time.values[0]} to {da.time.values[-1]}")  # doctest: +ELLIPSIS
+    Time range: 2023-01-01... to 2023-03-31...
+
+    Create a mock rule for monthly mean averaging (30 days):
+
+    >>> mock_table_header = SimpleNamespace(approx_interval="30.0", table_id="Amon")
+    >>> mock_drv = SimpleNamespace(frequency="mon", table_header=mock_table_header)
+    >>> rule = SimpleNamespace(data_request_variable=mock_drv)
+    >>> rule.get = lambda key, default=None: getattr(rule, key, default)
+
+    Apply monthly averaging:
+
+    >>> result = timeavg(da, rule)
+    >>> print("OUTPUT - Monthly averaged data:")  # doctest: +ELLIPSIS
+    OUTPUT - Monthly averaged data:
+    >>> print(f"Time dimension: {len(result.time)} points")  # doctest: +ELLIPSIS
+    Time dimension: 3 points
+    >>> print(f"Time method: {rule.time_method}")  # doctest: +ELLIPSIS
+    Time method: MEAN
+    >>> print(f"Frequency: {rule.frequency_str}")  # doctest: +ELLIPSIS
+    Frequency: 1MS
+
+    Test with INSTANTANEOUS time method (3-hourly point samples):
+
+    >>> hourly_dates = pd.date_range("2023-01-01", periods=24, freq="h")
+    >>> hourly_temps = 15 + 3 * np.sin(np.arange(24) * 2 * np.pi / 24)
+    >>> da_hourly = xr.DataArray(
+    ...     hourly_temps,
+    ...     dims=["time"],
+    ...     coords={"time": hourly_dates},
+    ...     name="temperature"
+    ... )
+    >>> print("INPUT - Hourly data:")  # doctest: +ELLIPSIS
+    INPUT - Hourly data:
+    >>> print(f"Time dimension: {len(da_hourly.time)} points")  # doctest: +ELLIPSIS
+    Time dimension: 24 points
+    >>> mock_table_header_pt = SimpleNamespace(approx_interval="0.125", table_id="3hrPt")
+    >>> mock_drv_pt = SimpleNamespace(frequency="3hrPt", table_header=mock_table_header_pt)
+    >>> rule_pt = SimpleNamespace(data_request_variable=mock_drv_pt)
+    >>> rule_pt.get = lambda key, default=None: getattr(rule_pt, key, default)
+    >>> result_pt = timeavg(da_hourly, rule_pt)
+    >>> print("OUTPUT - 3-hourly instantaneous samples:")  # doctest: +ELLIPSIS
+    OUTPUT - 3-hourly instantaneous samples:
+    >>> print(f"Time dimension: {len(result_pt.time)} points")  # doctest: +ELLIPSIS
+    Time dimension: 8 points
+    >>> print(f"Time method: {rule_pt.time_method}")  # doctest: +ELLIPSIS
+    Time method: INSTANTANEOUS
+
+    Test with adjust_timestamp to shift timestamps to mid-month:
+
+    >>> rule_adjusted = SimpleNamespace(
+    ...     data_request_variable=mock_drv,
+    ...     adjust_timestamp=0.5
+    ... )
+    >>> rule_adjusted.get = lambda key, default=None: getattr(rule_adjusted, key, default)
+    >>> result_adjusted = timeavg(da, rule_adjusted)
+    >>> print("OUTPUT - Monthly mean with mid-month timestamps:")  # doctest: +ELLIPSIS
+    OUTPUT - Monthly mean with mid-month timestamps:
+    >>> print(f"First timestamp: {result_adjusted.time.values[0]}")  # doctest: +ELLIPSIS
+    First timestamp: 2023-01-1...
     """
     drv = rule.data_request_variable
     approx_interval = drv.table_header.approx_interval
@@ -207,17 +334,13 @@ def timeavg(da: xr.DataArray, rule):
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_month.values[0] * magnitude
                         # NOTE: removing a day is requied to avoid overflow of the interval into next month
-                        new_offset = pd.to_timedelta(
-                            f"{ndays}d"
-                        ) * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 elif "YS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_year.values[0] * magnitude
-                        new_offset = pd.to_timedelta(
-                            f"{ndays}d"
-                        ) * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 else:
@@ -238,9 +361,7 @@ def timeavg(da: xr.DataArray, rule):
         elif drv.frequency == "1hrCM":
             ds = da.groupby("time.hour").mean("time")
         else:
-            raise ValueError(
-                f"Unknown Climatology {drv.frequency} in Table {drv.table_header.table_id}"
-            )
+            raise ValueError(f"Unknown Climatology {drv.frequency} in Table {drv.table_header.table_id}")
     else:
         raise ValueError(f"Unknown time method: {time_method}")
     return ds

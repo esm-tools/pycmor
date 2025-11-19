@@ -1,3 +1,4 @@
+# pycmor.std_lib.add_vertical_bounds
 """
 Calculate coordinate bounds for lat/lon and other coordinates.
 
@@ -91,9 +92,7 @@ def calculate_bounds_1d(coord: xr.DataArray) -> xr.DataArray:
     return bounds_da
 
 
-def calculate_bounds_2d(
-    coord: xr.DataArray, vertices_dim: str = "vertices"
-) -> xr.DataArray:
+def calculate_bounds_2d(coord: xr.DataArray, vertices_dim: str = "vertices") -> xr.DataArray:
     """
     Calculate bounds for a 2D coordinate array (unstructured grids).
 
@@ -157,15 +156,37 @@ def add_bounds_from_coords(
 
     Examples
     --------
+    >>> import xarray as xr
+    >>> import numpy as np
     >>> ds = xr.Dataset({
     ...     'temp': (['time', 'lat', 'lon'], np.random.rand(10, 5, 6)),
     ... }, coords={
     ...     'lat': np.linspace(-90, 90, 5),
     ...     'lon': np.linspace(0, 360, 6),
     ... })
+    >>> print(ds)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.Dataset> Size: ...
+    Dimensions:  (time: 10, lat: 5, lon: 6)
+    Coordinates:
+      * lat      (lat) float64 ... -90.0 -45.0 0.0 45.0 90.0
+      * lon      (lon) float64 ... 0.0 72.0 144.0 216.0 288.0 360.0
+    Dimensions without coordinates: time
+    Data variables:
+        temp     (time, lat, lon) float64 ...
     >>> ds_with_bounds = add_bounds_from_coords(ds)
-    >>> print('lat_bnds' in ds_with_bounds)
+    >>> 'lat_bnds' in ds_with_bounds
     True
+    >>> print(ds_with_bounds)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.Dataset> Size: ...
+    Dimensions:   (time: 10, lat: 5, lon: 6, bnds: 2)
+    Coordinates:
+      * lat       (lat) float64 ... -90.0 -45.0 0.0 45.0 90.0
+      * lon       (lon) float64 ... 0.0 72.0 144.0 216.0 288.0 360.0
+    Dimensions without coordinates: time, bnds
+    Data variables:
+        temp      (time, lat, lon) float64 ...
+        lat_bnds  (lat, bnds) float64 ...
+        lon_bnds  (lon, bnds) float64 ...
     """
     if coord_names is None:
         coord_names = ["lat", "lon", "latitude", "longitude"]
@@ -182,9 +203,7 @@ def add_bounds_from_coords(
 
         # Skip if bounds already exist
         if bounds_name in ds.data_vars or bounds_name in ds.coords:
-            logger.debug(
-                f"  → Bounds '{bounds_name}' already exist, skipping calculation"
-            )
+            logger.debug(f"  → Bounds '{bounds_name}' already exist, skipping calculation")
             continue
 
         # Calculate bounds based on dimensionality
@@ -248,6 +267,8 @@ def add_vertical_bounds(
 
     Examples
     --------
+    >>> import xarray as xr
+    >>> import numpy as np
     >>> ds = xr.Dataset({
     ...     'ta': (['time', 'plev', 'lat', 'lon'], np.random.rand(10, 8, 5, 6)),
     ... }, coords={
@@ -255,9 +276,30 @@ def add_vertical_bounds(
     ...     'lat': np.linspace(-90, 90, 5),
     ...     'lon': np.linspace(0, 360, 6),
     ... })
+    >>> print(ds)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.Dataset> Size: ...
+    Dimensions:  (time: 10, plev: 8, lat: 5, lon: 6)
+    Coordinates:
+      * plev     (plev) int... 100000 92500 85000 70000 60000 50000 40000 30000
+      * lat      (lat) float64 ... -90.0 -45.0 0.0 45.0 90.0
+      * lon      (lon) float64 ... 0.0 72.0 144.0 216.0 288.0 360.0
+    Dimensions without coordinates: time
+    Data variables:
+        ta       (time, plev, lat, lon) float64 ...
     >>> ds_with_bounds = add_vertical_bounds(ds)
-    >>> print('plev_bnds' in ds_with_bounds)
+    >>> 'plev_bnds' in ds_with_bounds
     True
+    >>> print(ds_with_bounds)  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    <xarray.Dataset> Size: ...
+    Dimensions:    (time: 10, plev: 8, lat: 5, lon: 6, bnds: 2)
+    Coordinates:
+      * plev       (plev) int... 100000 92500 85000 70000 60000 50000 40000 30000
+      * lat        (lat) float64 ... -90.0 -45.0 0.0 45.0 90.0
+      * lon        (lon) float64 ... 0.0 72.0 144.0 216.0 288.0 360.0
+    Dimensions without coordinates: time, bnds
+    Data variables:
+        ta         (time, plev, lat, lon) float64 ...
+        plev_bnds  (plev, bnds) float64 ...
 
     Notes
     -----
@@ -294,9 +336,7 @@ def add_vertical_bounds(
 
         # Skip if bounds already exist
         if bounds_name in ds.data_vars or bounds_name in ds.coords:
-            logger.debug(
-                f"  → Vertical bounds '{bounds_name}' already exist, skipping calculation"
-            )
+            logger.debug(f"  → Vertical bounds '{bounds_name}' already exist, skipping calculation")
             continue
 
         # Only handle 1D vertical coordinates
@@ -338,16 +378,8 @@ def add_bounds_to_grid(grid: xr.Dataset) -> xr.Dataset:
     logger.info("[Bounds] Checking for coordinate bounds in grid")
 
     # Check for various lat/lon naming conventions
-    lat_names = [
-        name
-        for name in ["lat", "latitude"]
-        if name in grid.coords or name in grid.data_vars
-    ]
-    lon_names = [
-        name
-        for name in ["lon", "longitude"]
-        if name in grid.coords or name in grid.data_vars
-    ]
+    lat_names = [name for name in ["lat", "latitude"] if name in grid.coords or name in grid.data_vars]
+    lon_names = [name for name in ["lon", "longitude"] if name in grid.coords or name in grid.data_vars]
 
     coord_names = lat_names + lon_names
 

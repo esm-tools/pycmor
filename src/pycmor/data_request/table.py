@@ -9,12 +9,7 @@ import pendulum
 from semver.version import Version
 
 from ..core.factory import MetaFactory
-from ..core.logging import logger
-from .variable import (
-    CMIP6DataRequestVariable,
-    CMIP7DataRequestVariable,
-    DataRequestVariable,
-)
+from .variable import CMIP6DataRequestVariable, CMIP7DataRequestVariable, DataRequestVariable
 
 ################################################################################
 # BLUEPRINTS: Abstract classes for the data request tables
@@ -238,17 +233,70 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
     ############################################################################
     # Constructor methods:
     @classmethod
-    def from_all_var_info(
-        cls, table_name: str, all_var_info: dict = None
-    ) -> "CMIP7DataRequestTableHeader":
+    def from_dict(cls, data: dict) -> "CMIP7DataRequestTableHeader":
+        """Create a CMIP7DataRequestTableHeader from a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing header information from CMIP7 metadata.
+
+        Returns
+        -------
+        CMIP7DataRequestTableHeader
+            Table header instance.
+        """
+        # Extract required fields
+        table_id = data.get("table_id", "unknown")
+        realm = data.get("realm", [])
+        if isinstance(realm, str):
+            realm = [realm]
+
+        # Extract optional fields with defaults
+        approx_interval = data.get("approx_interval")
+        generic_levels = data.get("generic_levels", [])
+        if isinstance(generic_levels, str):
+            generic_levels = generic_levels.split()
+
+        return cls(
+            _table_id=table_id,
+            _realm=realm,
+            _approx_interval=approx_interval,
+            _generic_levels=generic_levels,
+        )
+
+    @classmethod
+    def from_all_var_info(cls, table_name: str, all_var_info: dict = None) -> "CMIP7DataRequestTableHeader":
+        """Create header from all_var_info.json for a specific table.
+
+        This method is for backward compatibility with CMIP6 table structure.
+        It groups CMIP7 variables by their CMIP6 table name.
+
+        Parameters
+        ----------
+        table_name : str
+            CMIP6 table name to filter by.
+        all_var_info : dict, optional
+            The all_var_info dictionary. If None, loads from vendored file.
+
+        Returns
+        -------
+        CMIP7DataRequestTableHeader
+            Table header instance.
+        """
         if all_var_info is None:
             _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
             all_var_info = json.load(open(_all_var_info, "r"))
+
+        # Filter by CMIP6 table name for backward compatibility
         all_vars_for_table = {
-            k: v
-            for k, v in all_var_info["Compound Name"].items()
-            if k.startswith(table_name)
+            k: v for k, v in all_var_info["Compound Name"].items() if v.get("cmip6_cmor_table") == table_name
         }
+
+        if not all_vars_for_table:
+            # Fallback: try prefix matching (old behavior)
+            all_vars_for_table = {k: v for k, v in all_var_info["Compound Name"].items() if k.startswith(table_name)}
+
         attrs_for_table = {
             "realm": set(),
             "approx_interval": set(),
@@ -256,21 +304,22 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
 
         for var in all_vars_for_table.values():
             attrs_for_table["realm"].add(var["modeling_realm"])
-            attrs_for_table["approx_interval"].add(
-                cls._approx_interval_from_frequency(var["frequency"])
-            )
+            freq_interval = cls._approx_interval_from_frequency(var["frequency"])
+            if freq_interval is not None:  # Skip None values (e.g., from 'fx')
+                attrs_for_table["approx_interval"].add(freq_interval)
 
-        # We assume that all variables in the table have the same approx_interval
-        # If not, we need to raise an error
-        if len(attrs_for_table["approx_interval"]) != 1:
-            raise ValueError(
-                f"approx_interval in the table is not consistent: {attrs_for_table['approx_interval']}"
-            )
+        # Get the most common approx_interval, or None if empty
+        if attrs_for_table["approx_interval"]:
+            # For tables with mixed frequencies, use the first one
+            approx_interval = sorted(attrs_for_table["approx_interval"])[0]
+        else:
+            approx_interval = None
+
         # Build a table header, always using defaults for known fields
         return cls(
             _table_id=table_name,
             _realm=list(attrs_for_table["realm"]),
-            _approx_interval=attrs_for_table["approx_interval"].pop(),
+            _approx_interval=approx_interval,
             _generic_levels=[],
         )
 
@@ -352,9 +401,7 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
             _realm=[data["realm"]],
             _table_date=pendulum.parse(data["table_date"], strict=False).date(),
             # This might be None, if the approx interval is an empty string...
-            _approx_interval=(
-                float(data["approx_interval"]) if data["approx_interval"] else None
-            ),
+            _approx_interval=(float(data["approx_interval"]) if data["approx_interval"] else None),
             _generic_levels=data["generic_levels"].split(" "),
         )
         # Optionally get the rest, which might not be present:
@@ -364,9 +411,9 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
         # Handle Version conversions
         if "_data_specs_version" in extracted_data:
             for old_value, new_value in cls._HARD_CODED_DATA_SPECS_REPLACEMENTS.items():
-                extracted_data["_data_specs_version"] = extracted_data[
-                    "_data_specs_version"
-                ].replace(old_value, new_value)
+                extracted_data["_data_specs_version"] = extracted_data["_data_specs_version"].replace(
+                    old_value, new_value
+                )
             extracted_data["_data_specs_version"] = Version.parse(
                 extracted_data["_data_specs_version"],
                 optional_minor_and_patch=True,
@@ -380,9 +427,7 @@ class CMIP6DataRequestTableHeader(DataRequestTableHeader):
         if "_missing_value" in extracted_data:
             extracted_data["_missing_value"] = float(extracted_data["_missing_value"])
         if "_int_missing_value" in extracted_data:
-            extracted_data["_int_missing_value"] = int(
-                extracted_data["_int_missing_value"]
-            )
+            extracted_data["_int_missing_value"] = int(extracted_data["_int_missing_value"])
         return cls(**extracted_data)
 
     @property
@@ -488,17 +533,12 @@ class CMIP6DataRequestTable(DataRequestTable):
         for v in self._variables:
             if getattr(v, find_by) == name:
                 return v
-        raise ValueError(
-            f"A Variable with the attribute {find_by}={name} not found in the table."
-        )
+        raise ValueError(f"A Variable with the attribute {find_by}={name} not found in the table.")
 
     @classmethod
     def from_dict(cls, data: dict) -> "CMIP6DataRequestTable":
         header = CMIP6DataRequestTableHeader.from_dict(data["Header"])
-        variables = [
-            CMIP6DataRequestVariable.from_dict(v)
-            for v in data["variable_entry"].values()
-        ]
+        variables = [CMIP6DataRequestVariable.from_dict(v) for v in data["variable_entry"].values()]
         return cls(header, variables)
 
     @classmethod
@@ -571,9 +611,7 @@ class CMIP7DataRequestTable(DataRequestTable):
         for v in self._variables:
             if getattr(v, find_by) == name:
                 return v
-        raise ValueError(
-            f"A Variable with the attribute {find_by}={name} not found in the table."
-        )
+        raise ValueError(f"A Variable with the attribute {find_by}={name} not found in the table.")
 
     @classmethod
     def from_dict(cls, data: dict) -> "CMIP7DataRequestTable":
@@ -600,25 +638,38 @@ class CMIP7DataRequestTable(DataRequestTable):
         header = CMIP7DataRequestTableHeader.from_all_var_info(table_name, all_var_info)
         variables = []
         for var_name, var_dict in all_var_info["Compound Name"].items():
-            if var_dict["cmip6_cmor_table"] == table_name:
+            if var_dict.get("cmip6_cmor_table") == table_name:
                 variables.append(CMIP7DataRequestVariable.from_dict(var_dict))
         return cls(header, variables)
 
     @classmethod
     def table_dict_from_directory(cls, path) -> dict:
-        path = pathlib.Path(path)  # noop if already a Path
+        """
+        Create tables from directory or use packaged data.
+
+        For CMIP7, this method uses the packaged all_var_info.json
+        instead of looking in the directory, since CMIP7 data is
+        distributed with pycmor rather than in a separate repository.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path parameter (ignored for CMIP7, kept for API compatibility)
+
+        Returns
+        -------
+        dict
+            Dictionary mapping table_id to CMIP7DataRequestTable objects
+        """
+        # Use packaged data for CMIP7
+        _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
+        with open(_all_var_info, "r") as f:
+            all_var_info = json.load(f)
+
         tables = {}
-        try:
-            with open(path / "all_var_info.json", "r") as f:
-                all_var_info = json.load(f)
-        except FileNotFoundError:
-            logger.error(f"No all_var_info.json found in {path}.")
-            logger.error(
-                "It is currently possible to only create tables from the all_var_info.json file!"
-            )
-            logger.error("Sorry...")
-            raise FileNotFoundError
-        table_ids = set(k.split(".")[0] for k in all_var_info["Compound Name"].keys())
+        table_ids = set(
+            v.get("cmip6_cmor_table") for v in all_var_info["Compound Name"].values() if v.get("cmip6_cmor_table")
+        )
         for table_id in table_ids:
             table = cls.from_all_var_info(table_id, all_var_info)
             tables[table_id] = table
