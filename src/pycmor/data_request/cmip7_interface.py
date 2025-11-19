@@ -83,7 +83,7 @@ class CMIP7Interface:
     >>> interface.load_metadata('v1.2.2.2')
     >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
     >>> print(metadata['standard_name'])
-    'air_temperature'
+    air_temperature
     """
 
     def __init__(self):
@@ -537,7 +537,7 @@ def get_cmip7_interface(version: str = "v1.2.2.2", metadata_file: Optional[Union
     >>> interface = get_cmip7_interface()  # Downloads and loads v1.2.2.2
     >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
     >>> print(metadata['standard_name'])  # doctest: +ELLIPSIS
-    'air_temperature'
+    air_temperature
     """
     interface = CMIP7Interface()
     interface.load_metadata(version, metadata_file=metadata_file)
