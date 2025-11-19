@@ -70,14 +70,14 @@ Here's the minimum configuration needed for CMIP7:
        inputs:
          - path: /path/to/model/output
            pattern: "temp2_*.nc"
-       
+
        # Required identifiers (5 minimum)
        source_id: AWI-CM-1-1-HR
        institution_id: AWI
        experiment_id: historical
        variant_label: r1i1p1f1
        grid_label: gn
-       
+
        output_directory: /path/to/output
 
 Required Fields Explained
@@ -91,16 +91,16 @@ General Section
 
 **CV_Dir** (required)
   Path to CMIP7 Controlled Vocabularies directory. Clone from:
-  
+
   .. code-block:: bash
-  
+
      git clone https://github.com/WCRP-CMIP/CMIP7-CVs.git
 
 **CMIP7_DReq_metadata** (recommended)
   Path to CMIP7 Data Request metadata JSON file. Generate using:
-  
+
   .. code-block:: bash
-  
+
      export_dreq_lists_json -a -m dreq_metadata.json v1.2.2.2 dreq.json
 
 Rules Section
@@ -117,9 +117,9 @@ Each rule must specify:
 
 **inputs** (required)
   List of input file specifications:
-  
+
   .. code-block:: yaml
-  
+
      inputs:
        - path: /path/to/data
          pattern: "*.nc"
@@ -147,37 +147,37 @@ Optional but Recommended Fields
 
 **grid** (recommended)
   Human-readable grid description:
-  
+
   .. code-block:: yaml
-  
+
      grid: "T63 Gaussian grid (192x96)"
 
 **nominal_resolution** (recommended)
   Model resolution:
-  
+
   .. code-block:: yaml
-  
+
      nominal_resolution: "250 km"
 
 **frequency** (optional)
   Output frequency. Automatically provided by compound_name, but can override:
-  
+
   .. code-block:: yaml
-  
+
      frequency: mon
 
 **realm** (optional)
   Modeling realm. Automatically provided by compound_name:
-  
+
   .. code-block:: yaml
-  
+
      realm: atmos
 
 **table_id** (optional)
   CMOR table ID. Automatically provided by compound_name:
-  
+
   .. code-block:: yaml
-  
+
      table_id: Amon
 
 Complete Example
@@ -204,26 +204,26 @@ Atmospheric Variable with Compound Name
      - name: near_surface_temperature
        # Compound name provides: cmor_variable, frequency, realm, table_id
        compound_name: atmos.tas.tavg-h2m-hxy-u.mon.GLB
-       
+
        # Your model's variable name
        model_variable: temp2
-       
+
        # Input files
        inputs:
          - path: /work/ab0995/model_runs/historical/outdata/echam
            pattern: "temp2_echam_mon_*.nc"
-       
+
        # Required identifiers
        source_id: AWI-CM-1-1-HR
        institution_id: AWI
        experiment_id: historical
        variant_label: r1i1p1f1
        grid_label: gn
-       
+
        # Recommended metadata
        grid: "T63 Gaussian grid (192x96)"
        nominal_resolution: "250 km"
-       
+
        # Output
        output_directory: /work/ab0995/cmip7_output
 
@@ -236,24 +236,24 @@ Ocean Variable on Unstructured Grid
      - name: sea_surface_temperature
        compound_name: ocean.tos.tavg-u-hxy-u.mon.GLB
        model_variable: sst
-       
+
        inputs:
          - path: /work/ab0995/model_runs/historical/outdata/fesom
            pattern: "sst_fesom_mon_*.nc"
-       
+
        # Required identifiers
        source_id: AWI-CM-1-1-HR
        institution_id: AWI
        experiment_id: historical
        variant_label: r1i1p1f1
        grid_label: gn
-       
+
        # Unstructured grid information
        grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
        mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
        grid: "FESOM 1.4 unstructured grid (1306775 wet nodes)"
        nominal_resolution: "25 km"
-       
+
        output_directory: /work/ab0995/cmip7_output
 
 Without Compound Name (Manual Specification)
@@ -268,28 +268,28 @@ If you don't use compound names, you must specify metadata manually:
        # Manual specification (no compound name)
        cmor_variable: fgco2
        model_variable: CO2f
-       
+
        # Must specify these manually
        frequency: mon
        realm: ocnBgchem
        table_id: Omon
-       
+
        inputs:
          - path: /work/ab0995/model_runs/piControl/outdata/recom
            pattern: "CO2f_fesom_mon_*.nc"
-       
+
        # Required identifiers
        source_id: AWI-CM-1-1-HR
        institution_id: AWI
        experiment_id: piControl
        variant_label: r1i1p1f1
        grid_label: gn
-       
+
        grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
        mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
        grid: "FESOM 1.4 unstructured grid"
        nominal_resolution: "25 km"
-       
+
        output_directory: /work/ab0995/cmip7_output
 
 Multiple Variables
@@ -313,7 +313,7 @@ Multiple Variables
        grid: "T63 Gaussian grid"
        nominal_resolution: "250 km"
        output_directory: /path/to/output
-     
+
      # Ocean temperature
      - name: tos
        compound_name: ocean.tos.tavg-u-hxy-u.mon.GLB
@@ -331,7 +331,7 @@ Multiple Variables
        grid: "FESOM unstructured grid"
        nominal_resolution: "25 km"
        output_directory: /path/to/output
-     
+
      # Precipitation
      - name: pr
        compound_name: atmos.pr.tavg-u-hxy-u.mon.GLB
@@ -366,7 +366,7 @@ Components
 1. **realm**: ``atmos`` (atmosphere, ocean, land, seaIce, landIce, aerosol)
 2. **variable**: ``tas`` (physical parameter name)
 3. **branding**: ``tavg-h2m-hxy-u`` (processing descriptor)
-   
+
    - ``tavg`` = time average
    - ``h2m`` = 2-meter height
    - ``hxy`` = horizontal grid
@@ -415,7 +415,7 @@ Monitor progress:
 
    # View logs
    tail -f logs/pycmor-process-*.log
-   
+
    # Check Dask dashboard
    grep Dashboard logs/pycmor-process-*.log
 
@@ -427,13 +427,13 @@ To migrate a CMIP6 configuration to CMIP7:
 1. **Update general section**:
 
    .. code-block:: yaml
-   
+
       # Before (CMIP6)
       general:
         cmor_version: "CMIP6"
         CMIP_Tables_Dir: "/path/to/cmip6-cmor-tables/Tables"
         CV_Dir: "/path/to/CMIP6_CVs"
-      
+
       # After (CMIP7)
       general:
         cmor_version: "CMIP7"
@@ -443,7 +443,7 @@ To migrate a CMIP6 configuration to CMIP7:
 2. **Update each rule**:
 
    .. code-block:: yaml
-   
+
       # Before (CMIP6)
       rules:
         - name: tas
@@ -451,7 +451,7 @@ To migrate a CMIP6 configuration to CMIP7:
           model_variable: temp2
           model_component: atmos
           # ... other fields
-      
+
       # After (CMIP7)
       rules:
         - name: tas
@@ -463,7 +463,7 @@ To migrate a CMIP6 configuration to CMIP7:
           # ... other fields (source_id, experiment_id, etc. unchanged)
 
 3. **Keep unchanged**:
-   
+
    - ``source_id``
    - ``experiment_id``
    - ``variant_label``
@@ -544,13 +544,13 @@ Summary Checklist
 Before running CMIP7 CMORization, ensure:
 
 ☑ **General section**:
-  
+
   - ``cmor_version: "CMIP7"``
   - ``CV_Dir`` points to CMIP7-CVs
   - ``CMIP7_DReq_metadata`` points to metadata JSON (recommended)
 
 ☑ **Each rule has**:
-  
+
   - ``compound_name`` (recommended) OR ``cmor_variable`` + ``frequency`` + ``realm`` + ``table_id``
   - ``model_variable``
   - ``inputs`` with path and pattern
@@ -562,12 +562,12 @@ Before running CMIP7 CMORization, ensure:
   - ``output_directory``
 
 ☑ **Recommended fields**:
-  
+
   - ``grid`` (grid description)
   - ``nominal_resolution`` (model resolution)
 
 ☑ **Validation**:
-  
+
   - Run ``pycmor validate config your_config.yaml``
   - Check all paths exist
   - Verify CMIP7-CVs is up to date

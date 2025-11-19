@@ -111,23 +111,23 @@ Implementation Details
 The :py:class:`~pycmor.core.controlled_vocabularies.CMIP7ControlledVocabularies` class provides:
 
 1. **load(table_dir=None)** - Main entry point
-   
+
    - If ``table_dir`` is None, uses vendored submodule
    - Otherwise loads from specified path
 
 2. **from_directory(directory)** - Loads from local directory
-   
+
    - Scans ``experiment/`` for individual experiment files
    - Scans ``project/`` for list-based CVs
    - Skips special files (``@context``, ``graph.jsonld``)
 
 3. **load_from_git(tag, branch)** - Loads from GitHub
-   
+
    - Defaults to ``src-data`` branch
    - Downloads key experiments and project CVs
 
 4. **print_experiment_ids()** - Display helper
-   
+
    - Shows experiment IDs with start/end years and parents
    - Handles CMIP7 field naming conventions
 
@@ -161,7 +161,7 @@ Data Access Examples
 
     # Get available frequencies
     frequencies = cvs["frequency"]
-    # ['1hr', '1hrcm', '1hrpt', '3hr', '3hrpt', '6hr', '6hrpt', 
+    # ['1hr', '1hrcm', '1hrpt', '3hr', '3hrpt', '6hr', '6hrpt',
     #  'day', 'dec', 'fx', 'mon', 'monc', 'monpt', 'subhrpt', 'yr', 'yrpt']
 
     # Get license information

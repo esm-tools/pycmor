@@ -64,7 +64,7 @@ if wrapper.check_version_compatibility():
 
 ## Recommended Versions
 
-✅ **Use these**: v1.0, v1.1, v1.2  
+✅ **Use these**: v1.0, v1.1, v1.2
 ⚠️ **Avoid these**: v1.2.2.1, v1.2.2.2 (incompatible)
 
 ## Import Cheat Sheet
@@ -85,13 +85,13 @@ from pycmor.data_request import CMIP7_DREQ_AVAILABLE
 
 ## Troubleshooting
 
-**Problem**: `CMIP7_DREQ_AVAILABLE` is `False`  
+**Problem**: `CMIP7_DREQ_AVAILABLE` is `False`
 **Solution**: Clone CMIP7_DReq_Software to project root
 
-**Problem**: `AttributeError: 'dreq_record' object has no attribute 'compound_name'`  
+**Problem**: `AttributeError: 'dreq_record' object has no attribute 'compound_name'`
 **Solution**: Use v1.0, v1.1, or v1.2 instead
 
-**Problem**: Slow queries  
+**Problem**: Slow queries
 **Solution**: Results are cached per wrapper instance, reuse the instance
 
 ## Full Documentation
