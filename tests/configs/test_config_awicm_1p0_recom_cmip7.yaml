@@ -12,7 +12,7 @@ general:
   cmor_version: "CMIP7"
   mip: "CMIP"
   frequency: "mon"
-  # CV_Dir: "./CMIP7-CVs"  # Optional for CMIP7
+  CV_Dir: "/dev/null"  # FIXME: CV_Dir should not be required for CMIP7, refactor validator
   # CMIP_Tables_Dir is not needed for CMIP7 (uses packaged data)
 rules:
   - name: "temp_with_levels"
