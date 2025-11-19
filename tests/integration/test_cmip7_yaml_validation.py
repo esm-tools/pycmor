@@ -160,17 +160,40 @@ def test_cmip6_config_validates(cmip6_config):
     assert RULES_VALIDATOR.validate({"rules": cmip6_config["rules"]}), RULES_VALIDATOR.errors
 
 
-def test_cmip7_requires_cv_dir():
-    """Test that CV_Dir is required for CMIP7."""
+def test_cmip7_cv_dir_is_optional():
+    """Test that CV_Dir is optional for CMIP7 (uses ResourceLoader fallback)."""
     config = {
         "general": {
             "name": "test",
             "cmor_version": "CMIP7",
-            # Missing CV_Dir
+            # CV_Dir is optional - will use ResourceLoader priority chain
         }
     }
-    assert not GENERAL_VALIDATOR.validate(config)
-    assert "CV_Dir" in GENERAL_VALIDATOR.errors["general"][0]
+    assert GENERAL_VALIDATOR.validate(config), GENERAL_VALIDATOR.errors
+
+
+def test_cmip7_cv_version_field():
+    """Test that CV_version field is accepted."""
+    config = {
+        "general": {
+            "name": "test",
+            "cmor_version": "CMIP7",
+            "CV_version": "src-data",
+        }
+    }
+    assert GENERAL_VALIDATOR.validate(config), GENERAL_VALIDATOR.errors
+
+
+def test_cmip7_dreq_version_field():
+    """Test that CMIP7_DReq_version field is accepted."""
+    config = {
+        "general": {
+            "name": "test",
+            "cmor_version": "CMIP7",
+            "CMIP7_DReq_version": "v1.2.2.2",
+        }
+    }
+    assert GENERAL_VALIDATOR.validate(config), GENERAL_VALIDATOR.errors
 
 
 def test_cmip7_compound_name_field_accepted():
