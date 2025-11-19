@@ -100,8 +100,12 @@ GENERAL_SCHEMA = {
             },
             "CV_Dir": {
                 "type": "string",
-                "required": True,
+                "required": False,  # Optional: uses ResourceLoader fallback chain
                 "is_directory": True,
+            },
+            "CV_version": {
+                "type": "string",
+                "required": False,  # Optional: defaults to "6.2.58.64" (CMIP6) or "src-data" (CMIP7)
             },
             "CMIP_Tables_Dir": {
                 "type": "string",
@@ -112,6 +116,10 @@ GENERAL_SCHEMA = {
                 "type": "string",
                 "required": False,  # Required only for CMIP7
                 "is_directory": False,
+            },
+            "CMIP7_DReq_version": {
+                "type": "string",
+                "required": False,  # Optional: defaults to "v1.2.2.2"
             },
         },
     },
