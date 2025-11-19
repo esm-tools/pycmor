@@ -17,8 +17,8 @@ Usage:
 ------
 >>> from pycmor.data_request import CMIP7Interface
 >>> interface = CMIP7Interface()
->>> metadata_dict = interface.load_metadata('v1.2.2.2')  # doctest: +ELLIPSIS
->>> len(metadata_dict.get('Compound Name', {})) > 0
+>>> interface.load_metadata('v1.2.2.2')  # doctest: +ELLIPSIS
+>>> len(interface.metadata.get('Compound Name', {})) > 0
 True
 >>>
 >>> # Get metadata by CMIP7 compound name
@@ -121,7 +121,7 @@ class CMIP7Interface:
         version: str = "v1.2.2.2",
         metadata_file: Optional[Union[str, Path]] = None,
         force_reload: bool = False,
-    ) -> Dict:
+    ) -> None:
         """
         Load CMIP7 metadata for a specific version.
 
@@ -134,14 +134,9 @@ class CMIP7Interface:
             instead of using the API.
         force_reload : bool, optional
             If True, force reload even if already loaded. Default is False.
-
-        Returns
-        -------
-        Dict
-            The loaded metadata dictionary.
         """
         if not force_reload and self._metadata is not None and self._version == version:
-            return self._metadata
+            return
 
         if metadata_file is not None:
             # Load from local file
@@ -222,7 +217,6 @@ class CMIP7Interface:
                     self._version = version
 
         logger.info(f"Loaded metadata for {len(self._metadata.get('Compound Name', {}))} variables")
-        return self._metadata
 
     def load_experiments_data(self, experiments_file: Union[str, Path]) -> Dict:
         """
