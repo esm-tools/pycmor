@@ -56,8 +56,8 @@ Here's the minimum configuration needed for CMIP7:
    general:
      name: "my-cmip7-project"
      cmor_version: "CMIP7"
-     CV_Dir: "/path/to/CMIP7-CVs"
-     CMIP7_DReq_metadata: "/path/to/dreq_metadata.json"
+     # CV_Dir and CMIP7_DReq_metadata are optional
+     # pycmor will automatically download/generate if not specified
 
    pycmor:
      warn_on_no_rule: False
@@ -80,6 +80,41 @@ Here's the minimum configuration needed for CMIP7:
 
        output_directory: /path/to/output
 
+With Explicit Paths
+--------------------
+
+For reproducibility or offline environments, you can specify paths explicitly:
+
+.. code-block:: yaml
+
+   general:
+     name: "my-cmip7-project"
+     cmor_version: "CMIP7"
+     CV_Dir: "/path/to/CMIP7-CVs"           # Optional: explicit path
+     CV_version: "src-data"                  # Optional: git branch/tag
+     CMIP7_DReq_metadata: "/path/to/dreq_metadata.json"  # Optional: explicit path
+     CMIP7_DReq_version: "v1.2.2.2"          # Optional: DReq version
+
+   pycmor:
+     warn_on_no_rule: False
+     dask_cluster: "local"
+
+   rules:
+     - name: tas
+       compound_name: atmos.tas.tavg-h2m-hxy-u.mon.GLB
+       model_variable: temp2
+       inputs:
+         - path: /path/to/model/output
+           pattern: "temp2_*.nc"
+
+       source_id: AWI-CM-1-1-HR
+       institution_id: AWI
+       experiment_id: historical
+       variant_label: r1i1p1f1
+       grid_label: gn
+
+       output_directory: /path/to/output
+
 Required Fields Explained
 ==========================
 
@@ -89,19 +124,103 @@ General Section
 **cmor_version** (required)
   Must be ``"CMIP7"`` for CMIP7 CMORization.
 
-**CV_Dir** (required)
-  Path to CMIP7 Controlled Vocabularies directory. Clone from:
+**CV_Dir** (optional)
+  Path to CMIP7 Controlled Vocabularies directory. **If not specified**, pycmor will
+  automatically load CVs using the 5-level priority system (see below).
+
+  To specify explicitly:
+
+  .. code-block:: yaml
+
+     CV_Dir: "/path/to/CMIP7-CVs"
+
+  To clone the CVs manually:
 
   .. code-block:: bash
 
      git clone https://github.com/WCRP-CMIP/CMIP7-CVs.git
 
-**CMIP7_DReq_metadata** (recommended)
-  Path to CMIP7 Data Request metadata JSON file. Generate using:
+**CV_version** (optional)
+  Git branch or tag for CMIP7 CVs. Defaults to ``"src-data"`` branch.
+
+  .. code-block:: yaml
+
+     CV_version: "src-data"  # Or specific tag
+
+**CMIP7_DReq_metadata** (optional)
+  Path to CMIP7 Data Request metadata JSON file. **If not specified**, pycmor will
+  automatically generate/download using the 5-level priority system (see below).
+
+  To specify explicitly:
+
+  .. code-block:: yaml
+
+     CMIP7_DReq_metadata: "/path/to/dreq_metadata.json"
+
+  To generate manually:
 
   .. code-block:: bash
 
+     pip install git+https://github.com/WCRP-CMIP/CMIP7_DReq_Software
      export_dreq_lists_json -a -m dreq_metadata.json v1.2.2.2 dreq.json
+
+**CMIP7_DReq_version** (optional)
+  Version of CMIP7 Data Request. Defaults to ``"v1.2.2.2"``.
+
+  .. code-block:: yaml
+
+     CMIP7_DReq_version: "v1.2.2.2"
+
+Resource Loading Priority System
+---------------------------------
+
+pycmor uses a 5-level priority system to load CMIP7 Controlled Vocabularies and
+Data Request metadata. This allows flexibility across different environments while
+minimizing configuration requirements.
+
+**Priority Chain (highest to lowest):**
+
+1. **User-specified path** - Direct path from configuration file (``CV_Dir`` or ``CMIP7_DReq_metadata``)
+2. **XDG cache directory** - Cached copy in ``~/.cache/pycmor/`` or ``$XDG_CACHE_HOME/pycmor/``
+3. **Remote git download** - Automatic download from GitHub to cache (requires internet)
+4. **Packaged resources** - Data bundled with pip installation (future feature)
+5. **Vendored submodules** - Git submodules in development installs (``CMIP7-CVs/``)
+
+**How it works:**
+
+.. code-block:: python
+
+   # Example: Loading CMIP7 CVs
+   # 1. If CV_Dir specified -> use that path
+   # 2. Else if cached -> use ~/.cache/pycmor/cmip7-cvs/src-data/
+   # 3. Else download from GitHub to cache
+   # 4. Else check packaged data (future)
+   # 5. Else use CMIP7-CVs git submodule
+
+**Cache location:**
+
+.. code-block:: bash
+
+   # Default cache directory
+   ~/.cache/pycmor/
+
+   # Or set custom location
+   export XDG_CACHE_HOME=/custom/cache/dir
+
+**Clear cache:**
+
+.. code-block:: bash
+
+   # Remove all cached resources
+   rm -rf ~/.cache/pycmor/
+
+**Benefits:**
+
+- Works in development, HPC, and pip installations
+- Automatic downloads reduce configuration burden
+- Caching prevents repeated downloads
+- Version control via configuration keys
+- Explicit paths for reproducibility when needed
 
 Rules Section
 -------------
@@ -546,8 +665,10 @@ Before running CMIP7 CMORization, ensure:
 ☑ **General section**:
 
   - ``cmor_version: "CMIP7"``
-  - ``CV_Dir`` points to CMIP7-CVs
-  - ``CMIP7_DReq_metadata`` points to metadata JSON (recommended)
+  - ``CV_Dir`` points to CMIP7-CVs (optional - auto-loads if not specified)
+  - ``CV_version`` specifies git branch/tag (optional - defaults to "src-data")
+  - ``CMIP7_DReq_metadata`` points to metadata JSON (optional - auto-generates if not specified)
+  - ``CMIP7_DReq_version`` specifies DReq version (optional - defaults to "v1.2.2.2")
 
 ☑ **Each rule has**:
 
