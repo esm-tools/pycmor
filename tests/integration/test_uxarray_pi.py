@@ -1,4 +1,3 @@
-import pytest
 import yaml
 
 from pycmor.core.cmorizer import CMORizer
