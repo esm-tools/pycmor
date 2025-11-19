@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 #SBATCH --job-name=pymor-controller  # <<< This is the main job, it will launch subjobs if you have Dask enabled.
 #SBATCH --account=ab0246                # <<< Adapt this to your computing account!
 #SBATCH --partition=compute
@@ -10,8 +10,7 @@ export PREFECT_SERVER_API_HOST=0.0.0.0
 # https://docs-3.prefect.io/v3/develop/settings-ref#local-storage-path
 export PREFECT_RESULTS_LOCAL_STORAGE_PATH=/scratch/a/${USER}/prefect
 # Load conda
-module load python3
 source $(conda info --base)/etc/profile.d/conda.sh
-conda activate pymor
+conda activate pycmor
 prefect server start -b
-time pymor process units-example.yaml
+time pycmor process units-example.yaml
