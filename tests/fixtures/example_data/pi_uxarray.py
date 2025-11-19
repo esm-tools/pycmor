@@ -17,11 +17,13 @@ URL = "https://nextcloud.awi.de/s/swqyFgbL2jjgjRo/download/pi_uxarray.tar"
 MESH_GIT_REPO = "https://gitlab.awi.de/fesom/pi"
 """str : Git repository URL for the FESOM PI mesh data."""
 
+PYCMOR_TEST_DATA_CACHE_DIR = Path(os.env.get("PYCMOR_TEST_DATA_CACHE_DIR")) or Path.home() / ".cache" / "pycmor" / "test_data"
+
 
 @pytest.fixture(scope="session")
 def pi_uxarray_download_data(tmp_path_factory):
     # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
-    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir = PYCMOR_TEST_DATA_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     data_path = cache_dir / "pi_uxarray.tar"
 
@@ -111,7 +113,7 @@ def pi_uxarray_download_mesh(tmp_path_factory):
     Uses persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp.
     """
     # Use persistent cache in $HOME/.cache/pycmor instead of ephemeral /tmp
-    cache_dir = Path.home() / ".cache" / "pycmor" / "test_data"
+    cache_dir = PYCMOR_TEST_DATA_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
     mesh_dir = cache_dir / "pi_mesh_git"
 
