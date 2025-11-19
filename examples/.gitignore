@@ -1,3 +1,5 @@
 *.nc
 slurm*.out
 pycmor_report.log
+metadata.json
+experiments.json
