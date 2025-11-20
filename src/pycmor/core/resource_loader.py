@@ -221,38 +221,35 @@ class ResourceLoader:
 
 class CVLoader(ResourceLoader):
     """
-    Loader for Controlled Vocabularies (CMIP6 or CMIP7).
+    Base class for Controlled Vocabularies loaders.
+
+    Subclasses should define:
+    - DEFAULT_VERSION: Default version/tag/branch to use
+    - RESOURCE_NAME: Name for cache directory
+    - GIT_REPO_URL: GitHub repository URL
+    - VENDORED_SUBDIR: Subdirectory path in repo for vendored submodule
 
     Parameters
     ----------
-    cmor_version : str
-        Either 'CMIP6' or 'CMIP7'
     version : str, optional
-        CV version (e.g., '6.2.58.64' for CMIP6)
+        CV version/tag/branch (uses DEFAULT_VERSION if not specified)
     user_path : str or Path, optional
         User-specified CV_Dir
     """
 
+    DEFAULT_VERSION: str = None
+    RESOURCE_NAME: str = None
+    GIT_REPO_URL: str = None
+    VENDORED_SUBDIR: str = None
+
     def __init__(
         self,
-        cmor_version: str,
         version: Optional[str] = None,
         user_path: Optional[Union[str, Path]] = None,
     ):
-        self.cmor_version = cmor_version
-
-        # Set resource name based on CMOR version
-        if cmor_version == "CMIP6":
-            resource_name = "cmip6-cvs"
-            if version is None:
-                version = "6.2.58.64"  # Default CMIP6 CV version
-        elif cmor_version == "CMIP7":
-            resource_name = "cmip7-cvs"
-            # CMIP7 uses git branches/tags differently
-        else:
-            raise ValueError(f"Unknown CMOR version: {cmor_version}")
-
-        super().__init__(resource_name, version, user_path)
+        # Use class-level default version if not specified
+        version = version or self.DEFAULT_VERSION
+        super().__init__(self.RESOURCE_NAME, version, user_path)
 
     def _get_vendored_path(self) -> Optional[Path]:
         """Get path to vendored CV submodule."""
@@ -260,14 +257,11 @@ class CVLoader(ResourceLoader):
         current_file = Path(__file__)
         repo_root = current_file.parent.parent.parent.parent
 
-        if self.cmor_version == "CMIP6":
-            cv_path = repo_root / "cmip6-cmor-tables" / "CMIP6_CVs"
-        else:  # CMIP7
-            cv_path = repo_root / "CMIP7-CVs"
+        cv_path = repo_root / self.VENDORED_SUBDIR
 
         if not cv_path.exists():
             logger.warning(
-                f"{self.cmor_version} CVs submodule not found at {cv_path}. " "Run: git submodule update --init"
+                f"{self.__class__.__name__} submodule not found at {cv_path}. " "Run: git submodule update --init"
             )
             return None
 
@@ -275,13 +269,6 @@ class CVLoader(ResourceLoader):
 
     def _download_from_git(self, cache_path: Path) -> bool:
         """Download CVs from GitHub."""
-        if self.cmor_version == "CMIP6":
-            repo_url = "https://github.com/WCRP-CMIP/CMIP6_CVs.git"
-            tag = self.version  # e.g., "6.2.58.64"
-        else:  # CMIP7
-            repo_url = "https://github.com/WCRP-CMIP/CMIP7-CVs.git"
-            tag = self.version if self.version else "src-data"  # Default branch
-
         try:
             # Clone with depth 1 for speed, checkout specific tag/branch
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -289,7 +276,7 @@ class CVLoader(ResourceLoader):
 
                 # Clone
                 subprocess.run(
-                    ["git", "clone", "--depth", "1", "--branch", tag, repo_url, str(tmpdir_path)],
+                    ["git", "clone", "--depth", "1", "--branch", self.version, self.GIT_REPO_URL, str(tmpdir_path)],
                     check=True,
                     capture_output=True,
                 )
@@ -303,11 +290,29 @@ class CVLoader(ResourceLoader):
 
             return True
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone {self.cmor_version} CVs: {e.stderr.decode()}")
+            logger.error(f"Failed to clone {self.__class__.__name__}: {e.stderr.decode()}")
             return False
         except Exception as e:
-            logger.error(f"Error downloading {self.cmor_version} CVs: {e}")
+            logger.error(f"Error downloading {self.__class__.__name__}: {e}")
             return False
+
+
+class CMIP6CVLoader(CVLoader):
+    """Loader for CMIP6 Controlled Vocabularies."""
+
+    DEFAULT_VERSION = "6.2.58.64"
+    RESOURCE_NAME = "cmip6-cvs"
+    GIT_REPO_URL = "https://github.com/WCRP-CMIP/CMIP6_CVs.git"
+    VENDORED_SUBDIR = "cmip6-cmor-tables/CMIP6_CVs"
+
+
+class CMIP7CVLoader(CVLoader):
+    """Loader for CMIP7 Controlled Vocabularies."""
+
+    DEFAULT_VERSION = "src-data"
+    RESOURCE_NAME = "cmip7-cvs"
+    GIT_REPO_URL = "https://github.com/WCRP-CMIP/CMIP7-CVs.git"
+    VENDORED_SUBDIR = "CMIP7-CVs"
 
 
 class CMIP7MetadataLoader(ResourceLoader):
@@ -316,18 +321,31 @@ class CMIP7MetadataLoader(ResourceLoader):
 
     Parameters
     ----------
-    version : str
-        DReq version (e.g., 'v1.2.2.2')
+    version : str, optional
+        DReq version (e.g., 'v1.2.2.2', uses DEFAULT_VERSION if not specified)
     user_path : str or Path, optional
         User-specified CMIP7_DReq_metadata path
     """
 
+    DEFAULT_VERSION = "v1.2.2.2"
+    RESOURCE_NAME = "cmip7_metadata"
+
     def __init__(
         self,
-        version: str = "v1.2.2.2",
+        version: Optional[str] = None,
         user_path: Optional[Union[str, Path]] = None,
     ):
-        super().__init__("cmip7_metadata", version, user_path)
+        # Use class-level default version if not specified
+        version = version or self.DEFAULT_VERSION
+        super().__init__(self.RESOURCE_NAME, version, user_path)
+
+    def _get_cache_path(self) -> Path:
+        """Override to return file path instead of directory path."""
+        # For metadata, we want a file: ~/.cache/pycmor/cmip7_metadata/v1.2.2.2/metadata.json
+        if self.version:
+            return self._cache_base / self.resource_name / self.version / "metadata.json"
+        else:
+            return self._cache_base / self.resource_name / "metadata.json"
 
     def _get_vendored_path(self) -> Optional[Path]:
         """CMIP7 metadata is not vendored, must be generated."""

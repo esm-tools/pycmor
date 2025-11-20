@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pycmor.core.resource_loader import CMIP7MetadataLoader, CVLoader, ResourceLoader
+from pycmor.core.resource_loader import CMIP6CVLoader, CMIP7CVLoader, CMIP7MetadataLoader, ResourceLoader
 
 
 class TestResourceLoaderBase:
@@ -230,35 +230,44 @@ class TestResourceLoaderPriorityChain:
 
 
 class TestCVLoader:
-    """Test the CVLoader for controlled vocabularies"""
+    """Test the CV loader factory pattern"""
 
     def test_can_create_cmip6_loader(self):
-        """Test creating CVLoader for CMIP6"""
-        loader = CVLoader(cmor_version="CMIP6")
-        assert loader.cmor_version == "CMIP6"
+        """Test creating CMIP6CVLoader"""
+        loader = CMIP6CVLoader()
         assert loader.resource_name == "cmip6-cvs"
         assert loader.version == "6.2.58.64"  # Default
+        assert loader.DEFAULT_VERSION == "6.2.58.64"
+        assert loader.GIT_REPO_URL == "https://github.com/WCRP-CMIP/CMIP6_CVs.git"
 
     def test_can_create_cmip6_loader_with_custom_version(self):
-        """Test creating CVLoader for CMIP6 with custom version"""
-        loader = CVLoader(cmor_version="CMIP6", version="6.2.50.0")
+        """Test creating CMIP6CVLoader with custom version"""
+        loader = CMIP6CVLoader(version="6.2.50.0")
         assert loader.version == "6.2.50.0"
 
     def test_can_create_cmip7_loader(self):
-        """Test creating CVLoader for CMIP7"""
-        loader = CVLoader(cmor_version="CMIP7")
-        assert loader.cmor_version == "CMIP7"
+        """Test creating CMIP7CVLoader"""
+        loader = CMIP7CVLoader()
         assert loader.resource_name == "cmip7-cvs"
-        assert loader.version is None  # CMIP7 uses branch
+        assert loader.version == "src-data"  # Default
+        assert loader.DEFAULT_VERSION == "src-data"
+        assert loader.GIT_REPO_URL == "https://github.com/WCRP-CMIP/CMIP7-CVs.git"
 
-    def test_invalid_cmor_version_raises_error(self):
-        """Test that invalid CMOR version raises ValueError"""
-        with pytest.raises(ValueError, match="Unknown CMOR version"):
-            CVLoader(cmor_version="CMIP8")
+    def test_cmip6_class_attributes(self):
+        """Test that CMIP6CVLoader has correct class attributes"""
+        assert CMIP6CVLoader.DEFAULT_VERSION == "6.2.58.64"
+        assert CMIP6CVLoader.RESOURCE_NAME == "cmip6-cvs"
+        assert CMIP6CVLoader.VENDORED_SUBDIR == "cmip6-cmor-tables/CMIP6_CVs"
+
+    def test_cmip7_class_attributes(self):
+        """Test that CMIP7CVLoader has correct class attributes"""
+        assert CMIP7CVLoader.DEFAULT_VERSION == "src-data"
+        assert CMIP7CVLoader.RESOURCE_NAME == "cmip7-cvs"
+        assert CMIP7CVLoader.VENDORED_SUBDIR == "CMIP7-CVs"
 
     def test_get_vendored_path_cmip6(self):
         """Test vendored path for CMIP6"""
-        loader = CVLoader(cmor_version="CMIP6")
+        loader = CMIP6CVLoader()
         vendored = loader._get_vendored_path()
 
         # Should point to cmip6-cmor-tables/CMIP6_CVs
@@ -268,7 +277,7 @@ class TestCVLoader:
 
     def test_get_vendored_path_cmip7(self):
         """Test vendored path for CMIP7"""
-        loader = CVLoader(cmor_version="CMIP7")
+        loader = CMIP7CVLoader()
         vendored = loader._get_vendored_path()
 
         # Should point to CMIP7-CVs
@@ -281,7 +290,7 @@ class TestCVLoader:
     )
     def test_load_cmip6_from_vendored(self):
         """Test loading CMIP6 CVs from vendored submodule"""
-        loader = CVLoader(cmor_version="CMIP6")
+        loader = CMIP6CVLoader()
         result = loader.load()
         assert result is not None
         assert result.exists()
@@ -292,7 +301,7 @@ class TestCVLoader:
     )
     def test_load_cmip7_from_vendored(self):
         """Test loading CMIP7 CVs from vendored submodule"""
-        loader = CVLoader(cmor_version="CMIP7")
+        loader = CMIP7CVLoader()
         result = loader.load()
         assert result is not None
         assert result.exists()

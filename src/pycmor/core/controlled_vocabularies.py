@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 from .factory import MetaFactory
-from .resource_loader import CVLoader
+from .resource_loader import CMIP6CVLoader, CMIP7CVLoader
 
 
 class ControlledVocabularies(dict, metaclass=MetaFactory):
@@ -56,11 +56,12 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
     def load(cls, table_dir=None, version=None):
         """Load the controlled vocabularies from the CMIP6_CVs directory
 
-        Uses ResourceLoader with priority:
+        Uses ResourceLoader with 5-level priority:
         1. table_dir (if provided)
         2. XDG cache
         3. Remote git
-        4. Packaged CMIP6_CVs submodule
+        4. Packaged resources
+        5. Vendored CMIP6_CVs submodule
 
         Parameters
         ----------
@@ -74,7 +75,7 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
         CMIP6ControlledVocabularies
             Loaded controlled vocabularies
         """
-        loader = CVLoader(cmor_version="CMIP6", version=version, user_path=table_dir)
+        loader = CMIP6CVLoader(version=version, user_path=table_dir)
         cv_path = loader.load()
 
         if cv_path is None:
@@ -199,11 +200,12 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
     def load(cls, table_dir=None, version=None):
         """Load the controlled vocabularies from the CMIP7_CVs directory
 
-        Uses ResourceLoader with priority:
+        Uses ResourceLoader with 5-level priority:
         1. table_dir (if provided)
         2. XDG cache
         3. Remote git
-        4. Packaged CMIP7-CVs submodule
+        4. Packaged resources
+        5. Vendored CMIP7-CVs submodule
 
         Parameters
         ----------
@@ -217,7 +219,7 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
         CMIP7ControlledVocabularies
             A new CMIP7ControlledVocabularies object
         """
-        loader = CVLoader(cmor_version="CMIP7", version=version, user_path=table_dir)
+        loader = CMIP7CVLoader(version=version, user_path=table_dir)
         cv_path = loader.load()
 
         if cv_path is None:
