@@ -35,6 +35,7 @@ from .factory import create_factory
 from .filecache import fc
 from .logging import logger
 from .pipeline import Pipeline
+from .resource_loader import CMIP7MetadataLoader
 from .rule import Rule
 from .utils import wait_for_workers
 from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
@@ -260,22 +261,31 @@ class CMORizer:
         if:
         1. The CMOR version is CMIP7
         2. The CMIP7 Data Request API is available
-        3. A metadata file is configured in general_cfg
 
-        The metadata file should be generated using the official CMIP7 API:
-            export_dreq_lists_json -a -m metadata.json v1.2.2.2 experiments.json
+        Uses CMIP7MetadataLoader with priority chain:
+        1. User-specified CMIP7_DReq_metadata path
+        2. XDG cache directory
+        3. Generated via export_dreq_lists_json
+        4. Packaged resources
+        5. Vendored data
 
         Configuration example:
             general:
                 cmor_version: CMIP7
-                cmip7_metadata_file: /path/to/dreq_v1.2.2.2_metadata.json
-                cmip7_experiments_file: /path/to/dreq_v1.2.2.2.json  # optional
+                CMIP7_DReq_metadata: /path/to/metadata.json  # optional
+                CMIP7_DReq_version: v1.2.2.2  # optional, defaults to v1.2.2.2
+                cmip7_experiments_file: /path/to/experiments.json  # optional
         """
         if self.cmor_version == "CMIP7" and CMIP7_API_AVAILABLE:
-            metadata_file = self._general_cfg.get("cmip7_metadata_file")
+            # Use CMIP7MetadataLoader to get metadata file via priority chain
+            user_metadata_path = self._general_cfg.get("CMIP7_DReq_metadata")
+            dreq_version = self._general_cfg.get("CMIP7_DReq_version")
 
-            if metadata_file and Path(metadata_file).exists():
-                logger.info("Initializing CMIP7 interface...")
+            loader = CMIP7MetadataLoader(version=dreq_version, user_path=user_metadata_path)
+            metadata_file = loader.load()
+
+            if metadata_file and metadata_file.exists():
+                logger.info(f"Loading CMIP7 interface with metadata: {metadata_file}")
                 self.cmip7_interface = CMIP7Interface()
                 self.cmip7_interface.load_metadata(metadata_file=str(metadata_file))
 
@@ -288,16 +298,11 @@ class CMORizer:
                     logger.info("CMIP7 interface initialized (without experiments data)")
             else:
                 self.cmip7_interface = None
-                if metadata_file:
-                    logger.warning(
-                        f"CMIP7 metadata file not found: {metadata_file}. " "CMIP7 interface will not be available."
-                    )
-                else:
-                    logger.debug(
-                        "No CMIP7 metadata file configured. "
-                        "CMIP7 interface will not be available. "
-                        "To enable, set 'cmip7_metadata_file' in general config."
-                    )
+                logger.warning(
+                    "Could not load CMIP7 metadata from any source. "
+                    "CMIP7 interface will not be available. "
+                    "Make sure export_dreq_lists_json is installed or specify CMIP7_DReq_metadata."
+                )
         else:
             self.cmip7_interface = None
             if self.cmor_version == "CMIP7" and not CMIP7_API_AVAILABLE:
@@ -337,11 +342,20 @@ class CMORizer:
         attribute. This is done after the rules have been populated with the
         tables and data request variables, which may be used to lookup the
         controlled vocabularies.
+
+        If CV_Dir is not provided in config, ResourceLoader will use fallback chain:
+        1. User-specified path
+        2. XDG cache
+        3. Remote git download
+        4. Packaged resources
+        5. Vendored submodules
         """
-        table_dir = self._general_cfg["CV_Dir"]
+        # CV_Dir and CV_version are optional - None triggers ResourceLoader fallback
+        table_dir = self._general_cfg.get("CV_Dir")
+        cv_version = self._general_cfg.get("CV_version")
         controlled_vocabularies_factory = create_factory(ControlledVocabularies)
         ControlledVocabulariesClass = controlled_vocabularies_factory.get(self.cmor_version)
-        self.controlled_vocabularies = ControlledVocabulariesClass.load(table_dir)
+        self.controlled_vocabularies = ControlledVocabulariesClass.load(table_dir, cv_version)
 
     def _post_init_populate_rules_with_controlled_vocabularies(self):
         for rule in self.rules:

@@ -11,6 +11,7 @@ from pathlib import Path
 import requests
 
 from .factory import MetaFactory
+from .resource_loader import CVLoader
 
 
 class ControlledVocabularies(dict, metaclass=MetaFactory):
@@ -52,10 +53,37 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
             self.update(d)
 
     @classmethod
-    def load(cls, table_dir=None):
-        """Load the controlled vocabularies from the CMIP6_CVs directory"""
-        cv_dir = Path(table_dir)
-        return cls.from_directory(cv_dir)
+    def load(cls, table_dir=None, version=None):
+        """Load the controlled vocabularies from the CMIP6_CVs directory
+
+        Uses ResourceLoader with priority:
+        1. table_dir (if provided)
+        2. XDG cache
+        3. Remote git
+        4. Packaged CMIP6_CVs submodule
+
+        Parameters
+        ----------
+        table_dir : str or Path, optional
+            User-specified CV_Dir path
+        version : str, optional
+            CV version tag (default: "6.2.58.64")
+
+        Returns
+        -------
+        CMIP6ControlledVocabularies
+            Loaded controlled vocabularies
+        """
+        loader = CVLoader(cmor_version="CMIP6", version=version, user_path=table_dir)
+        cv_path = loader.load()
+
+        if cv_path is None:
+            raise FileNotFoundError(
+                "Could not load CMIP6 controlled vocabularies from any source. "
+                "Check that git submodules are initialized or internet connection is available."
+            )
+
+        return cls.from_directory(cv_path)
 
     @classmethod
     def from_directory(cls, directory):
@@ -168,25 +196,37 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
         self.update(cv_data)
 
     @classmethod
-    def load(cls, table_dir=None):
+    def load(cls, table_dir=None, version=None):
         """Load the controlled vocabularies from the CMIP7_CVs directory
+
+        Uses ResourceLoader with priority:
+        1. table_dir (if provided)
+        2. XDG cache
+        3. Remote git
+        4. Packaged CMIP7-CVs submodule
 
         Parameters
         ----------
         table_dir : str or Path, optional
-            Path to the CMIP7 CVs directory (should contain experiment/, project/ subdirs)
-            If None, uses the vendored CMIP7-CVs submodule in the repository.
+            User-specified CV_Dir path
+        version : str, optional
+            Git branch/tag (default: "src-data")
 
         Returns
         -------
         CMIP7ControlledVocabularies
             A new CMIP7ControlledVocabularies object
         """
-        if table_dir is None:
-            # Use the vendored CMIP7-CVs submodule
-            table_dir = cls._get_vendored_cv_path()
-        cv_dir = Path(table_dir)
-        return cls.from_directory(cv_dir)
+        loader = CVLoader(cmor_version="CMIP7", version=version, user_path=table_dir)
+        cv_path = loader.load()
+
+        if cv_path is None:
+            raise FileNotFoundError(
+                "Could not load CMIP7 controlled vocabularies from any source. "
+                "Check that git submodules are initialized or internet connection is available."
+            )
+
+        return cls.from_directory(cv_path)
 
     @staticmethod
     def _get_vendored_cv_path():
