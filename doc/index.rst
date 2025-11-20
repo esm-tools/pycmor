@@ -27,6 +27,7 @@ Contents
    schemas
    standard_library
    coordinate_bounds
+   coordinate_attributes
    including_custom_steps
    including_subcommand_plugins
    pycmor_fesom
