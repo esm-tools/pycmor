@@ -415,3 +415,197 @@ class TestIntegrationScenarios:
         assert ds["plev7"].attrs["axis"] == "Z"
         assert ds["lat"].attrs["axis"] == "Y"
         assert ds["lon"].attrs["axis"] == "X"
+
+
+class TestValidationModes:
+    """Test validation of existing coordinate metadata."""
+
+    def test_validation_mode_ignore(self):
+        """Test 'ignore' mode - silently keeps existing wrong values."""
+        # Create dataset with wrong metadata
+        ds = xr.Dataset(
+            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        # Set wrong metadata
+        ds["lat"].attrs["standard_name"] = "wrong_name"
+        ds["lat"].attrs["units"] = "meters"
+
+        # Mock rule with 'ignore' mode
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "ignore"
+        }.get(key, True))
+
+        # Apply coordinate attributes
+        ds = set_coordinate_attributes(ds, rule)
+
+        # Wrong values should be preserved
+        assert ds["lat"].attrs["standard_name"] == "wrong_name"
+        assert ds["lat"].attrs["units"] == "meters"
+        # But axis should be added (wasn't present)
+        assert ds["lat"].attrs["axis"] == "Y"
+
+    def test_validation_mode_warn(self):
+        """Test 'warn' mode - logs warning and keeps existing values."""
+        # Create dataset with wrong metadata
+        ds = xr.Dataset(
+            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        ds["lat"].attrs["standard_name"] = "wrong_name"
+
+        # Mock rule with 'warn' mode (default)
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "warn"
+        }.get(key, True))
+
+        # Apply coordinate attributes (should log warning)
+        ds = set_coordinate_attributes(ds, rule)
+
+        # Wrong value should be preserved
+        assert ds["lat"].attrs["standard_name"] == "wrong_name"
+        # Other attributes should be added
+        assert ds["lat"].attrs["units"] == "degrees_north"
+        assert ds["lat"].attrs["axis"] == "Y"
+
+    def test_validation_mode_error(self):
+        """Test 'error' mode - raises ValueError on mismatch."""
+        # Create dataset with wrong metadata
+        ds = xr.Dataset(
+            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        ds["lat"].attrs["standard_name"] = "wrong_name"
+
+        # Mock rule with 'error' mode
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "error"
+        }.get(key, True))
+
+        # Should raise ValueError
+        try:
+            set_coordinate_attributes(ds, rule)
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "Invalid standard_name" in str(e)
+            assert "lat" in str(e)
+            assert "wrong_name" in str(e)
+            assert "latitude" in str(e)
+
+    def test_validation_mode_fix(self):
+        """Test 'fix' mode - overwrites wrong values with correct ones."""
+        # Create dataset with wrong metadata
+        ds = xr.Dataset(
+            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        ds["lat"].attrs["standard_name"] = "wrong_name"
+        ds["lat"].attrs["units"] = "meters"
+
+        # Mock rule with 'fix' mode
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "fix"
+        }.get(key, True))
+
+        # Apply coordinate attributes
+        ds = set_coordinate_attributes(ds, rule)
+
+        # Wrong values should be corrected
+        assert ds["lat"].attrs["standard_name"] == "latitude"
+        assert ds["lat"].attrs["units"] == "degrees_north"
+        assert ds["lat"].attrs["axis"] == "Y"
+
+    def test_validation_correct_existing_metadata(self):
+        """Test that correct existing metadata is preserved without warnings."""
+        # Create dataset with correct metadata
+        ds = xr.Dataset(
+            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        # Set correct metadata
+        ds["lat"].attrs["standard_name"] = "latitude"
+        ds["lat"].attrs["units"] = "degrees_north"
+
+        # Mock rule
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "warn"
+        }.get(key, True))
+
+        # Apply coordinate attributes (should not warn)
+        ds = set_coordinate_attributes(ds, rule)
+
+        # Correct values should be preserved
+        assert ds["lat"].attrs["standard_name"] == "latitude"
+        assert ds["lat"].attrs["units"] == "degrees_north"
+        # Missing axis should be added
+        assert ds["lat"].attrs["axis"] == "Y"
+
+    def test_validation_partial_mismatch(self):
+        """Test validation with some correct and some wrong attributes."""
+        # Create dataset with mixed metadata
+        ds = xr.Dataset(
+            {"ta": (["time", "plev19", "lat", "lon"], np.random.rand(10, 19, 90, 180))},
+            coords={
+                "time": np.arange(10),
+                "plev19": np.linspace(100000, 1000, 19),
+                "lat": np.arange(-89.5, 90, 2),
+                "lon": np.arange(0, 360, 2),
+            },
+        )
+        # plev19: correct standard_name, wrong units
+        ds["plev19"].attrs["standard_name"] = "air_pressure"
+        ds["plev19"].attrs["units"] = "hPa"  # Should be Pa
+
+        # Mock rule with 'fix' mode
+        rule = Mock()
+        rule._pycmor_cfg = Mock(side_effect=lambda key: {
+            "xarray_set_coordinate_attributes": True,
+            "xarray_set_coordinates_attribute": True,
+            "xarray_validate_coordinate_attributes": "fix"
+        }.get(key, True))
+
+        # Apply coordinate attributes
+        ds = set_coordinate_attributes(ds, rule)
+
+        # Correct value preserved, wrong value fixed
+        assert ds["plev19"].attrs["standard_name"] == "air_pressure"
+        assert ds["plev19"].attrs["units"] == "Pa"  # Corrected
+        assert ds["plev19"].attrs["axis"] == "Z"  # Added
+        assert ds["plev19"].attrs["positive"] == "down"  # Added
+        assert ds["lat"].attrs["axis"] == "Y"
+        assert ds["lon"].attrs["axis"] == "X"

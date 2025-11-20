@@ -284,6 +284,15 @@ class PycmorConfig:
             doc="Whether to set the 'coordinates' attribute on data variables listing their coordinates.",
             parser=_parse_bool,
         )
+        xarray_validate_coordinate_attributes = Option(
+            default="warn",
+            doc=(
+                "How to handle conflicting coordinate metadata in source data. "
+                "Options: 'ignore' (silent), 'warn' (log warning), 'error' (raise exception), "
+                "'fix' (overwrite with correct values). Default: 'warn'."
+            ),
+            parser=str,
+        )
 
 
 class PycmorConfigManager(ConfigManager):

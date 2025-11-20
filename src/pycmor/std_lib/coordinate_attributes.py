@@ -149,7 +149,21 @@ def set_coordinate_attributes(
     - Sets positive attribute for vertical coordinates
     - Skips time coordinates (handled in files.py)
     - Skips bounds variables
+    - Validates existing metadata and handles conflicts based on configuration
     - Logs all attribute changes
+
+    Configuration Options
+    ---------------------
+    xarray_set_coordinate_attributes : bool
+        Enable/disable coordinate attribute setting (default: True)
+    xarray_set_coordinates_attribute : bool
+        Enable/disable 'coordinates' attribute on data variables (default: True)
+    xarray_validate_coordinate_attributes : str
+        How to handle conflicting metadata in source data:
+        - 'ignore': Silent, keep existing values
+        - 'warn': Log warning, keep existing values (default)
+        - 'error': Raise ValueError
+        - 'fix': Overwrite with correct values
 
     Examples
     --------
@@ -194,15 +208,52 @@ def set_coordinate_attributes(
             coords_skipped += 1
             continue
 
-        # Set attributes
+        # Set attributes with validation
         logger.info(f"  → Setting attributes for '{coord_name}':")
+        validation_mode = rule._pycmor_cfg("xarray_validate_coordinate_attributes")
+
         for attr_name, attr_value in metadata.items():
-            # Only set if not already present (don't override existing)
             if attr_name not in ds[coord_name].attrs:
+                # Attribute not present, set it
                 ds[coord_name].attrs[attr_name] = attr_value
                 logger.info(f"      • {attr_name} = {attr_value}")
             else:
-                logger.debug(f"      • {attr_name} already set, skipping")
+                # Attribute already exists, validate it
+                existing_value = ds[coord_name].attrs[attr_name]
+
+                if existing_value == attr_value:
+                    # Values match, all good
+                    logger.debug(f"      • {attr_name} already correct ({attr_value})")
+                else:
+                    # Values don't match, handle according to validation mode
+                    if validation_mode == "ignore":
+                        logger.debug(
+                            f"      • {attr_name} mismatch: got '{existing_value}', "
+                            f"expected '{attr_value}' (ignoring)"
+                        )
+                    elif validation_mode == "warn":
+                        logger.warning(
+                            f"Coordinate '{coord_name}' has {attr_name}='{existing_value}' "
+                            f"but expected '{attr_value}' (keeping existing value)"
+                        )
+                    elif validation_mode == "error":
+                        raise ValueError(
+                            f"Invalid {attr_name} for coordinate '{coord_name}': "
+                            f"got '{existing_value}', expected '{attr_value}'"
+                        )
+                    elif validation_mode == "fix":
+                        logger.info(
+                            f"      • {attr_name} corrected: '{existing_value}' → '{attr_value}'"
+                        )
+                        ds[coord_name].attrs[attr_name] = attr_value
+                    else:
+                        logger.warning(
+                            f"Unknown validation mode '{validation_mode}', defaulting to 'warn'"
+                        )
+                        logger.warning(
+                            f"Coordinate '{coord_name}' has {attr_name}='{existing_value}' "
+                            f"but expected '{attr_value}'"
+                        )
 
         coords_processed += 1
 
