@@ -26,6 +26,7 @@ from xarray import DataArray, Dataset
 from ..core.logging import logger
 from ..core.rule import Rule
 from .bounds import add_vertical_bounds as _add_vertical_bounds
+from .coordinate_attributes import set_coordinate_attributes as _set_coordinate_attributes
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
 from .exceptions import (
     PycmorResamplingError,
@@ -49,6 +50,7 @@ __all__ = [
     "show_data",
     "set_global_attributes",
     "set_variable_attributes",
+    "set_coordinate_attributes",
     "checkpoint_pipeline",
     "add_vertical_bounds",
 ]
@@ -308,6 +310,56 @@ def set_variable_attributes(
         The data with updated variable attributes.
     """
     return set_variable_attrs(data, rule)
+
+
+def set_coordinate_attributes(
+    data: Union[DataArray, Dataset], rule: Rule
+) -> Union[DataArray, Dataset]:
+    """
+    Set CF-compliant metadata attributes on coordinate variables.
+
+    This function applies standardized CF attributes (standard_name, axis,
+    units, positive) to coordinate variables (latitude, longitude, vertical
+    coordinates, etc.) to ensure proper interpretation by xarray and other
+    CF-aware tools.
+
+    Time coordinates are handled separately in the file saving step.
+
+    Parameters
+    ----------
+    data : xarray.DataArray or xarray.Dataset
+        The data to which coordinate attributes will be added.
+    rule : Rule
+        The rule containing configuration for coordinate attribute setting.
+
+    Returns
+    -------
+    xarray.DataArray or xarray.Dataset
+        The data with updated coordinate attributes.
+
+    Notes
+    -----
+    This function sets:
+    - standard_name: CF standard name for the coordinate
+    - axis: X, Y, Z, or T designation
+    - units: Physical units (degrees_east, degrees_north, Pa, m, etc.)
+    - positive: Direction for vertical coordinates (up or down)
+    - coordinates: Attribute on data variables listing their coordinates
+
+    Configuration options:
+    - xarray_set_coordinate_attributes: Enable/disable coordinate attrs
+    - xarray_set_coordinates_attribute: Enable/disable 'coordinates' attr
+
+    Examples
+    --------
+    >>> ds = xr.Dataset({
+    ...     'tas': (['time', 'lat', 'lon'], data),
+    ... }, coords={'lat': lats, 'lon': lons})
+    >>> ds = set_coordinate_attributes(ds, rule)
+    >>> print(ds['lat'].attrs)
+    {'standard_name': 'latitude', 'units': 'degrees_north', 'axis': 'Y'}
+    """
+    return _set_coordinate_attributes(data, rule)
 
 
 def checkpoint_pipeline(

@@ -274,6 +274,16 @@ class PycmorConfig:
             doc="Whether the time axis is unlimited in xarray.",
             parser=_parse_bool,
         )
+        xarray_set_coordinate_attributes = Option(
+            default="yes",
+            doc="Whether to set CF-compliant attributes (standard_name, axis, units) on coordinate variables.",
+            parser=_parse_bool,
+        )
+        xarray_set_coordinates_attribute = Option(
+            default="yes",
+            doc="Whether to set the 'coordinates' attribute on data variables listing their coordinates.",
+            parser=_parse_bool,
+        )
 
 
 class PycmorConfigManager(ConfigManager):
