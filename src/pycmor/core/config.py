@@ -286,11 +286,17 @@ class PycmorConfig:
         )
         xarray_validate_coordinate_attributes = Option(
             default="warn",
-            doc=(
-                "How to handle conflicting coordinate metadata in source data. "
-                "Options: 'ignore' (silent), 'warn' (log warning), 'error' (raise exception), "
-                "'fix' (overwrite with correct values). Default: 'warn'."
-            ),
+            doc="Validation mode for existing coordinate metadata. Options: ignore, warn, error, fix",
+            parser=str,
+        )
+        xarray_enable_dimension_mapping = Option(
+            default="yes",
+            doc="Whether to enable automatic dimension mapping from source to CMIP names.",
+            parser=_parse_bool,
+        )
+        dimension_mapping_validation = Option(
+            default="warn",
+            doc="Validation mode for dimension mapping. Options: ignore, warn, error",
             parser=str,
         )
 
