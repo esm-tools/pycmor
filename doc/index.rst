@@ -28,6 +28,7 @@ Contents
    standard_library
    coordinate_bounds
    coordinate_attributes
+   dimension_mapping
    including_custom_steps
    including_subcommand_plugins
    pycmor_fesom
