@@ -1,14 +1,10 @@
 general:
   name: "units-example"
-  cmor_version: "CMIP7"
-  mip: "CMIP"
+  cmor_version: "CMIP6"
 pycmor:
-  # parallel: True
-  warn_on_no_rule: False
-  use_flox: True
   dask_cluster: "slurm"
   dask_cluster_scaling_mode: fixed
-  fixed_jobs: 12
+  fixed_jobs: 2
 rules:
   - name: fgco2
     inputs:
@@ -16,32 +12,32 @@ rules:
         pattern: CO2f_fesom_mon_.*nc
     cmor_variable: fgco2
     compound_name: ocnBgchem.fgco2.tavg-u-hxy-sea.mon.GLB # New for CMIP7
-    model_variable: CO2f
-    institution_id: AWI
-    grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
-    mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
-    output_directory: .
-    variant_label: r1i1p1f1
     experiment_id: piControl
-    source_id: AWI-CM-1-1-HR
-    model_component: ocnBgchem
+    grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     grid_label: gn
+    institution_id: AWI
+    mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
+    model_component: ocnBgchem
+    model_variable: CO2f
+    output_directory: .
+    source_id: AWI-CM-1-1-HR
+    variant_label: r1i1p1f1
   - name: spco2
     inputs:
       - path: ./model_runs/piControl_LUtrans1850/outdata/recom/
         pattern: pCO2s_fesom_mon_.*nc
     cmor_variable: spco2
     compound_name: "ocnBgchem.spco2.tavg-u-hxy-sea.mon.GLB"
-    model_variable: pCO2s
-    institution_id: AWI
-    grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
-    mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
-    output_directory: .
-    variant_label: r1i1p1f1
     experiment_id: piControl
-    source_id: AWI-CM-1-1-HR
-    model_component: ocnBgchem
+    grid_file: /pool/data/AWICM/FESOM1/MESHES/core/griddes.nc
     grid_label: gn
+    institution_id: AWI
+    mesh_path: /pool/data/AWICM/FESOM1/MESHES/core
+    model_component: ocnBgchem
+    model_variable: pCO2s
+    output_directory: .
+    source_id: AWI-CM-1-1-HR
+    variant_label: r1i1p1f1
 # Settings for using dask-distributed
 distributed:
   worker:
