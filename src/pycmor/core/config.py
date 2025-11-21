@@ -300,6 +300,12 @@ class PycmorConfig:
             parser=str,
         )
 
+        dimension_mapping_allow_override = Option(
+            default="yes",
+            doc="Allow user to override CMIP table dimension names in output. If no, validates against CMIP table.",
+            parser=_parse_bool,
+        )
+
 
 class PycmorConfigManager(ConfigManager):
     """

@@ -320,6 +320,7 @@ class DimensionMapper:
         ds: xr.Dataset,
         data_request_variable: DataRequestVariable,
         user_mapping: Optional[Dict[str, str]] = None,
+        allow_override: bool = True,
     ) -> Dict[str, str]:
         """
         Create dimension mapping from source dataset to CMIP requirements
@@ -331,7 +332,12 @@ class DimensionMapper:
         data_request_variable : DataRequestVariable
             CMIP variable specification with required dimensions
         user_mapping : Optional[Dict[str, str]]
-            User-specified mapping {source_dim: cmip_dim}
+            User-specified mapping {source_dim: output_dim}.
+            Can override CMIP table dimension names if allow_override=True.
+        allow_override : bool
+            If True, allows user_mapping to override CMIP table dimension names.
+            If False, validates that user mappings match CMIP requirements.
+            Default: True
 
         Returns
         -------
@@ -456,6 +462,7 @@ class DimensionMapper:
         ds: xr.Dataset,
         mapping: Dict[str, str],
         data_request_variable: DataRequestVariable,
+        allow_override: bool = True,
     ) -> Tuple[bool, List[str]]:
         """
         Validate that dimension mapping is complete and correct
@@ -468,6 +475,10 @@ class DimensionMapper:
             Dimension mapping
         data_request_variable : DataRequestVariable
             CMIP variable specification
+        allow_override : bool
+            If True, allows output dimensions to differ from CMIP table.
+            If False, validates that output matches CMIP requirements.
+            Default: True
 
         Returns
         -------
@@ -476,21 +487,39 @@ class DimensionMapper:
         """
         errors = []
         cmip_dims = set(data_request_variable.dimensions)
-        mapped_cmip = set(mapping.values())
+        mapped_output = set(mapping.values())
 
-        # Check if all CMIP dimensions are mapped
-        missing_cmip = cmip_dims - mapped_cmip
-        if missing_cmip:
-            errors.append(f"Missing CMIP dimensions in mapping: {sorted(missing_cmip)}")
+        if not allow_override:
+            # Strict mode: output dimensions must match CMIP table
+            missing_cmip = cmip_dims - mapped_output
+            if missing_cmip:
+                errors.append(
+                    f"Missing CMIP dimensions in mapping: {sorted(missing_cmip)}"
+                )
+
+            # Check for non-CMIP dimensions in output
+            extra_dims = mapped_output - cmip_dims
+            if extra_dims:
+                errors.append(
+                    f"Output dimensions not in CMIP table: {sorted(extra_dims)}"
+                )
+        else:
+            # Flexible mode: just check that we have the right number of dimensions
+            if len(mapped_output) != len(cmip_dims):
+                logger.warning(
+                    f"Dimension count mismatch: "
+                    f"CMIP table expects {len(cmip_dims)} dimensions, "
+                    f"mapping provides {len(mapped_output)}"
+                )
 
         # Check if all source dimensions exist
         for source_dim in mapping.keys():
-            if source_dim not in ds.dims:
+            if source_dim not in ds.sizes:
                 errors.append(f"Source dimension '{source_dim}' not found in dataset")
 
         # Check for duplicate mappings
         if len(mapping.values()) != len(set(mapping.values())):
-            errors.append("Duplicate CMIP dimensions in mapping")
+            errors.append("Duplicate output dimensions in mapping")
 
         is_valid = len(errors) == 0
         return is_valid, errors
@@ -541,6 +570,9 @@ def map_dimensions(
     # Get user-specified mapping from rule
     user_mapping = rule._pycmor_cfg("dimension_mapping", default={})
 
+    # Get allow_override setting
+    allow_override = rule._pycmor_cfg("dimension_mapping_allow_override", default=True)
+
     # Create mapper
     mapper = DimensionMapper()
 
@@ -550,11 +582,12 @@ def map_dimensions(
             ds=ds,
             data_request_variable=rule.data_request_variable,
             user_mapping=user_mapping,
+            allow_override=allow_override,
         )
 
         # Validate mapping
         is_valid, errors = mapper.validate_mapping(
-            ds, mapping, rule.data_request_variable
+            ds, mapping, rule.data_request_variable, allow_override=allow_override
         )
 
         if not is_valid:
