@@ -1,38 +1,50 @@
 # Example pycmor configuration with NetCDF chunking enabled
 # This file demonstrates how to configure chunking for optimal I/O performance
 
-# Global chunking configuration
-# These settings apply to all variables unless overridden in individual rules
-
-# Enable internal NetCDF chunking (default: yes)
-netcdf_enable_chunking: yes
-
-# Chunking algorithm to use (default: simple)
-# Options: simple, even_divisor, iterative
-netcdf_chunk_algorithm: simple
-
-# Target chunk size (default: 100MB)
-# Can be specified as integer (bytes) or string like '50MB', '1GB'
-netcdf_chunk_size: 100MB
-
-# Chunk size tolerance for even_divisor and iterative algorithms (default: 0.5)
-# Range: 0.0-1.0, higher values allow more flexibility in chunk size
-netcdf_chunk_tolerance: 0.5
-
-# Prefer chunking along time dimension (default: yes)
-# Recommended for time-series analysis
-netcdf_chunk_prefer_time: yes
-
-# Compression level (default: 4)
-# Range: 1-9, where 1=fastest/less compression, 9=slowest/best compression
-netcdf_compression_level: 4
-
-# Enable zlib compression (default: yes)
-netcdf_enable_compression: yes
-
 # Other pycmor settings
-cmor_table_dir: ./cmip6-cmor-tables/Tables/
-output_dir: /path/to/output/dir
+general:
+  cmor_version: "CMIP6"
+  CMIP_Tables_Dir: ./cmip6-cmor-tables/Tables/
+  CV_Dir: ./cmip6-cmor-tables/CMIP6_CVs
+
+pycmor:
+  warn_on_no_rule: False
+
+# Global chunking configuration via inherit block
+# These settings apply to all variables unless overridden in individual rules
+inherit:
+  # Enable internal NetCDF chunking (default: yes)
+  netcdf_enable_chunking: yes
+
+  # Chunking algorithm to use (default: simple)
+  # Options: simple, even_divisor, iterative
+  netcdf_chunk_algorithm: simple
+
+  # Target chunk size (default: 100MB)
+  # Can be specified as integer (bytes) or string like '50MB', '1GB'
+  netcdf_chunk_size: 100MB
+
+  # Chunk size tolerance for even_divisor and iterative algorithms (default: 0.5)
+  # Range: 0.0-1.0, higher values allow more flexibility in chunk size
+  netcdf_chunk_tolerance: 0.5
+
+  # Prefer chunking along time dimension (default: yes)
+  # Recommended for time-series analysis
+  netcdf_chunk_prefer_time: yes
+
+  # Compression level (default: 4)
+  # Range: 1-9, where 1=fastest/less compression, 9=slowest/best compression
+  netcdf_compression_level: 4
+
+  # Enable zlib compression (default: yes)
+  netcdf_enable_compression: yes
+
+  # Other common settings that all rules should inherit
+  output_directory: /path/to/output/dir
+  variant_label: r1i1p1f1
+  experiment_id: piControl
+  source_id: AWI-CM-1-1-HR
+  grid_label: gn
 
 # Define processing pipelines
 pipelines:

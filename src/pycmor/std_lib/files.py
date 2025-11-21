@@ -397,11 +397,13 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
         Dictionary mapping variable names to their encoding (including chunks).
     """
     # Check if chunking is enabled
+    # First check global config, then allow rule-level override (including from inherit block)
     enable_chunking = rule._pycmor_cfg("netcdf_enable_chunking")
+    enable_chunking = getattr(rule, "netcdf_enable_chunking", enable_chunking)
     if not enable_chunking:
         return {}
 
-    # Get chunking configuration
+    # Get chunking configuration from global config
     chunk_algorithm = rule._pycmor_cfg("netcdf_chunk_algorithm")
     chunk_size = rule._pycmor_cfg("netcdf_chunk_size")
     chunk_tolerance = rule._pycmor_cfg("netcdf_chunk_tolerance")
@@ -409,11 +411,13 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
     compression_level = rule._pycmor_cfg("netcdf_compression_level")
     enable_compression = rule._pycmor_cfg("netcdf_enable_compression")
 
-    # Allow per-rule override of chunking settings
+    # Allow per-rule override of chunking settings (including from inherit block)
     chunk_algorithm = getattr(rule, "netcdf_chunk_algorithm", chunk_algorithm)
     chunk_size = getattr(rule, "netcdf_chunk_size", chunk_size)
     chunk_tolerance = getattr(rule, "netcdf_chunk_tolerance", chunk_tolerance)
     prefer_time = getattr(rule, "netcdf_chunk_prefer_time", prefer_time)
+    compression_level = getattr(rule, "netcdf_compression_level", compression_level)
+    enable_compression = getattr(rule, "netcdf_enable_compression", enable_compression)
 
     # Calculate chunks based on algorithm
     chunk_functions = {
