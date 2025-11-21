@@ -382,7 +382,9 @@ class TestValidateMapping:
         mapping = {"time": "time", "lat": "lat"}  # Missing lon
 
         # In strict mode, should error on missing dimensions
-        is_valid, errors = mapper.validate_mapping(ds, mapping, drv, allow_override=False)
+        is_valid, errors = mapper.validate_mapping(
+            ds, mapping, drv, allow_override=False
+        )
 
         assert not is_valid
         assert len(errors) > 0
