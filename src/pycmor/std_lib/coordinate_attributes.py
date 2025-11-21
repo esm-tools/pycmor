@@ -9,7 +9,7 @@ The time coordinate is handled separately in files.py during the save operation.
 """
 
 from pathlib import Path
-from typing import Union, Dict, Optional
+from typing import Dict, Optional, Union
 
 import xarray as xr
 import yaml
@@ -107,7 +107,13 @@ def _should_skip_coordinate(coord_name: str, rule: Rule) -> bool:
         return True
 
     # Skip time-related CMIP7 dimensions (handled separately)
-    if coord_name in ["time-intv", "time-point", "time-fxc", "climatology", "diurnal-cycle"]:
+    if coord_name in [
+        "time-intv",
+        "time-point",
+        "time-fxc",
+        "climatology",
+        "diurnal-cycle",
+    ]:
         return True
 
     # Skip bounds variables
@@ -118,8 +124,7 @@ def _should_skip_coordinate(coord_name: str, rule: Rule) -> bool:
 
 
 def set_coordinate_attributes(
-    ds: Union[xr.Dataset, xr.DataArray],
-    rule: Rule
+    ds: Union[xr.Dataset, xr.DataArray], rule: Rule
 ) -> Union[xr.Dataset, xr.DataArray]:
     """
     Set CF-compliant metadata attributes on coordinate variables.
@@ -196,7 +201,9 @@ def set_coordinate_attributes(
     for coord_name in ds.coords:
         # Skip coordinates that should not be processed
         if _should_skip_coordinate(coord_name, rule):
-            logger.debug(f"  → Skipping '{coord_name}' (handled elsewhere or bounds variable)")
+            logger.debug(
+                f"  → Skipping '{coord_name}' (handled elsewhere or bounds variable)"
+            )
             coords_skipped += 1
             continue
 
@@ -257,7 +264,9 @@ def set_coordinate_attributes(
 
         coords_processed += 1
 
-    logger.info(f"  → Processed {coords_processed} coordinates, skipped {coords_skipped}")
+    logger.info(
+        f"  → Processed {coords_processed} coordinates, skipped {coords_skipped}"
+    )
 
     # Set 'coordinates' attribute on data variables
     if rule._pycmor_cfg("xarray_set_coordinates_attribute"):
@@ -284,7 +293,9 @@ def _set_coordinates_attribute(ds: xr.Dataset, rule: Rule) -> None:
     rule : Rule
         Processing rule
     """
-    logger.info("[Coordinate Attributes] Setting 'coordinates' attribute on data variables")
+    logger.info(
+        "[Coordinate Attributes] Setting 'coordinates' attribute on data variables"
+    )
 
     for var_name in ds.data_vars:
         # Get all coordinates used by this variable

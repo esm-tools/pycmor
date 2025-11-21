@@ -69,7 +69,9 @@ class TestGetCoordinateMetadata:
         """Test alevel atmosphere model level metadata."""
         metadata = _get_coordinate_metadata("alevel")
         assert metadata is not None
-        assert metadata["standard_name"] == "atmosphere_hybrid_sigma_pressure_coordinate"
+        assert (
+            metadata["standard_name"] == "atmosphere_hybrid_sigma_pressure_coordinate"
+        )
         assert metadata["axis"] == "Z"
         assert metadata["positive"] == "down"
 
@@ -149,9 +151,29 @@ class TestSetCoordinateAttributes:
     def test_set_plev_attributes(self):
         """Test setting attributes on pressure level coordinates."""
         # Create test dataset with plev19
-        plev_values = np.array([100000, 92500, 85000, 70000, 60000, 50000, 40000,
-                                30000, 25000, 20000, 15000, 10000, 7000, 5000,
-                                3000, 2000, 1000, 500, 100])
+        plev_values = np.array(
+            [
+                100000,
+                92500,
+                85000,
+                70000,
+                60000,
+                50000,
+                40000,
+                30000,
+                25000,
+                20000,
+                15000,
+                10000,
+                7000,
+                5000,
+                3000,
+                2000,
+                1000,
+                500,
+                100,
+            ]
+        )
         ds = xr.Dataset(
             {"ta": (["time", "plev19", "lat", "lon"], np.random.rand(10, 19, 90, 180))},
             coords={
@@ -179,7 +201,12 @@ class TestSetCoordinateAttributes:
         """Test setting attributes on ocean level coordinates."""
         # Create test dataset with olevel
         ds = xr.Dataset(
-            {"thetao": (["time", "olevel", "lat", "lon"], np.random.rand(10, 50, 90, 180))},
+            {
+                "thetao": (
+                    ["time", "olevel", "lat", "lon"],
+                    np.random.rand(10, 50, 90, 180),
+                )
+            },
             coords={
                 "time": np.arange(10),
                 "olevel": np.arange(0, 5000, 100),
@@ -331,11 +358,16 @@ class TestSetCoordinateAttributes:
         ds = xr.Dataset(
             {
                 "ta": (["time", "plev8", "lat", "lon"], np.random.rand(10, 8, 90, 180)),
-                "thetao": (["time", "olevel", "lat", "lon"], np.random.rand(10, 50, 90, 180)),
+                "thetao": (
+                    ["time", "olevel", "lat", "lon"],
+                    np.random.rand(10, 50, 90, 180),
+                ),
             },
             coords={
                 "time": np.arange(10),
-                "plev8": np.array([100000, 85000, 70000, 50000, 25000, 10000, 5000, 1000]),
+                "plev8": np.array(
+                    [100000, 85000, 70000, 50000, 25000, 10000, 5000, 1000]
+                ),
                 "olevel": np.arange(0, 5000, 100),
                 "lat": np.arange(-89.5, 90, 2),
                 "lon": np.arange(0, 360, 2),
@@ -437,11 +469,13 @@ class TestValidationModes:
 
         # Mock rule with 'ignore' mode
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "ignore"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "ignore",
+            }.get(key, True)
+        )
 
         # Apply coordinate attributes
         ds = set_coordinate_attributes(ds, rule)
@@ -467,11 +501,13 @@ class TestValidationModes:
 
         # Mock rule with 'warn' mode (default)
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "warn"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "warn",
+            }.get(key, True)
+        )
 
         # Apply coordinate attributes (should log warning)
         ds = set_coordinate_attributes(ds, rule)
@@ -497,11 +533,13 @@ class TestValidationModes:
 
         # Mock rule with 'error' mode
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "error"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "error",
+            }.get(key, True)
+        )
 
         # Should raise ValueError
         try:
@@ -529,11 +567,13 @@ class TestValidationModes:
 
         # Mock rule with 'fix' mode
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "fix"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "fix",
+            }.get(key, True)
+        )
 
         # Apply coordinate attributes
         ds = set_coordinate_attributes(ds, rule)
@@ -560,11 +600,13 @@ class TestValidationModes:
 
         # Mock rule
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "warn"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "warn",
+            }.get(key, True)
+        )
 
         # Apply coordinate attributes (should not warn)
         ds = set_coordinate_attributes(ds, rule)
@@ -593,11 +635,13 @@ class TestValidationModes:
 
         # Mock rule with 'fix' mode
         rule = Mock()
-        rule._pycmor_cfg = Mock(side_effect=lambda key: {
-            "xarray_set_coordinate_attributes": True,
-            "xarray_set_coordinates_attribute": True,
-            "xarray_validate_coordinate_attributes": "fix"
-        }.get(key, True))
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key: {
+                "xarray_set_coordinate_attributes": True,
+                "xarray_set_coordinates_attribute": True,
+                "xarray_validate_coordinate_attributes": "fix",
+            }.get(key, True)
+        )
 
         # Apply coordinate attributes
         ds = set_coordinate_attributes(ds, rule)

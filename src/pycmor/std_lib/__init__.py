@@ -26,7 +26,9 @@ from xarray import DataArray, Dataset
 from ..core.logging import logger
 from ..core.rule import Rule
 from .bounds import add_vertical_bounds as _add_vertical_bounds
-from .coordinate_attributes import set_coordinate_attributes as _set_coordinate_attributes
+from .coordinate_attributes import (
+    set_coordinate_attributes as _set_coordinate_attributes,
+)
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
 from .exceptions import (
     PycmorResamplingError,
