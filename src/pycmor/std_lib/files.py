@@ -45,6 +45,12 @@ import xarray as xr
 from xarray.core.utils import is_scalar
 
 from ..core.logging import logger
+from .chunking import (
+    calculate_chunks_even_divisor,
+    calculate_chunks_iterative,
+    calculate_chunks_simple,
+    get_encoding_with_chunks,
+)
 from .dataset_helpers import get_time_label, has_time_axis
 
 
@@ -374,6 +380,76 @@ def _save_dataset_with_native_timespan(
     )
 
 
+def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
+    """
+    Calculate optimal NetCDF chunk sizes based on configuration.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        The dataset to calculate chunks for.
+    rule : Rule
+        The rule object containing configuration.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping variable names to their encoding (including chunks).
+    """
+    # Check if chunking is enabled
+    # First check global config, then allow rule-level override (including from inherit block)
+    enable_chunking = rule._pycmor_cfg("netcdf_enable_chunking")
+    enable_chunking = getattr(rule, "netcdf_enable_chunking", enable_chunking)
+    if not enable_chunking:
+        return {}
+
+    # Get chunking configuration from global config
+    chunk_algorithm = rule._pycmor_cfg("netcdf_chunk_algorithm")
+    chunk_size = rule._pycmor_cfg("netcdf_chunk_size")
+    chunk_tolerance = rule._pycmor_cfg("netcdf_chunk_tolerance")
+    prefer_time = rule._pycmor_cfg("netcdf_chunk_prefer_time")
+    compression_level = rule._pycmor_cfg("netcdf_compression_level")
+    enable_compression = rule._pycmor_cfg("netcdf_enable_compression")
+
+    # Allow per-rule override of chunking settings (including from inherit block)
+    chunk_algorithm = getattr(rule, "netcdf_chunk_algorithm", chunk_algorithm)
+    chunk_size = getattr(rule, "netcdf_chunk_size", chunk_size)
+    chunk_tolerance = getattr(rule, "netcdf_chunk_tolerance", chunk_tolerance)
+    prefer_time = getattr(rule, "netcdf_chunk_prefer_time", prefer_time)
+    compression_level = getattr(rule, "netcdf_compression_level", compression_level)
+    enable_compression = getattr(rule, "netcdf_enable_compression", enable_compression)
+
+    # Calculate chunks based on algorithm
+    chunk_functions = {
+        "simple": calculate_chunks_simple,
+        "even_divisor": calculate_chunks_even_divisor,
+        "iterative": calculate_chunks_iterative,
+    }
+    try:
+        chunk_function = chunk_functions[chunk_algorithm]
+    except KeyError:
+        logger.warning(f"Unknown chunk algorithm: {chunk_algorithm}, using simple")
+        chunk_function = calculate_chunks_simple
+    try:
+        chunks = chunk_function(
+            ds,
+            target_chunk_size=chunk_size,
+            prefer_time_chunking=prefer_time,
+        )
+        # Generate encoding with chunks and compression
+        encoding = get_encoding_with_chunks(
+            ds,
+            chunks=chunks,
+            compression_level=compression_level,
+            enable_compression=enable_compression,
+        )
+        logger.info(f"Calculated NetCDF chunks: {chunks}")
+        return encoding
+    except Exception as e:
+        logger.warning(f"Failed to calculate chunks: {e}. Proceeding without chunking.")
+        return {}
+
+
 def save_dataset(da: xr.DataArray, rule):
     """
     Save dataset to one or more files.
@@ -433,19 +509,30 @@ def save_dataset(da: xr.DataArray, rule):
         time_encoding["calendar"] = "standard"
     if not has_time_axis(da):
         filepath = create_filepath(da, rule)
+        # Calculate chunking encoding
+        ds_temp = da.to_dataset() if isinstance(da, xr.DataArray) else da
+        chunk_encoding = _calculate_netcdf_chunks(ds_temp, rule)
         return da.to_netcdf(
             filepath,
             mode="w",
             format="NETCDF4",
+            encoding=chunk_encoding if chunk_encoding else None,
         )
     time_label = get_time_label(da)
     if is_scalar(da[time_label]):
         filepath = create_filepath(da, rule)
+        # Calculate chunking encoding
+        ds_temp = da.to_dataset() if isinstance(da, xr.DataArray) else da
+        chunk_encoding = _calculate_netcdf_chunks(ds_temp, rule)
+        # Merge time encoding with chunk encoding
+        final_encoding = {time_label: time_encoding}
+        if chunk_encoding:
+            final_encoding.update(chunk_encoding)
         return da.to_netcdf(
             filepath,
             mode="w",
             format="NETCDF4",
-            encoding={time_label: time_encoding},
+            encoding=final_encoding,
             **extra_kwargs,
         )
     if isinstance(da, xr.DataArray):
@@ -509,10 +596,14 @@ def save_dataset(da: xr.DataArray, rule):
 
     if not has_time_axis(da):
         filepath = create_filepath(da, rule)
+        # Calculate chunking encoding
+        ds_temp = da.to_dataset() if isinstance(da, xr.DataArray) else da
+        chunk_encoding = _calculate_netcdf_chunks(ds_temp, rule)
         return da.to_netcdf(
             filepath,
             mode="w",
             format="NETCDF4",
+            encoding=chunk_encoding if chunk_encoding else None,
             **extra_kwargs,
         )
 
@@ -550,9 +641,15 @@ def save_dataset(da: xr.DataArray, rule):
             for group_name, group_ds in groups:
                 paths.append(create_filepath(group_ds, rule))
                 datasets.append(group_ds)
+            # Calculate chunking encoding for the first dataset (assume all similar)
+            chunk_encoding = _calculate_netcdf_chunks(datasets[0], rule)
+            # Merge time encoding with chunk encoding
+            final_encoding = {time_label: time_encoding}
+            if chunk_encoding:
+                final_encoding.update(chunk_encoding)
             return xr.save_mfdataset(
                 datasets,
                 paths,
-                encoding={time_label: time_encoding},
+                encoding=final_encoding,
                 **extra_kwargs,
             )
