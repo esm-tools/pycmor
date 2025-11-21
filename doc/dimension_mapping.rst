@@ -328,6 +328,37 @@ User-Specified Mapping
 
 User-specified mappings override automatic detection.
 
+Allow Override Mode
+-------------------
+
+.. code-block:: yaml
+
+   dimension_mapping_allow_override: yes  # Default: yes
+
+Controls whether users can override CMIP table dimension names in output.
+
+**yes** (Flexible Mode - Default)
+  Allows output dimension names to differ from CMIP table requirements.
+  Useful for custom output formats, legacy compatibility, or experimental variables.
+
+  .. code-block:: yaml
+
+     dimension_mapping_allow_override: yes
+     dimension_mapping:
+       lev: my_custom_level    # Override: plev19 → my_custom_level
+       latitude: my_lat        # Override: lat → my_lat
+       longitude: my_lon       # Override: lon → my_lon
+
+**no** (Strict Mode)
+  Enforces that output dimension names match CMIP table requirements exactly.
+  Use when preparing data for CMIP submission.
+
+  .. code-block:: yaml
+
+     dimension_mapping_allow_override: no
+     # Output dimensions must match CMIP table
+     # Custom dimension names will cause validation errors
+
 Examples
 ========
 
@@ -497,6 +528,110 @@ Example 5: Detection by Attributes
    # Detected from standard_name and axis attributes:
    # y → lat
    # x → lon
+
+Example 6: Overriding CMIP Dimension Names
+-------------------------------------------
+
+**Scenario**: CMIP table requires ``time plev19 lat lon``, but you want custom names
+
+**Configuration:**
+
+.. code-block:: yaml
+
+   rules:
+     - model_variable: temp
+       cmor_variable: ta
+       dimension_mapping_allow_override: yes
+       dimension_mapping:
+         lev: pressure_level      # Override: plev19 → pressure_level
+         latitude: grid_lat       # Override: lat → grid_lat
+         longitude: grid_lon      # Override: lon → grid_lon
+
+**Source Data:**
+
+.. code-block:: python
+
+   ds = xr.Dataset({
+       'temp': (['time', 'lev', 'latitude', 'longitude'], data),
+   }, coords={
+       'time': np.arange(10),
+       'lev': np.arange(19),
+       'latitude': np.linspace(-90, 90, 180),
+       'longitude': np.linspace(0, 360, 360),
+   })
+
+**After Mapping:**
+
+.. code-block:: python
+
+   ds_mapped = map_dimensions(ds, rule)
+   
+   print(ds_mapped.dims)
+   # Frozen({'time': 10, 'pressure_level': 19, 'grid_lat': 180, 'grid_lon': 360})
+   
+   # Custom dimension names instead of CMIP names:
+   # lev → pressure_level (not plev19)
+   # latitude → grid_lat (not lat)
+   # longitude → grid_lon (not lon)
+
+**Use Cases:**
+
+- Legacy compatibility with existing analysis tools
+- Custom output format requirements
+- Alternative naming conventions
+- Experimental or non-CMIP variables
+
+Example 7: Per-Rule Override Configuration
+-------------------------------------------
+
+**Scenario**: Different variables need different dimension naming strategies
+
+**Configuration:**
+
+.. code-block:: yaml
+
+   # Global default: flexible mode
+   dimension_mapping_allow_override: yes
+   
+   rules:
+     # Rule 1: CMIP-compliant output (strict mode)
+     - model_variable: tas
+       cmor_variable: tas
+       dimension_mapping_allow_override: no
+       # Output: time lat lon (CMIP standard)
+     
+     # Rule 2: Custom output (flexible mode)
+     - model_variable: temp_3d
+       cmor_variable: ta
+       dimension_mapping_allow_override: yes
+       dimension_mapping:
+         lev: my_level
+         latitude: y
+         longitude: x
+       # Output: time my_level y x (custom names)
+     
+     # Rule 3: Partial override
+     - model_variable: wind_u
+       cmor_variable: ua
+       dimension_mapping:
+         lev: height  # Only override vertical dimension
+       # Output: time height lat lon (mixed)
+
+**Result:**
+
+.. code-block:: python
+
+   # Variable 1: CMIP standard names
+   ds_tas.dims
+   # Frozen({'time': 10, 'lat': 180, 'lon': 360})
+   
+   # Variable 2: Custom names
+   ds_ta.dims
+   # Frozen({'time': 10, 'my_level': 19, 'y': 180, 'x': 360})
+   
+   # Variable 3: Mixed (partial override)
+   ds_ua.dims
+   # Frozen({'time': 10, 'height': 19, 'lat': 180, 'lon': 360})
 
 Integration with Coordinate Attributes
 =======================================

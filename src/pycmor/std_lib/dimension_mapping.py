@@ -366,24 +366,27 @@ class DimensionMapper:
 
         # Step 1: Apply user-specified mappings
         if user_mapping:
-            for source_dim, cmip_dim in user_mapping.items():
+            for source_dim, output_dim in user_mapping.items():
                 if source_dim not in source_dims:
                     logger.warning(
                         f"User mapping specifies source dimension '{source_dim}' "
                         f"which doesn't exist in dataset"
                     )
                     continue
-                if cmip_dim not in cmip_dims:
-                    logger.warning(
-                        f"User mapping specifies CMIP dimension '{cmip_dim}' "
-                        f"which is not required by variable"
-                    )
-                    continue
 
-                mapping[source_dim] = cmip_dim
+                # In flexible mode, allow any output dimension name
+                # In strict mode, warn if output dimension not in CMIP table
+                if not allow_override and output_dim not in cmip_dims:
+                    logger.warning(
+                        f"User mapping specifies output dimension '{output_dim}' "
+                        f"which is not in CMIP table (strict mode)"
+                    )
+
+                mapping[source_dim] = output_dim
                 mapped_source.add(source_dim)
-                mapped_cmip.add(cmip_dim)
-                logger.info(f"  User mapping: {source_dim} → {cmip_dim}")
+                if output_dim in cmip_dims:
+                    mapped_cmip.add(output_dim)
+                logger.info(f"  User mapping: {source_dim} → {output_dim}")
 
         # Step 2: Auto-detect and map remaining dimensions
         unmapped_source = [d for d in source_dims if d not in mapped_source]

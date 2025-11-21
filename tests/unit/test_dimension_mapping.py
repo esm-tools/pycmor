@@ -367,7 +367,7 @@ class TestValidateMapping:
         assert len(errors) == 0
 
     def test_validate_incomplete_mapping(self):
-        """Test validation catches incomplete mapping"""
+        """Test validation catches incomplete mapping in strict mode"""
         ds = xr.Dataset(
             coords={
                 "time": np.arange(10),
@@ -381,7 +381,8 @@ class TestValidateMapping:
         mapper = DimensionMapper()
         mapping = {"time": "time", "lat": "lat"}  # Missing lon
 
-        is_valid, errors = mapper.validate_mapping(ds, mapping, drv)
+        # In strict mode, should error on missing dimensions
+        is_valid, errors = mapper.validate_mapping(ds, mapping, drv, allow_override=False)
 
         assert not is_valid
         assert len(errors) > 0
@@ -541,6 +542,229 @@ class TestPipelineFunction:
 
         assert "plev19" in ds_mapped.dims
         assert "level" not in ds_mapped.dims
+
+
+class TestAllowOverride:
+    """Test allow_override functionality"""
+
+    def test_allow_override_enabled(self):
+        """Test that override is allowed when allow_override=True"""
+        ds = xr.Dataset(
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 180),
+                "lon": np.linspace(0, 360, 360),
+            }
+        )
+
+        drv = Mock()
+        drv.dimensions = ("time", "plev19", "lat", "lon")
+
+        mapper = DimensionMapper()
+
+        # User wants custom dimension names
+        user_mapping = {
+            "time": "time",
+            "lev": "my_custom_level",  # Override plev19
+            "lat": "my_lat",  # Override lat
+            "lon": "my_lon",  # Override lon
+        }
+
+        mapping = mapper.create_mapping(
+            ds, drv, user_mapping=user_mapping, allow_override=True
+        )
+
+        # Should accept custom names
+        assert mapping["lev"] == "my_custom_level"
+        assert mapping["lat"] == "my_lat"
+        assert mapping["lon"] == "my_lon"
+
+        # Validation should pass in flexible mode
+        is_valid, errors = mapper.validate_mapping(
+            ds, mapping, drv, allow_override=True
+        )
+        assert is_valid  # No errors in flexible mode
+
+    def test_allow_override_disabled_rejects_custom_names(self):
+        """Test that custom names are rejected when allow_override=False"""
+        ds = xr.Dataset(
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 180),
+                "lon": np.linspace(0, 360, 360),
+            }
+        )
+
+        drv = Mock()
+        drv.dimensions = ("time", "plev19", "lat", "lon")
+
+        mapper = DimensionMapper()
+
+        # User tries to use custom dimension names
+        user_mapping = {
+            "time": "time",
+            "lev": "my_custom_level",  # Not in CMIP table
+            "lat": "lat",
+            "lon": "lon",
+        }
+
+        mapping = mapper.create_mapping(
+            ds, drv, user_mapping=user_mapping, allow_override=False
+        )
+
+        # Validation should fail in strict mode
+        is_valid, errors = mapper.validate_mapping(
+            ds, mapping, drv, allow_override=False
+        )
+
+        assert not is_valid
+        assert len(errors) > 0
+        # Should complain about non-CMIP dimensions
+        assert any("my_custom_level" in str(e) for e in errors)
+
+    def test_allow_override_disabled_accepts_cmip_names(self):
+        """Test that CMIP names are accepted when allow_override=False"""
+        ds = xr.Dataset(
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 180),
+                "lon": np.linspace(0, 360, 360),
+            }
+        )
+
+        drv = Mock()
+        drv.dimensions = ("time", "plev19", "lat", "lon")
+
+        mapper = DimensionMapper()
+
+        # User mapping to CMIP names
+        user_mapping = {
+            "time": "time",
+            "lev": "plev19",  # CMIP name
+            "lat": "lat",  # CMIP name
+            "lon": "lon",  # CMIP name
+        }
+
+        mapping = mapper.create_mapping(
+            ds, drv, user_mapping=user_mapping, allow_override=False
+        )
+
+        # Validation should pass - all CMIP names
+        is_valid, errors = mapper.validate_mapping(
+            ds, mapping, drv, allow_override=False
+        )
+
+        assert is_valid
+        assert len(errors) == 0
+
+    def test_partial_override(self):
+        """Test partial override - some custom, some CMIP"""
+        ds = xr.Dataset(
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 180),
+                "lon": np.linspace(0, 360, 360),
+            }
+        )
+
+        drv = Mock()
+        drv.dimensions = ("time", "plev19", "lat", "lon")
+
+        mapper = DimensionMapper()
+
+        # Partial override: only vertical dimension
+        user_mapping = {
+            "lev": "height",  # Custom name
+            # lat and lon will be auto-mapped
+        }
+
+        mapping = mapper.create_mapping(
+            ds, drv, user_mapping=user_mapping, allow_override=True
+        )
+
+        # Should have custom name for lev
+        assert mapping["lev"] == "height"
+        # Others should be auto-mapped to CMIP names
+        assert mapping["lat"] == "lat"
+        assert mapping["lon"] == "lon"
+
+    def test_pipeline_function_with_allow_override(self):
+        """Test map_dimensions pipeline function with allow_override"""
+        ds = xr.Dataset(
+            {
+                "ta": (
+                    ["time", "lev", "lat", "lon"],
+                    np.random.rand(10, 19, 90, 180),
+                ),
+            },
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 90),
+                "lon": np.linspace(0, 360, 180),
+            },
+        )
+
+        # Mock rule with allow_override enabled
+        rule = Mock()
+        rule.data_request_variable = Mock()
+        rule.data_request_variable.dimensions = ("time", "plev19", "lat", "lon")
+        rule._pycmor_cfg = Mock(
+            side_effect=lambda key, default=None: {
+                "xarray_enable_dimension_mapping": True,
+                "dimension_mapping_validation": "warn",
+                "dimension_mapping_allow_override": True,
+                "dimension_mapping": {"lev": "pressure_level"},
+            }.get(key, default)
+        )
+
+        ds_mapped = map_dimensions(ds, rule)
+
+        # Should have custom dimension name
+        assert "pressure_level" in ds_mapped.dims
+        assert "lev" not in ds_mapped.dims
+
+    def test_strict_mode_validation_error(self):
+        """Test that strict mode raises validation errors"""
+        ds = xr.Dataset(
+            coords={
+                "time": np.arange(10),
+                "lev": np.arange(19),
+                "lat": np.linspace(-90, 90, 180),
+                "lon": np.linspace(0, 360, 360),
+            }
+        )
+
+        drv = Mock()
+        drv.dimensions = ("time", "plev19", "lat", "lon")
+
+        mapper = DimensionMapper()
+
+        # Try to override with strict mode
+        user_mapping = {
+            "time": "time",
+            "lev": "custom_level",
+            "lat": "custom_lat",
+            "lon": "lon",
+        }
+
+        mapping = mapper.create_mapping(
+            ds, drv, user_mapping=user_mapping, allow_override=False
+        )
+
+        is_valid, errors = mapper.validate_mapping(
+            ds, mapping, drv, allow_override=False
+        )
+
+        assert not is_valid
+        assert len(errors) > 0
+        # Should report non-CMIP dimensions
+        error_str = " ".join(errors)
+        assert "custom_level" in error_str or "custom_lat" in error_str
 
 
 if __name__ == "__main__":
