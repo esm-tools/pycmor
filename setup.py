@@ -73,6 +73,10 @@ setup(
         "xarray",
     ],
     extras_require={
+        "cmip7": [
+            # Official CMIP7 Data Request API for CMIP7 interface
+            "CMIP7-data-request-api",
+        ],
         "dev": [
             "black",
             "dill",

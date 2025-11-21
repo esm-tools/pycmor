@@ -282,6 +282,37 @@ class PycmorConfig:
             doc="Whether the time axis is unlimited in xarray.",
             parser=_parse_bool,
         )
+        xarray_set_coordinate_attributes = Option(
+            default="yes",
+            doc="Whether to set CF-compliant attributes (standard_name, axis, units) on coordinate variables.",
+            parser=_parse_bool,
+        )
+        xarray_set_coordinates_attribute = Option(
+            default="yes",
+            doc="Whether to set the 'coordinates' attribute on data variables listing their coordinates.",
+            parser=_parse_bool,
+        )
+        xarray_validate_coordinate_attributes = Option(
+            default="warn",
+            doc="Validation mode for existing coordinate metadata. Options: ignore, warn, error, fix",
+            parser=str,
+        )
+        xarray_enable_dimension_mapping = Option(
+            default="yes",
+            doc="Whether to enable automatic dimension mapping from source to CMIP names.",
+            parser=_parse_bool,
+        )
+        dimension_mapping_validation = Option(
+            default="warn",
+            doc="Validation mode for dimension mapping. Options: ignore, warn, error",
+            parser=str,
+        )
+
+        dimension_mapping_allow_override = Option(
+            default="yes",
+            doc="Allow user to override CMIP table dimension names in output. If no, validates against CMIP table.",
+            parser=_parse_bool,
+        )
 
 
 class PycmorConfigManager(ConfigManager):

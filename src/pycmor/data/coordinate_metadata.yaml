@@ -1,0 +1,347 @@
+# CF-compliant coordinate metadata definitions
+#
+# This file defines standard metadata attributes for coordinate variables
+# following CF conventions. These attributes ensure proper interpretation
+# by xarray, cf-xarray, and other CF-aware tools.
+#
+# Each coordinate can have the following attributes:
+#   - standard_name: CF standard name for the coordinate
+#   - units: Physical units (degrees_east, degrees_north, Pa, m, etc.)
+#   - axis: X, Y, Z, or T designation
+#   - positive: Direction for vertical coordinates (up or down)
+#   - long_name: Human-readable description (optional)
+#
+# To add a new coordinate, simply add a new entry following the pattern below.
+# To modify an existing coordinate, edit its attributes.
+#
+# Note: Time coordinates are handled separately in files.py during save operation.
+
+# ==============================================================================
+# HORIZONTAL COORDINATES
+# ==============================================================================
+
+longitude:
+  standard_name: longitude
+  units: degrees_east
+  axis: X
+
+lon:
+  standard_name: longitude
+  units: degrees_east
+  axis: X
+
+gridlongitude:
+  standard_name: grid_longitude
+  units: degrees
+  axis: X
+
+latitude:
+  standard_name: latitude
+  units: degrees_north
+  axis: Y
+
+lat:
+  standard_name: latitude
+  units: degrees_north
+  axis: Y
+
+gridlatitude:
+  standard_name: grid_latitude
+  units: degrees
+  axis: Y
+
+# ==============================================================================
+# VERTICAL COORDINATES - PRESSURE LEVELS
+# ==============================================================================
+
+plev:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev3:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev3u:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev4:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev7:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev7c:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev7h:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev8:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev19:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev23:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev27:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+plev39:
+  standard_name: air_pressure
+  units: Pa
+  positive: down
+  axis: Z
+
+# ==============================================================================
+# VERTICAL COORDINATES - OCEAN LEVELS
+# ==============================================================================
+
+olevel:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: ocean depth coordinate
+
+olevhalf:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: ocean half-level depth coordinate
+
+oline:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: ocean depth coordinate
+
+rho:
+  standard_name: sea_water_potential_density
+  units: kg m-3
+  positive: down
+  axis: Z
+  long_name: potential density coordinate
+
+# ==============================================================================
+# VERTICAL COORDINATES - ATMOSPHERE MODEL LEVELS
+# ==============================================================================
+
+alevel:
+  standard_name: atmosphere_hybrid_sigma_pressure_coordinate
+  axis: Z
+  positive: down
+  long_name: atmospheric model level
+
+alevhalf:
+  standard_name: atmosphere_hybrid_sigma_pressure_coordinate
+  axis: Z
+  positive: down
+  long_name: atmospheric model half-level
+
+# ==============================================================================
+# VERTICAL COORDINATES - ALTITUDE
+# ==============================================================================
+
+alt16:
+  standard_name: altitude
+  units: m
+  positive: up
+  axis: Z
+
+alt40:
+  standard_name: altitude
+  units: m
+  positive: up
+  axis: Z
+
+# ==============================================================================
+# VERTICAL COORDINATES - HEIGHT ABOVE SURFACE
+# ==============================================================================
+
+height:
+  standard_name: height
+  units: m
+  positive: up
+  axis: Z
+
+height2m:
+  standard_name: height
+  units: m
+  positive: up
+  axis: Z
+  long_name: height at 2m
+
+height10m:
+  standard_name: height
+  units: m
+  positive: up
+  axis: Z
+  long_name: height at 10m
+
+height100m:
+  standard_name: height
+  units: m
+  positive: up
+  axis: Z
+  long_name: height at 100m
+
+# ==============================================================================
+# VERTICAL COORDINATES - DEPTH BELOW SURFACE
+# ==============================================================================
+
+depth0m:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: depth at surface
+
+depth100m:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: depth at 100m
+
+depth300m:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: depth at 300m
+
+depth700m:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: depth at 700m
+
+depth2000m:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: depth at 2000m
+
+# ==============================================================================
+# VERTICAL COORDINATES - SOIL DEPTH
+# ==============================================================================
+
+sdepth:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: soil depth
+
+sdepth1:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: soil depth level 1
+
+sdepth10:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: soil depth level 10
+
+# ==============================================================================
+# SCALAR COORDINATES - PRESSURE LEVELS
+# ==============================================================================
+
+p10:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 10 Pa
+
+p100:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 100 Pa
+
+p220:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 220 Pa
+
+p500:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 500 Pa
+
+p560:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 560 Pa
+
+p700:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 700 Pa
+
+p840:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 840 Pa
+
+p850:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 850 Pa
+
+p1000:
+  standard_name: air_pressure
+  units: Pa
+  long_name: pressure at 1000 Pa
+
+# ==============================================================================
+# OTHER COORDINATES
+# ==============================================================================
+
+site:
+  standard_name: platform_name
+  long_name: site name
+
+basin:
+  standard_name: region
+  long_name: ocean basin

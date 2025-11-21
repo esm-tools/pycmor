@@ -26,7 +26,11 @@ from xarray import DataArray, Dataset
 from ..core.logging import logger
 from ..core.rule import Rule
 from .bounds import add_vertical_bounds as _add_vertical_bounds
+from .coordinate_attributes import (
+    set_coordinate_attributes as _set_coordinate_attributes,
+)
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
+from .dimension_mapping import map_dimensions as _map_dimensions
 from .exceptions import (
     PycmorResamplingError,
     PycmorResamplingTimeAxisIncompatibilityError,
@@ -49,6 +53,8 @@ __all__ = [
     "show_data",
     "set_global_attributes",
     "set_variable_attributes",
+    "set_coordinate_attributes",
+    "map_dimensions",
     "checkpoint_pipeline",
     "add_vertical_bounds",
 ]
@@ -308,6 +314,114 @@ def set_variable_attributes(
         The data with updated variable attributes.
     """
     return set_variable_attrs(data, rule)
+
+
+def set_coordinate_attributes(
+    data: Union[DataArray, Dataset], rule: Rule
+) -> Union[DataArray, Dataset]:
+    """
+    Set CF-compliant metadata attributes on coordinate variables.
+
+    This function applies standardized CF attributes (standard_name, axis,
+    units, positive) to coordinate variables (latitude, longitude, vertical
+    coordinates, etc.) to ensure proper interpretation by xarray and other
+    CF-aware tools.
+
+    Time coordinates are handled separately in the file saving step.
+
+    Parameters
+    ----------
+    data : xarray.DataArray or xarray.Dataset
+        The data to which coordinate attributes will be added.
+    rule : Rule
+        The rule containing configuration for coordinate attribute setting.
+
+    Returns
+    -------
+    xarray.DataArray or xarray.Dataset
+        The data with updated coordinate attributes.
+
+    Notes
+    -----
+    This function sets:
+    - standard_name: CF standard name for the coordinate
+    - axis: X, Y, Z, or T designation
+    - units: Physical units (degrees_east, degrees_north, Pa, m, etc.)
+    - positive: Direction for vertical coordinates (up or down)
+    - coordinates: Attribute on data variables listing their coordinates
+
+    Configuration options:
+    - xarray_set_coordinate_attributes: Enable/disable coordinate attrs
+    - xarray_set_coordinates_attribute: Enable/disable 'coordinates' attr
+
+    Examples
+    --------
+    >>> ds = xr.Dataset({
+    ...     'tas': (['time', 'lat', 'lon'], data),
+    ... }, coords={'lat': lats, 'lon': lons})
+    >>> ds = set_coordinate_attributes(ds, rule)
+    >>> print(ds['lat'].attrs)
+    {'standard_name': 'latitude', 'units': 'degrees_north', 'axis': 'Y'}
+    """
+    return _set_coordinate_attributes(data, rule)
+
+
+def map_dimensions(
+    data: Union[DataArray, Dataset], rule: Rule
+) -> Union[DataArray, Dataset]:
+    """
+    Map dimensions from source data to CMIP table requirements.
+
+    This function handles the "input side" of dimension handling:
+    - Detects what source dimensions represent (latitude, longitude, pressure, etc.)
+    - Maps source dimension names to CMIP dimension names
+    - Renames dimensions to match CMIP requirements
+    - Validates dimension mapping
+
+    The function uses multiple strategies to detect dimension types:
+    1. Name pattern matching (e.g., 'lat', 'latitude', 'rlat')
+    2. Standard name attributes
+    3. Axis attributes
+    4. Value range analysis
+
+    Parameters
+    ----------
+    data : xarray.DataArray or xarray.Dataset
+        The input data with source dimension names.
+    rule : Rule
+        The rule containing the data request variable and configuration.
+
+    Returns
+    -------
+    xarray.DataArray or xarray.Dataset
+        The data with dimensions renamed to match CMIP requirements.
+
+    Configuration options:
+    - xarray_enable_dimension_mapping: Enable/disable dimension mapping
+    - dimension_mapping_validation: Validation mode (ignore, warn, error)
+    - dimension_mapping: User-specified mapping dict
+
+    Examples
+    --------
+    >>> # Source data with non-CMIP dimension names
+    >>> ds = xr.Dataset({
+    ...     'temp': (['time', 'lev', 'latitude', 'longitude'], data),
+    ... })
+    >>> # After mapping (if CMIP table requires 'time plev19 lat lon')
+    >>> ds = map_dimensions(ds, rule)
+    >>> print(ds.dims)
+    Frozen({'time': 10, 'plev19': 19, 'lat': 90, 'lon': 180})
+
+    Notes
+    -----
+    This function should be called BEFORE set_coordinate_attributes in the pipeline,
+    so that coordinates have the correct CMIP names before metadata is set.
+
+    See Also
+    --------
+    set_coordinate_attributes : Sets CF-compliant metadata on coordinates
+    """
+    return _map_dimensions(data, rule)
 
 
 def checkpoint_pipeline(
