@@ -89,9 +89,10 @@ def cli(verbose, quiet, logfile, profile_mem):
 
 
 @cli.command()
+@click_loguru.logging_options
 @click_loguru.init_logger()
 @click.argument("config_file", type=click.Path(exists=True))
-def process(config_file):
+def process(config_file, verbose, quiet, logfile, profile_mem):
     # NOTE(PG): The ``init_logger`` decorator above removes *ALL* previously configured loggers,
     #           so we need to re-create the report logger here. Paul does not like this at all.
     add_report_logger()
