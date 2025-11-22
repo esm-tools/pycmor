@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 from .factory import MetaFactory
-from .resource_loader import CMIP6CVLoader, CMIP7CVLoader
+from .resource_locator import CMIP6CVLocator, CMIP7CVLocator
 
 
 class ControlledVocabularies(dict, metaclass=MetaFactory):
@@ -56,7 +56,7 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
     def load(cls, table_dir=None, version=None):
         """Load the controlled vocabularies from the CMIP6_CVs directory
 
-        Uses ResourceLoader with 5-level priority:
+        Uses CVLocator with 5-level priority:
         1. table_dir (if provided)
         2. XDG cache
         3. Remote git
@@ -75,8 +75,8 @@ class CMIP6ControlledVocabularies(ControlledVocabularies):
         CMIP6ControlledVocabularies
             Loaded controlled vocabularies
         """
-        loader = CMIP6CVLoader(version=version, user_path=table_dir)
-        cv_path = loader.load()
+        locator = CMIP6CVLocator(version=version, user_path=table_dir)
+        cv_path = locator.locate()
 
         if cv_path is None:
             raise FileNotFoundError(
@@ -200,7 +200,7 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
     def load(cls, table_dir=None, version=None):
         """Load the controlled vocabularies from the CMIP7_CVs directory
 
-        Uses ResourceLoader with 5-level priority:
+        Uses CVLocator with 5-level priority:
         1. table_dir (if provided)
         2. XDG cache
         3. Remote git
@@ -219,8 +219,8 @@ class CMIP7ControlledVocabularies(ControlledVocabularies):
         CMIP7ControlledVocabularies
             A new CMIP7ControlledVocabularies object
         """
-        loader = CMIP7CVLoader(version=version, user_path=table_dir)
-        cv_path = loader.load()
+        locator = CMIP7CVLocator(version=version, user_path=table_dir)
+        cv_path = locator.locate()
 
         if cv_path is None:
             raise FileNotFoundError(

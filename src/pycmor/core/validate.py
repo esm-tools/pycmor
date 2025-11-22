@@ -100,7 +100,7 @@ GENERAL_SCHEMA = {
             },
             "CV_Dir": {
                 "type": "string",
-                "required": False,  # Optional: uses ResourceLoader fallback chain
+                "required": False,  # Optional: uses CVLocator fallback chain
                 "is_directory": True,
             },
             "CV_version": {
@@ -111,6 +111,10 @@ GENERAL_SCHEMA = {
                 "type": "string",
                 "required": False,  # Not required for CMIP7
                 "is_directory": True,
+            },
+            "CMIP_Tables_version": {
+                "type": "string",
+                "required": False,  # Optional: defaults to version in TableLocator (e.g., "main")
             },
             "CMIP7_DReq_metadata": {
                 "type": "string",

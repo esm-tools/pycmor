@@ -542,8 +542,26 @@ class CMIP6DataRequestTable(DataRequestTable):
         return cls(header, variables)
 
     @classmethod
-    def table_dict_from_directory(cls, path) -> dict:
-        # We need to know which files to skip...
+    def find_all(cls, path):
+        """
+        Find and yield all CMIP6 DataRequestTable instances from directory.
+
+        Only parses files matching CMIP6_*.json pattern to avoid parsing
+        non-table files (e.g., CMIP7 metadata.json).
+
+        Parameters
+        ----------
+        path : str or Path
+            Directory containing CMIP6 table JSON files
+
+        Yields
+        ------
+        CMIP6DataRequestTable
+            Table instances parsed from JSON files
+        """
+        path = pathlib.Path(path)
+
+        # Skip non-table files
         _skip_files = [
             "CMIP6_CV_test.json",
             "CMIP6_coordinate.json",
@@ -552,15 +570,34 @@ class CMIP6DataRequestTable(DataRequestTable):
             "CMIP6_grids.json",
             "CMIP6_input_example.json",
         ]
-        path = pathlib.Path(path)  # noop if already a Path
-        tables = {}
-        for file in path.iterdir():
+
+        # Only match CMIP6 table files - prevents parsing CMIP7 metadata.json
+        for file in path.glob("CMIP6_*.json"):
             if file.name in _skip_files:
                 continue
-            if file.is_file() and file.suffix == ".json":
-                table = cls.from_json_file(file)
-                tables[table.table_id] = table
-        return tables
+
+            yield cls.from_json_file(file)
+
+    @classmethod
+    def table_dict_from_directory(cls, path) -> dict:
+        """
+        Load tables as dict mapping table_id to table object.
+
+        .. deprecated::
+            Use :meth:`find_all` instead. This method is kept for
+            backward compatibility.
+
+        Parameters
+        ----------
+        path : str or Path
+            Directory containing table JSON files
+
+        Returns
+        -------
+        dict
+            Dictionary mapping table_id to CMIP6DataRequestTable objects
+        """
+        return {t.table_id: t for t in cls.find_all(path)}
 
     @classmethod
     def from_json_file(cls, jfile) -> "CMIP6DataRequestTable":
@@ -643,37 +680,55 @@ class CMIP7DataRequestTable(DataRequestTable):
         return cls(header, variables)
 
     @classmethod
-    def table_dict_from_directory(cls, path) -> dict:
+    def find_all(cls, path):
         """
-        Create tables from directory or use packaged data.
+        Find and yield all CMIP7 DataRequestTable instances.
 
-        For CMIP7, this method uses the packaged all_var_info.json
-        instead of looking in the directory, since CMIP7 data is
-        distributed with pycmor rather than in a separate repository.
+        For CMIP7, loads from packaged all_var_info.json.
+        Path parameter ignored (kept for API consistency with CMIP6).
 
         Parameters
         ----------
         path : str or Path
-            Path parameter (ignored for CMIP7, kept for API compatibility)
+            Path parameter (ignored for CMIP7)
 
-        Returns
-        -------
-        dict
-            Dictionary mapping table_id to CMIP7DataRequestTable objects
+        Yields
+        ------
+        CMIP7DataRequestTable
+            Table instances created from packaged data
         """
         # Use packaged data for CMIP7
         _all_var_info = files("pycmor.data.cmip7").joinpath("all_var_info.json")
         with open(_all_var_info, "r") as f:
             all_var_info = json.load(f)
 
-        tables = {}
         table_ids = set(
             v.get("cmip6_cmor_table") for v in all_var_info["Compound Name"].values() if v.get("cmip6_cmor_table")
         )
+
         for table_id in table_ids:
-            table = cls.from_all_var_info(table_id, all_var_info)
-            tables[table_id] = table
-        return tables
+            yield cls.from_all_var_info(table_id, all_var_info)
+
+    @classmethod
+    def table_dict_from_directory(cls, path) -> dict:
+        """
+        Load tables as dict mapping table_id to table object.
+
+        .. deprecated::
+            Use :meth:`find_all` instead. This method is kept for
+            backward compatibility.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path parameter (ignored for CMIP7)
+
+        Returns
+        -------
+        dict
+            Dictionary mapping table_id to CMIP7DataRequestTable objects
+        """
+        return {t.table_id: t for t in cls.find_all(path)}
 
     @classmethod
     def from_json_file(cls, jfile) -> "CMIP7DataRequestTable":

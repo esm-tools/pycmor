@@ -35,7 +35,8 @@ from .factory import create_factory
 from .filecache import fc
 from .logging import logger
 from .pipeline import Pipeline
-from .resource_loader import CMIP7MetadataLoader
+
+# ResourceLocator classes imported locally in methods to avoid circular imports
 from .rule import Rule
 from .utils import wait_for_workers
 from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_VALIDATOR
@@ -141,6 +142,32 @@ class CMORizer:
         if self._cluster is not None:
             self._cluster.close()
 
+    def _get_versioned_class(self, base_class):
+        """
+        Get the appropriate subclass for current CMOR version via factory pattern.
+
+        This helper method eliminates repeated factory boilerplate throughout
+        the codebase. It centralizes the pattern of getting version-specific
+        implementations.
+
+        Parameters
+        ----------
+        base_class : type
+            Base class with MetaFactory metaclass (e.g., DataRequest, TableLocator)
+
+        Returns
+        -------
+        type
+            Concrete subclass for self.cmor_version (e.g., CMIP6DataRequest)
+
+        Examples
+        --------
+        >>> DataRequestClass = self._get_versioned_class(DataRequest)
+        >>> # Returns CMIP6DataRequest if cmor_version is "CMIP6"
+        """
+        factory = create_factory(base_class)
+        return factory.get(self.cmor_version)
+
     @staticmethod
     def _ensure_dask_slurm_account(jobqueue_cfg):
         slurm_jobqueue_cfg = jobqueue_cfg.get("slurm", {})
@@ -227,85 +254,108 @@ class CMORizer:
 
     def _post_init_create_data_request_tables(self):
         """
-        Loads all the tables from table directory as a mapping object.
+        Loads all the tables from table directory using ResourceLocator priority chain.
+
+        Uses 5-level priority to locate tables:
+        1. User-specified CMIP_Tables_Dir
+        2. XDG cache
+        3. Remote git download
+        4. Packaged resources
+        5. Vendored submodules
+
         A shortened version of the filename (i.e., ``CMIP6_Omon.json`` -> ``Omon``) is used as the mapping key.
         The same key format is used in CMIP6_table_id.json
-
-        For CMIP7, CMIP_Tables_Dir is optional since tables are loaded from packaged data.
         """
-        data_request_table_factory = create_factory(DataRequestTable)
-        DataRequestTableClass = data_request_table_factory.get(self.cmor_version)
-        # CMIP7 uses packaged data, so CMIP_Tables_Dir is optional
-        table_dir = Path(self._general_cfg.get("CMIP_Tables_Dir", "."))
-        tables = DataRequestTableClass.table_dict_from_directory(table_dir)
+        from .resource_locator import TableLocator
+
+        user_table_dir = self._general_cfg.get("CMIP_Tables_Dir")
+        table_version = self._general_cfg.get("CMIP_Tables_version")
+
+        TableLocatorClass = self._get_versioned_class(TableLocator)
+        locator = TableLocatorClass(version=table_version, user_path=user_table_dir)
+        table_dir = locator.locate()
+
+        if table_dir is None:
+            raise FileNotFoundError(
+                f"Could not locate {self.cmor_version} tables from any source. "
+                "Check that git submodules are initialized or internet connection is available."
+            )
+
+        DataRequestTableClass = self._get_versioned_class(DataRequestTable)
+        tables = {t.table_id: t for t in DataRequestTableClass.find_all(table_dir)}
         self._general_cfg["tables"] = self.tables = tables
 
     def _post_init_create_data_request(self):
         """
-        Creates a DataRequest object from the tables directory.
+        Creates a DataRequest object from the tables directory using ResourceLocator.
 
-        For CMIP7, CMIP_Tables_Dir is optional since data request is loaded from packaged data.
+        Uses TableLocator with 5-level priority chain to locate tables.
         """
-        # CMIP7 uses packaged data, so CMIP_Tables_Dir is optional
-        table_dir = self._general_cfg.get("CMIP_Tables_Dir", ".")
-        data_request_factory = create_factory(DataRequest)
-        DataRequestClass = data_request_factory.get(self.cmor_version)
+        from .resource_locator import TableLocator
+
+        user_table_dir = self._general_cfg.get("CMIP_Tables_Dir")
+        table_version = self._general_cfg.get("CMIP_Tables_version")
+
+        TableLocatorClass = self._get_versioned_class(TableLocator)
+        locator = TableLocatorClass(version=table_version, user_path=user_table_dir)
+        table_dir = locator.locate()
+
+        DataRequestClass = self._get_versioned_class(DataRequest)
         self.data_request = DataRequestClass.from_directory(table_dir)
 
     def _post_init_create_cmip7_interface(self):
         """
-        Initialize CMIP7 interface if available and configured.
+        Initialize metadata interface using factory pattern.
 
-        This method creates an optional CMIP7Interface instance that can be used
-        for advanced queries and metadata lookups. The interface is only created
-        if:
-        1. The CMOR version is CMIP7
-        2. The CMIP7 Data Request API is available
-
-        Uses CMIP7MetadataLoader with priority chain:
-        1. User-specified CMIP7_DReq_metadata path
+        This method creates an optional interface instance for metadata queries.
+        Uses MetadataLocator with priority chain:
+        1. User-specified metadata path
         2. XDG cache directory
-        3. Generated via export_dreq_lists_json
+        3. Generated/downloaded metadata
         4. Packaged resources
         5. Vendored data
+
+        For CMIP7, creates CMIP7Interface if API is available.
+        For CMIP6, metadata_file will be None (expected).
 
         Configuration example:
             general:
                 cmor_version: CMIP7
                 CMIP7_DReq_metadata: /path/to/metadata.json  # optional
-                CMIP7_DReq_version: v1.2.2.2  # optional, defaults to v1.2.2.2
+                CMIP7_DReq_version: v1.2.2.2  # optional
                 cmip7_experiments_file: /path/to/experiments.json  # optional
         """
-        if self.cmor_version == "CMIP7" and CMIP7_API_AVAILABLE:
-            # Use CMIP7MetadataLoader to get metadata file via priority chain
-            user_metadata_path = self._general_cfg.get("CMIP7_DReq_metadata")
-            dreq_version = self._general_cfg.get("CMIP7_DReq_version")
+        from .resource_locator import MetadataLocator
 
-            loader = CMIP7MetadataLoader(version=dreq_version, user_path=user_metadata_path)
-            metadata_file = loader.load()
+        user_metadata_path = self._general_cfg.get("CMIP7_DReq_metadata")
+        dreq_version = self._general_cfg.get("CMIP7_DReq_version")
 
-            if metadata_file and metadata_file.exists():
-                logger.info(f"Loading CMIP7 interface with metadata: {metadata_file}")
-                self.cmip7_interface = CMIP7Interface()
-                self.cmip7_interface.load_metadata(metadata_file=str(metadata_file))
+        MetadataLocatorClass = self._get_versioned_class(MetadataLocator)
+        locator = MetadataLocatorClass(version=dreq_version, user_path=user_metadata_path)
+        metadata_file = locator.locate()
 
-                # Optionally load experiments data if configured
-                experiments_file = self._general_cfg.get("cmip7_experiments_file")
-                if experiments_file and Path(experiments_file).exists():
-                    self.cmip7_interface.load_experiments_data(str(experiments_file))
-                    logger.info("CMIP7 interface initialized with experiments data")
-                else:
-                    logger.info("CMIP7 interface initialized (without experiments data)")
+        # For CMIP6, metadata_file will be None (expected)
+        if self.cmor_version == "CMIP7" and metadata_file and CMIP7_API_AVAILABLE:
+            logger.info(f"Loading CMIP7 interface with metadata: {metadata_file}")
+            self.cmip7_interface = CMIP7Interface()
+            self.cmip7_interface.load_metadata(metadata_file=str(metadata_file))
+
+            # Optionally load experiments data if configured
+            experiments_file = self._general_cfg.get("cmip7_experiments_file")
+            if experiments_file and Path(experiments_file).exists():
+                self.cmip7_interface.load_experiments_data(str(experiments_file))
+                logger.info("CMIP7 interface initialized with experiments data")
             else:
-                self.cmip7_interface = None
+                logger.info("CMIP7 interface initialized (without experiments data)")
+        else:
+            self.cmip7_interface = None
+            if self.cmor_version == "CMIP7" and not metadata_file:
                 logger.warning(
-                    "Could not load CMIP7 metadata from any source. "
+                    "Could not locate CMIP7 metadata from any source. "
                     "CMIP7 interface will not be available. "
                     "Make sure export_dreq_lists_json is installed or specify CMIP7_DReq_metadata."
                 )
-        else:
-            self.cmip7_interface = None
-            if self.cmor_version == "CMIP7" and not CMIP7_API_AVAILABLE:
+            elif self.cmor_version == "CMIP7" and not CMIP7_API_AVAILABLE:
                 logger.warning(
                     "CMIP7 Data Request API not available. " "Install with: pip install CMIP7-data-request-api"
                 )
@@ -337,25 +387,20 @@ class CMORizer:
 
     def _post_init_create_controlled_vocabularies(self):
         """
-        Reads the controlled vocabularies from the directory tree rooted at
-        ``<tables_dir>/CMIP6_CVs`` and stores them in the ``controlled_vocabularies``
-        attribute. This is done after the rules have been populated with the
-        tables and data request variables, which may be used to lookup the
-        controlled vocabularies.
+        Load controlled vocabularies using ResourceLocator priority chain.
 
-        If CV_Dir is not provided in config, ResourceLoader will use fallback chain:
+        If CV_Dir is not provided in config, CVLocator will use 5-level fallback:
         1. User-specified path
         2. XDG cache
         3. Remote git download
         4. Packaged resources
         5. Vendored submodules
         """
-        # CV_Dir and CV_version are optional - None triggers ResourceLoader fallback
-        table_dir = self._general_cfg.get("CV_Dir")
+        cv_dir = self._general_cfg.get("CV_Dir")
         cv_version = self._general_cfg.get("CV_version")
-        controlled_vocabularies_factory = create_factory(ControlledVocabularies)
-        ControlledVocabulariesClass = controlled_vocabularies_factory.get(self.cmor_version)
-        self.controlled_vocabularies = ControlledVocabulariesClass.load(table_dir, cv_version)
+
+        ControlledVocabulariesClass = self._get_versioned_class(ControlledVocabularies)
+        self.controlled_vocabularies = ControlledVocabulariesClass.load(cv_dir, cv_version)
 
     def _post_init_populate_rules_with_controlled_vocabularies(self):
         for rule in self.rules:
@@ -803,7 +848,7 @@ class CMORizer:
         return data
 
     def _post_init_create_global_attributes_on_rules(self):
-        global_attributes_factory = create_factory(GlobalAttributes)
-        GlobalAttributesClass = global_attributes_factory.get(self.cmor_version)
+        """Create global attributes on rules using factory pattern."""
+        GlobalAttributesClass = self._get_versioned_class(GlobalAttributes)
         for rule in self.rules:
             rule.create_global_attributes(GlobalAttributesClass)

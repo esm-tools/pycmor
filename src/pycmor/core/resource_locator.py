@@ -1,5 +1,5 @@
 """
-Resource loader with priority-based loading:
+Resource locator with priority-based resource location:
 1. User-specified location
 2. XDG cache
 3. Remote git (with caching)
@@ -19,21 +19,24 @@ from typing import Optional, Union
 # Use importlib.resources for Python 3.9+, fallback to importlib_resources
 if sys.version_info >= (3, 9):
     from importlib import resources
+    from importlib.resources import files
 else:
     import importlib_resources as resources  # noqa: F401
+    from importlib_resources import files
 
 from pycmor.core.logging import logger
 
 
-class ResourceLoader:
+class ResourceLocator:
     """
-    Base class for loading resources with priority-based fallback.
+    Base class for locating resources with priority-based fallback.
 
     Priority order:
     1. User-specified path (highest priority)
     2. XDG cache directory
     3. Remote git repository (downloads to cache)
-    4. Packaged/vendored data (lowest priority)
+    4. Packaged resources (importlib.resources)
+    5. Vendored git submodules (lowest priority)
 
     Parameters
     ----------
@@ -138,9 +141,9 @@ class ResourceLoader:
         """
         raise NotImplementedError("Subclasses must implement _download_from_git")
 
-    def load(self) -> Optional[Path]:
+    def locate(self) -> Optional[Path]:
         """
-        Load resource following 5-level priority chain.
+        Locate resource following 5-level priority chain.
 
         Returns
         -------
@@ -186,7 +189,7 @@ class ResourceLoader:
             return vendored_path
 
         logger.error(
-            f"Could not load {self.resource_name} from any source. "
+            f"Could not locate {self.resource_name} from any source. "
             "Tried: user path, cache, remote git, packaged resources, vendored submodules."
         )
         return None
@@ -219,9 +222,9 @@ class ResourceLoader:
         return cache_path.stat().st_size > 0
 
 
-class CVLoader(ResourceLoader):
+class CVLocator(ResourceLocator):
     """
-    Base class for Controlled Vocabularies loaders.
+    Base class for Controlled Vocabularies locators.
 
     Subclasses should define:
     - DEFAULT_VERSION: Default version/tag/branch to use
@@ -297,8 +300,8 @@ class CVLoader(ResourceLoader):
             return False
 
 
-class CMIP6CVLoader(CVLoader):
-    """Loader for CMIP6 Controlled Vocabularies."""
+class CMIP6CVLocator(CVLocator):
+    """Locator for CMIP6 Controlled Vocabularies."""
 
     DEFAULT_VERSION = "6.2.58.64"
     RESOURCE_NAME = "cmip6-cvs"
@@ -306,8 +309,8 @@ class CMIP6CVLoader(CVLoader):
     VENDORED_SUBDIR = "cmip6-cmor-tables/CMIP6_CVs"
 
 
-class CMIP7CVLoader(CVLoader):
-    """Loader for CMIP7 Controlled Vocabularies."""
+class CMIP7CVLocator(CVLocator):
+    """Locator for CMIP7 Controlled Vocabularies."""
 
     DEFAULT_VERSION = "src-data"
     RESOURCE_NAME = "cmip7-cvs"
@@ -315,9 +318,157 @@ class CMIP7CVLoader(CVLoader):
     VENDORED_SUBDIR = "CMIP7-CVs"
 
 
-class CMIP7MetadataLoader(ResourceLoader):
+class TableLocator(ResourceLocator):
     """
-    Loader for CMIP7 Data Request metadata.
+    Base class for CMIP table locators.
+
+    Subclasses should define:
+    - DEFAULT_VERSION: Default version/tag/branch to use
+    - RESOURCE_NAME: Name for cache directory
+    - GIT_REPO_URL: GitHub repository URL (or None for packaged-only)
+    - VENDORED_SUBDIR: Subdirectory path in repo for vendored submodule
+
+    Parameters
+    ----------
+    version : str, optional
+        Table version/tag/branch (uses DEFAULT_VERSION if not specified)
+    user_path : str or Path, optional
+        User-specified CMIP_Tables_Dir
+    """
+
+    DEFAULT_VERSION: str = None
+    RESOURCE_NAME: str = None
+    GIT_REPO_URL: str = None
+    VENDORED_SUBDIR: str = None
+
+    def __init__(
+        self,
+        version: Optional[str] = None,
+        user_path: Optional[Union[str, Path]] = None,
+    ):
+        # Use class-level default version if not specified
+        version = version or self.DEFAULT_VERSION
+        super().__init__(self.RESOURCE_NAME, version, user_path)
+
+    def _get_vendored_path(self) -> Optional[Path]:
+        """Get path to vendored table submodule."""
+        if self.VENDORED_SUBDIR is None:
+            return None
+
+        # Get repo root (assuming we're in src/pycmor/core/)
+        current_file = Path(__file__)
+        repo_root = current_file.parent.parent.parent.parent
+
+        table_path = repo_root / self.VENDORED_SUBDIR
+
+        if not table_path.exists():
+            logger.warning(
+                f"{self.__class__.__name__} submodule not found at {table_path}. " "Run: git submodule update --init"
+            )
+            return None
+
+        return table_path
+
+    def _download_from_git(self, cache_path: Path) -> bool:
+        """Download tables from GitHub."""
+        if self.GIT_REPO_URL is None:
+            # No remote repository (e.g., CMIP7 uses packaged data)
+            return False
+
+        try:
+            # Clone with depth 1 for speed, checkout specific tag/branch
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmpdir_path = Path(tmpdir)
+
+                # Clone
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", "--branch", self.version, self.GIT_REPO_URL, str(tmpdir_path)],
+                    check=True,
+                    capture_output=True,
+                )
+
+                # Copy to cache (exclude .git directory)
+                shutil.copytree(
+                    tmpdir_path,
+                    cache_path,
+                    ignore=shutil.ignore_patterns(".git"),
+                )
+
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to clone {self.__class__.__name__}: {e.stderr.decode()}")
+            return False
+        except Exception as e:
+            logger.error(f"Error downloading {self.__class__.__name__}: {e}")
+            return False
+
+
+class CMIP6TableLocator(TableLocator):
+    """Locator for CMIP6 data request tables."""
+
+    DEFAULT_VERSION = "main"
+    RESOURCE_NAME = "cmip6-tables"
+    GIT_REPO_URL = "https://github.com/PCMDI/cmip6-cmor-tables.git"
+    VENDORED_SUBDIR = "cmip6-cmor-tables/Tables"
+
+
+class CMIP7TableLocator(TableLocator):
+    """Locator for CMIP7 data request tables."""
+
+    DEFAULT_VERSION = "main"
+    RESOURCE_NAME = "cmip7-tables"
+    GIT_REPO_URL = None  # CMIP7 uses packaged data
+    VENDORED_SUBDIR = None
+
+    def _get_packaged_path(self) -> Optional[Path]:
+        """CMIP7 tables are packaged in src/pycmor/data/cmip7/."""
+        return files("pycmor.data.cmip7")
+
+    def _get_vendored_path(self) -> Optional[Path]:
+        """CMIP7 has no vendored tables."""
+        return None
+
+    def _download_from_git(self, cache_path: Path) -> bool:
+        """CMIP7 doesn't download tables from git."""
+        return False
+
+
+class MetadataLocator(ResourceLocator):
+    """Base class for metadata locators."""
+
+    pass
+
+
+class CMIP6MetadataLocator(MetadataLocator):
+    """
+    Locator for CMIP6 metadata.
+
+    CMIP6 doesn't use separate metadata files, so this always returns None.
+    """
+
+    def __init__(
+        self,
+        version: Optional[str] = None,
+        user_path: Optional[Union[str, Path]] = None,
+    ):
+        super().__init__("cmip6-metadata", version, user_path)
+
+    def locate(self) -> Optional[Path]:
+        """CMIP6 doesn't have metadata files."""
+        return None
+
+    def _get_vendored_path(self) -> Optional[Path]:
+        """CMIP6 has no vendored metadata."""
+        return None
+
+    def _download_from_git(self, cache_path: Path) -> bool:
+        """CMIP6 doesn't download metadata."""
+        return False
+
+
+class CMIP7MetadataLocator(MetadataLocator):
+    """
+    Locator for CMIP7 Data Request metadata.
 
     Parameters
     ----------
