@@ -13,4 +13,5 @@ export PREFECT_RESULTS_LOCAL_STORAGE_PATH=/scratch/a/${USER}/prefect
 source $(conda info --base)/etc/profile.d/conda.sh
 conda activate pycmor
 prefect server start -b
+export PYTHONLOGLEVEL=DEBUG
 time pycmor process units-example.yaml
