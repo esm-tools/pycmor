@@ -24,6 +24,7 @@ else:
     import importlib_resources as resources  # noqa: F401
     from importlib_resources import files
 
+from pycmor.core.factory import MetaFactory
 from pycmor.core.logging import logger
 
 
@@ -222,7 +223,7 @@ class ResourceLocator:
         return cache_path.stat().st_size > 0
 
 
-class CVLocator(ResourceLocator):
+class CVLocator(ResourceLocator, metaclass=MetaFactory):
     """
     Base class for Controlled Vocabularies locators.
 
@@ -318,7 +319,7 @@ class CMIP7CVLocator(CVLocator):
     VENDORED_SUBDIR = "CMIP7-CVs"
 
 
-class TableLocator(ResourceLocator):
+class TableLocator(ResourceLocator, metaclass=MetaFactory):
     """
     Base class for CMIP table locators.
 
@@ -433,7 +434,7 @@ class CMIP7TableLocator(TableLocator):
         return False
 
 
-class MetadataLocator(ResourceLocator):
+class MetadataLocator(ResourceLocator, metaclass=MetaFactory):
     """Base class for metadata locators."""
 
     pass
