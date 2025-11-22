@@ -72,8 +72,6 @@ class CMORizer:
         self.rules = rules_cfg or []
         self.pipelines = pipelines_cfg or []
         self._cluster = None  # ask Cluster, might be set up later
-        logger.debug(f"Loaded {len(self.rules)} rules from configuration")
-        logger.debug(f"Loaded {len(self.pipelines)} pipelines from configuration")
         ################################################################################
         # CMOR Version Settings:
 
@@ -678,6 +676,8 @@ class CMORizer:
             pipeline_obj = Pipeline.from_dict(pipeline)
             instance.add_pipeline(pipeline_obj)
 
+        logger.debug(f"Loaded {len(instance.rules)} rules from configuration")
+        logger.debug(f"Loaded {len(instance.pipelines)} pipelines from configuration")
         instance._post_init_populate_rules_with_tables()
         instance._post_init_create_data_request()
         instance._post_init_populate_rules_with_data_request_variables()
