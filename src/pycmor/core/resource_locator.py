@@ -166,6 +166,9 @@ class ResourceLocator:
         cache_path = self._get_cache_path()
         if cache_path.exists() and self._validate_cache(cache_path):
             logger.debug(f"Using cached {self.resource_name}: {cache_path}")
+            # Append REPO_SUBDIR if defined (for repos with subdirectories)
+            if hasattr(self, "REPO_SUBDIR") and self.REPO_SUBDIR:
+                cache_path = cache_path / self.REPO_SUBDIR
             return cache_path
 
         # Priority 3: Remote git (download to cache)
@@ -173,6 +176,9 @@ class ResourceLocator:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         if self._download_from_git(cache_path):
             logger.info(f"Downloaded {self.resource_name} to cache: {cache_path}")
+            # Append REPO_SUBDIR if defined (for repos with subdirectories)
+            if hasattr(self, "REPO_SUBDIR") and self.REPO_SUBDIR:
+                cache_path = cache_path / self.REPO_SUBDIR
             return cache_path
         else:
             logger.warning(f"Failed to download {self.resource_name} from git")
@@ -431,6 +437,7 @@ class CMIP6TableLocator(TableLocator):
     RESOURCE_NAME = "cmip6-tables"
     GIT_REPO_URL = "https://github.com/PCMDI/cmip6-cmor-tables.git"
     VENDORED_SUBDIR = "cmip6-cmor-tables/Tables"
+    REPO_SUBDIR = "Tables"  # Subdirectory within cloned repo where tables are located
 
 
 class CMIP7TableLocator(TableLocator):
