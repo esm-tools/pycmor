@@ -278,9 +278,19 @@ class CVLocator(ResourceLocator, metaclass=MetaFactory):
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
 
-                # Clone
+                # Clone with submodules
                 subprocess.run(
-                    ["git", "clone", "--depth", "1", "--branch", self.version, self.GIT_REPO_URL, str(tmpdir_path)],
+                    [
+                        "git",
+                        "clone",
+                        "--depth",
+                        "1",
+                        "--branch",
+                        self.version,
+                        "--recurse-submodules",
+                        self.GIT_REPO_URL,
+                        str(tmpdir_path),
+                    ],
                     check=True,
                     capture_output=True,
                 )
@@ -381,9 +391,19 @@ class TableLocator(ResourceLocator, metaclass=MetaFactory):
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
 
-                # Clone
+                # Clone with submodules
                 subprocess.run(
-                    ["git", "clone", "--depth", "1", "--branch", self.version, self.GIT_REPO_URL, str(tmpdir_path)],
+                    [
+                        "git",
+                        "clone",
+                        "--depth",
+                        "1",
+                        "--branch",
+                        self.version,
+                        "--recurse-submodules",
+                        self.GIT_REPO_URL,
+                        str(tmpdir_path),
+                    ],
                     check=True,
                     capture_output=True,
                 )

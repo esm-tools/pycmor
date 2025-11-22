@@ -373,6 +373,7 @@ class CMORizer:
                     rule.add_table(tbl.table_id)
 
     def _post_init_populate_rules_with_data_request_variables(self):
+        logger.debug(f"Data request has {len(self.data_request.variables)} variables")
         for drv in self.data_request.variables.values():
             rule_for_var = self.find_matching_rule(drv)
             if rule_for_var is None:
@@ -483,7 +484,10 @@ class CMORizer:
     # FIXME: This needs a better name...
     def _rules_expand_drvs(self):
         new_rules = []
+        logger.debug(f"Expanding {len(self.rules)} rules based on data_request_variables")
         for rule in self.rules:
+            num_drvs = len(rule.data_request_variables)
+            logger.debug(f"Rule '{rule.name}' has {num_drvs} data_request_variables")
             if len(rule.data_request_variables) == 1:
                 new_rules.append(rule)
             else:
@@ -513,6 +517,7 @@ class CMORizer:
                                 new_rules.append(rule)
                     else:
                         new_rules.append(rule)
+        logger.debug(f"After expansion: {len(new_rules)} rules")
         self.rules = new_rules
 
     def _rules_depluralize_drvs(self):
