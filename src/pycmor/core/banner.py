@@ -1,6 +1,6 @@
 """ASCII banner for PyCMOR"""
 
-from . import __version__
+from .. import __version__
 from .logging import logger
 
 BANNER = r"""
