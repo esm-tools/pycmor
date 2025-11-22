@@ -16,19 +16,19 @@ of the functions in this module are support functions.
 import re
 from typing import Pattern, Union
 
+import cf_xarray.units  # noqa: F401 # pylint: disable=unused-import
 import pint
+import pint_xarray  # noqa: F401
+import xarray as xr
+from chemicals import periodic_table
 
-# Suppress pint's unit redefinition warnings BEFORE importing pint_xarray
+from ..core.logging import logger
+from ..core.rule import Rule
+
+# Get the unit registry and suppress redefinition warnings.
+# Note: This must come after importing cf_xarray and pint_xarray, as they reset this setting.
 ureg = pint.get_application_registry()
 ureg._on_redefinition = "ignore"
-
-import cf_xarray.units  # noqa: F401 E402 # pylint: disable=unused-import  # isort: skip
-import pint_xarray  # noqa: F401 E402 # isort: skip
-import xarray as xr  # noqa: E402
-from chemicals import periodic_table  # noqa: E402
-
-from ..core.logging import logger  # noqa: E402
-from ..core.rule import Rule  # noqa: E402
 
 
 def _get_units(
