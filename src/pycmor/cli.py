@@ -97,6 +97,9 @@ def process(config_file, verbose, quiet, logfile, profile_mem):
     # NOTE(PG): The ``init_logger`` decorator above removes *ALL* previously configured loggers,
     #           so we need to re-create the report logger here. Paul does not like this at all.
     add_report_logger()
+    from .core.banner import show_banner
+
+    show_banner()
     logger.info(f"Processing {config_file}")
     with open(config_file, "r") as f:
         cfg = yaml.safe_load(f)

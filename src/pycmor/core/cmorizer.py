@@ -72,6 +72,8 @@ class CMORizer:
         self.rules = rules_cfg or []
         self.pipelines = pipelines_cfg or []
         self._cluster = None  # ask Cluster, might be set up later
+        logger.debug(f"Loaded {len(self.rules)} rules from configuration")
+        logger.debug(f"Loaded {len(self.pipelines)} pipelines from configuration")
         ################################################################################
         # CMOR Version Settings:
 
@@ -284,6 +286,7 @@ class CMORizer:
         DataRequestTableClass = self._get_versioned_class(DataRequestTable)
         tables = {t.table_id: t for t in DataRequestTableClass.find_all(table_dir)}
         self._general_cfg["tables"] = self.tables = tables
+        logger.debug(f"Loaded {len(tables)} CMOR tables from {table_dir}")
 
     def _post_init_create_data_request(self):
         """
@@ -302,6 +305,7 @@ class CMORizer:
 
         DataRequestClass = self._get_versioned_class(DataRequest)
         self.data_request = DataRequestClass.from_directory(table_dir)
+        logger.debug(f"Created DataRequest from {table_dir}")
 
     def _post_init_create_cmip7_interface(self):
         """
@@ -336,7 +340,7 @@ class CMORizer:
 
         # For CMIP6, metadata_file will be None (expected)
         if self.cmor_version == "CMIP7" and metadata_file and CMIP7_API_AVAILABLE:
-            logger.info(f"Loading CMIP7 interface with metadata: {metadata_file}")
+            logger.debug(f"Loading CMIP7 interface with metadata: {metadata_file}")
             self.cmip7_interface = CMIP7Interface()
             self.cmip7_interface.load_metadata(metadata_file=str(metadata_file))
 
@@ -344,9 +348,9 @@ class CMORizer:
             experiments_file = self._general_cfg.get("cmip7_experiments_file")
             if experiments_file and Path(experiments_file).exists():
                 self.cmip7_interface.load_experiments_data(str(experiments_file))
-                logger.info("CMIP7 interface initialized with experiments data")
+                logger.debug("CMIP7 interface initialized with experiments data")
             else:
-                logger.info("CMIP7 interface initialized (without experiments data)")
+                logger.debug("CMIP7 interface initialized (without experiments data)")
         else:
             self.cmip7_interface = None
             if self.cmor_version == "CMIP7" and not metadata_file:
@@ -401,6 +405,7 @@ class CMORizer:
 
         ControlledVocabulariesClass = self._get_versioned_class(ControlledVocabularies)
         self.controlled_vocabularies = ControlledVocabulariesClass.load(cv_dir, cv_version)
+        logger.debug(f"Loaded controlled vocabularies from {cv_dir or 'default location'}")
 
     def _post_init_populate_rules_with_controlled_vocabularies(self):
         for rule in self.rules:
@@ -744,7 +749,11 @@ class CMORizer:
 
     def process(self, parallel=None):
         logger.debug("Process start!")
+        logger.debug(f"Processing {len(self.rules)} rules")
+        logger.debug(f"Available pipelines: {[p.get('name', 'unnamed') for p in self.pipelines]}")
         self._match_pipelines_in_rules()
+        rules_with_pipelines = sum(1 for rule in self.rules if hasattr(rule, "pipeline") and rule.pipeline is not None)
+        logger.debug(f"Matched pipelines to {rules_with_pipelines} rules")
         if parallel is None:
             parallel = self._pymor_cfg.get("parallel", True)
         if parallel:

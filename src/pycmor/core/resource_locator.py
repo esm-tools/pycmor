@@ -165,7 +165,7 @@ class ResourceLocator:
         # Priority 2: XDG cache
         cache_path = self._get_cache_path()
         if cache_path.exists() and self._validate_cache(cache_path):
-            logger.info(f"Using cached {self.resource_name}: {cache_path}")
+            logger.debug(f"Using cached {self.resource_name}: {cache_path}")
             return cache_path
 
         # Priority 3: Remote git (download to cache)
