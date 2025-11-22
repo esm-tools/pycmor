@@ -27,6 +27,9 @@ from ..core.rule import Rule
 
 ureg = pint_xarray.unit_registry
 
+# Suppress pint's unit redefinition warnings
+ureg._on_redefinition = "ignore"
+
 
 def _get_units(
     da: xr.DataArray,
