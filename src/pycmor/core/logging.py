@@ -6,9 +6,9 @@ from loguru import logger
 from rich.logging import RichHandler
 
 
-def showwarning(message, *args, **kwargs):
-    """Set up warnings to use logger"""
-    logger.warning(message)
+def showwarning(message, category, filename, lineno, file=None, line=None):
+    """Set up warnings to use logger with proper context"""
+    logger.warning(f"{filename}:{lineno}: {category.__name__}: {message}")
 
 
 def report_filter(record):
