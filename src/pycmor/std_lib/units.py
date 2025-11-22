@@ -13,20 +13,31 @@ the unit conversion of an :class:`xr.DataArray` according to a :class:`.Rule`. T
 of the functions in this module are support functions.
 """
 
+import logging
 import re
 from typing import Pattern, Union
 
-import cf_xarray.units  # noqa: F401 # pylint: disable=unused-import
 import pint
-import pint_xarray  # noqa: F401
-import xarray as xr
-from chemicals import periodic_table
 
-from ..core.logging import logger
-from ..core.rule import Rule
+# Suppress pint warnings during import of cf_xarray and pint_xarray
+# These packages trigger unit redefinitions that we can't prevent
+pint_logger = logging.getLogger("pint")
+_original_level = pint_logger.level
+pint_logger.setLevel(logging.ERROR)
 
-# Get the unit registry and suppress redefinition warnings.
-# Note: This must come after importing cf_xarray and pint_xarray, as they reset this setting.
+import cf_xarray.units  # noqa: F401 E402 # pylint: disable=unused-import
+import pint_xarray  # noqa: F401 E402
+
+# Restore original logging level
+pint_logger.setLevel(_original_level)
+
+import xarray as xr  # noqa: E402
+from chemicals import periodic_table  # noqa: E402
+
+from ..core.logging import logger  # noqa: E402
+from ..core.rule import Rule  # noqa: E402
+
+# Get the unit registry and configure it to ignore future redefinitions
 ureg = pint.get_application_registry()
 ureg._on_redefinition = "ignore"
 
