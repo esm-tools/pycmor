@@ -78,11 +78,20 @@ pipelines:
       - pycmor.std_lib.qc.run_compliance_checker
 
   # Generic: multiply by constant (rho_ice, rho_snow, rho_water, etc.)
+  # nan_to_zero before timeavg: XIOS writes _FillValue where a sea-ice field
+  # is physically zero and never writes 0 -- every ice field measured (a_ice,
+  # h_ice, fw_ice, dyngrarea, thdgrarea, ...) holds zero exact zeros. These
+  # rules are branded hxy-sea, so ice-free ocean must carry 0, not missing.
+  # Before timeavg specifically: timeavg skips NaN, so a mean taken first
+  # would average only the ice-covered days instead of averaging the zeros in.
+  # (Native mesh only -- the gr derivative swaps in nan_to_zero_over_ocean;
+  # see generate_gr_yaml.py NATIVE_ONLY_STEP_REPLACEMENTS.)
   - name: scale_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -100,6 +109,64 @@ pipelines:
   # scale_pipeline + mask where no sea ice. For hxy-si rules whose CMIP7
   # cell_methods is ``area: time: mean where sea_ice (mask=siconc)``.
   # Rule must supply aice_path / aice_pattern.
+  # DefaultPipeline plus nan_to_zero, for hxy-sea rules that would otherwise
+  # run on `<default>`. They cannot simply gain the step, because the default
+  # pipeline is shared with 17 rules in this tier and most are hxy-si, where
+  # _FillValue over ice-free ocean is exactly right. Step list mirrors
+  # pycmor.core.pipeline.DefaultPipeline.STEPS -- keep in sync if that changes.
+  - name: nan_to_zero_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # sitimefrac: binary ice presence, then time-averaged. The data request is
+  # explicit -- "fraction of time steps of the averaging period during which
+  # sea ice is present (siconc > 0)" -- so a cell holding 30 % concentration
+  # all period is 1.0, not 0.3. Writing a_ice straight through would publish a
+  # concentration under a fraction-of-time standard_name. Mirrors
+  # core_seaice's sitimefrac_pipeline, which already does this for the monthly
+  # rule. compute_sitimefrac also subsumes nan_to_zero here: xr.where(NaN > 0,
+  # 1.0, 0.0) sends fill down the 0.0 branch, so ice-free ocean lands on 0
+  # without a separate step.
+  # compute_sitimefrac now preserves fill instead of collapsing it to 0, so
+  # nan_to_zero follows it to set the ice-free-ocean policy explicitly. That
+  # split is what lets generate_gr_yaml swap in nan_to_zero_over_ocean for gr,
+  # where land is fill as well and must stay fill.
+  - name: sitimefrac_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitimefrac
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: scale_mask_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -166,12 +233,21 @@ pipelines:
   # fw_ice + sss under linfs (where realsalt is unreachable). hxy-sea
   # variant (sfdsi): no masking — fw_ice is intrinsically zero outside
   # ice so cell_methods ``where sea`` is satisfied by the model itself.
+  # nan_to_zero before timeavg: XIOS writes _FillValue where a sea-ice field
+  # is physically zero and never writes 0 -- every ice field measured (a_ice,
+  # h_ice, fw_ice, dyngrarea, thdgrarea, ...) holds zero exact zeros. These
+  # rules are branded hxy-sea, so ice-free ocean must carry 0, not missing.
+  # Before timeavg specifically: timeavg skips NaN, so a mean taken first
+  # would average only the ice-covered days instead of averaging the zeros in.
+  # (Native mesh only -- the gr derivative swaps in nan_to_zero_over_ocean;
+  # see generate_gr_yaml.py NATIVE_ONLY_STEP_REPLACEMENTS.)
   - name: sfdsi_from_fw_ice_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfdsi_from_fw_ice
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
@@ -209,12 +285,22 @@ pipelines:
   # Ice mass transport: velocity × m_ice × cell_width. Both sidmasstranx
   # and sidmasstrany are hxy-u branding (CMIP7 cell_methods is
   # ``area: time: mean`` with no ``where sea_ice``), so no mask step.
+  # nan_to_zero after the product, before timeavg: sidmasstran = uice * m_ice
+  # * rho_ice * edge_width, and both uice (74.6 % fill) and m_ice (75.0 % fill)
+  # are _FillValue wherever there is no ice, so the product is NaN there. Both
+  # rules are hxy-u -- unmasked -- so ice-free ocean transports 0 kg s-1, not
+  # missing. Before timeavg because timeavg skips NaN, which would average
+  # only the ice-covered days. Only sidmasstranx/y use this pipeline, and it
+  # is dropped from gr entirely (compute_ice_mass_transport is mesh-bound, see
+  # generate_gr_yaml.py FESOM_MESH_STEP_SUBSTRINGS), so no gr counterpart is
+  # needed here.
   - name: ice_mass_transport_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_mass_transport
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.units.handle_unit_conversion
@@ -287,12 +373,21 @@ pipelines:
       - pycmor.std_lib.qc.run_compliance_checker
 
   # Sea ice heat content: rho_ice*h_ice*(c_ice*(T_mean-T_melt)-L_f)
+  # nan_to_zero before timeavg: XIOS writes _FillValue where a sea-ice field
+  # is physically zero and never writes 0 -- every ice field measured (a_ice,
+  # h_ice, fw_ice, dyngrarea, thdgrarea, ...) holds zero exact zeros. These
+  # rules are branded hxy-sea, so ice-free ocean must carry 0, not missing.
+  # Before timeavg specifically: timeavg skips NaN, so a mean taken first
+  # would average only the ice-covered days instead of averaging the zeros in.
+  # (Native mesh only -- the gr derivative swaps in nan_to_zero_over_ocean;
+  # see generate_gr_yaml.py NATIVE_ONLY_STEP_REPLACEMENTS.)
   - name: sihc_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sihc
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
@@ -599,6 +694,8 @@ rules:
     compound_name: seaIce.sidconcdyn.tavg-u-hxy-sea.mon.glb
     model_variable: dyngrarea
     model_unit: "s-1"
+    pipelines:
+      - nan_to_zero_pipeline
 
   - name: sidconcth
     inputs:
@@ -607,6 +704,8 @@ rules:
     compound_name: seaIce.sidconcth.tavg-u-hxy-sea.mon.glb
     model_variable: thdgrarea
     model_unit: "s-1"
+    pipelines:
+      - nan_to_zero_pipeline
 
   # --- Ice strength ---
 
@@ -1504,6 +1603,8 @@ rules:
     compound_name: seaIce.sitimefrac.tavg-u-hxy-sea.day.glb
     model_variable: a_ice
     model_unit: "1"
+    pipelines:
+      - sitimefrac_pipeline
 
   - name: ts_day
     inputs:

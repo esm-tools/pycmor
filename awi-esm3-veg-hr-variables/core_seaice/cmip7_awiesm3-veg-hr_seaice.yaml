@@ -42,13 +42,13 @@ pipelines:
   # `area: time: mean`, "percentage of a given grid cell that is covered
   # by sea ice on the ocean grid" — so ice-free ocean is 0 %, not missing.
   # Without this step the output is _FillValue wherever there is no ice.
-  # Safe here only because the FESOM native mesh is ocean-only: nod2 has
-  # no land nodes to turn into 0 % ice. Do NOT copy this into the gr
-  # variant or into siconca — both have real land cells. siconca (OpenIFS
-  # grid) stores them as fill today; the gr regrid is due to be fixed to
-  # do the same. Once it is, check whether gr marks ice-free ocean as 0
-  # or as fill: if fill, land and open water are indistinguishable here
-  # and gr needs a land-sea mask rather than this step.
+  # Unconditional here only because the FESOM native mesh is ocean-only:
+  # nod2 has no land node to turn into 0 % ice. On gr both land and
+  # ice-free water are fill and cannot be told apart within the file, so
+  # generate_gr_yaml.py swaps this step for nan_to_zero_over_ocean, which
+  # takes the ocean footprint from sst in the same regridding. siconca
+  # (OpenIFS grid) has the same land problem and is deliberately left
+  # alone — it has no such counterpart wired up.
   - name: siconc_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
@@ -69,11 +69,16 @@ pipelines:
       - pycmor.std_lib.qc.run_compliance_checker
 
   # sitimefrac: binary ice presence from siconc > 0
+  # compute_sitimefrac now preserves fill instead of collapsing it to 0, so
+  # nan_to_zero follows it to set the ice-free-ocean policy explicitly. That
+  # split is what lets generate_gr_yaml swap in nan_to_zero_over_ocean for gr,
+  # where land is fill as well and must stay fill.
   - name: sitimefrac_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitimefrac
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global

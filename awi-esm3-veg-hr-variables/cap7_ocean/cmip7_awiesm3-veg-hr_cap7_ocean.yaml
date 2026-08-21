@@ -49,10 +49,21 @@ pipelines:
       - pycmor.std_lib.qc.run_compliance_checker
 
   # Scale by constant (m/s → kg m-2 s-1 via ×1000)
+  #
+  # nan_to_zero before the aggregation, because XIOS writes _FillValue where
+  # a field is physically zero rather than writing 0: runoff is fill in 54.2 %
+  # of nodes and holds no exact zeros at all. friver is branded hxy-sea, so
+  # ocean away from a river mouth is 0 kg m-2 s-1, not missing. Placement
+  # matters — timeavg skips NaN, so a monthly mean taken before the
+  # conversion would average only the days with river input instead of
+  # averaging zeros in. Only friver uses this pipeline.
+  # (Native mesh only; the gr derivative swaps in nan_to_zero_over_ocean.
+  # See generate_gr_yaml.py NATIVE_ONLY_STEP_REPLACEMENTS.)
   - name: scale_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
