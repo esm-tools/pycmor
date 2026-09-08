@@ -105,9 +105,13 @@ Null Reviews seit 16.08. Fünf Tage alt, Stille ist normal.
 
 ## Fremdes, worauf wir warten
 
-- `CMIP7-CVs#592`, Bot-PR im **Entwurfsstatus**, enthält `grid_label/g239.json`.
-  Solange der nicht gemergt und eine CV-Version danach gebaut ist, kosten uns
-  die vier Zonaldateien 16 HIGH. Unser Teil (EMD #1293) ist fertig.
+- `CMIP7-CVs#592` **wurde am 04.09. gemergt** (Korrektur, hier stand vorher
+  "Entwurfsstatus"). Aber: `grid_label/g239.json` liefert auf `main` 404 und
+  auf `esgvoc_dev` 200. Das Label ist also im Entwicklungszweig angekommen,
+  nicht dort, wo Releases geschnitten werden. Die neuesten CV-Releases sind
+  `2.0.1` (01.09.) und `1.2.19` (26.08.), beide aelter als der Merge, also
+  enthaelt noch keine veroeffentlichte CV das `g239`. Die 16 HIGH bleiben bis
+  zum naechsten Release.
 - `cc-plugin-wcrp#67` von `sol1105`, offen seit 05.08., wartet auf `Ayoubnac1`.
   Daran hängt der `basin`-HIGH.
 
