@@ -681,46 +681,66 @@ rules:
   # Part 8: 6hr instantaneous plev7h fields
   # ============================================================
 
-  - name: ta_6hr_pl7h
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl7h_ta_.*\.nc
-    compound_name: atmos.ta.tpt-p7h-hxy-air.6hr.glb
-    model_variable: ta
-    lazy_write: true
-
-  - name: ua_6hr_pl7h
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl7h_ua_.*\.nc
-    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
-    model_variable: ua
-    lazy_write: true
-
-  - name: va_6hr_pl7h
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl7h_va_.*\.nc
-    compound_name: atmos.va.tpt-p7h-hxy-air.6hr.glb
-    model_variable: va
-    lazy_write: true
-
-  - name: hus_6hr_pl7h
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl7h_hus_.*\.nc
-    compound_name: atmos.hus.tpt-p7h-hxy-air.6hr.glb
-    model_variable: hus
-    lazy_write: true
-
-  - name: zg_6hr_pl7h
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl7h_zg_.*\.nc
-    compound_name: atmos.zg.tpt-p7h-hxy-air.6hr.glb
-    model_variable: zg
-    lazy_write: true
-
+  # DEACTIVATED 2026-09-08 — das Modell schreibt die falschen Druckflaechen,
+  # und sie sind nachtraeglich nicht zu beschaffen.
+  #
+  # XIOS legt pressure_levels_7h in namelists/oifs/48r1/xios/cmip7/axis_def.xml
+  # als 100000 92500 85000 70000 50000 25000 10000 an, das ist der CMIP6-Satz.
+  # Der Data Request verlangt 92500 85000 70000 60000 50000 25000 5000. Fuenf
+  # Flaechen stimmen, zwei nicht: 100000 steht wo 60000 gehoert, 10000 wo 5000
+  # gehoert. Nachgemessen an atmos_6h_pl7h_{ta,ua,hus}_1851-1851.nc.
+  #
+  # Betroffen sind 196 Jahre, 1850 bis 2045, der Lauf endete am 27.08.
+  # Rekonstruieren laesst sich nichts: es gibt keinen 6-stuendlichen
+  # Modellflaechen-Strom, nur atmos_day_ml_{cl,pfull} und atmos_mon_ml_*.
+  # 60000 laege zwischen zwei vorhandenen Flaechen und waere interpolierbar,
+  # 5000 liegt ueber der obersten und waere Extrapolation. Beides hiesse, eine
+  # Zahl unter einem Label auszuliefern, das Modellausgabe behauptet.
+  #
+  # Gleiche Klasse wie die sechs Tendenzvariablen und die mrsol-Varianten:
+  # erst die Konfiguration in esm_tools richtigstellen, dann in einem Lauf mit
+  # passenden Daten wieder aktivieren. Fuer LR ist axis_def.xml korrigiert,
+  # siehe HANDOFF_plev7h_pressure_levels.md.
+  # - name: ta_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_ta_.*\.nc
+  # compound_name: atmos.ta.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: ta
+  # lazy_write: true
+  #
+  # - name: ua_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_ua_.*\.nc
+  # compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: ua
+  # lazy_write: true
+  #
+  # - name: va_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_va_.*\.nc
+  # compound_name: atmos.va.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: va
+  # lazy_write: true
+  #
+  # - name: hus_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_hus_.*\.nc
+  # compound_name: atmos.hus.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: hus
+  # lazy_write: true
+  #
+  # - name: zg_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_zg_.*\.nc
+  # compound_name: atmos.zg.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: zg
+  # lazy_write: true
+  #
   # ============================================================
   # Part 9: Monthly surface fields
   # ============================================================
