@@ -136,3 +136,37 @@ umzustellen, weil dessen PFT-Kategorien modellabhängig sind und eine feste
 Werteliste dort ohnehin falsch ist. Unser HIGH auf `landCoverFrac` löst sich
 damit aus zwei Gründen auf, dem korrigierten Tippfehler und der wegfallenden
 Werteprüfung. Von uns ist nichts zu tun.
+
+## 2026-09-08: cc-plugin-wcrp#67 merged, and what it exposed
+
+`#67` was merged on 7 September and the local checkout at
+`/work/ab0246/a270092/software/cc-plugin-wcrp` was fast-forwarded from
+`88c6c45` (21 July) to `8f2574c`. That pulled ten commits and three PRs, not
+just `#67`: also `#74` (institution check downgraded) and `#76` (consistency
+output refactor). Measured on three cli117 files:
+
+| file | HIGH before | after | |
+|---|---:|---:|---|
+| `basin` | 1 | 0 | the `#67` restore works |
+| `tas` | 0 | 0 | control, unchanged |
+| `volo` (`dec`) | 0 | 1 | new `TIME001`, from `dec` entering `AVERAGE_CORRECTION_FREQ` |
+
+Two separate things came out of the `volo` finding.
+
+**Ours, fixed in `99e672dd`.** `_looks_yearly` lumped `dec` in with `yr` and
+`yrPt`, so any single-stamp decadal file went through `_create_yearly_bounds`
+and a ten-year mean got twelve months of bnds. This was not a consequence of
+the one-year test data: a full decade produced the same 365-day bounds. `dec`
+now has `_looks_decadal` and `_create_decadal_bounds`.
+
+**Upstream, filed as `cc-plugin-wcrp#80`.** TIME001 and TIME003 cannot both be
+satisfied by a decadal file. TIME001 treats the filename token as a period
+start and reconstructs the midpoint, TIME003 compares the coordinate against
+the filename edges at year precision. Four filename and timestamp variants were
+measured, none passes both, and multiple decades per file does not help.
+
+Worth knowing before proposing anything there: `#58`, opened by `sol1105` in
+July and still open, argues that TIME003 must read the coordinate rather than
+the bounds, citing the CMIP7 Guidance. The obvious fix on the TIME003 side
+would revert his own request, which is why `#80` is an issue and not a PR.
+
