@@ -131,9 +131,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
         cm = (getattr(drv, "cell_methods", "") or "").lower() if drv else ""
         if "time: point" in cm:
             time_method = "instantaneous"
-            logger.info(
-                "  cell_methods has 'time: point'; overriding time_method to instantaneous"
-            )
+            logger.info("  cell_methods has 'time: point'; overriding time_method to instantaneous")
 
     logger.info(f"  time label: {time_label}, approx_interval: {approx_interval} days")
     logger.info(f"  time method: {time_method}")
@@ -200,7 +198,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
     # .frequency and let the call fall through to _create_mean_bounds, where
     # the yearly branch builds them.
     if len(time_values) < 2 and time_method != "instantaneous":
-        if not _looks_yearly(rule, approx_interval):
+        if not (_looks_yearly(rule, approx_interval) or _looks_decadal(rule, approx_interval)):
             logger.info(
                 f"  {len(time_values)} time point(s) with method='{time_method}'; "
                 "treating as fx-like, no bounds created"
@@ -209,7 +207,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
             return ds
         logger.info(
             f"  {len(time_values)} time point(s) with method='{time_method}'; "
-            "yearly frequency detected, building year-snapped bounds"
+            "yearly or decadal frequency detected, building period-snapped bounds"
         )
 
     # If the source already shipped time_bnds (e.g. FESOM daily files), don't
@@ -226,16 +224,12 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
                 try:
                     new_time_values = _midpoint_bounds(existing_bnds)
                 except Exception as exc:
-                    logger.warning(
-                        f"  could not realign {time_label} from existing bnds: {exc}"
-                    )
+                    logger.warning(f"  could not realign {time_label} from existing bnds: {exc}")
                     new_time_values = None
                 if new_time_values is not None:
                     new_time = time_var.copy(data=new_time_values)
                     ds = ds.assign_coords({time_label: new_time})
-                    logger.info(
-                        f"  realigned {time_label} to midpoint of existing {time_bounds_label}"
-                    )
+                    logger.info(f"  realigned {time_label} to midpoint of existing {time_bounds_label}")
         if "bounds" not in ds[time_label].attrs:
             ds[time_label].attrs["bounds"] = time_bounds_label
         # Strip stale source-side bnds attrs (LPJ-GUESS daily ships
@@ -274,13 +268,18 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
     drv = getattr(rule, "data_request_variable", None)
     freq = (getattr(drv, "frequency", "") or "").strip() if drv else ""
     _WCRP_AVG_FREQS = {
-        "day", "mon", "monPt", "yr", "yrPt", "1hrCM", "sem",
-        "1hr", "3hr", "6hr",
+        "day",
+        "mon",
+        "monPt",
+        "yr",
+        "yrPt",
+        "1hrCM",
+        "sem",
+        "1hr",
+        "3hr",
+        "6hr",
     }
-    wcrp_treats_as_instantaneous = (
-        time_method == "instantaneous"
-        or (freq and freq not in _WCRP_AVG_FREQS)
-    )
+    wcrp_treats_as_instantaneous = time_method == "instantaneous" or (freq and freq not in _WCRP_AVG_FREQS)
 
     if wcrp_treats_as_instantaneous and len(time_values) >= 1:
         # Build period bnds via _create_mean_bounds (it snaps to
@@ -295,10 +294,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
                 "bnds = period-snap, time = period_start"
             )
         except Exception as exc:
-            logger.warning(
-                f"  could not build period-snap bnds ({exc}); "
-                f"falling back to zero-width bnds"
-            )
+            logger.warning(f"  could not build period-snap bnds ({exc}); " f"falling back to zero-width bnds")
             bounds_data = np.column_stack([time_values, time_values])
             new_time_values = None
     elif time_method == "instantaneous":
@@ -530,6 +526,7 @@ def _derive_date_only_units(time_coord):
     # numpy datetime64 or python datetime: format via pandas for portability.
     try:
         import pandas as pd
+
         ts = pd.Timestamp(str(first))
         return f"days since {ts:%Y-%m-%d}"
     except Exception:
@@ -558,7 +555,7 @@ def _canonicalize_time_units_str(units):
     if not isinstance(units, str):
         return units
     if units.startswith("seconds since"):
-        units = "days since" + units[len("seconds since"):]
+        units = "days since" + units[len("seconds since") :]
     parts = units.split(" ", 2)
     # parts[0]="days", parts[1]="since", parts[2]=<reference-date-and-time>
     if len(parts) >= 3:
@@ -615,10 +612,7 @@ def canonicalize_time_in_encoding_dict(encoding, time_label, ds=None):
     # Calendar: promote any "standard"/"gregorian"/None to proleptic_gregorian.
     cal = t_enc.get("calendar")
     if cal is None and ds is not None and time_label in ds.variables:
-        cal = (
-            ds[time_label].encoding.get("calendar")
-            or ds[time_label].attrs.get("calendar")
-        )
+        cal = ds[time_label].encoding.get("calendar") or ds[time_label].attrs.get("calendar")
     if cal in (None, "standard", "gregorian"):
         t_enc["calendar"] = "proleptic_gregorian"
     else:
@@ -628,10 +622,7 @@ def canonicalize_time_in_encoding_dict(encoding, time_label, ds=None):
     # then rewrite to canonical "days since ..." with no fractional seconds.
     units = t_enc.get("units")
     if units is None and ds is not None and time_label in ds.variables:
-        units = (
-            ds[time_label].encoding.get("units")
-            or ds[time_label].attrs.get("units")
-        )
+        units = ds[time_label].encoding.get("units") or ds[time_label].attrs.get("units")
     if isinstance(units, str):
         t_enc["units"] = _canonicalize_time_units_str(units)
     elif ds is not None and time_label in ds.variables:
@@ -644,9 +635,7 @@ def canonicalize_time_in_encoding_dict(encoding, time_label, ds=None):
 
     # Propagate to time_bnds if present in the encoding dict or the dataset.
     bnds_label = f"{time_label}_bnds"
-    has_bnds = bnds_label in encoding or (
-        ds is not None and bnds_label in ds.variables
-    )
+    has_bnds = bnds_label in encoding or (ds is not None and bnds_label in ds.variables)
     if has_bnds:
         b_enc = encoding.setdefault(bnds_label, {})
         if "calendar" in t_enc:
@@ -699,6 +688,9 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
     # ``time_bounds`` already gated this with _looks_yearly, so trust the
     # signal and snap to (year_start, next_year_start).
     if len(time_values) < 2:
+        if _looks_decadal(rule, approx_interval):
+            logger.info("  single-stamp decadal data, using decade-start bounds")
+            return _create_decadal_bounds(time_values)
         if _looks_yearly(rule, approx_interval):
             logger.info("  single-stamp yearly data, using year-start bounds")
             return _create_yearly_bounds(time_values)
@@ -710,6 +702,7 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
         time_diff_seconds = np.median(np.diff(time_values.astype("datetime64[s]").astype(float)))
     else:
         import cftime
+
         cal = getattr(time_values[0], "calendar", "standard")
         nums = cftime.date2num(time_values, units="seconds since 1970-01-01", calendar=cal)
         time_diff_seconds = float(np.median(np.diff(np.asarray(nums, dtype=float))))
@@ -733,10 +726,7 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
     # which wcrp TIME001 then flags as off by 0.5 against the canonical
     # (midnight, next_midnight, midpoint=noon) convention.
     data_looks_daily = 0.9 <= data_freq_days <= 1.1
-    approx_disagrees_daily = (
-        approx_interval is not None
-        and not (0.9 <= approx_interval <= 1.1)
-    )
+    approx_disagrees_daily = approx_interval is not None and not (0.9 <= approx_interval <= 1.1)
     if data_looks_daily and not approx_disagrees_daily:
         logger.info("  detected daily data, using day-start bounds")
         return _create_daily_bounds(time_values)
@@ -749,10 +739,7 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
     # ships the raw stamp, off by however far the stamp is from Jul 2.
     # 360_day calendars also fall in this band hence the [360, 370] range.
     data_looks_yearly = 360 <= data_freq_days <= 370
-    approx_disagrees_yearly = (
-        approx_interval is not None
-        and not (360 <= approx_interval <= 370)
-    )
+    approx_disagrees_yearly = approx_interval is not None and not (360 <= approx_interval <= 370)
     if data_looks_yearly and not approx_disagrees_yearly:
         logger.info("  detected yearly data, using year-start bounds")
         return _create_yearly_bounds(time_values)
@@ -853,23 +840,75 @@ def _create_yearly_bounds(time_values):
     if np.issubdtype(time_values.dtype, np.datetime64):
         starts = time_values.astype("datetime64[Y]").astype("datetime64[ns]")
         # ``datetime64[Y] + 1`` is "next Jan 1" exactly.
-        nexts = (time_values.astype("datetime64[Y]") + np.timedelta64(1, "Y")).astype(
-            "datetime64[ns]"
-        )
+        nexts = (time_values.astype("datetime64[Y]") + np.timedelta64(1, "Y")).astype("datetime64[ns]")
         return np.column_stack([starts, nexts])
 
     bounds_data = []
     for time_val in time_values:
-        year_start = time_val.replace(
-            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        year_start = time_val.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         next_year_start = year_start.replace(year=time_val.year + 1)
         bounds_data.append([year_start, next_year_start])
     return np.array(bounds_data, dtype=object)
 
 
+def _create_decadal_bounds(time_values):
+    """Create decadal bounds as (decade_start, next_decade_start).
+
+    Snaps to the calendar decade containing the stamp, so 1854-12-31 becomes
+    (1850-01-01, 1860-01-01). ``dec`` used to be folded into
+    :func:`_create_yearly_bounds`, which gave a decadal cell one year of
+    bnds: a ten-year mean that claimed to cover twelve months. Nothing
+    caught it until wcrp added ``dec`` to its TIME001 frequency list, at
+    which point every single-stamp decadal file failed the squareness check.
+
+    Only the single-stamp path needs this. With two or more stamps the
+    spacing-based branch already derives ten-year cells correctly.
+
+    Handles both numpy ``datetime64`` and ``cftime`` object arrays.
+    """
+    if np.issubdtype(time_values.dtype, np.datetime64):
+        years = time_values.astype("datetime64[Y]").astype(int) + 1970
+        starts = (years // 10) * 10
+        return np.column_stack(
+            [
+                np.array([f"{y:04d}-01-01" for y in starts], dtype="datetime64[ns]"),
+                np.array([f"{y + 10:04d}-01-01" for y in starts], dtype="datetime64[ns]"),
+            ]
+        )
+
+    bounds_data = []
+    for time_val in time_values:
+        decade_start = time_val.replace(
+            year=(time_val.year // 10) * 10, month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        next_decade_start = decade_start.replace(year=decade_start.year + 10)
+        bounds_data.append([decade_start, next_decade_start])
+    return np.array(bounds_data, dtype=object)
+
+
+def _looks_decadal(rule, approx_interval):
+    """Heuristic: does this rule describe a decadal variable?
+
+    Kept apart from :func:`_looks_yearly` on purpose. Both feed the same
+    single-stamp branch, and folding them together is what produced
+    one-year bnds on ten-year cells.
+    """
+    if approx_interval is not None:
+        try:
+            if 3600 <= float(approx_interval) <= 3700:
+                return True
+        except (TypeError, ValueError):
+            pass
+    drv = getattr(rule, "data_request_variable", None) if rule is not None else None
+    if drv is not None and getattr(drv, "frequency", None) == "dec":
+        return True
+    if rule is not None and getattr(rule, "frequency", None) == "dec":
+        return True
+    return False
+
+
 def _looks_yearly(rule, approx_interval):
-    """Heuristic: does this rule describe a yearly (or decadal) variable?
+    """Heuristic: does this rule describe a yearly variable?
 
     Used by the single-time-point branch of ``time_bounds`` and by the
     cadence-blind branch of ``_create_mean_bounds`` to decide whether to
@@ -889,7 +928,7 @@ def _looks_yearly(rule, approx_interval):
                 return True
         except (TypeError, ValueError):
             pass
-    yearly_freqs = ("yr", "yrPt", "dec")
+    yearly_freqs = ("yr", "yrPt")
     drv = getattr(rule, "data_request_variable", None) if rule is not None else None
     if drv is not None and getattr(drv, "frequency", None) in yearly_freqs:
         return True
