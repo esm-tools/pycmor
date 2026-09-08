@@ -29,10 +29,9 @@
 
 \section{Kurzfassung}
 
-Es ist ein paar Wochen still gewesen, deshalb der Reihe nach. Seit der dritten
-Antwort gab es einen vollen Lauf, \code{cli117}, und seit vorgestern einen
-Checker-Stand, der die Zahlen deutlich verschiebt. Beides steht unten, dazu ein
-Befund bei uns, den wir nicht mehr reparieren koennen.
+Seit der dritten Antwort gab es einen vollen Lauf, \code{cli117}, und seit
+vorgestern einen Checker-Stand, der die Zahlen deutlich verschiebt. Dazu ein
+Befund bei uns, der nicht mehr zu reparieren ist.
 
 \begin{center}
 \begin{tabular}{lrr}
@@ -59,7 +58,7 @@ kostet das 42 neue HIGH, alle aus \code{TIME001}:
 \begin{center}
 \begin{tabular}{lrrrl}
 \toprule
-\textbf{Frequenz} & \textbf{Dateien} & \textbf{erwartet} & \textbf{gefunden} & \textbf{Abstand} \\
+\textbf{frequency} & \textbf{Dateien} & \textbf{erwartet} & \textbf{gefunden} & \textbf{Abstand} \\
 \midrule
 \code{1hr} & 19 & 365{,}041667 & 365{,}020833 & 30 min \\
 \code{3hr} & 12 & 365{,}125000 & 365{,}062500 & 1{,}5 h \\
@@ -73,12 +72,12 @@ Jeder Abstand ist genau eine halbe Zelle. Ein Beispiel, \code{rsus} stuendlich:
 
 \begin{quote}
 \code{bnds[0] = [365.000000, 365.041667]} \quad 00:00 bis 01:00 \\
-\code{time[0] = 365.020833} \quad 00:30, die Zellmitte \\
+\code{time[0] = 365.020833} \quad 00:30, der midpoint \\
 \code{cell\_methods = "area: time: mean"} \\
 Dateiname beginnt mit \code{185101010030}
 \end{quote}
 
-Der Dateiname traegt die erste Zeitkoordinate, so wie die CMIP7-Guidance es
+Der Dateiname traegt die erste time coordinate, so wie die CMIP7-Guidance es
 verlangt und wie du es in \code{\#58} selbst begruendet hast. \code{TIME001}
 liest denselben Wert aber als Periodenanfang und addiert eine halbe Zelle,
 kommt also auf 01:00. Bei \code{dec} faellt es am staerksten auf, weil eine
@@ -92,12 +91,12 @@ rekonstruiert wird, das bereits die Mitte ist.
 
 Wir haben das als \code{cc-plugin-wcrp\#80} aufgeschrieben, mit dem
 Reproduzierer. Von unserer Seite ist daran nichts zu machen: die Dateien
-stimmen, und den Stempel von der Zellmitte wegzuschieben wuerde die Daten
+stimmen, und den Stempel vom midpoint wegzuschieben wuerde die Daten
 falsch machen.
 
 \section{\code{plev7h}: das koennen wir nicht mehr reparieren}
 
-Der unangenehmste Punkt. Die fuenf 6-stuendlichen \code{plev7h}-Variablen
+Die fuenf 6-stuendlichen \code{plev7h}-Variablen
 (\code{hus}, \code{ta}, \code{ua}, \code{va}, \code{zg}) stehen auf den
 falschen Druckflaechen, und zwar seit dem Anfang des Laufs.
 
@@ -115,7 +114,7 @@ Fuenf Flaechen stimmen. \code{100000} steht, wo \code{60000} gehoert, und
 XIOS-Konfiguration, die den CMIP6-Satz statt des CMIP7-Satzes anlegt.
 
 Nachtraeglich ist nichts zu holen. Der Lauf hat 196 Jahre geschrieben, 1850 bis
-2045, und endete am 27.\,August. Einen 6-stuendlichen Modellflaechen-Strom gibt
+2045, und endete am 27.\,August. Einen 6-stuendlichen model-level-Strom gibt
 es nicht, nur taeglich \code{cl} und \code{pfull} und monatlich
 \code{ta}/\code{hus}/\code{hur}/\code{cli}/\code{clw}. \code{60000} laege
 zwischen zwei vorhandenen Flaechen und waere interpolierbar, \code{5000} laege
@@ -123,10 +122,9 @@ ueber der obersten und waere Extrapolation. Beides hiesse, eine Zahl unter
 einem Label auszuliefern, das Modellausgabe behauptet, und das wollen wir
 nicht.
 
-Wir haben die fuenf Regeln deshalb deaktiviert und die Ursache dokumentiert,
-so wie vorher schon bei den sechs FESOM-Tendenzvariablen und den
-\code{mrsol}-Varianten. Die XIOS-Achse ist fuer den LR-Lauf korrigiert. Falls
-dir dazu etwas anderes einfaellt als weglassen, hoeren wir das gern.
+Die fuenf Regeln sind deshalb deaktiviert und die Ursache ist dokumentiert, so
+wie vorher schon bei den sechs FESOM-Tendenzvariablen und den
+\code{mrsol}-Varianten. Die XIOS-Achse ist fuer den LR-Lauf korrigiert.
 
 Es kostet etwas. Die fuenf korrekten Flaechen sind 925, 850, 700, 500 und
 250\,hPa, 6-stuendlich ueber 196 Jahre, also genau das, was fuer Sturmzugbahnen
@@ -134,8 +132,8 @@ gebraucht wird.
 
 \section{Zwei Fehler, die wirklich unsere waren}
 
-Beide kamen ans Licht, weil ich deine Befunde nach Zustaendigkeit sortiert habe und
-zwei davon in der falschen Schublade lagen.
+Beide kamen ans Licht, als wir deine Befunde nach Zustaendigkeit sortiert haben.
+Zwei davon lagen in der falschen Schublade.
 
 \textbf{\code{slthick} lag auf dem falschen Gitter.} Die Regel las
 \code{atm\_remapped\_1m\_lsm}, also die auf $640 \times 1296$ regriddete
@@ -169,7 +167,7 @@ gleichen jetzt nur noch die Schreibweise an, nie die Einheit selbst.
 
 Als \code{dec} in die \code{AVERAGE\_CORRECTION\_FREQ} kam, lief \code{TIME001}
 zum ersten Mal auf unseren dekadischen Dateien. Dabei fiel etwas anderes auf:
-alle neun trugen Zeitgrenzen ueber ein Jahr statt ueber zehn.
+alle neun trugen \code{time\_bnds} ueber ein Jahr statt ueber zehn.
 
 Unser Code fuehrte \code{dec} zusammen mit \code{yr} und \code{yrPt}, also ging
 jede Datei mit genau einem Zeitpunkt durch den Jahres-Zweig. Nachgemessen an
@@ -178,21 +176,21 @@ an unserem Einjahres-Testlauf. Behoben, \code{dec} bekommt jetzt einen eigenen
 Pfad und schnappt auf die Kalenderdekade.
 
 Das raeumt den \code{TIME001}-Befund nicht ab, der haengt an \code{\#80}. Aber
-ein Zehnjahresmittel sollte keine zwoelf Monate als Zellgrenzen fuehren, egal
+ein Zehnjahresmittel sollte keine zwoelf Monate als \code{time\_bnds} fuehren, egal
 wer sie liest.
 
 \section{Nebenbei: unsere Koordinatentabelle war zwoelf Tage alt}
 
-Beim Aufraeumen ist mir aufgefallen, dass wir gegen \code{CMIP7\_coordinate.json}
+Beim Aufraeumen kam heraus, dass wir gegen \code{CMIP7\_coordinate.json}
 vom 2026-07-09 cmorisiert haben, waehrend \code{aicc} und \code{wcrp\_cmip7} gegen
 den Stand vom 2026-07-21 validieren. Sieben Achsen weichen ab. Zwei davon sind
 sichtbar geworden:
 
 \begin{itemize}
 \item \code{typetreebd/be/nd/ne} trugen alle vier \code{value = "trees"}. Das ist
-  genau dein Befund aus der Runde zu \code{cli112}. Ich hatte das im Code
-  ueberschrieben, weil ich annahm, die Tabelle sei eben so. Upstream hatte die
-  spezifischen CF-Flaechentypen laengst nachgezogen, mein Workaround war eine
+  genau dein Befund aus der Runde zu \code{cli112}. Wir hatten das im Code
+  ueberschrieben, unter der Annahme, die Tabelle sei eben so. Upstream hatte die
+  spezifischen CF area types laengst nachgezogen, der Workaround war also eine
   Kruecke fuer eine veraltete Datei.
 \item \code{deltasigt} hatte einen ganzen Absatz Prosa als \code{long\_name},
   inklusive literalem \verb|\n\n|. In jeder \code{mlotst}-Datei stand deshalb ein
@@ -224,8 +222,7 @@ Das hat 15 der 27 verschwundenen HIGH gebracht. Und alle 16 neuen, denn
 \end{tabular}
 \end{center}
 
-Ich bin der Kette nachgegangen, weil mich interessiert hat, ob wir etwas falsch
-gemacht haben:
+Die Kette dahinter, weil die Frage naheliegt, ob wir etwas falsch gemacht haben:
 
 \begin{center}
 \begin{tabular}{lll}
@@ -257,7 +254,7 @@ neuesten CV-Releases sind \code{2.0.1} vom 1.\,September und \code{1.2.19} vom
 Wir drehen \code{g239} nicht zurueck: lieber 16 Befunde aus einem Terminproblem als
 vier Dateien, die ein Gitter behaupten, auf dem sie nicht liegen.
 
-Falls du an der Stelle mehr Einblick hast als ich: aus Sicht eines Datenproduzenten
+Falls du an der Stelle mehr Einblick hast: aus Sicht eines Datenproduzenten
 ist das unangenehm, weil zwischen "Gitter ist registriert" und "Gitter validiert"
 ein Fenster von Tagen liegt, in dem ein Produktionslauf HIGH-Befunde einsammelt,
 die niemand beheben kann.
@@ -283,7 +280,7 @@ aus \code{TIME001}, die restlichen 23 kennst du aus der dritten Antwort:
 \glqq No geophysical variable detected\grqq{} behoben, nachgemessen an derselben
 Datei: 1 HIGH vorher, 0 nachher.
 
-Zu \code{vegtype} noch ein Nachtrag, weil ich es diesmal nachgesehen habe: der
+Zu \code{vegtype} ein Nachtrag, diesmal nachgeschlagen: der
 geforderte Term ist \code{needleleaf\_evergreen\_tree}, im Singular, waehrend seine
 drei Geschwister im Plural stehen und wir \code{needleleaf\_evergreen\_trees}
 schreiben. Der Singular steht \emph{in beiden} Koordinatentabellen, auch in der
@@ -307,7 +304,7 @@ Beim Nachzaehlen von \code{cli116} lagen nur 529 Reports auf 534 Dateien. Fuenf
 Dateien hatten gar keinen Sidecar. Die Ursache lag nicht an den Dateien.
 
 Die fuenf sind vollstaendig und lassen sich einwandfrei
-pruefen, ich habe genau denselben Aufruf spaeter von Hand wiederholt und vier davon
+pruefen. Derselbe Aufruf von Hand wiederholt, und vier davon
 kamen ohne einen einzigen Befund zurueck.
 
 Es lag an \code{cchecker.py} selbst. Er stirbt sporadisch schon beim Import, bevor er
@@ -324,12 +321,12 @@ Unser Verdacht: parallele Shards, die gleichzeitig den Cache der
 CF-Standardnamentabelle anlegen wollen, und einer sieht die Datei halb geschrieben.
 Dazu passt, dass es in demselben Lauf und derselben Umgebung 529 mal geklappt hat
 und fuenf mal nicht, und dass der Wiederholungsversuch von Hand jedes Mal
-durchlief. Reproduzierbar ist es fuer mich nicht, deshalb bleibt es ein Verdacht.
-Falls du das kennst, wuerde mich interessieren woran es bei euch lag.
+durchlief. Reproduzierbar ist es nicht, deshalb bleibt es ein Verdacht.
+Falls du das kennst, waere der Grund interessant.
 
 \section{Warum das lautlos war, und was jetzt dagegen laeuft}
 
-Das ist derselbe lautlose Ausfall, den ich in der dritten Antwort im Zusammenhang mit
+Das ist derselbe lautlose Ausfall wie in der dritten Antwort im Zusammenhang mit
 \code{CMIP7\_TABLES\_PATH} beschrieben habe, nur mit einer anderen Ursache: der
 QC-Schritt hat protokolliert, dass kein JSON entstand, und ist weitergelaufen. Eine
 Datei ohne Sidecar wird danach nirgends mehr gezaehlt. Der Lauf sieht dadurch
@@ -349,6 +346,6 @@ hat von sich aus 534 auf 534 geliefert. Der Wiederholungsversuch hat dort nicht
 einmal ausgeloest, es gab schlicht keinen Importfehler. Die Zahl ist also echt und
 nicht gerettet. Die frueheren Laeufe haben wir nicht nachgezaehlt. Falls dir in Zahlen aus
 \code{cli108} bis \code{cli115} etwas nicht aufgeht, koennte das derselbe Effekt
-sein, und ich schaue gezielt nach.
+sein, dann schauen wir gezielt nach.
 
 \end{document}
