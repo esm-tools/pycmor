@@ -174,3 +174,23 @@ July and still open, argues that TIME003 must read the coordinate rather than
 the bounds, citing the CMIP7 Guidance. The obvious fix on the TIME003 side
 would revert his own request, which is why `#80` is an issue and not a PR.
 
+## 2026-09-11: Martin's aicc 0.2 run on cli117, fixed for cli118
+
+Fixed on our side in `13bf5f40`, measured on seven cli117 files: longitude
+wrapped to [0, 360] (299 files), g132 unified (tauuo and hfx now bitwise
+equal), data cast to float32 per DReq `real` (227 files, fixes the hur cf
+crash), time2/time4 as CF climatologies, long_names per the table. Checker
+wiring in `cb89961d`: our own aicc grid registry via `qc_checker_options`,
+because aicc hardcodes g100 to g236 (issue drafted, on hold since 10.09.).
+
+Two new upstream candidates in `ioos/compliance-checker`, both searched, no
+existing issue. Not filed yet.
+
+| finding | files | why it is the checker |
+|---|---:|---|
+| Appendix A: `formula_terms` not allowed on `lev_bnds` (HIGH) | 8 | `cf_1_7.py:304` requires it on the bounds of a parametric coordinate, as CF 1.7 §7.1 does. The two checks contradict each other. |
+| §7.4: climatology `cell_methods` format (MEDIUM) | 3 | the regex is anchored at `^time:`, so `area: mean time: maximum within days time: mean over days` fails. `#1144` fixed a different part of that regex. |
+
+`time4` long_name typo `Satistics`: already in `CMIP7_DReq_Content#31`
+(`sol1105`), nothing to file.
+
