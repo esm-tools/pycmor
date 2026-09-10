@@ -398,6 +398,12 @@ def _ensure_horizontal_coord_attrs(ds):
             if k == "axis" and not is_coordinate_variable:
                 attrs.pop(k, None)
                 continue
+            if k == "long_name" and is_coordinate_variable:
+                # CMIP7_coordinate.json calls the axes "Latitude" and
+                # "Longitude", and aicc holds dimension coordinates to that
+                # (41 g129 files in cli117). Auxiliary lat/lon on unstructured
+                # grids follow CMIP7_grids.json, which keeps them lowercase.
+                v = v[:1].upper() + v[1:]
             attrs[k] = v
         bname = f"{name}_bnds"
         if bname in ds.variables:
@@ -642,11 +648,17 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
     Bounds are attached raw; the dateline normalisation later in
     :func:`_ensure_lat_lon_bounds_impl` straightens out triangles that
     straddle the seam.
+
+    On the element grid the centroids are replaced even when XIOS already
+    wrote some. XIOS averages the corner longitudes in degrees, which
+    breaks near the poles: in cli117 tauuo (XIOS centroids) and hfx (ours)
+    both claimed g132 but disagreed on 3.96M cells, by up to 57.6 degrees
+    of longitude on 1272 near-polar ones, and the DKRZ review flagged the
+    two as different grids. One grid label needs one set of coordinates.
     """
     if not isinstance(ds, xr.Dataset) or rule is None:
         return ds
-    if any(n in ds.variables or n in ds.coords for n in ("lat", "latitude")):
-        return ds
+    has_latlon = any(n in ds.variables or n in ds.coords for n in ("lat", "latitude"))
     grid_file = getattr(rule, "grid_file", None)
     if not grid_file or not os.path.exists(str(grid_file)):
         return ds
@@ -663,6 +675,8 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
             break
     if hdim is None:
         return ds
+    if has_latlon and hdim != "elem":
+        return ds
 
     n_cells = ds.sizes[hdim]
     try:
@@ -672,7 +686,7 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
             n_nodes = mesh.sizes.get("ncells")
             n_triags = mesh.sizes.get("ntriags")
 
-            if n_cells == n_nodes:
+            if n_cells == n_nodes and not has_latlon:
                 lat = np.asarray(mesh["lat"].values, dtype=np.float64)
                 lon = np.asarray(mesh["lon"].values, dtype=np.float64)
                 lat_b = np.asarray(mesh["lat_bnds"].values, dtype=np.float64) if "lat_bnds" in mesh else None
@@ -697,14 +711,25 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
                 lat = np.clip(lat, lat_b.min(axis=1), lat_b.max(axis=1))
                 source = "element centroids from triag_nodes"
             else:
-                logger.warning(
-                    f"  → aux coords: {hdim!r} has {n_cells} cells, mesh has "
-                    f"{n_nodes} nodes / {n_triags} elements; cannot match"
-                )
+                if not has_latlon:
+                    logger.warning(
+                        f"  → aux coords: {hdim!r} has {n_cells} cells, mesh has "
+                        f"{n_nodes} nodes / {n_triags} elements; cannot match"
+                    )
                 return ds
     except Exception as exc:
         logger.warning(f"  → aux coord recovery from {grid_file} failed: {exc}")
         return ds
+
+    if has_latlon:
+        stale = [
+            n
+            for n in ("lat", "lon", "latitude", "longitude")
+            + tuple(f"{p}{c}{s}" for c in ("lat", "lon") for p, s in (("", "_bnds"), ("bounds_", "")))
+            if n in ds.variables
+        ]
+        ds = ds.drop_vars(stale)
+        logger.info(f"  → aux coords: replacing XIOS element coordinates {stale} with {source}")
 
     ds = ds.assign_coords(
         {
@@ -914,12 +939,13 @@ def _ensure_lat_lon_bounds_and_external_vars(ds, rule=None):
     ds = _ensure_lat_lon_bounds_impl(ds, rule)
     ds = _ensure_vertical_bounds(ds)
     ds = _ensure_exact_vertical_bounds(ds)
-    ds = _ensure_climatology_bounds(ds)
+    ds = _ensure_climatology_bounds(ds, rule)
     ds = _ensure_vertical_coord_attrs(ds)
     ds = _ensure_coordinate_long_names(ds, rule)
     ds = _strip_bounds_attributes(ds)
     ds = _strip_variable_positive(ds)
     ds = _drop_unrequested_aux_coords(ds, rule)
+    ds = _ensure_data_dtype(ds, rule)
     ds = _ensure_coordinate_dtypes(ds)
     ds = _ensure_external_variables(ds)
     ds = _ensure_cf_dim_order(ds)
@@ -955,7 +981,23 @@ _EXACT_VERTICAL_BOUNDS = {
 }
 
 
-def _ensure_climatology_bounds(ds):
+def _climatology_axis(rule):
+    """The requested time axis if the table marks it as a climatology.
+
+    Two do in CMIP7: ``time2`` (``tclm``, a mean within years followed by a
+    mean over years) and ``time4`` (``tmaxavg``/``tminavg``, a monthly mean
+    of daily extremes). CF counts both as climatological statistics.
+    """
+    from .coordinate_attributes import AXIS_ENTRIES
+
+    drv = getattr(rule, "data_request_variable", None)
+    for dim in tuple(getattr(drv, "dimensions", ()) or ()):
+        if str((AXIS_ENTRIES.get(dim) or {}).get("climatology", "")).strip().lower() == "yes":
+            return dim
+    return None
+
+
+def _ensure_climatology_bounds(ds, rule=None):
     """Turn a climatology's time axis into the CF §7.4 form.
 
     A ``tclm`` variable is a mean within years followed by a mean over years, so
@@ -972,6 +1014,13 @@ def _ensure_climatology_bounds(ds):
     cli114 wrote ``time_bnds`` on this variable, which the DKRZ coordinate check
     flagged: a climatology whose bounds say "January 1851" claims to be one
     month of one year.
+
+    Without ``climatology_years`` the rule's time axis decides. cli117 still
+    wrote ordinary bounds on three files: pfull tclm, whose years went missing
+    between the accumulator and the write, and tas tmaxavg/tminavg on
+    ``time4``, which never had them. aicc AICC004 rejects both. There the
+    bounds ``set_time_bounds`` built already span the right months, so they
+    only change role.
     """
     if not isinstance(ds, xr.Dataset):
         return ds
@@ -980,7 +1029,7 @@ def _ensure_climatology_bounds(ds):
         return ds
     years = ds[time_label].attrs.pop("climatology_years", None)
     if not years:
-        return ds
+        return _climatology_from_time_bounds(ds, time_label, rule)
     try:
         first, last = (int(y) for y in str(years).split())
     except ValueError:
@@ -1002,7 +1051,53 @@ def _ensure_climatology_bounds(ds):
     for stale in (f"{time_label}_bnds", f"{time_label}_bounds"):
         if stale in ds.variables:
             ds = ds.drop_vars(stale)
+    _share_time_encoding(ds, time_label, "climatology_bnds")
     logger.info(f"  → climatology bounds: {first}-{last} over {len(months)} months")
+    return ds
+
+
+def _share_time_encoding(ds, time_label, bname):
+    """Store ``bname`` as plain numbers in the time coordinate's units.
+
+    xarray moves units and calendar off the variable named by ``bounds`` when
+    it writes, but not off one named by ``climatology``. Left as datetimes,
+    ``climatology_bnds`` went to disk with its own ``units`` and ``calendar``,
+    and cf Appendix A rejects ``calendar`` on a data variable (HIGH on both
+    climatology test files ahead of cli118). Encoding here, with the units
+    the time coordinate will be written in, keeps the variable bare as CF
+    recommends for bounds. The canonical time encoding is fixed first; it
+    runs again before the write, where it is a no-op.
+    """
+    from xarray.coding.times import encode_cf_datetime
+
+    _force_canonical_time_encoding(ds, time_label)
+    enc = ds[time_label].encoding
+    values = ds[bname].values
+    if values.dtype.kind in ("M", "O") and enc.get("units"):
+        numbers, _, _ = encode_cf_datetime(values, enc["units"], enc.get("calendar", "proleptic_gregorian"))
+        ds[bname] = xr.DataArray(np.asarray(numbers, dtype=np.float64), dims=ds[bname].dims, attrs={})
+    elif values.dtype.kind in ("M", "O"):
+        logger.warning(f"climatology: {time_label} has no encoding units yet, {bname} keeps datetime values")
+    ds[bname].attrs = {}
+    ds[bname].encoding = {"dtype": "float64", "_FillValue": None}
+
+
+def _climatology_from_time_bounds(ds, time_label, rule):
+    axis = _climatology_axis(rule) if rule is not None else None
+    if axis is None:
+        return ds
+    bname = ds[time_label].attrs.get("bounds") or ds[time_label].encoding.get("bounds") or f"{time_label}_bnds"
+    if bname not in ds.variables or "climatology_bnds" in ds.variables:
+        if "climatology_bnds" not in ds.variables:
+            logger.warning(f"climatology: {axis} requested but no {bname} to turn into climatology_bnds")
+        return ds
+    ds = ds.rename({bname: "climatology_bnds"})
+    ds["climatology_bnds"].attrs = {}
+    ds[time_label].attrs.pop("bounds", None)
+    ds[time_label].encoding.pop("bounds", None)
+    ds[time_label].attrs["climatology"] = "climatology_bnds"
+    _share_time_encoding(ds, time_label, "climatology_bnds")
+    logger.info(f"  → climatology bounds: {axis}, {bname} -> climatology_bnds")
     return ds
 
 
@@ -1095,6 +1190,42 @@ def _coordinate_dtypes():
             resolved[out_name] = dtype
     _COORD_DTYPE_CACHE = resolved
     return resolved
+
+
+def _ensure_data_dtype(ds, rule=None):
+    """Store the variable in the type the data request asks for.
+
+    Every floating-point variable in the CMIP7 data request is ``real``, which
+    is single precision. cli117 wrote 227 of 534 files as double, mostly
+    because a unit conversion or an average promoted float32 input. On hur
+    that also left ``missing_value`` and ``_FillValue`` of different types,
+    which cf flags and which crashed its Appendix A check outright.
+
+    The fill attributes are cast along with the data, so both always match
+    the variable.
+    """
+    if not isinstance(ds, xr.Dataset) or rule is None:
+        return ds
+    drv = getattr(rule, "data_request_variable", None)
+    if getattr(drv, "typ", None) is not float:
+        return ds
+    names = {getattr(drv, "out_name", None), getattr(rule, "cmor_variable", None)}
+    for name in (n for n in names if n and n in ds.data_vars):
+        var = ds[name]
+        if var.dtype.kind != "f":
+            continue
+        if var.dtype != np.float32:
+            logger.info(f"  → data dtype: {name} {var.dtype} -> float32 (data request type real)")
+            new = var.astype(np.float32)
+            new.attrs = dict(var.attrs)
+            new.encoding = {k: v for k, v in var.encoding.items() if k != "dtype"}
+            ds[name] = new
+        var = ds[name]
+        for key in ("missing_value", "_FillValue"):
+            for store in (var.attrs, var.encoding):
+                if store.get(key) is not None:
+                    store[key] = np.float32(store[key])
+    return ds
 
 
 def _ensure_coordinate_dtypes(ds):
@@ -1549,6 +1680,46 @@ def _ensure_lat_lon_bounds_impl(ds, rule=None):
                 ds[bname] = new_b
         except Exception as exc:
             logger.warning(f"  → dateline normalise on {bname} failed: {exc}; " f"leaving bnds unchanged")
+
+    # CMIP7 wants longitude in [0, 360]: the longitude axis entry and
+    # vertices_longitude in CMIP7_grids.json both carry valid_min 0 and
+    # valid_max 360, and aicc range-checks them. cli117 shipped 299 files
+    # with lon in [-180, 180] (g122 on ncells, all of g130 and g132), next to
+    # 161 g122 files on the other convention, so the same grid label also
+    # came with two sets of coordinates.
+    #
+    # Wrapping undoes the centroid window above for cells that straddle 0°,
+    # whose vertices then sit at both ends of the range. That is the same
+    # layout CMOR writes, and compliance-checker unwraps longitude before
+    # testing the centroid against its cell. Dimension coordinates are left
+    # alone, wrapping would break their monotonic order.
+    for name in ("lon", "longitude"):
+        if name not in ds.variables or ds[name].dims == (name,):
+            continue
+        coord = ds[name]
+        cv = np.asarray(coord.values, dtype=np.float64)
+        if (cv < 0).any() or (cv >= 360).any():
+            new_c = xr.DataArray(np.mod(cv, 360.0), dims=coord.dims, attrs=dict(coord.attrs))
+            new_c.encoding = dict(coord.encoding)
+            ds = ds.assign_coords({name: new_c}) if name in ds.coords else ds.assign({name: new_c})
+            logger.info(f"  → longitude: wrapped {name} into [0, 360)")
+        bname = coord.attrs.get("bounds") or f"{name}_bnds"
+        if bname not in ds.variables:
+            continue
+        bnds = ds[bname]
+        bv = np.asarray(bnds.values, dtype=np.float64)
+        outside = (bv < 0) | (bv > 360)
+        if outside.any():
+            # Only the values outside the range move, so edges sitting on 0
+            # or 360 stay where they are.
+            wrapped = bv.copy()
+            wrapped[outside] = np.mod(bv[outside], 360.0)
+            new_b = xr.DataArray(wrapped, dims=bnds.dims, attrs=dict(bnds.attrs))
+            new_b.encoding = dict(bnds.encoding)
+            new_b.encoding["dtype"] = "float64"
+            new_b.encoding["_FillValue"] = None
+            ds[bname] = new_b
+            logger.info(f"  → longitude: wrapped {int(outside.sum())} {bname} values into [0, 360]")
 
     return ds
 

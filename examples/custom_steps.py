@@ -6867,10 +6867,10 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
     ds["b"] = xr.DataArray(b, dims=("lev",), attrs={"long_name": "vertical coordinate formula term: b"})
     ds["ap_bnds"] = xr.DataArray(
-        ap_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: ap_bnds", "units": "Pa"}
+        ap_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: ap(k+1/2)", "units": "Pa"}
     )
     ds["b_bnds"] = xr.DataArray(
-        b_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: b_bnds"}
+        b_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: b(k+1/2)"}
     )
 
     ps = _load_secondary_mf(rule, "ps_path", "ps_pattern", "ps_variable")
