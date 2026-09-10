@@ -27,6 +27,8 @@ Rule attributes consumed (all optional):
 - ``qc_fail_on_mandatory`` (bool, default False) — raise on any Mandatory
   finding instead of just logging.
 - ``qc_binary`` (str, default ``"cchecker.py"``) — override path.
+- ``qc_checker_options`` (list[str], default ``[]``) — passed to cchecker as
+  ``-O``, one per entry, e.g. ``aicc:grid_config:/path/grid_config.json``.
 - ``qc_attempts`` (int, default 3) — how often to re-run the
   checker when it produced no report at all. Concurrent shards
   racing on the CF standard-name table cache can make it die at
@@ -170,10 +172,13 @@ def _run_cchecker(
     out_json: Path,
     files: list[Path],
     attempts: int = 3,
+    options: Iterable[str] = (),
 ) -> tuple[int, str]:
     cmd = [binary, "-f", "json_new", "-o", str(out_json), "-c", criteria]
     for t in tests:
         cmd += ["-t", t]
+    for o in options:
+        cmd += ["-O", o]
     cmd += [str(p) for p in files]
     logger.info(f"qc: running {' '.join(cmd)}")
     attempts = max(1, int(attempts))
@@ -335,7 +340,8 @@ def run_compliance_checker(data, rule):
     table_id = rule_id
 
     attempts = int(getattr(rule, "qc_attempts", 3) or 3)
-    rc, err = _run_cchecker(binary, tests, criteria, out_json, files, attempts)
+    options = list(getattr(rule, "qc_checker_options", None) or [])
+    rc, err = _run_cchecker(binary, tests, criteria, out_json, files, attempts, options)
     if not out_json.exists():
         logger.error(
             f"qc: cchecker.py rc={rc} after {attempts} attempt(s); no JSON "
