@@ -1460,7 +1460,6 @@ rules:
         pattern: atm_remapped_1m_ci_.*\.nc
     compound_name: seaIce.siconca.tavg-u-hxy-u.mon.glb
     model_variable: ci
-    grid: "OpenIFS TCo319 reduced Gaussian, interpolated to 0.25deg regular grid"
     nominal_resolution: "25 km"
     time_dimname: time_counter
     pipelines:
@@ -1474,7 +1473,6 @@ rules:
         pattern: atm_remapped_1d_ci_.*\.nc
     compound_name: seaIce.siconca.tavg-u-hxy-u.day.glb
     model_variable: ci
-    grid: "OpenIFS TCo319 reduced Gaussian, interpolated to 0.25deg regular grid"
     nominal_resolution: "25 km"
     time_dimname: time_counter
     pipelines:
