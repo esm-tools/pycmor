@@ -590,7 +590,7 @@ rules:
       - path: *dp
         pattern: temp\.fesom\.\d{4}\.nc
     compound_name: ocean.zostoga.tavg-u-hm-sea.mon.glb
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: temp
     salt_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
     salt_pattern: salt\.fesom\.\d{4}\.nc

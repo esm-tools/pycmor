@@ -126,7 +126,7 @@ rules:
       - path: *ghg
         pattern: cfc11_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
     compound_name: atmosChem.cfc11.tavg-u-hm-air.mon.glb
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: cfc11
     scale_factor: 1.0
     scaled_units: "1E-12"
@@ -140,7 +140,7 @@ rules:
       - path: *ghg
         pattern: cfc12_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
     compound_name: atmosChem.cfc12.tavg-u-hm-air.mon.glb
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: cfc12
     scale_factor: 1.0
     scaled_units: "1E-12"
@@ -157,7 +157,7 @@ rules:
       - path: *ghg
         pattern: ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
     compound_name: atmosChem.ch4.tavg-u-hm-air.mon.glb
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: ch4
     scale_factor: 1.0
     scaled_units: "1E-09"
@@ -171,7 +171,7 @@ rules:
       - path: *ghg
         pattern: n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
     compound_name: atmosChem.n2o.tavg-u-hm-air.mon.glb
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: n2o
     scale_factor: 1.0
     scaled_units: "1E-09"
