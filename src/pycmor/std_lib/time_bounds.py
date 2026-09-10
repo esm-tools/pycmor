@@ -252,9 +252,9 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
     #   use_midpoint = (not instantaneous) and (freq in AVERAGE_CORRECTION_FREQ)
     #   instantaneous = "time: point" in cell_methods  OR  freq NOT in AVG list
     #
-    # AVG list (from cc-plugin-wcrp time_constants.py) AS OF cc-plugin-wcrp#52:
+    # AVG list (from cc-plugin-wcrp time_constants.py) AS OF cc-plugin-wcrp#67:
     #   {"day", "mon", "monPt", "yr", "yrPt", "1hrCM", "sem",
-    #    "1hr", "3hr", "6hr"}
+    #    "1hr", "3hr", "6hr", "dec"}
     #
     # Pre-#52 the sub-daily frequencies were excluded, so the original
     # comment ("non-AVG frequency (dec, 3hr, 6hr, 1hr, ...) even if
@@ -264,7 +264,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
     #
     # Two groups want time = period_start (not midpoint):
     #   1) any rule with cell_methods "time: point" (tpt-style)
-    #   2) any rule with a non-AVG frequency (dec only at this point)
+    #   2) any rule with a non-AVG frequency (none left: cc-plugin-wcrp#67 added dec, so dec now wants the midpoint)
     drv = getattr(rule, "data_request_variable", None)
     freq = (getattr(drv, "frequency", "") or "").strip() if drv else ""
     _WCRP_AVG_FREQS = {
@@ -278,6 +278,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
         "1hr",
         "3hr",
         "6hr",
+        "dec",
     }
     wcrp_treats_as_instantaneous = time_method == "instantaneous" or (freq and freq not in _WCRP_AVG_FREQS)
 
@@ -695,6 +696,14 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
             logger.info("  single-stamp yearly data, using year-start bounds")
             return _create_yearly_bounds(time_values)
         raise ValueError("Cannot create mean time bounds: need at least 2 time points")
+
+    # Several decadal stamps snap to calendar decades as well. The spacing
+    # branch below derives cells from the stamps themselves, which lands them
+    # a few days off the grid (1849-12-28 .. 1860-01-02), and cc-plugin-wcrp#81
+    # checks that the cells are regular calendar decades.
+    if _looks_decadal(rule, approx_interval):
+        logger.info("  decadal data, using decade-start bounds")
+        return _create_decadal_bounds(time_values)
 
     # For numpy datetime64 we can cast directly; cftime objects need
     # date2num via their own calendar to land in a numeric space.
