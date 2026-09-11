@@ -471,7 +471,7 @@ def _is_vertical_dim(ds, dim):
     return False
 
 
-def _ensure_cf_dim_order(ds):
+def _ensure_cf_dim_order(ds, rule=None):
     """Put the vertical axis ahead of the horizontal ones (CF §2.4).
 
     CF asks for the relative order T, Z, Y, X. FESOM writes its 3-D fields
@@ -522,6 +522,41 @@ def _ensure_cf_dim_order(ds):
             continue
         logger.info(f"  → CF §2.4 dim order on {var_name!r}: {tuple(dims)} -> {tuple(reordered)}")
         ds[var_name] = da.transpose(*reordered)
+    return _ensure_request_dim_order(ds, rule)
+
+
+def _ensure_request_dim_order(ds, rule):
+    """Put the variable's dimensions in the order the data request lists them.
+
+    The table lists dimensions Fortran-style, so the file order is the reverse.
+    aicc compares against it: cli118 wrote msftm as (time, lev, basin, lat)
+    where the table says ``latitude olevel basin time``, i.e.
+    (time, basin, lev, lat), which is the CMOR order.
+
+    Only applied when every dimension of the variable maps onto a requested
+    axis. Unstructured output carries a cell index the table does not name, so
+    it never qualifies and keeps the order set above.
+    """
+    if rule is None:
+        return ds
+    # Same resolution the dimension mapping uses, which also covers generic
+    # axes such as olevel that have no out_name in the table.
+    from .dimension_mapping import _out_name_for
+
+    drv = getattr(rule, "data_request_variable", None)
+    name = getattr(drv, "out_name", None)
+    if not name or name not in ds.data_vars:
+        return ds
+    da = ds[name]
+    wanted = []
+    for dim in reversed(tuple(getattr(drv, "dimensions", ()) or ())):
+        out_name = _out_name_for(dim)
+        if out_name in da.dims and out_name not in wanted:
+            wanted.append(out_name)
+    if len(wanted) != da.ndim or wanted == list(da.dims):
+        return ds
+    logger.info(f"  → data request dim order on {name!r}: {tuple(da.dims)} -> {tuple(wanted)}")
+    ds[name] = da.transpose(*wanted)
     return ds
 
 
@@ -948,7 +983,7 @@ def _ensure_lat_lon_bounds_and_external_vars(ds, rule=None):
     ds = _ensure_data_dtype(ds, rule)
     ds = _ensure_coordinate_dtypes(ds)
     ds = _ensure_external_variables(ds)
-    ds = _ensure_cf_dim_order(ds)
+    ds = _ensure_cf_dim_order(ds, rule)
     ds = _ensure_coordinates_attr(ds)
     ds = _ensure_horizontal_coord_attrs(ds)
     ds = _strip_unportable_encoding(ds)
@@ -1245,6 +1280,11 @@ def _ensure_coordinate_dtypes(ds):
         return ds
     for name, dtype in _coordinate_dtypes().items():
         if name not in ds.variables or str(name).startswith("time"):
+            continue
+        # Only coordinates. The relative humidity axes (hur100p2pct,
+        # hur101pct) have out_name "hur", so the hur variable itself matched
+        # and went to disk as double in cli118, undoing the float32 cast.
+        if name in ds.data_vars and name not in ds.dims:
             continue
         var = ds[name]
         if var.dtype.kind in ("S", "U", "O") or str(var.dtype) == dtype:
