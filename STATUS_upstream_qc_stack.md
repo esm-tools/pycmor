@@ -194,3 +194,23 @@ existing issue. Not filed yet.
 `time4` long_name typo `Satistics`: already in `CMIP7_DReq_Content#31`
 (`sol1105`), nothing to file.
 
+## 2026-09-11: cli118 result, and the 492 wcrp MEDIUM
+
+cli118 (529 files): cf 0 HIGH, wcrp 42 HIGH (all TIME001, waits on
+`cc-plugin-wcrp#81`), aicc 3 HIGH (msftm order ×2, fixed in `78452f4b`;
+landCoverFrac vegtype, `CMIP7_DReq_Content#29`). The 3 hur files were still
+double, fixed in `78452f4b`; the five files are being rerun into cli118.
+
+492 of the 613 wcrp MEDIUM read "Registry has no value for key
+'cell_measures'". Not our files: the universe 3.2.0 database esgvoc
+downloads from the registry has no `cell_measures` in `known_branded_variable`
+and stores `units` instead of `cf_units`, although the raw JSON in the repo
+still carries both. Upgrading esgvoc 4.1.1 -> 6.1.0 (done 11.09., backup in
+`/work/ab0246/a270092/backups/esgvoc_4.1.1_20260911`) changes nothing, the
+three test files give identical findings.
+
+Upstream it is `WCRP-universe#334` and `cc-plugin-wcrp#79`. `glevava`: the fix
+comes with the QA/QC release for the coordinate checks, "expected before the
+end of September". Workaround used by `JamesAnstey`: `esgvoc use
+universe@1.0.32` (not installed here, newest local 1.0.x is 1.0.30).
+
