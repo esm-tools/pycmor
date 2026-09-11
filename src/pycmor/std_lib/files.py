@@ -639,6 +639,42 @@ def _normalise_vertices_naming(ds):
     return ds
 
 
+_GRID_LATLON_NAMES = {"lat": "latitude", "lon": "longitude"}
+
+
+def _ensure_grid_latlon_names(ds):
+    """Name auxiliary lat/lon the way CMIP7_grids.json does.
+
+    Two tables name the horizontal coordinates. ``CMIP7_coordinate.json``
+    covers the axes of regular grids, out_name ``lat``/``lon``, which is
+    what the third DKRZ round moved 41 files to. ``CMIP7_grids.json`` covers
+    the grid variables of curvilinear and unstructured grids, out_name
+    ``latitude``/``longitude``. Our auxiliary coordinates kept whatever XIOS
+    or the mesh called them, and the coordinate checks in cc-plugin-wcrp#81
+    (COORD011) flagged all 455 files on g122, g130 and g132 in cli118.
+
+    Only auxiliary coordinates are renamed; ``lat(lat)`` on a regular grid
+    stays. Every ``coordinates`` attribute is rewritten to match.
+    """
+    if not isinstance(ds, xr.Dataset):
+        return ds
+    renames = {
+        old: new
+        for old, new in _GRID_LATLON_NAMES.items()
+        if old in ds.variables and new not in ds.variables and _is_auxiliary_coord(ds, old)
+    }
+    if not renames:
+        return ds
+    ds = ds.rename(renames)
+    for var in ds.variables.values():
+        for store in (var.attrs, var.encoding):
+            value = store.get("coordinates")
+            if isinstance(value, str):
+                store["coordinates"] = " ".join(renames.get(t, t) for t in value.split())
+    logger.info(f"  → grid variables: {renames} (CMIP7_grids.json out_name)")
+    return ds
+
+
 _UNSTRUCTURED_DIMS = ("ncells", "nod2", "elem", "cell", "cells")
 
 
@@ -988,6 +1024,7 @@ def _ensure_lat_lon_bounds_and_external_vars(ds, rule=None):
     ds = _ensure_horizontal_coord_attrs(ds)
     ds = _strip_unportable_encoding(ds)
     ds = _normalise_vertices_naming(ds)
+    ds = _ensure_grid_latlon_names(ds)
     return ds
 
 
