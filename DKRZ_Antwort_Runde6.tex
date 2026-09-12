@@ -1,0 +1,146 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,urlcolor=blue!60!black,linkcolor=black]{hyperref}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+\emergencystretch=3em
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
+\large Stand nach \code{cli119}: \code{latitude}/\code{longitude}, und \code{\#81} auf dem ganzen Jahr}
+\author{Jan Streffing, AWI}
+\date{12. September 2026}
+
+\begin{document}
+% babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt. Die Shorthands
+% werden erst bei \begin{document} scharfgeschaltet, also muss das hierhin.
+\shorthandoff{"}
+\maketitle
+
+\section{Kurzfassung}
+
+Danke fuer den Lauf mit den Koordinatenchecks auf \code{cli118}. Der eine Befund,
+die Namen der Hilfskoordinaten, ist behoben. \code{cli119} ist das Jahr 1851 mit
+529 Dateien, geschrieben mit dieser Korrektur. Wir haben es komplett mit deinem
+\code{\#81} in \code{5a4239e} geprueft, also dem Stand nach deinem Lauf:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+\textbf{HIGH} & \textbf{\code{cli118}, dein Lauf} & \textbf{\code{cli119}, \code{\#81} \code{5a4239e}} \\
+\midrule
+\code{wcrp\_cmip7} \code{COORD011}, Namen der Hilfskoordinaten & 455 Dateien & 0 \\
+\code{wcrp\_cmip7} \code{TIME001}                  & 0 & 0 \\
+\code{aicc} \code{vegtype} auf \code{landCoverFrac} & 1 & 1 \\
+cf Appendix A, \code{formula\_terms} auf \code{lev\_bnds} & 9 & 9 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\code{wcrp\_cmip7} meldet damit auf dem ganzen Jahr kein HIGH mehr. Was bleibt,
+liegt in der Tabelle und im cf-Checker, nicht in den Dateien.
+
+\section{\code{latitude} und \code{longitude}}
+
+Zwei Tabellen benennen die horizontalen Koordinaten. \code{CMIP7\_coordinate.json}
+gilt fuer die Achsen regulaerer Gitter, \code{out\_name} \code{lat}/\code{lon}.
+Darauf hatten wir in der dritten Runde 41 Dateien von \code{latitude(latitude)} auf
+\code{lat(lat)} umgestellt. \code{CMIP7\_grids.json} gilt fuer die Gittervariablen
+kurvilinearer und unstrukturierter Gitter, \code{out\_name}
+\code{latitude}/\code{longitude}. Dort hatten unsere Hilfskoordinaten einfach den
+Namen behalten, den XIOS oder das Mesh mitbrachte. Keiner der bisherigen Checker hat
+darauf geschaut.
+
+Hilfskoordinaten heissen jetzt \code{latitude}/\code{longitude}, und jedes
+\code{coordinates}-Attribut zieht mit. Regulaere Gitter behalten \code{lat(lat)}
+und \code{lon(lon)}, die Umstellung aus Runde drei gilt also weiter.
+
+\begin{center}
+\begin{tabular}{lrl}
+\toprule
+\textbf{Gitter} & \textbf{Dateien} & \textbf{in \code{cli119}} \\
+\midrule
+\code{g122} & 321 & \code{latitude(ncells)} bzw.\ \code{latitude(cell)} \\
+\code{g130} & 125 & \code{latitude(ncells)} \\
+\code{g132} &   9 & \code{latitude(elem)} \\
+\code{g129}, \code{g239} & 45 & \code{lat(lat)}, unveraendert \\
+\code{g010} & 29 & ohne horizontale Koordinaten \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\code{g132} stand nicht in deiner Liste, war aber genauso betroffen, die neun
+Dateien sind mit umgestellt.
+
+\section{\code{TIME001}}
+
+In deinem Lauf auf \code{cli118} war \code{TIME001} schon verschwunden. Seitdem hat
+\code{\#81} die Pruefung noch einmal umgebaut, die Intervallgrenzen werden jetzt
+aus dem Dateinamen neu erzeugt statt den deklarierten Grenzen zu vertrauen. Genau
+unsere 42 subdaily- und dekadischen Dateien haengen daran, deshalb wollten wir das
+nachmessen. Auch mit \code{5a4239e} bleiben alle 42 ohne Befund.
+
+Auf \code{cc-plugin-wcrp\#80} hat \code{Ayoubnac1} geschrieben, dass mehrere Dekaden in einer
+Datei unter \code{proleptic\_gregorian} noch um zwoelf Stunden daneben liegen. Das
+betrifft uns nicht, jede unserer \code{dec}-Dateien enthaelt genau eine Dekade.
+
+\section{Was uebrig bleibt}
+
+\begin{center}
+\begin{tabular}{rll}
+\toprule
+\textbf{Anzahl} & \textbf{Befund} & \textbf{liegt bei} \\
+\midrule
+1 HIGH     & \code{vegtype}, Singular \code{needleleaf\_evergreen\_tree} & \code{CMIP7\_DReq\_Content\#29} \\
+9 HIGH     & cf Appendix A gegen CF 1.7 \S7.1, \code{formula\_terms} & \code{compliance-checker} \\
+492 MEDIUM & \glqq Registry has no value for key 'cell\_measures'\grqq{} & \code{WCRP-universe\#334} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Eine Korrektur zur fuenften Antwort.} Dort stand, dass die 492 MEDIUM mit
+\code{\#81} vermutlich verschwinden, weil der PR die Kompatibilitaet von
+\code{units} und \code{cf\_units} behandelt. Das stimmt nicht: mit \code{5a4239e}
+sind es weiterhin 492. Die Universe-Datenbank 3.2.0 fuehrt fuer
+\code{known\_branded\_variable} schlicht kein \code{cell\_measures}, und das kann der
+Checker nicht ausgleichen. Laut \code{WCRP-universe\#334} kommt die Korrektur mit
+dem QA/QC-Release fuer die Koordinatenchecks.
+
+Ein MEDIUM mehr als ohne \code{\#81} gibt es auf den beiden \code{time4}-Dateien:
+\code{\#81} meldet den Tippfehler \code{Satistics} aus der Tabelle, der schon in
+deinem \code{CMIP7\_DReq\_Content\#31} steht.
+
+\section{Zu deinen weiteren Punkten}
+
+Zum Gitterregister: solange \code{grid\_type} nicht aus EMD in die CV kommt,
+behalten wir unser eigenes Register fuer \code{aicc}. Wenn \code{\#81} ueber
+\code{grid\_label} auf die Topologie kommt, pruefen wir, ob unsere Labels dort
+hinterlegt sind. \code{g239} ist inzwischen auch auf \code{main} von
+\code{CMIP7-CVs} angekommen.
+
+Die Konsistenzbefunde zwischen Datensaetzen aus \code{esgf-qa} lassen wir liegen,
+bis du die Gruppen neu gebildet hast.
+
+\section{Wie gemessen wurde}
+
+Die QC im Lauf selbst ist gegenueber \code{cli118} unveraendert: cf 0 HIGH, 128
+MEDIUM, \code{wcrp\_cmip7} \code{develop} \code{ba2de16} 42 HIGH und 613 MEDIUM,
+\code{aicc} 1 HIGH. Die Umbenennung kostet also mit den heute veroeffentlichten
+Checkern nichts.
+
+Die Pruefung mit \code{\#81} lief danach separat ueber alle 529 Dateien, mit dem
+PR-Stand \code{5a4239e} in einem eigenen Checkout, \code{compliance-checker}
+6.1.0 mit aktivierten Appendix-A-Checks, \code{cc-plugin-aicc} 0.2.0 mit unserem
+Register, esgvoc 6.1.0 mit \code{cmip7@2.3.0} und \code{universe@3.2.0}. Die
+Dateien liegen unter
+\code{/scratch/a/a270092/pycmor\_hr/cli119/cmorized/MIP-DRS7}, die Reports aus der
+Pruefung mit \code{\#81} unter \code{/scratch/a/a270092/pycmor\_hr/cli119\_pr81}.
+
+\end{document}
