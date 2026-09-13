@@ -454,6 +454,65 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Decadal copies: decadal_gate first. Each yearly job carries these rules;
+  # they only write in the year that closes a decade counted from the run's
+  # first year, and then read all ten years. See std_lib/decadal.py.
+  - name: decadal_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: decadal_scale_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: decadal_volcello_time_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_volcello_time
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -928,11 +987,13 @@ rules:
 
   # ============================================================
   # DECADAL: 10-year averages of existing variables
-  # These use DefaultPipeline with modified time averaging.
-  # Need multi-year input patterns (e.g. temp.fesom.*.nc)
+  # decadal_gate lets each rule write only in the year that closes a decade
+  # counted from the run's first year, over all ten years of input.
   # ============================================================
 
   - name: thetao_dec
+    pipelines:
+      - decadal_pipeline
     inputs:
       - path: *dp
         pattern: temp\.fesom\.\d{4}\.nc
@@ -944,9 +1005,10 @@ rules:
     # rule runs alongside hfx_3D / hfy_3D / so_dec. See
     # PLAN_save_dataset_reliability.md §5.
     netcdf_tmpfs_staging: false
-    # TODO: needs 10-year input pattern and decadal timeavg
 
   - name: so_dec
+    pipelines:
+      - decadal_pipeline
     inputs:
       - path: *dp
         pattern: salt\.fesom\.\d{4}\.nc
@@ -957,6 +1019,8 @@ rules:
     netcdf_tmpfs_staging: false
 
   - name: tauuo_dec
+    pipelines:
+      - decadal_pipeline
     grid_label: g132
     grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
     inputs:
@@ -966,6 +1030,8 @@ rules:
     model_variable: tx_sur
 
   - name: tauvo_dec
+    pipelines:
+      - decadal_pipeline
     grid_label: g132
     grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
     inputs:
@@ -975,6 +1041,8 @@ rules:
     model_variable: ty_sur
 
   - name: thkcello_dec
+    pipelines:
+      - decadal_pipeline
     inputs:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
@@ -983,6 +1051,8 @@ rules:
     lazy_write: true
 
   - name: volo_dec
+    pipelines:
+      - decadal_pipeline
     inputs:
       - path: *dp
         pattern: volo\.fesom\.\d{4}\.nc
@@ -1000,7 +1070,7 @@ rules:
     scaled_units: "kg m-2"
     lazy_write: true
     pipelines:
-      - scale_pipeline
+      - decadal_scale_pipeline
 
   - name: volcello_dec
     inputs:
@@ -1010,7 +1080,7 @@ rules:
     model_variable: hnode
     lazy_write: true
     pipelines:
-      - volcello_time_pipeline
+      - decadal_volcello_time_pipeline
 
   - name: masso_dec
     inputs:
@@ -1022,7 +1092,7 @@ rules:
     scale_factor: 1025.0
     scaled_units: "kg"
     pipelines:
-      - scale_pipeline
+      - decadal_scale_pipeline
 
   # ============================================================
   # Barotropic streamfunction

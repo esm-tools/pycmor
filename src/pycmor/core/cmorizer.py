@@ -28,6 +28,7 @@ except ImportError:
     CMIP7_API_AVAILABLE = False
 from ..std_lib.global_attributes import GlobalAttributes
 from ..std_lib.timeaverage import _frequency_from_approx_interval
+from .skip import RuleSkipped
 from .aux_files import attach_files_to_rule
 from .cluster import CLUSTER_ADAPT_SUPPORT, CLUSTER_MAPPINGS, CLUSTER_SCALE_SUPPORT, DaskContext, set_dashboard_link
 from .config import PycmorConfig, PycmorConfigManager
@@ -1355,6 +1356,9 @@ class CMORizer:
                 for pipeline in rule.pipelines:
                     logger.info(f"Running {str(pipeline)}")
                     data = pipeline.run(data, rule)
+                    if isinstance(data, RuleSkipped):
+                        logger.info(f"Rule {rule_name} ends without output: {data.reason}")
+                        break
                 # Don't ship the final dataset back to the scheduler/driver.
                 # Under parallel/dask orchestration the caller does
                 # client.gather(futures), which deserialises every rule's

@@ -691,7 +691,7 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
     if len(time_values) < 2:
         if _looks_decadal(rule, approx_interval):
             logger.info("  single-stamp decadal data, using decade-start bounds")
-            return _create_decadal_bounds(time_values)
+            return _create_decadal_bounds(time_values, rule)
         if _looks_yearly(rule, approx_interval):
             logger.info("  single-stamp yearly data, using year-start bounds")
             return _create_yearly_bounds(time_values)
@@ -703,7 +703,7 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
     # checks that the cells are regular calendar decades.
     if _looks_decadal(rule, approx_interval):
         logger.info("  decadal data, using decade-start bounds")
-        return _create_decadal_bounds(time_values)
+        return _create_decadal_bounds(time_values, rule)
 
     # For numpy datetime64 we can cast directly; cftime objects need
     # date2num via their own calendar to land in a numeric space.
@@ -860,8 +860,24 @@ def _create_yearly_bounds(time_values):
     return np.array(bounds_data, dtype=object)
 
 
-def _create_decadal_bounds(time_values):
+def _gated_decade(rule):
+    """``(first, last)`` year of the decade :func:`decadal_gate` selected, or None."""
+    if rule is None or not hasattr(rule, "get"):
+        return None
+    try:
+        first, last = int(rule.get("year_start")), int(rule.get("year_end"))
+    except (TypeError, ValueError):
+        return None
+    return (first, last) if last - first == 9 else None
+
+
+def _create_decadal_bounds(time_values, rule=None):
     """Create decadal bounds as (decade_start, next_decade_start).
+
+    When :func:`pycmor.std_lib.decadal.decadal_gate` has picked the decade,
+    that decade is the cell. Decades are counted from the start of the run,
+    so a scenario starting in 2024 has 2024-2033 as its first cell, which
+    snapping to the calendar decade would turn into 2020-2029.
 
     Snaps to the calendar decade containing the stamp, so 1854-12-31 becomes
     (1850-01-01, 1860-01-01). ``dec`` used to be folded into
@@ -875,6 +891,14 @@ def _create_decadal_bounds(time_values):
 
     Handles both numpy ``datetime64`` and ``cftime`` object arrays.
     """
+    gated = _gated_decade(rule)
+    if gated is not None and len(time_values) == 1:
+        first, last = gated
+        if np.issubdtype(time_values.dtype, np.datetime64):
+            return np.array([[f"{first:04d}-01-01", f"{last + 1:04d}-01-01"]], dtype="datetime64[ns]")
+        lo = time_values[0].replace(year=first, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return np.array([[lo, lo.replace(year=last + 1)]], dtype=object)
+
     if np.issubdtype(time_values.dtype, np.datetime64):
         years = time_values.astype("datetime64[Y]").astype(int) + 1970
         starts = (years // 10) * 10
