@@ -16,7 +16,7 @@
 \title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
 \large Stand nach \code{cli119}: \code{latitude}/\code{longitude}, und \code{\#81} auf dem ganzen Jahr}
 \author{Jan Streffing, AWI}
-\date{12. September 2026}
+\date{13. September 2026}
 
 \begin{document}
 % babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt. Die Shorthands
@@ -46,6 +46,10 @@ cf Appendix A, \code{formula\_terms} auf \code{lev\_bnds} & 9 & 9 \\
 
 \code{wcrp\_cmip7} meldet damit auf dem ganzen Jahr kein HIGH mehr. Was bleibt,
 liegt in der Tabelle und im cf-Checker, nicht in den Dateien.
+
+Dazu ein Fehler bei uns, den kein Checker sehen konnte: die dekadischen Dateien
+enthielten bis einschliesslich \code{cli119} nur ein Jahr. Das ist behoben,
+Abschnitt~\ref{sec:dec}, mit zwei Fragen an dich.
 
 \section{\code{latitude} und \code{longitude}}
 
@@ -89,7 +93,58 @@ nachmessen. Auch mit \code{5a4239e} bleiben alle 42 ohne Befund.
 
 Auf \code{cc-plugin-wcrp\#80} hat \code{Ayoubnac1} geschrieben, dass mehrere Dekaden in einer
 Datei unter \code{proleptic\_gregorian} noch um zwoelf Stunden daneben liegen. Das
-betrifft uns nicht, jede unserer \code{dec}-Dateien enthaelt genau eine Dekade.
+betrifft uns nicht, jede unserer \code{dec}-Dateien umfasst genau eine Dekade.
+Was in dieser Dekade stand, war allerdings falsch, dazu der naechste Abschnitt.
+
+\section{Dekadenmittel: ein Fehler bei uns}
+\label{sec:dec}
+
+Wir cmorisieren jahresweise, ein Modelljahr pro Job, und jedes Eingabemuster wird
+auf dieses Jahr gepinnt. Das galt auch fuer die neun \code{dec}-Variablen
+(\code{thetao}, \code{so}, \code{tauuo}, \code{tauvo}, \code{thkcello}, \code{volo},
+\code{masscello}, \code{volcello}, \code{masso}). Die Grenzen haben wir korrekt als
+1850 bis 1860 geschrieben, gemittelt wurde aber nur das jeweils verarbeitete Jahr.
+Jedes weitere Jahr derselben Dekade haette dieselbe Datei mit einem anderen
+Einjahresmittel ueberschrieben. Strukturell sind diese Dateien in Ordnung, deshalb
+ist es in keiner QC aufgefallen. Die neun \code{dec}-Dateien aus \code{cli117} bis
+\code{cli119} sind nicht zu verwenden.
+
+\textbf{Jetzt.} Jeder Jahresjob traegt die \code{dec}-Regeln weiter mit. Ein erster
+Schritt zaehlt das Startjahr des Laufs jedes Mal neu aus den Eingabedateien und
+zaehlt Dekaden ab diesem Jahr. Die Regel schreibt nur in dem Jahr, das eine Dekade
+schliesst, und liest dann alle zehn Jahre; in jedem anderen Jahr endet sie ohne
+Ausgabe. Fehlt in einer schliessenden Dekade ein Jahr, ist das ein Fehler, kein
+Uebergehen. Eine unvollstaendige letzte Dekade wird nicht geschrieben.
+
+\textbf{Nachgemessen} fuer 1858 und 1859:
+
+\begin{itemize}
+\item 1858: alle neun Regeln enden ohne Ausgabe.
+\item 1859: neun Dateien, \code{time} 1855-01-01, Grenzen 1850-01-01 bis
+  1860-01-01, jeweils zehn Eingabedateien gelesen.
+\item \code{tauuo} an 2000 zufaelligen Zellen gegen das Mittel der 120 Monatswerte:
+  Abweichung $10^{-5}$, also \code{float32}-Genauigkeit. Gegen 1859 allein: 115\,\%.
+\item \code{\#81} in \code{5a4239e}: kein HIGH auf den neun Dateien.
+\end{itemize}
+
+\textbf{Warum ab Laufbeginn und nicht nach Kalenderdekaden.} Weder die CV
+(\code{dec}: \glqq Decadal samples\grqq, Intervall zehn Jahre) noch die CMIP7-Guidance
+legen fest, wo eine Dekade beginnt. \code{\#81} ist es ebenfalls egal, solange die
+Zelle zehn Jahre lang ist: 1850--1860, 1851--1861 und 2024--2034 bestehen,
+2024--2030 und 2040--2046 werden als HIGH gemeldet (\glqq does not match regular
+10-year cells\grqq). In \code{/pool/data/CMIP6} ist es uneinheitlich: AWI-CM-1-1-MR
+und AWI-ESM-1-1-LR zaehlen 1851--1860 und lassen angebrochene Dekaden weg,
+IPSL-CM6A-LR nimmt fuer \code{historical} 1850--1859, fuer \code{ssp585} aber
+Dekaden ab 2015, MIROC6 hat eine Zelle 2010--2014 veroeffentlicht.
+
+\textbf{Zwei Fragen dazu:}
+\begin{enumerate}
+\item Ist es fuer euch in Ordnung, dass eine angebrochene letzte Dekade fehlt, im
+  \code{piControl} also 2040--2045, statt als kuerzere Zelle zu erscheinen?
+\item Sollen Szenarien ihre Dekaden ab Experimentbeginn zaehlen, bei einem Start
+  2024 also 2024--2033, oder nach Kalenderdekaden ab 2030? Ab Beginn geht nichts
+  verloren, nach Kalender liegen \code{historical} und Szenario auf demselben Raster.
+\end{enumerate}
 
 \section{Was uebrig bleibt}
 
@@ -134,6 +189,11 @@ Die QC im Lauf selbst ist gegenueber \code{cli118} unveraendert: cf 0 HIGH, 128
 MEDIUM, \code{wcrp\_cmip7} \code{develop} \code{ba2de16} 42 HIGH und 613 MEDIUM,
 \code{aicc} 1 HIGH. Die Umbenennung kostet also mit den heute veroeffentlichten
 Checkern nichts.
+
+Da keine der QC-Suiten die Werte selbst prueft, laeuft bei uns zusaetzlich ein
+Abgleich jeder Datei mit Literaturbereichen fuer Minimum, Mittel und Maximum. Auf
+\code{cli119} bestehen 307 von 529 Dateien, 169 liegen knapp ausserhalb, 53 deutlich.
+49 der 53 fielen schon im August auf, die Ursachen gehen wir gerade durch.
 
 Die Pruefung mit \code{\#81} lief danach separat ueber alle 529 Dateien, mit dem
 PR-Stand \code{5a4239e} in einem eigenen Checkout, \code{compliance-checker}
