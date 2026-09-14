@@ -17,6 +17,13 @@
 # Knobs (env):
 #   SHARD_SIZE             default 20 (rules per shard upper bound)
 #   SHUFFLE_SEED           default 42 (for reproducibility of the shard split)
+#   EXPERIMENT             metadata profile written into the repointed
+#                          yamls' inherit: block (default piControl, which
+#                          is what the source yamls carry). Use
+#                          EXPERIMENT=historical for a branch-off run --
+#                          otherwise its output is filed and named as
+#                          piControl. repoint_hr_year.py aborts if the run
+#                          directory name disagrees. See EXPERIMENTS there.
 #   TIER                   single tier name; if set, only that tier's
 #                          yaml is submitted (used for smoke tests)
 #   WALLTIME               default 01:00:00
@@ -62,7 +69,11 @@ fi
 # Step 1: repoint yamls into WORKDIR/yamls/
 YAMLS_DIR="$WORKDIR/yamls"
 mkdir -p "$YAMLS_DIR"
-python3 "$HERE/repoint_hr_year.py" "$RUN" "$YEAR" "$YAMLS_DIR"
+# Passed explicitly rather than relying on the inherited environment, so the
+# profile in use is visible in this script and in the job log.
+EXPERIMENT="${EXPERIMENT:-piControl}"
+echo "=== experiment metadata profile: $EXPERIMENT ==="
+python3 "$HERE/repoint_hr_year.py" "$RUN" "$YEAR" "$YAMLS_DIR" "$EXPERIMENT"
 
 # Step 1b: optionally derive gr-grid yamls for FESOM-ingesting tiers.
 # Single source of truth: the gn yaml in the source tree. The gr yaml

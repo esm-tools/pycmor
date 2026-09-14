@@ -353,13 +353,23 @@ def compute_sitimefrac(data, rule):
 
     For accurate sitimefrac, daily or sub-daily siconc is needed.
     With monthly data this is an approximation.
+
+    Missingness is preserved rather than collapsed. `xr.where(data > 0,
+    1.0, 0.0)` alone sends _FillValue down the 0.0 branch, because
+    `NaN > 0` is False -- correct on the FESOM native mesh, where fill
+    only ever means "no ice", but wrong on gr, where land is fill too and
+    would be published as "ice never present" over every continent. The
+    `.where(notnull)` keeps fill as fill; deciding what fill becomes is
+    then the job of a following nan_to_zero step, which generate_gr_yaml
+    swaps for nan_to_zero_over_ocean on gr. Pipelines using this step
+    must therefore include nan_to_zero after it.
     """
-    result = xr.where(data > 0, 1.0, 0.0)
+    result = xr.where(data > 0, 1.0, 0.0).where(data.notnull())
     result.attrs = {
         "units": "1",
         "standard_name": "fraction_of_time_with_sea_ice_area_fraction_above_threshold",
         "long_name": "Fraction of Time Steps with Sea Ice",
-        "processing_note": "Computed from monthly siconc; 1 where siconc>0, 0 otherwise",
+        "processing_note": "Computed from siconc; 1 where siconc>0, 0 where siconc==0 or ice-free",
     }
     result.name = rule.model_variable
     return result
