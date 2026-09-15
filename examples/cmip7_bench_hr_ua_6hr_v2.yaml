@@ -1,0 +1,89 @@
+# Bench v2: explicit dask rechunk before save_dataset.
+#
+# v1 (cmip7_bench_hr_ua_6hr.yaml, job 24674259) showed:
+#   - input is on FESOM unstructured grid (cell=421120), NOT 720x1440 regular
+#   - 17.2 GB raw float32, native NetCDF chunks (1, 2, 421120) → 5840 chunks
+#   - open_mfdataset inherits that chunking → 5840 dask chunks per ua var
+#   - lazy_write=true; entire compute happens during to_netcdf
+#   - peak RSS = 30 GB on a 1-thread serial run, target was <32 GB
+#   - linear-growth memory pattern shows xarray is NOT streaming — it
+#     accumulates the working set in RAM despite chunk-aligned dask graph
+#
+# Hypothesis for v2: collapsing the dask chunks into ~50 chunks of
+# ~340 MB each (time_counter=30, all plev, all cells) lets xarray build
+# a smaller dask graph that fits a streaming write pattern. Output
+# NetCDF chunks will be the new dask chunks (since _encoding_from_dask_chunks
+# mirrors them) — that's a deliberate read-amplification tradeoff: this
+# bench is about WRITE peak memory, not later read perf.
+#
+# Submit:
+#   sbatch /work/ab0246/a270092/software/pycmor/examples/run_bench_hr_ua_6hr_v2.sh
+#
+# Success: peak RSS in cgroup_mem_v2.tsv < 20 GB (clearly below v1's 30 GB).
+
+general:
+  name: "hr-ua-6hr-bench-v2"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_threads_per_worker: 1
+  dask_memory_limit: 200GB
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/bench_hr_ua_6hr_v2
+
+pipelines:
+  - name: bench_ua_6hr_pipeline_v2
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/bench_rechunk.py:dask_rechunk
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: ua_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ua_1587-1587\.nc
+    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ua
+    lazy_write: true
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    netcdf_write_scheduler: synchronous
+    # ~50 chunks of ~340 MB each (time=30, plev=7, cell=421120)
+    # load_mfdataset renames time_counter -> time, so rechunk uses 'time'.
+    dask_rechunk:
+      time: 30
+      pressure_levels_7h: -1
+      cell: -1
+    pipelines:
+      - bench_ua_6hr_pipeline_v2

@@ -1,0 +1,52 @@
+# Isolate rlus_1hr (HR 1-hourly upwelling LW radiation) for write-perf
+# iteration. In the full extra_atm HR run this rule took 476 s; the yaml
+# here is a single-rule replica so you can tweak codec/scheduler and
+# re-run in minutes.
+#
+# Run via: sbatch examples/run_verify_rlus_1hr.sh
+# The sbatch wrapper also runs an instrumentation probe (RSS + output
+# file size + CPU sampled once a second) so you see WHERE time goes.
+
+general:
+  name: "verify-rlus-1hr-hr"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+
+inherit:
+  # Same write-perf stack as the production HR yamls after the atm core
+  # rollout: blosc_zstd-3 + shuffle + threaded + BitGroom-5 (code default).
+  # Override here to experiment with speed:
+  #   netcdf_compression_codec: blosc_zstd | zlib | zstd | blosc_lz4 | ...
+  #   netcdf_compression_level: 1-9
+  #   netcdf_write_scheduler: threads | synchronous
+  #   netcdf_quantize_mode: BitGroom | BitRound | GranularBR | null
+  #   netcdf_significant_digits: 3-7
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/HR_test_01/outdata/oifs
+  source_id: AWI-ESM-3
+  institution_id: AWI
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/verify_rlus_1hr
+
+rules:
+  - name: rlus_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rlus_.*\.nc
+    compound_name: atmos.rlus.tavg-u-hxy-u.1hr.glb
+    model_variable: rlus

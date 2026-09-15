@@ -1,0 +1,342 @@
+# CMIP7 CAP7 Ocean Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_CAP7_variables_ocean.csv
+#
+# 3 new rules — 26 of 43 variables are already in core/lrcs,
+# 14 blocked (no physics, basin masks, or further namelist changes needed).
+# See cmip7_cap7_ocean_todo.md for full variable tracking.
+
+general:
+  name: "awiesm3-cmip7-cap7-ocean"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Square a field (reuse pattern from lrcs_ocean square_pipeline)
+  - name: square_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_square
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Scale by constant (m/s → kg m-2 s-1 via ×1000)
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Time-varying volcello: hnode (layer thickness) × cell_area
+  - name: volcello_time_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_volcello_time
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Surface extraction from 3D field (uos, vos)
+  - name: surface_extract_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:extract_surface
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx: load grid file, extract variable
+  # Scale by constant then vertically integrate (hfxint, hfyint)
+  - name: scale_and_integrate_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - script://$PYCMOR_HOME/examples/custom_steps.py:vertical_integrate
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Heat transport (W) — utemp/vtemp × ρcp × hnode × edge_length
+  - name: heat_transport_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_heat_transport
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: fx_extract_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g130
+  mesh_path: &mp /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 DARS unstructured mesh (~10 km nominal, 3146761 nodes)"
+  nominal_resolution: "10 km"
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Part 1: Daily tossq — square of sea surface temperature
+  # ============================================================
+  # Input: daily SST from FESOM (sst.fesom.*.nc, daily output)
+  # Pipeline: square daily SST, timeavg is no-op at daily frequency
+
+  - name: tossq_day
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.\d{4}\.nc
+    compound_name: ocean.tossq.tavg-u-hxy-sea.day.glb
+    model_variable: sst
+    squared_units: "degC2"
+    pipelines:
+      - square_pipeline
+
+  # ============================================================
+  # Part 2: Monthly volcello — time-varying ocean cell volume
+  # ============================================================
+  # Input: hnode (layer thickness) from FESOM, monthly averaged
+  # Pipeline: compute volcello from hnode × cell_area
+
+  - name: volcello_mon
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.volcello.tavg-ol-hxy-sea.mon.glb
+    model_variable: hnode
+    lazy_write: true
+    pipelines:
+      - volcello_time_pipeline
+
+  # ============================================================
+  # Part 3: Monthly friver — river water flux
+  # ============================================================
+  # Input: runoff from FESOM (newly enabled in namelist.io)
+  # Units: m/s → kg m-2 s-1 (× 1000)
+
+  - name: friver
+    inputs:
+      - path: *dp
+        pattern: runoff\.fesom\.\d{4}\.nc
+    compound_name: ocean.friver.tavg-u-hxy-sea.mon.glb
+    model_variable: runoff
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  # ============================================================
+  # 3D ocean heat X transport (hfx) — requires ldiag_trflx=.true.
+  # ============================================================
+
+  # hfx — 3D ocean heat X transport (requires ldiag_trflx=.true.)
+  # FESOM outputs utemp = u * T [m/s * degC]; scale by rho_0 * cp = 1025 * 3996 ≈ 4.096e6 → W m-2.
+  - name: hfx
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: utemp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfx.tavg-ol-hxy-sea.mon.glb
+    model_variable: utemp
+    scale_factor: 4095900.0
+    scaled_units: "W"
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    lazy_write: true
+    # Depth-resolved 3D output (~8 GB compressed); 8 concurrent workers
+    # writing to tmpfs would exhaust the 63 GB /tmp budget. Opt this rule
+    # out of staging — accept direct-to-Lustre write with E's timeout +
+    # retry as the safety net. See PLAN_save_dataset_reliability.md §5.
+    netcdf_tmpfs_staging: false
+    pipelines:
+      - heat_transport_pipeline
+
+  - name: hfxint
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: utemp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfx.tavg-u-hxy-sea.mon.glb
+    model_variable: utemp
+    scale_factor: 4095900.0
+    scaled_units: "W"
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    vertical_sum: true
+    pipelines:
+      - heat_transport_pipeline
+
+  - name: hfy
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: vtemp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfy.tavg-ol-hxy-sea.mon.glb
+    model_variable: vtemp
+    scale_factor: 4095900.0
+    scaled_units: "W"
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    lazy_write: true
+    # Depth-resolved 3D output (~8 GB compressed); see hfx for rationale.
+    netcdf_tmpfs_staging: false
+    pipelines:
+      - heat_transport_pipeline
+
+  - name: hfyint
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: vtemp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfy.tavg-u-hxy-sea.mon.glb
+    model_variable: vtemp
+    scale_factor: 4095900.0
+    scaled_units: "W"
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    vertical_sum: true
+    pipelines:
+      - heat_transport_pipeline
+
+  # ============================================================
+  # ============================================================
+  # HARD: 3D salt transport (sfx, sfy)
+  # ============================================================
+
+  # sfx/sfy — 3D salt mass transport
+  # Compute: velocity × salinity × cell cross-section
+  # Requires: unod × salt + dz weighting; complex multi-field pipeline
+  # TODO: implement compute_salt_transport step
+  # - name: sfx
+  #   inputs:
+  #     - path: *dp
+  #       pattern: unod\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.sfx.tavg-ol-hxy-sea.mon.glb
+  #   model_variable: unod
+
+  # - name: sfy
+  #   inputs:
+  #     - path: *dp
+  #       pattern: vnod\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.sfy.tavg-ol-hxy-sea.mon.glb
+  #   model_variable: vnod

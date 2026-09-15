@@ -58,3 +58,38 @@ htmlcov/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# sanity_check report tarballs (too large for git; share via filesystem)
+tools/sanity_check/reports/*.tar.gz
+
+# LaTeX build artifacts (the .tex and .pdf are tracked, the rest is noise)
+*.aux
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
+
+# Run logs: pycmor_report.log, the per-shard logs, SLURM job output.
+# Nothing with this extension is tracked.
+*.log
+
+# Dask scratch and the benchmark sweep logs
+dask-worker-space/
+sweep_logs/
+
+# pyfesom regridding weights, 16M, rebuilt on demand
+MESH_cache/
+
+# Loose checker output from manual runs. The reports that count are the
+# qc_*.json sidecars next to the data, and those live outside the repo.
+qc_reports/
+
+# Editor and script backups
+*~
+*.orig
+*.bak
+*.bak.*
+*.cli7-backup

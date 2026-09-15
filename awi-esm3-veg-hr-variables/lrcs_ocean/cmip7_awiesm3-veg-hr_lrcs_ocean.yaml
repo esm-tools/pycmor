@@ -1,0 +1,1384 @@
+# CMIP7 LRCS Ocean Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_LRCSextra_variables_ocean.csv
+#
+# Excludes variables already in core_ocean config.
+# See cmip7_lrcs_ocean_variables_todo.md for full variable tracking.
+
+general:
+  name: "awiesm3-cmip7-lrcs-ocean"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Basin-integrated overturning streamfunction (depth space, Sv → kg/s)
+  - name: msftmz_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftmz
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Basin-integrated heat transport. Uses tripyview's edge-crossing
+  # integration (mass-conservative); the previous compute_hfbasin used a
+  # per-element-area approximation that produced ±60 PW (~30x too big).
+  # See tools/sanity_check/reports/hfbasin_research_plan.md.
+  - name: hfbasin_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_hfbasin_tripyview
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Basin-integrated salt transport — same edge-crossing fix as hfbasin
+  # (see hfbasin_pipeline). The previous compute_sltbasin used the
+  # per-element-area approximation that produced ±45 GgN/s (~45x too big).
+  - name: sltbasin_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sltbasin_tripyview
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Square a field (tossq, sossq, zossq, mlotstsq)
+  - name: square_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_square
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Generic scaling (multiply by constant, e.g. fw × rho_water)
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Extract bottom-of-column from 3D field (tob, sob)
+  - name: bottom_extract_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:extract_bottom
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Barotropic mass streamfunction from SSH (msftbarot)
+  # workflow_backend: native bypasses Prefect task caching to avoid cache
+  # collision with surface_pressure_pipeline (both load ssh.fesom.*.nc)
+  - name: msftbarot_pipeline
+    workflow_backend: native
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftbarot
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Compute surface pressure from SSH (pso)
+  - name: surface_pressure_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_surface_pressure
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Vertical integration + post-multiply by a physical-constant prefactor.
+  # vertical_integrate emits the bare ∫(field*dz); scale_by_constant then
+  # applies the rho_0-family factor declared on each rule (scale_factor),
+  # overriding the units string to the CMIP target (scaled_units). Used by
+  # phcint (J m-2 via rho_0*c_p), scint (kg m-2 via rho_0*1e-3),
+  # opottempmint (degC kg m-2 via rho_0), and somint (g m-2 via rho_0).
+  # Wie ocean_vertical_integration_pipeline, aber schichtweise statt ueber die
+  # ganze Saeule. Fuer die drei oplayer4-Variablen scint, phcint und absscint,
+  # die vier Integrale pro Zelle wollen und nicht eines. Siehe
+  # integrate_over_pressure_layers in custom_steps.py.
+  - name: ocean_oplayer4_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_pressure_layers
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: ocean_vertical_integration_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:vertical_integrate
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Static volcello from mesh: cell_area × layer_thickness
+  - name: volcello_fx_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_volcello_fx
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Time-varying volcello: hnode × cell_area
+  - name: volcello_time_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_volcello_time
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Surface extraction from 3D field (uos, vos)
+  - name: surface_extract_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:extract_surface
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: surface_2d_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Like surface_2d_pipeline but replaces NaN with 0 only where the source
+  # field is masked (e.g. FESOM emits all-fill `relaxsalt` when SSS
+  # restoring is off). Real values pass through unchanged, so this stays
+  # a useful sanity check if restoring is enabled later.
+  - name: nan_to_zero_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # As nan_to_zero_pipeline but with a scale_by_constant step after the
+  # NaN replacement, for variables whose source unit differs from the
+  # CMIP target by a scalar factor (e.g. vsfcorr: m s-1 psu * 1.025
+  # -> kg m-2 s-1). Rule must set scale_factor + scaled_units.
+  - name: nan_to_zero_scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Scale by constant then vertically integrate (hfx_int_day, hfy_int_day)
+  - name: scale_and_integrate_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - script://$PYCMOR_HOME/examples/custom_steps.py:vertical_integrate
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # 3D salt mass transport (sfx, sfy): velocity × salt × rho_0 × dz
+  - name: salt_transport_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_salt_transport
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # 2D vertically integrated salt mass transport (sfx_int, sfy_int)
+  - name: salt_transport_integrated_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_salt_transport_integrated
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Meridional overturning in density space (resolved + parameterized).
+  # Direct binning of std_dens_DIV (resolved) with std_dens_DIVbolus added
+  # if present in data_path. No tripyview dependency.
+  - name: msftm_density_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftm_density
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # MOC due to parameterized mesoscale advection — depth-space.
+  # Reuses the calc_zmoc flow on FESOM's vertical bolus velocity bolus_w.
+  - name: msftmmpa_depth_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftmmpa_depth
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # MOC due to parameterized mesoscale advection — density-space.
+  # Direct binning of std_dens_DIVbolus.
+  - name: msftmmpa_density_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftmmpa_density
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx: load grid file, extract variable
+  - name: fx_extract_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Decadal copies: decadal_gate first. Each yearly job carries these rules;
+  # they only write in the year that closes a decade counted from the run's
+  # first year, and then read all ten years. See std_lib/decadal.py.
+  - name: decadal_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: decadal_scale_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: decadal_volcello_time_pipeline
+    steps:
+      - pycmor.std_lib.decadal.decadal_gate
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_volcello_time
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  # Serialise save_dataset across the tier: cli62 lrcs_ocean_gr_1
+  # wedged with 8 parallel saves stuck at heartbeat #17 fighting the
+  # HDF5 global write lock. Same fix already applied on core_atm,
+  # lrcs_seaice, veg_land, core/cap7/veg seaice tiers. Submitter sets
+  # PYCMOR_THROTTLE_CAPS=lrcs_ocean_serial:1 — gr variants inherit it
+  # through generate_gr_yaml.py preserving the inherit block.
+  throttle_group: lrcs_ocean_serial
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g130
+  mesh_path: &mp /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  basin_mask_file: /work/ab0246/a270092/input/fesom2/dars2/basin_mask.nc
+  grid: "FESOM 2.7 DARS unstructured mesh (~10 km nominal, 3146761 nodes)"
+  nominal_resolution: "10 km"
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # EASY: Direct mapping from ldiag_cmor or existing namelist.io
+  # ============================================================
+
+  # pbo — sea water pressure at sea floor (from ldiag_cmor=.true.)
+  - name: pbo
+    inputs:
+      - path: *dp
+        pattern: pbo\.fesom\.\d{4}\.nc
+    compound_name: ocean.pbo.tavg-u-hxy-sea.mon.glb
+    model_variable: pbo
+
+  # volo — sea water volume (from ldiag_cmor=.true., global scalar)
+  - name: volo
+    inputs:
+      - path: *dp
+        pattern: volo\.fesom\.\d{4}\.nc
+    compound_name: ocean.volo.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: volo
+
+  # tos_ga — global average sea surface temperature (thetaoga from ldiag_cmor)
+  - name: tos_ga
+    inputs:
+      - path: *dp
+        pattern: thetaoga\.fesom\.\d{4}\.nc
+    compound_name: ocean.tos.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: thetaoga
+
+  # sos_ga — global average sea surface salinity (soga from ldiag_cmor)
+  - name: sos_ga
+    inputs:
+      - path: *dp
+        pattern: soga\.fesom\.\d{4}\.nc
+    compound_name: ocean.sos.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: soga
+
+  # thetao_ga — global average potential temperature (per level, from ldiag_cmor)
+  # NOTE: ldiag_cmor outputs thetaoga as a scalar, not per-level.
+  # The per-level profile requires a volume-weighted average pipeline.
+  # Using the scalar version for now.
+  - name: thetao_ga
+    inputs:
+      - path: *dp
+        pattern: thetaoga\.fesom\.\d{4}\.nc
+    compound_name: ocean.thetao.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: thetaoga
+
+  # so_ga — global mean salinity (scalar from ldiag_cmor)
+  - name: so_ga
+    inputs:
+      - path: *dp
+        pattern: soga\.fesom\.\d{4}\.nc
+    compound_name: ocean.so.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: soga
+
+  # obvfsq — Brunt-Vaisala frequency squared (N2 from namelist.io)
+  - name: obvfsq
+    inputs:
+      - path: *dp
+        pattern: N2\.fesom\.\d{4}\.nc
+    compound_name: ocean.obvfsq.tavg-ol-hxy-sea.mon.glb
+    model_variable: N2
+    lazy_write: true
+
+  # wfo — water flux into sea water (fw × rho_water)
+  - name: wfo
+    inputs:
+      - path: *dp
+        pattern: fw\.fesom\.\d{4}\.nc
+    compound_name: ocean.wfo.tavg-u-hxy-sea.mon.glb
+    model_variable: fw
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  # vsf — virtual salt flux into sea water (virtsalt from namelist.io)
+  - name: vsf
+    inputs:
+      - path: *dp
+        pattern: virtsalt\.fesom\.\d{4}\.nc
+    compound_name: ocean.vsf.tavg-u-hxy-sea.mon.glb
+    model_variable: virtsalt
+    model_unit: "kg m-2 s-1"
+
+  # ============================================================
+  # Evaporation and salt flux correction
+  # ============================================================
+
+  # evspsbl — evaporation over ice-free ocean (evap × rho_water)
+  - name: evspsbl
+    inputs:
+      - path: *dp
+        pattern: evap\.fesom\.\d{4}\.nc
+    compound_name: ocean.evspsbl.tavg-u-hxy-ifs.mon.glb
+    model_variable: evap
+    scale_factor: -1000.0  # FESOM evap is negative-up; CMIP7 evspsbl positive=upward
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+    # NOTE: FESOM evap is total evaporation, not ice-free-only.
+    # May need masking by (1 - siconc) if CMIP requires ice-free fraction only.
+
+  # vsfcorr — virtual salt flux correction (relaxsalt)
+  #
+  # CMIP7 documents this variable as: "It is set to zero in models which
+  # receive a real water flux." AWI-CM is such a model (`surf_relax_s = 0`
+  # in namelist.tra), so FESOM doesn't actually write data to the
+  # relaxsalt stream — the source file is all _FillValue. We replace
+  # NaN with 0 to comply with the CMIP convention. If SSS restoring is
+  # ever enabled (`surf_relax_s != 0`), real values pass through.
+  #
+  # Unit conversion: source is `m s-1 psu` (velocity × salinity-as-
+  # per-mille); registry wants `kg m-2 s-1` (mass flux). The conversion
+  # is m/s × g/kg × ρ₀ (1025 kg/m³) = 1.025 kg/m²/s. The 1e-3 prefix on
+  # psu cancels the 1000 g/kg in seawater density. nan_to_zero_scale_pipeline
+  # adds scale_by_constant after nan_to_zero so the multiplication runs on
+  # the now-zeroed array.
+  - name: vsfcorr
+    inputs:
+      - path: *dp
+        pattern: relaxsalt\.fesom\.\d{4}\.nc
+    compound_name: ocean.vsfcorr.tavg-u-hxy-sea.mon.glb
+    model_variable: relaxsalt
+    scale_factor: 1.025
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - nan_to_zero_scale_pipeline
+
+  # ============================================================
+  # Daily fields
+  # ============================================================
+
+  - name: mlotst_day
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tavg-u-hxy-sea.day.glb
+    model_variable: MLD3
+    scale_factor: -1.0  # FESOM MLD3 is negative depth; CMIP7 mlotst is positive-down
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+
+  - name: uos
+    inputs:
+      - path: *dp
+        pattern: unod_sfc\.fesom\.\d{4}\.nc
+    compound_name: ocean.uos.tavg-u-hxy-sea.day.glb
+    model_variable: unod_sfc
+    lazy_write: true
+    pipelines:
+      - surface_2d_pipeline
+
+  - name: vos
+    inputs:
+      - path: *dp
+        pattern: vnod_sfc\.fesom\.\d{4}\.nc
+    compound_name: ocean.vos.tavg-u-hxy-sea.day.glb
+    model_variable: vnod_sfc
+    lazy_write: true
+    pipelines:
+      - surface_2d_pipeline
+
+  # DEACTIVATED 2026-05-07 — vertical_integrate produces W/m (depth-integrated
+  # heat flux per unit along-transect length); CMIP hfx/hfy require W (full
+  # along-transect integral), which the current scale_and_integrate_pipeline
+  # does not produce. Reinstate by adding compute_hfx_horizontal_integral;
+  # see DESIGN_PROPOSAL_recipe_failures_post_cli.md §3.3 for full analysis
+  # (drop vs. add-step vs. reassign-CMIP-target tradeoffs).
+  #
+  # hfx_int_day — daily vertically integrated ocean heat X transport
+  # Same approach as monthly hfxint in cap7_ocean: utemp × rho_0*cp then integrate over depth.
+  # Requires: ldiag_trflx=.true. and utemp at daily frequency in namelist.io
+  # (single stream shared with monthly hfx/hfxint rules; pycmor timeavgs daily → monthly).
+  # WARNING: full 3D daily utemp on DARS (3.1M nodes × 47 levels) is very large.
+  # - name: hfx_int_day
+  #   inputs:
+  #     - path: *dp
+  #       pattern: utemp\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.hfx.tavg-u-hxy-sea.day.glb
+  #   model_variable: utemp
+  #   scale_factor: 4095900.0
+  #   scaled_units: "W m-2"
+  #   lazy_write: true
+  #   pipelines:
+  #     - scale_and_integrate_pipeline
+
+  # hfy_int_day — daily vertically integrated ocean heat Y transport
+  # Same approach as monthly hfyint: vtemp × rho_0*cp then integrate over depth.
+  # Requires: ldiag_trflx=.true. and vtemp at daily frequency in namelist.io.
+  # DEACTIVATED 2026-05-07 with hfx_int_day (same CMIP-target-unit conflict).
+  # - name: hfy_int_day
+  #   inputs:
+  #     - path: *dp
+  #       pattern: vtemp\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.hfy.tavg-u-hxy-sea.day.glb
+  #   model_variable: vtemp
+  #   scale_factor: 4095900.0
+  #   scaled_units: "W m-2"
+  #   lazy_write: true
+  #   pipelines:
+  #     - scale_and_integrate_pipeline
+
+  # ============================================================
+  # EASY: Squaring steps (tossq, sossq, zossq, mlotstsq)
+  # ============================================================
+
+  - name: tossq
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.\d{4}\.nc
+    compound_name: ocean.tossq.tavg-u-hxy-sea.mon.glb
+    model_variable: sst
+    squared_units: "degC2"
+    pipelines:
+      - square_pipeline
+
+  - name: sossq
+    inputs:
+      - path: *dp
+        pattern: sss\.fesom\.\d{4}\.nc
+    compound_name: ocean.sossq.tavg-u-hxy-sea.mon.glb
+    model_variable: sss
+    squared_units: "1E-06"
+    pipelines:
+      - square_pipeline
+
+  - name: zossq
+    inputs:
+      - path: *dp
+        pattern: ssh\.fesom\.\d{4}\.nc
+    compound_name: ocean.zossq.tavg-u-hxy-sea.mon.glb
+    model_variable: ssh
+    squared_units: "m2"
+    pipelines:
+      - square_pipeline
+
+  - name: mlotstsq
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotstsq.tavg-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    squared_units: "m2"
+    pipelines:
+      - square_pipeline
+
+  # ============================================================
+  # MEDIUM: Bottom extraction (tob, sob)
+  # ============================================================
+
+  - name: tob
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.tob.tavg-u-hxy-sea.mon.glb
+    model_variable: temp
+    lazy_write: true
+    pipelines:
+      - bottom_extract_pipeline
+
+  - name: sob
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sob.tavg-u-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+    pipelines:
+      - bottom_extract_pipeline
+
+  # ============================================================
+  # MEDIUM: Computed from existing output
+  # ============================================================
+
+  # pso — surface pressure from SSH
+  - name: pso
+    inputs:
+      - path: *dp
+        pattern: ssh\.fesom\.\d{4}\.nc
+    compound_name: ocean.pso.tavg-u-hxy-sea.mon.glb
+    model_variable: ssh
+    reference_density: 1025.0
+    pipelines:
+      - surface_pressure_pipeline
+
+  # masso — global sea water mass (rho_0 × volo)
+  # Approximation: masso = rho_0 × volo (Boussinesq)
+  - name: masso
+    inputs:
+      - path: *dp
+        pattern: volo\.fesom\.\d{4}\.nc
+    compound_name: ocean.masso.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: volo
+    scale_factor: 1025.0
+    scaled_units: "kg"
+    pipelines:
+      - scale_pipeline
+
+  # phcint — integrated ocean heat content from potential temperature
+  # Depth-integrated ocean heat content (J m-2) = rho_0 * c_p * integral(T*dz).
+  # vertical_integrate produces T(K) * H(m); scale_by_constant then multiplies
+  # by rho_0 * c_p = 1027 * 3990 = 4.097e+6 J K-1 m-3 to land in J m-2. The
+  # integration_attrs.units is "K m" because that's what vertical_integrate
+  # actually emits before the scale; scaled_units overrides to "J m-2".
+  - name: phcint
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.phcint.tavg-op4-hxy-sea.mon.glb
+    model_variable: temp
+    lazy_write: true
+    scale_factor: 4097273.0      # rho_0 * c_p = 1027 kg m-3 * 3990 J kg-1 K-1
+    scaled_units: "J m-2"
+    integration_attrs:
+      long_name: "Depth integrated ocean heat content from potential temperature"
+      standard_name: "integral_wrt_depth_of_product_of_sea_water_density_and_potential_temperature"
+      units: "K m"             # vertical_integrate output; scale_by_constant overrides to scaled_units
+    pipelines:
+      - ocean_oplayer4_pipeline
+
+  # scint = depth-integrated salt mass content (kg m-2).
+  # vertical_integrate emits ∫(salt[psu] * dz) numerically ≈ 34.5 * column_depth.
+  # FESOM salt units are "1e-3" (psu = g/kg), so the dimensionless factor needed
+  # to convert psu·m to kg/m² is rho_0 * 1e-3 = 1.027 kg m-3.
+  - name: scint
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.scint.tavg-op4-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    scaled_units: "kg m-2"
+    integration_attrs:
+      long_name: "Integral wrt depth of seawater practical salinity expressed as salt mass content"
+      standard_name: "integral_wrt_depth_of_sea_water_practical_salinity_expressed_as_salt_mass_content"
+      units: "1e-3 m"            # raw integrate of (psu * dz); scale brings to kg m-2
+    pipelines:
+      - ocean_oplayer4_pipeline
+
+  # opottempmint = depth integral of rho_0 * potential temperature (degC kg m-2).
+  # vertical_integrate emits ∫(T[degC] * dz); multiply by rho_0 to get degC*kg*m-2.
+  - name: opottempmint
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.opottempmint.tavg-u-hxy-sea.yr.glb
+    model_variable: temp
+    lazy_write: true
+    scale_factor: 1027.0         # rho_0, kg m-3
+    scaled_units: "degC kg m-2"
+    integration_attrs:
+      long_name: "Depth integral of product of sea water density and potential temperature"
+      standard_name: "integral_wrt_depth_of_product_of_sea_water_density_and_potential_temperature"
+      units: "degC m"            # raw integrate; scale brings to degC kg m-2
+    pipelines:
+      - ocean_vertical_integration_pipeline
+
+  # somint = depth integral of rho_0 * salinity (g m-2).
+  # vertical_integrate emits ∫(salt[psu] * dz). With psu == 1e-3 (g/kg) and target
+  # in g/m², factor = rho_0 = 1027 kg/m³ (the 1e-3 prefix on psu cancels the
+  # 1000 needed to convert kg-of-salt to g-of-salt — net: just rho_0).
+  - name: somint
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.somint.tavg-u-hxy-sea.yr.glb
+    model_variable: salt
+    lazy_write: true
+    scale_factor: 1027.0         # rho_0; the 1e-3 prefix on psu cancels the 1000 g/kg
+    scaled_units: "g m-2"
+    integration_attrs:
+      long_name: "Integral wrt depth of product of sea water density and salinity"
+      standard_name: "integral_wrt_depth_of_product_of_sea_water_density_and_salinity"
+      units: "1e-3 m"            # raw integrate; scale brings to g m-2
+    pipelines:
+      - ocean_vertical_integration_pipeline
+
+  # volcello (fx) — static ocean grid-cell volume
+  # cell_area × layer_thickness from mesh
+  - name: volcello_fx
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.volcello.ti-ol-hxy-sea.fx.glb
+    model_variable: volcello
+    lazy_write: true
+    pipelines:
+      - volcello_fx_pipeline
+
+  # ============================================================
+  # MEDIUM: Yearly mixing/diffusivity (Oyr)
+  # ============================================================
+
+  # difvho — vertical heat diffusivity (Kv from namelist.io)
+  # FESOM uses same Kv for heat and salt
+  - name: difvho
+    inputs:
+      - path: *dp
+        pattern: Kv\.fesom\.\d{4}\.nc
+    compound_name: ocean.difvho.tavg-ol-hxy-sea.yr.glb
+    model_variable: Kv
+    lazy_write: true
+    # NOTE: monthly data, CMIP wants yearly average — needs yearly timeavg
+
+  # difvso — vertical salt diffusivity (same Kv)
+  - name: difvso
+    inputs:
+      - path: *dp
+        pattern: Kv\.fesom\.\d{4}\.nc
+    compound_name: ocean.difvso.tavg-ol-hxy-sea.yr.glb
+    model_variable: Kv
+    lazy_write: true
+
+  # difmxylo — momentum XY Laplacian diffusivity (Av from namelist.io)
+  - name: difmxylo
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: Av\.fesom\.\d{4}\.nc
+    compound_name: ocean.difmxylo.tavg-ol-hxy-sea.yr.glb
+    model_variable: Av
+    lazy_write: true
+
+  # ============================================================
+  # DECADAL: 10-year averages of existing variables
+  # decadal_gate lets each rule write only in the year that closes a decade
+  # counted from the run's first year, over all ten years of input.
+  # ============================================================
+
+  - name: thetao_dec
+    pipelines:
+      - decadal_pipeline
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.thetao.tavg-ol-hxy-sea.dec.glb
+    model_variable: temp
+    lazy_write: true
+    # Depth-resolved 3D output (~1 GB compressed); 8 concurrent staged
+    # writes would consume too much of /tmp's 63 GB budget when this
+    # rule runs alongside hfx_3D / hfy_3D / so_dec. See
+    # PLAN_save_dataset_reliability.md §5.
+    netcdf_tmpfs_staging: false
+
+  - name: so_dec
+    pipelines:
+      - decadal_pipeline
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.so.tavg-ol-hxy-sea.dec.glb
+    model_variable: salt
+    lazy_write: true
+    # Depth-resolved 3D output; see thetao_dec for rationale.
+    netcdf_tmpfs_staging: false
+
+  - name: tauuo_dec
+    pipelines:
+      - decadal_pipeline
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: tx_sur\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauuo.tavg-u-hxy-sea.dec.glb
+    model_variable: tx_sur
+
+  - name: tauvo_dec
+    pipelines:
+      - decadal_pipeline
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: ty_sur\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauvo.tavg-u-hxy-sea.dec.glb
+    model_variable: ty_sur
+
+  - name: thkcello_dec
+    pipelines:
+      - decadal_pipeline
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.thkcello.tavg-ol-hxy-sea.dec.glb
+    model_variable: hnode
+    lazy_write: true
+
+  - name: volo_dec
+    pipelines:
+      - decadal_pipeline
+    inputs:
+      - path: *dp
+        pattern: volo\.fesom\.\d{4}\.nc
+    compound_name: ocean.volo.tavg-u-hm-sea.dec.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: volo
+
+  - name: masscello_dec
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.masscello.tavg-ol-hxy-sea.dec.glb
+    model_variable: hnode
+    scale_factor: 1025.0
+    scaled_units: "kg m-2"
+    lazy_write: true
+    pipelines:
+      - decadal_scale_pipeline
+
+  - name: volcello_dec
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.volcello.tavg-ol-hxy-sea.dec.glb
+    model_variable: hnode
+    lazy_write: true
+    pipelines:
+      - decadal_volcello_time_pipeline
+
+  - name: masso_dec
+    inputs:
+      - path: *dp
+        pattern: volo\.fesom\.\d{4}\.nc
+    compound_name: ocean.masso.tavg-u-hm-sea.dec.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: volo
+    scale_factor: 1025.0
+    scaled_units: "kg"
+    pipelines:
+      - decadal_scale_pipeline
+
+  # ============================================================
+  # Barotropic streamfunction
+  # ============================================================
+
+  # msftbarot — barotropic mass streamfunction
+  # Geostrophic SSH approximation: psi = rho_0 * g * H / f * eta
+  # where H is local ocean depth (from mesh) and f is the Coriolis parameter.
+  # NaN is set in the equatorial band where |f| < f_min (~|lat| < 4 deg).
+  - name: msftbarot
+    inputs:
+      - path: *dp
+        pattern: ssh\.fesom\.\d{4}\.nc
+    compound_name: ocean.msftbarot.tavg-u-hxy-sea.mon.glb
+    model_variable: ssh
+    pipelines:
+      - msftbarot_pipeline
+
+  # ============================================================
+  # HARD: Temperature tendency (opottemptend from ldiag_cmor)
+  # ============================================================
+
+  # ============================================================
+  # DEACTIVATED 2026-08-17 — das Modell schreibt diese sechs nicht
+  # dreidimensional, der Data Request verlangt es aber.
+  #
+  # Alle sechs FESOM-Stroeme sind (time, nod2), nachgemessen fuer 1850
+  # und 1851. Verlangt ist (time, lev, ncells) ueber die 56 Ozeanlevel.
+  # Der Kommentar bei osalttend unten sagt es selbst: "column-integrated".
+  # Das ist kein Metadatenproblem, in pycmor ist da nichts zu holen, die
+  # Vertikale fehlt in der Ausgabe.
+  #
+  # rsdoabsorb direkt darunter ist geprueft und bleibt aktiv, der Strom
+  # ist (time, nod2, nz), also in Ordnung.
+  #
+  # Gleiche Klasse wie mrsol und die sistress-Varianten: erst die Stroeme
+  # in esm_tools ergaenzen, dann in einem Lauf mit passenden Daten wieder
+  # aktivieren. Fuer LR sind die 3D-Stroeme in file_def_fesom.xml.j2
+  # ergaenzt, siehe HANDOFF_fesom_3d_tendencies.md.
+  # ============================================================
+
+  # # opottemptend — tendency of potential temperature as heat content
+  # # Available from ldiag_cmor=.true. (already enabled)
+  # - name: opottemptend
+  # inputs:
+  # - path: *dp
+  # pattern: opottemptend\.fesom\.\d{4}\.nc
+  # compound_name: ocean.opottemptend.tavg-ol-hxy-sea.yr.glb
+  # model_variable: opottemptend
+  # lazy_write: true
+  # # NOTE: monthly data, CMIP wants yearly — needs yearly timeavg
+  #
+  # # ============================================================
+  # # NEW FESOM2 DIAGNOSTICS (require source code changes)
+  # # These variables were added to gen_modules_cmor_diag.F90
+  # # ============================================================
+  #
+  # # osalttend — total salinity tendency (column-integrated)
+  # - name: osalttend
+  # inputs:
+  # - path: *dp
+  # pattern: osalttend\.fesom\.\d{4}\.nc
+  # compound_name: ocean.osalttend.tavg-ol-hxy-sea.yr.glb
+  # model_variable: osalttend
+  # model_unit: "kg m-2 s-1"
+  # lazy_write: true
+  #
+  # # opottemprmadvect — temperature tendency from residual mean advection
+  # - name: opottemprmadvect
+  # inputs:
+  # - path: *dp
+  # pattern: opottemprmadvect\.fesom\.\d{4}\.nc
+  # compound_name: ocean.opottemprmadvect.tavg-ol-hxy-sea.yr.glb
+  # model_variable: opottemprmadvect
+  # lazy_write: true
+  #
+  # # opottempdiff — temperature tendency from dianeutral mixing
+  # - name: opottempdiff
+  # inputs:
+  # - path: *dp
+  # pattern: opottempdiff\.fesom\.\d{4}\.nc
+  # compound_name: ocean.opottempdiff.tavg-ol-hxy-sea.yr.glb
+  # model_variable: opottempdiff
+  # lazy_write: true
+  #
+  # # osaltrmadvect — salinity tendency from residual mean advection
+  # - name: osaltrmadvect
+  # inputs:
+  # - path: *dp
+  # pattern: osaltrmadvect\.fesom\.\d{4}\.nc
+  # compound_name: ocean.osaltrmadvect.tavg-ol-hxy-sea.yr.glb
+  # model_variable: osaltrmadvect
+  # model_unit: "kg m-2 s-1"
+  # lazy_write: true
+  #
+  # # osaltdiff — salinity tendency from dianeutral mixing
+  # - name: osaltdiff
+  # inputs:
+  # - path: *dp
+  # pattern: osaltdiff\.fesom\.\d{4}\.nc
+  # compound_name: ocean.osaltdiff.tavg-ol-hxy-sea.yr.glb
+  # model_variable: osaltdiff
+  # model_unit: "kg m-2 s-1"
+  # lazy_write: true
+  #
+  # rsdoabsorb — net rate of absorption of shortwave energy in ocean layer (3D)
+  - name: rsdoabsorb
+    inputs:
+      - path: *dp
+        pattern: rsdoabsorb\.fesom\.\d{4}\.nc
+    compound_name: ocean.rsdoabsorb.tavg-ol-hxy-sea.yr.glb
+    model_variable: rsdoabsorb
+    lazy_write: true
+
+  # ============================================================
+  # Overturning streamfunctions (msftm, msftmmpa)
+  # ============================================================
+
+  # msftm — meridional overturning in density space (resolved + parameterized).
+  # Inputs are the std_dens_*.fesom.YYYY.nc family written by FESOM when
+  # ldiag_dMOC=.true.; the custom step opens them itself, so the rule's
+  # input pattern just needs to match one of the files for rule discovery.
+  - name: msftm_density
+    inputs:
+      - path: *dp
+        pattern: std_dens_DIV\.fesom\.\d{4}\.nc
+    compound_name: ocean.msftm.tavg-rho-hyb-sea.mon.glb
+    # Zonal mean, not on the FESOM mesh: integrated over longitude and over
+    # basins, 180 latitude bands of 1 degree centred on the half degree.
+    # g239 was registered for exactly this on 2026-08-18 (EMD #1293), so
+    # stop inheriting the tier's g130, which claimed the 3146761 nodes.
+    grid_label: g239
+    model_variable: msftm
+    pipelines:
+      - msftm_density_pipeline
+
+  # msftmmpa — MOC due to parameterized mesoscale advection, depth-space.
+  # Uses bolus_w (vertical bolus velocity at nodes) — reuses the calc_zmoc
+  # flow with bolus_w in place of w. Requires fer_gm=.true.
+  # DEACTIVATED: AWI-CM3 HR does not run with fer_gm enabled; bolus_w is
+  # never produced. Re-enable when/if a GM-on HR config exists.
+  # - name: msftmmpa_depth
+  #   inputs:
+  #     - path: *dp
+  #       pattern: bolus_w\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.msftmmpa.tavg-ol-hyb-sea.mon.glb
+  #   model_variable: msftmmpa
+  #   pipelines:
+  #     - msftmmpa_depth_pipeline
+
+  # msftmmpa — MOC due to parameterized mesoscale advection, density-space.
+  # Uses std_dens_DIVbolus from FESOM's online density-class binning.
+  # DEACTIVATED: same reason as msftmmpa_depth — fer_gm off in HR config.
+  # - name: msftmmpa_density
+  #   inputs:
+  #     - path: *dp
+  #       pattern: std_dens_DIVbolus\.fesom\.\d{4}\.nc
+  #   compound_name: ocean.msftmmpa.tavg-rho-hyb-sea.mon.glb
+  #   model_variable: msftmmpa
+  #   pipelines:
+  #     - msftmmpa_density_pipeline
+
+  # ============================================================
+  # HARD: 3D salt transport (sfx, sfy)
+  # ============================================================
+
+  # sfx/sfy — 3D and depth-integrated salt mass transport
+  # sfx = u × S × rho_0 × dz; sfy = v × S × rho_0 × dz
+  # Primary input: unod/vnod. Salinity loaded as secondary field via
+  # salt_path / salt_pattern / salt_variable rule attributes.
+
+  - name: sfx
+    inputs:
+      - path: *dp
+        pattern: unod\.fesom\.\d{4}\.nc
+    compound_name: ocean.sfx.tavg-ol-hxy-sea.mon.glb
+    model_variable: unod
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    reference_density: 1025.0
+    transport_component: x
+    lazy_write: true
+    pipelines:
+      - salt_transport_pipeline
+
+  - name: sfx_int
+    inputs:
+      - path: *dp
+        pattern: unod\.fesom\.\d{4}\.nc
+    compound_name: ocean.sfx.tavg-u-hxy-sea.mon.glb
+    model_variable: unod
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    reference_density: 1025.0
+    transport_component: x
+    lazy_write: true
+    pipelines:
+      - salt_transport_integrated_pipeline
+
+  - name: sfy
+    inputs:
+      - path: *dp
+        pattern: vnod\.fesom\.\d{4}\.nc
+    compound_name: ocean.sfy.tavg-ol-hxy-sea.mon.glb
+    model_variable: vnod
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    reference_density: 1025.0
+    transport_component: y
+    lazy_write: true
+    pipelines:
+      - salt_transport_pipeline
+
+  - name: sfy_int
+    inputs:
+      - path: *dp
+        pattern: vnod\.fesom\.\d{4}\.nc
+    compound_name: ocean.sfy.tavg-u-hxy-sea.mon.glb
+    model_variable: vnod
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    reference_density: 1025.0
+    transport_component: y
+    lazy_write: true
+    pipelines:
+      - salt_transport_integrated_pipeline
+
+  # ============================================================
+  # Basin-integrated overturning / heat / salt transports
+  # (depth-space MOC, basin northward heat and salt transport).
+  # Pipelines use compute_msftmz / compute_hfbasin / compute_sltbasin
+  # in examples/custom_steps.py.
+  # ============================================================
+
+  - name: msftmz
+    inputs:
+      - path: *dp
+        pattern: w\.fesom\.\d{4}\.nc
+    compound_name: ocean.msftm.tavg-ol-hyb-sea.mon.glb
+    # Zonal mean, not on the FESOM mesh: integrated over longitude and over
+    # basins, 180 latitude bands of 1 degree centred on the half degree.
+    # g239 was registered for exactly this on 2026-08-18 (EMD #1293), so
+    # stop inheriting the tier's g130, which claimed the 3146761 nodes.
+    grid_label: g239
+    model_variable: msftmz
+    pipelines:
+      - msftmz_pipeline
+
+  - name: hfbasin
+    inputs:
+      - path: *dp
+        pattern: vtemp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfbasin.tavg-u-hyb-sea.mon.glb
+    # Zonal mean, not on the FESOM mesh: integrated over longitude and over
+    # basins, 180 latitude bands of 1 degree centred on the half degree.
+    # g239 was registered for exactly this on 2026-08-18 (EMD #1293), so
+    # stop inheriting the tier's g130, which claimed the 3146761 nodes.
+    grid_label: g239
+    model_variable: hfbasin
+    # compute_hfbasin_tripyview loads utemp as a secondary input alongside
+    # the primary vtemp; both are needed for the edge-crossing integral.
+    utemp_path: *dp
+    utemp_pattern: utemp\.fesom\.\d{4}\.nc
+    utemp_variable: utemp
+    pipelines:
+      - hfbasin_pipeline
+
+  - name: sltbasin
+    inputs:
+      - path: *dp
+        pattern: vsalt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sltbasin.tavg-u-hyb-sea.mon.glb
+    # Zonal mean, not on the FESOM mesh: integrated over longitude and over
+    # basins, 180 latitude bands of 1 degree centred on the half degree.
+    # g239 was registered for exactly this on 2026-08-18 (EMD #1293), so
+    # stop inheriting the tier's g130, which claimed the 3146761 nodes.
+    grid_label: g239
+    model_variable: sltbasin
+    # compute_sltbasin_tripyview loads usalt as a secondary input alongside
+    # the primary vsalt; both are needed for the edge-crossing integral.
+    usalt_path: *dp
+    usalt_pattern: usalt\.fesom\.\d{4}\.nc
+    usalt_variable: usalt
+    pipelines:
+      - sltbasin_pipeline

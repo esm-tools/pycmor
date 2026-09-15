@@ -61,56 +61,116 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         if "required_global_attributes" in self.cv and self.cv["required_global_attributes"]:
             return self.cv["required_global_attributes"]
 
-        # Fallback to CMIP6-compatible list
+        # Fallback to CMIP6-compatible list, extended with CMIP7 branded-variable globals
         return [
             "Conventions",
             "activity_id",
+            "area_label",
+            "branch_time_in_child",
+            "branch_time_in_parent",
+            "branded_variable",
+            "branding_suffix",
             "creation_date",
             "data_specs_version",
+            "drs_specs",
             "experiment",
             "experiment_id",
             "forcing_index",
             "frequency",
-            "further_info_url",
-            "grid",
             "grid_label",
+            "history",
+            "horizontal_label",
             "initialization_index",
             "institution",
             "institution_id",
             "license",
+            "license_id",
             "mip_era",
             "nominal_resolution",
+            "parent_activity_id",
+            "parent_experiment_id",
+            "parent_mip_era",
+            "parent_source_id",
+            "parent_time_units",
+            "parent_variant_label",
             "physics_index",
             "product",
             "realization_index",
             "realm",
-            "source",
+            "region",
             "source_id",
-            "source_type",
-            "sub_experiment",
-            "sub_experiment_id",
-            "table_id",
+            "temporal_label",
+            "title",
             "tracking_id",
             "variable_id",
             "variant_label",
+            "vertical_label",
         ]
+        # CMIP7 Appendix 2 (Global_Attributes) eliminated the following
+        # CMIP6 global attributes. They are "not forbidden" per the doc
+        # but no longer part of the official CMIP7 standard; we drop them
+        # rather than emit spec-stale metadata:
+        #   branch_method, comment, contact, further_info_url, grid,
+        #   source_type, sub_experiment, sub_experiment_id, table_id
+        # Also dropped: ``source`` — required in CMIP6, now optional in
+        # CMIP7. Our previous value was ``"<source_id> <realm>"`` which
+        # duplicated source_id without adding information. Users who want
+        # a CMIP6-style full-component description can override in the
+        # recipe.
+        # sub_experiment_id is still used internally by subdir_path() to
+        # extend the DRS member_id when non-"none"; the removal here only
+        # affects the on-disk attribute set, not the DRS path.
+
+    #: Attributes the CMIP7 guidance marks "conditionally required", with the
+    #: condition "Parent experiment exists". Written only when the CV gives
+    #: this experiment a parent; omitted entirely otherwise, since an empty
+    #: or zero value would assert a branch that never happened.
+    _PARENT_CONDITIONAL_ATTRS = (
+        "branch_time_in_child",
+        "branch_time_in_parent",
+        "parent_activity_id",
+        "parent_experiment_id",
+        "parent_mip_era",
+        "parent_source_id",
+        "parent_time_units",
+        "parent_variant_label",
+    )
 
     def global_attributes(self) -> dict:
         """Generate all required global attributes for CMIP7"""
+        from ..core.logging import logger
+
         d = {}
+        has_parent = self.has_parent_experiment()
         for key in self.required_global_attributes:
             func = getattr(self, f"get_{key}")
-            d[key] = func()
+            value = func()
+            if key in self._PARENT_CONDITIONAL_ATTRS:
+                if not has_parent:
+                    continue
+                # A parent exists but this attribute was not supplied.
+                # parent_time_units and branch_time_in_parent cannot be
+                # derived, so warn rather than write a placeholder.
+                if value is None or value == "":
+                    logger.warning(
+                        f"global_attributes: {key!r} is required because "
+                        f"{self.rule_dict.get('experiment_id')!r} has parent "
+                        f"{self.get_parent_experiment_id()!r}, but no value was "
+                        f"supplied; set it in the recipe."
+                    )
+                    continue
+            d[key] = value
         return d
 
     def subdir_path(self) -> str:
         """
-        Generate CMIP7 directory structure path.
+        Generate CMIP7 directory structure path (13 components, per WCRP DRS).
 
-        CMIP7 DRS is similar to CMIP6:
-        <mip_era>/<activity_id>/<institution_id>/<source_id>/<experiment_id>/
-        <member_id>/<table_id>/<variable_id>/<grid_label>/<version>
+        <drs_specs>/<mip_era>/<activity>/<institution>/<source>/<experiment>/
+        <variant_label>/<region>/<frequency>/<variable>/<branding_suffix>/
+        <grid_label>/<directory_date>
         """
+        drs_specs = self.get_drs_specs()
         mip_era = self.get_mip_era()
         activity_id = self.get_activity_id()
         institution_id = self.get_institution_id()
@@ -120,12 +180,17 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         sub_experiment_id = self.get_sub_experiment_id()
         if sub_experiment_id != "none":
             member_id = f"{member_id}-{sub_experiment_id}"
-        table_id = self.get_table_id()
+        region = self.get_region() or "glb"
+        frequency = self.get_frequency()
         variable_id = self.get_variable_id()
+        branding_suffix = self.get_branding_suffix() or "unknown"
         grid_label = self.get_grid_label()
-        version = f"v{datetime.datetime.today().strftime('%Y%m%d')}"
-        directory_path = f"{mip_era}/{activity_id}/{institution_id}/{source_id}/{experiment_id}/{member_id}/{table_id}/{variable_id}/{grid_label}/{version}"  # noqa: E501
-        return directory_path
+        directory_date = f"v{datetime.datetime.today().strftime('%Y%m%d')}"
+        return (
+            f"{drs_specs}/{mip_era}/{activity_id}/{institution_id}/{source_id}/"
+            f"{experiment_id}/{member_id}/{region}/{frequency}/{variable_id}/"
+            f"{branding_suffix}/{grid_label}/{directory_date}"
+        )
 
     # ========================================================================
     # Variant label and component extraction
@@ -345,8 +410,23 @@ class CMIP7GlobalAttributes(GlobalAttributes):
             # CMIP7 uses 'description' field
             return exp_data.get("description", experiment_id)
 
-        # Fallback to user-provided or experiment_id
-        return self.rule_dict.get("experiment", experiment_id)
+        # An explicit rule-level value wins over the registry.
+        user = self.rule_dict.get("experiment")
+        if user:
+            return user
+
+        # ``self.cv`` is not populated with the CMIP7 experiment collection in
+        # normal runs, so the branch above rarely fires and we used to fall
+        # back to the bare experiment_id ("piControl"). wcrp ATTR007b compares
+        # this attribute against the registry's description and flagged every
+        # file: 536 MEDIUM findings on a single cli108 year. Resolve it from
+        # esgvoc the same way the parent attributes do.
+        term = self._cv_experiment_term()
+        description = getattr(term, "description", None) if term else None
+        if description:
+            return description
+
+        return experiment_id
 
     def get_activity_id(self):
         """
@@ -454,24 +534,56 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         """
         Get table ID.
 
+        For CMIP7: table_id is not a core concept. We derive it from compound name
+        or return None. The cmip6_table field is only used for backward compatibility.
+
         Priority:
-        1. cmip6_table field from variable metadata (CMIP7 compatibility)
-        2. table_id from rule configuration
-        3. Derive from compound_name if available (CMIP7 standard, useful for CMIP6 too)
+        1. table_id from rule configuration (user override)
+        2. Derive from compound_name if available (CMIP7 standard)
+        3. cmip6_table field from variable metadata (backward compatibility only)
         """
         from ..core.logging import logger
 
-        # Check if drv is a dict or object
+        # Priority 1: User-provided table_id
+        table_id = self.rule_dict.get("table_id", None)
+        if table_id:
+            logger.debug(f"table_id from rule_dict: {table_id}")
+            return table_id
+
+        # Priority 2: Derive from compound_name (CMIP7 native approach)
+        compound_name = self.rule_dict.get("compound_name", None)
+        if compound_name:
+            logger.debug(f"Attempting to derive table_id from compound_name: {compound_name}")
+            parts = compound_name.split(".")
+            logger.debug(f"compound_name split into {len(parts)} parts: {parts}")
+            if len(parts) >= 5:
+                component = parts[0]  # e.g., ocean, atmos
+                frequency = parts[3]  # e.g., mon, day
+
+                # Map component to realm letter
+                realm_map = {
+                    "atmos": "A",
+                    "ocean": "O",
+                    "ocn": "O",
+                    "ocnBgchem": "O",
+                    "seaIce": "SI",
+                    "land": "L",
+                    "landIce": "LI",
+                }
+                realm_letter = realm_map.get(component, component[0].upper())
+                table_id = f"{realm_letter}{frequency}"
+                logger.debug(f"Derived table_id: {table_id} (realm={realm_letter}, freq={frequency})")
+                return table_id
+
+        # Priority 3: Check for cmip6_table (backward compatibility only)
         if isinstance(self.drv, dict):
             table_id = self.drv.get("cmip6_table", None)
         else:
             table_id = getattr(self.drv, "cmip6_table", None)
-        logger.debug(f"table_id from variable metadata (cmip6_table): {table_id}")
 
-        if table_id is None:
-            # Fallback to user-provided
-            table_id = self.rule_dict.get("table_id", None)
-            logger.debug(f"table_id from rule_dict: {table_id}")
+        if table_id:
+            logger.debug(f"table_id from variable metadata (cmip6_table - backward compat): {table_id}")
+            return table_id
 
         # If still not found, try to derive from compound_name (works for both CMIP6 and CMIP7)
         if table_id is None:
@@ -550,9 +662,227 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         return frequency
 
     def get_Conventions(self):
-        """Get CF Conventions version"""
-        # CMIP7 uses CF-1.10 and CMIP-7.0
-        return self.rule_dict.get("Conventions", "CF-1.10 CMIP-7.0")
+        """Get CF Conventions version.
+
+        CMIP7 Conventions CV lists CF versions only (``CF-1.11``, ``CF-1.12``,
+        ``CF-1.13``); the ``CMIP-7.0`` suffix used by CMIP6 is not a CMIP7 term.
+        """
+        return self.rule_dict.get("Conventions", "CF-1.11")
+
+    # ========================================================================
+    # CMIP7 branded-variable attributes (parsed from compound_name)
+    # compound_name format: <realm>.<variable>.<branding_suffix>.<frequency>.<region>
+    # branding_suffix: <temporal>-<vertical>-<horizontal>-<area>
+    # ========================================================================
+
+    def _compound_parts(self):
+        compound_name = self.rule_dict.get("compound_name")
+        if not compound_name:
+            return None
+        parts = compound_name.split(".")
+        if len(parts) < 5:
+            return None
+        return parts
+
+    def _branding_tokens(self):
+        parts = self._compound_parts()
+        if parts is None:
+            return None
+        tokens = parts[2].split("-")
+        if len(tokens) != 4:
+            return None
+        return tokens
+
+    def get_branded_variable(self):
+        # CMIP7 branded_variable CV format: <variable_id>_<branding_suffix>
+        # (e.g. ``sidmassth_tavg-u-hxy-si``). Internal compound_name uses the
+        # dotted 5-part form <realm>.<variable>.<branding_suffix>.<frequency>.<region>;
+        # transform to the DRS form when emitting the global attribute.
+        user = self.rule_dict.get("branded_variable")
+        if user:
+            return user
+        parts = self._compound_parts()
+        if parts is not None:
+            return f"{parts[1]}_{parts[2]}"
+        return self.rule_dict.get("compound_name")
+
+    def get_branding_suffix(self):
+        parts = self._compound_parts()
+        return parts[2] if parts else None
+
+    def get_temporal_label(self):
+        tokens = self._branding_tokens()
+        return tokens[0] if tokens else None
+
+    def get_vertical_label(self):
+        tokens = self._branding_tokens()
+        return tokens[1] if tokens else None
+
+    def get_horizontal_label(self):
+        tokens = self._branding_tokens()
+        return tokens[2] if tokens else None
+
+    def get_area_label(self):
+        tokens = self._branding_tokens()
+        return tokens[3] if tokens else None
+
+    def get_region(self):
+        # CMIP7 region CV preserves case from the compound: simple codes
+        # are lowercase (glb, nh, sh, ...) but latitude-band tokens stay
+        # uppercase (30S-90S, 30N-90N, ...). The data-request corpus
+        # carries the canonical case; lower-casing trips wcrp FILE001
+        # and ATTR004 region CV checks for the uppercase tokens.
+        parts = self._compound_parts()
+        region = parts[4] if parts else self.rule_dict.get("region", "glb")
+        return region
+
+    def get_drs_specs(self):
+        return self.rule_dict.get("drs_specs", "MIP-DRS7")
+
+    def get_license_id(self):
+        return self.rule_dict.get("license_id", "CC-BY-4.0")
+
+    def _cv_experiment_term(self):
+        """Return this experiment's CMIP7 CV term, or None.
+
+        Cached on the instance; the CV lookup walks the whole experiment
+        collection and several parent getters need the same term.
+        """
+        if hasattr(self, "_experiment_term_cache"):
+            return self._experiment_term_cache
+        term = None
+        experiment_id = self.rule_dict.get("experiment_id")
+        if experiment_id:
+            try:
+                from esgvoc.api.projects import get_all_terms_in_collection
+
+                for t in get_all_terms_in_collection("cmip7", "experiment"):
+                    if getattr(t, "drs_name", None) == experiment_id:
+                        term = t
+                        break
+            except Exception:
+                term = None
+        self._experiment_term_cache = term
+        return term
+
+    def has_parent_experiment(self) -> bool:
+        """True when the CMIP7 CV assigns this experiment a parent.
+
+        The parent/branch global attributes are "conditionally required"
+        per the CMIP7 Global Attributes guidance, with the condition given
+        as "Parent experiment exists". The CV is what decides that: the
+        ``experiment`` term for ``piControl`` carries ``parent_experiment:
+        "picontrol-spinup"``, while ``piControl-spinup`` itself carries
+        ``parent_experiment: null`` and so terminates the chain.
+        """
+        return bool(self.get_parent_experiment_id())
+
+    def get_parent_activity_id(self):
+        """Activity of the parent experiment, from the CV unless overridden."""
+        user = self.rule_dict.get("parent_activity_id")
+        if user:
+            return user
+        term = self._cv_experiment_term()
+        parent_activity = getattr(term, "parent_activity", None) if term else None
+        if parent_activity is not None:
+            drs = getattr(parent_activity, "drs_name", None)
+            if drs:
+                return drs
+            # CV stores the bare id ("cmip"); DRS form is upper-case.
+            if isinstance(parent_activity, str) and parent_activity:
+                return parent_activity.upper()
+        return ""
+
+    def get_parent_mip_era(self):
+        """MIP era of the parent run.
+
+        Defaults to this run's own ``mip_era``: a parent from an earlier
+        era is possible but rare, so it has to be set explicitly.
+        """
+        return self.rule_dict.get("parent_mip_era") or self.get_mip_era()
+
+    def get_parent_source_id(self):
+        """Model that produced the parent run, normally the same model."""
+        return self.rule_dict.get("parent_source_id") or self.get_source_id()
+
+    def get_parent_variant_label(self):
+        """Variant label of the parent run.
+
+        Defaults to this run's own ``variant_label``. That is right for a
+        straight continuation off a single unbranched parent; set it
+        explicitly if the parent used a different variant.
+        """
+        return self.rule_dict.get("parent_variant_label") or self.get_variant_label()
+
+    def get_parent_time_units(self):
+        """Time units as recorded in the parent run.
+
+        Cannot be derived: it is a property of the parent simulation's own
+        time axis, which this run has no access to. Must be supplied in
+        the recipe when the experiment has a parent, e.g.
+        ``parent_time_units: "days since 1350-01-01"``.
+        """
+        return self.rule_dict.get("parent_time_units") or ""
+
+    def get_branch_time_in_parent(self):
+        """Branch time expressed in the parent's time units and time model.
+
+        Cannot be derived; supply ``branch_time_in_parent`` in the recipe
+        alongside ``parent_time_units``.
+        """
+        value = self.rule_dict.get("branch_time_in_parent")
+        if value is None or value == "":
+            return None
+        return float(value)
+
+    def get_branch_time_in_child(self):
+        """Branch time expressed in this run's time units and time model.
+
+        Defaults to 0.0, which is correct whenever the child begins at the
+        branch point (the usual case, and true for piControl off its
+        spinup). This is only meaningful because the pipeline now carries
+        one time epoch for the whole dataset; see the note in
+        ``std_lib.timeaverage.timeavg`` about the per-file epochs that
+        previously made a bare 0.0 ambiguous.
+        """
+        value = self.rule_dict.get("branch_time_in_child", 0.0)
+        if value is None or value == "":
+            return None
+        return float(value)
+
+    def get_parent_experiment_id(self):
+        # CMIP7 experiment CV assigns each experiment its parent; the CMIP6
+        # sentinel "no parent" is not a valid CMIP7 value. If the user supplied
+        # "no parent" (or left it unset), look up the parent from the CV.
+        user = self.rule_dict.get("parent_experiment_id")
+        if user and user.strip().lower() not in ("no parent", "none", ""):
+            return user
+        experiment_id = self.rule_dict.get("experiment_id")
+        if experiment_id:
+            try:
+                from esgvoc.api.projects import get_all_terms_in_collection
+
+                for term in get_all_terms_in_collection("cmip7", "experiment"):
+                    if getattr(term, "drs_name", None) == experiment_id:
+                        parent = getattr(term, "parent_experiment", None)
+                        if parent is not None:
+                            return getattr(parent, "drs_name", "") or ""
+                        return ""
+            except Exception:
+                pass
+        return user or ""
+
+    def get_title(self):
+        user = self.rule_dict.get("title")
+        if user:
+            return user
+        return f"{self.get_source_id()} output prepared for CMIP7"
+
+    def get_history(self):
+        user = self.rule_dict.get("history")
+        if user:
+            return user
+        return f"{self.rule_dict.get('creation_date','')}: pycmor CMIP7 rewrite"
 
     def get_product(self):
         """Get product type"""
@@ -566,26 +896,40 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         return self.rule_dict.get("product", "model-output")
 
     def get_data_specs_version(self):
-        """Get data specifications version"""
-        # This could come from the CMIP7 data request version
-        # Check if drv has version info
+        """Get data specifications version.
+
+        Priority: user override → drv version → parse from CMIP7_DReq_metadata path
+        (e.g. '/…/v1.2.2.2/metadata.json' → '1.2.2.2') → '1.0.0'.
+        """
+        user = self.rule_dict.get("data_specs_version")
+        if user:
+            return str(user)
         if isinstance(self.drv, dict):
             version = self.drv.get("dreq content version", None)
         else:
             version = getattr(self.drv, "version", None)
-
         if version:
             return str(version)
-
-        # Fallback to user-provided or default
-        return self.rule_dict.get("data_specs_version", "1.0.0")
+        dreq_path = self.rule_dict.get("CMIP7_DReq_metadata") or self.rule_dict.get("general", {}).get(
+            "CMIP7_DReq_metadata"
+        )
+        if dreq_path:
+            m = re.search(r"/v(\d+(?:\.\d+)+)/", str(dreq_path))
+            if m:
+                return f"MIP-DS7.{m.group(1)}"
+        return "MIP-DS7.1.0.0"
 
     def get_creation_date(self):
         return self.rule_dict["creation_date"]
 
     def get_tracking_id(self):
-        """Generate a unique tracking ID"""
-        return "hdl:21.14100/" + str(uuid.uuid4())
+        """Generate a unique tracking ID (prefix overridable via rule_dict).
+
+        The CMIP7 tracking_id CV requires the ``hdl:21.14107/<uuid>`` prefix
+        (21.14107, not the 21.14100 handle used in CMIP6).
+        """
+        prefix = self.rule_dict.get("tracking_id_prefix", "hdl:21.14107/")
+        return prefix + str(uuid.uuid4())
 
     def get_variable_id(self):
         return self.rule_dict["cmor_variable"]
@@ -856,13 +1200,57 @@ class CMIP6GlobalAttributes(GlobalAttributes):
         )
 
 
+def _sanitize_attr_value(v):
+    """Replace non-ASCII dashes with ASCII hyphen in string attrs.
+
+    HDF5 / older libhdf5 builds can mis-encode em-dash (U+2014, "—"),
+    en-dash (U+2013, "–"), and figure-dash (U+2012) in attribute strings
+    when the writer's locale disagrees with the reader's. Substitute
+    them here so downstream tools reading with a stricter encoding
+    (e.g. panoply, ncview on older platforms) don't trip.
+    DKRZ review, 2026-06-30.
+    """
+    if not isinstance(v, str):
+        return v
+    return v.translate(str.maketrans({"—": "-", "–": "-", "‒": "-"}))
+
+
 def set_global_attributes(ds, rule):
     """Set global attributes for the dataset"""
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
     global_attrs = rule.ga.global_attributes()
     # Filter out None values -- xarray accepts them in memory but
-    # netCDF serialization rejects non-string/non-numeric attributes
-    global_attrs = {k: v for k, v in global_attrs.items() if v is not None}
+    # netCDF serialization rejects non-string/non-numeric attributes.
+    # Also sanitize non-ASCII dashes in string values.
+    global_attrs = {
+        k: _sanitize_attr_value(v)
+        for k, v in global_attrs.items() if v is not None
+    }
     ds.attrs.update(global_attrs)
     return ds
+
+
+def _collect_external_cell_measures(ds):
+    """Return cell_measures variable names referenced but not present in ``ds``.
+
+    Parses every data variable's ``cell_measures`` attribute (CF format
+    ``"key1: name1 [key2: name2 ...]"``) and returns the set of referenced
+    variable names that do not appear in ``ds`` itself. Typical ocean
+    outputs reference ``areacello`` / ``volcello``; atmos reference
+    ``areacella``; these are shipped as separate fx files.
+    """
+    names: set = set()
+    for var in ds.data_vars:
+        cm = ds[var].attrs.get("cell_measures")
+        if not isinstance(cm, str):
+            continue
+        # "area: areacello volume: volcello" -> ["areacello", "volcello"]
+        tokens = cm.replace(",", " ").split()
+        for i, tok in enumerate(tokens):
+            if tok.endswith(":"):
+                continue
+            if i > 0 and tokens[i - 1].endswith(":"):
+                if tok not in ds.variables:
+                    names.add(tok)
+    return names

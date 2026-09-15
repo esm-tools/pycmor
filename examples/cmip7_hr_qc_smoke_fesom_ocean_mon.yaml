@@ -1,0 +1,85 @@
+# Minimal HR FESOM ocean monthly QC smoke test.
+# Targets the E3 / E4 / E6 fixes from cli69: calendar promoted to
+# proleptic_gregorian, time.units canonicalised to days-since (date-only,
+# no fractional seconds), time dtype forced to float64.
+# Expectation: cf 0/0, wcrp_cmip7 0/0 after commit 8c4ccc08 + 21798bef.
+
+general:
+  name: "cmip7-hr-qc-smoke-fesom-ocean-mon"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ab0246
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  - name: tos_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-piControl/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g130
+  mesh_path: /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 unstructured grid DARS2 (3146761 surface nodes)"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  output_directory: ./cmorized_output_smoke_fesom_ocean_mon
+  year_start: 1850
+  year_end: 1850
+  qc_enabled: true
+  qc_repack: true
+  qc_tests:
+    - cf
+    - wcrp_cmip7
+  qc_criteria: normal
+  qc_fail_on_mandatory: false
+
+rules:
+  - name: tos_mon_smoke
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.1850\.nc
+    compound_name: ocean.tos.tavg-u-hxy-sea.mon.glb
+    model_variable: sst
+    pipelines:
+      - tos_pipeline

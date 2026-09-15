@@ -1,6 +1,7 @@
 import copy
 import getpass
 import os
+import time
 from importlib.resources import files
 from pathlib import Path
 
@@ -27,6 +28,7 @@ except ImportError:
     CMIP7_API_AVAILABLE = False
 from ..std_lib.global_attributes import GlobalAttributes
 from ..std_lib.timeaverage import _frequency_from_approx_interval
+from .skip import RuleSkipped
 from .aux_files import attach_files_to_rule
 from .cluster import CLUSTER_ADAPT_SUPPORT, CLUSTER_MAPPINGS, CLUSTER_SCALE_SUPPORT, DaskContext, set_dashboard_link
 from .config import PycmorConfig, PycmorConfigManager
@@ -44,6 +46,73 @@ from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_SCHEMA, Rule
 DIMENSIONLESS_MAPPING_TABLE = files("pycmor.data").joinpath("dimensionless_mappings.yaml")
 """Path: The dimenionless unit mapping table, used to recreate meaningful units from
 dimensionless fractional values (e.g. 0.001 --> g/kg)"""
+
+
+def _resolve_throttle_caps(pymor_cfg):
+    """Resolve per-throttle-group submission caps from env + yaml.
+
+    Resolution order:
+    1. ``PYCMOR_THROTTLE_CAPS=group1:N1,group2:N2`` env var
+    2. ``throttle_caps`` key in the user yaml ``pymor_cfg`` (a dict)
+    3. defaults to an empty dict — any encountered group falls back
+       to the hardcoded default in the batch maker (cap=2).
+
+    Returns ``{group_name: cap_int}``.
+    """
+    caps = {}
+    if pymor_cfg:
+        yaml_caps = pymor_cfg.get("throttle_caps") if hasattr(pymor_cfg, "get") else None
+        if isinstance(yaml_caps, dict):
+            for k, v in yaml_caps.items():
+                try:
+                    caps[str(k)] = int(v)
+                except (TypeError, ValueError):
+                    continue
+    env_val = os.environ.get("PYCMOR_THROTTLE_CAPS", "")
+    for entry in env_val.split(","):
+        entry = entry.strip()
+        if ":" not in entry:
+            continue
+        k, _, v = entry.partition(":")
+        try:
+            caps[k.strip()] = int(v.strip())
+        except (TypeError, ValueError):
+            continue
+    return caps
+
+
+def _is_transient_compute_error(exc):
+    """Return True if `exc` is a dask/distributed failure that typically
+    recovers on retry. Used by ``_process_rule``'s whole-rule retry loop
+    to decide whether to retry vs. fail fast.
+
+    Transient patterns seen in production:
+      - FutureCancelledError("scheduler-connection-lost"): driver lost
+        connection to its own LocalCluster during finalize (cli30
+        cap7_land_5: 19/20 rules succeeded, 1 failed).
+      - OSError("Timed out trying to connect to tcp://..."): same shape
+        but caught earlier in the stack (cli33 veg_land 1/2/3,
+        cli33 lrcs_land mrsofc).
+      - ConnectionResetError / ConnectionRefusedError from dask comm.
+
+    Lifted from reverted commit fb639fa where it was scoped to
+    ``_safe_to_netcdf``; veg_land's OSError fires above the save call
+    (in ``lpjg_yearly_pipeline``) so we apply it at the rule level.
+    """
+    name = type(exc).__name__
+    if name in ("FutureCancelledError", "CancelledError"):
+        return True
+    msg = str(exc)
+    if "scheduler-connection-lost" in msg:
+        return True
+    if "Timed out trying to connect" in msg:
+        return True
+    if isinstance(exc, (ConnectionError, ConnectionResetError, TimeoutError)):
+        return True
+    # OSError covers many distributed-comm flavours
+    if isinstance(exc, OSError) and ("connect" in msg.lower() or "timed out" in msg.lower()):
+        return True
+    return False
 
 
 class CMORizer:
@@ -211,7 +280,18 @@ class CMORizer:
         logger.info("Setting up dask cluster...")
         cluster_name = self._pymor_cfg("dask_cluster")
         ClusterClass = CLUSTER_MAPPINGS[cluster_name]
-        self._cluster = ClusterClass()
+        cluster_kwargs = {}
+        if cluster_name == "local":
+            n_workers = self._pymor_cfg.get("dask_n_workers", None)
+            if n_workers is not None and str(n_workers) != "None":
+                cluster_kwargs["n_workers"] = int(n_workers)
+            tpw = self._pymor_cfg.get("dask_threads_per_worker", None)
+            if tpw is not None and str(tpw) != "None":
+                cluster_kwargs["threads_per_worker"] = int(tpw)
+            mem = self._pymor_cfg.get("dask_memory_limit", None)
+            if mem is not None and str(mem) != "None":
+                cluster_kwargs["memory_limit"] = mem
+        self._cluster = ClusterClass(**cluster_kwargs)
         set_dashboard_link(self._cluster)
         cluster_scaling_mode = self._pymor_cfg.get("dask_cluster_scaling_mode", "adapt")
         if cluster_scaling_mode == "adapt":
@@ -301,10 +381,22 @@ class CMORizer:
         Creates a DataRequest object from the tables directory using ResourceLocator.
 
         Uses TableLocator with 5-level priority chain to locate tables.
+        For CMIP7, if CMIP7_DReq_metadata is specified, uses that instead.
         """
+        DataRequestClass = self._get_versioned_class(DataRequest)
+
+        # For CMIP7, prefer user-specified metadata file
+        if self.cmor_version == "CMIP7":
+            user_metadata_path = self._general_cfg.get("CMIP7_DReq_metadata")
+            if user_metadata_path:
+                logger.info(f"Using user-specified CMIP7 metadata: {user_metadata_path}")
+                self.data_request = DataRequestClass.from_json_file(user_metadata_path)
+                logger.debug(f"Created DataRequest from {user_metadata_path}")
+                return
+
+        # Fallback to tables directory
         table_dir = self._locate_table_dir()
 
-        DataRequestClass = self._get_versioned_class(DataRequest)
         self.data_request = DataRequestClass.from_directory(table_dir)
         logger.debug(f"Created DataRequest from {table_dir}")
 
@@ -327,7 +419,7 @@ class CMORizer:
             general:
                 cmor_version: CMIP7
                 CMIP7_DReq_metadata: /path/to/metadata.json  # optional
-                CMIP7_DReq_version: v1.2.2.2  # optional
+                CMIP7_DReq_version: v1.2.2.5  # optional
                 cmip7_experiments_file: /path/to/experiments.json  # optional
         """
         from .resource_locator import MetadataLocator
@@ -376,7 +468,12 @@ class CMORizer:
     def _post_init_populate_rules_with_data_request_variables(self):
         logger.debug(f"Data request has {len(self.data_request.variables)} variables")
         for drv in self.data_request.variables.values():
-            rule_for_var = self.find_matching_rule(drv)
+            # Route to CMIP7-specific matching for exact compound name comparison
+            if self.cmor_version == "CMIP7":
+                rule_for_var = self.find_matching_rule_cmip7(drv)
+            else:
+                rule_for_var = self.find_matching_rule(drv)
+
             if rule_for_var is None:
                 continue
             if rule_for_var.data_request_variables == []:
@@ -410,6 +507,7 @@ class CMORizer:
     def _post_init_populate_rules_with_controlled_vocabularies(self):
         for rule in self.rules:
             rule.controlled_vocabularies = self.controlled_vocabularies
+            rule.cmor_version = self.cmor_version
 
     def _post_init_populate_rules_with_aux_files(self):
         """Attaches auxiliary files to the rules"""
@@ -449,9 +547,16 @@ class CMORizer:
     def _match_pipelines_in_rules(self, force=False):
         for rule in self.rules:
             rule.match_pipelines(self.pipelines, force=force)
+            # Ensure all matched pipelines have the cluster assigned
+            if self._cluster is not None:
+                for pl in rule.pipelines:
+                    if getattr(pl, "_cluster", None) is None:
+                        pl.assign_cluster(self._cluster)
 
     def find_matching_rule(self, data_request_variable: DataRequestVariable) -> Rule or None:
         matches = []
+        drv_id = getattr(data_request_variable, "variable_id", "UNKNOWN")
+        logger.debug(f"Looking for rule matching data_request_variable: {drv_id}")
         for rule in self.rules:
             # Determine what to compare: prefer compound_name if available on rule
             compound_name_match = False
@@ -510,6 +615,58 @@ class CMORizer:
             return None
         if len(matches) > 1:
             msg = f"Need only one rule to match to {data_request_variable}. Found {len(matches)}."
+            if self._pymor_cfg.get("raise_on_multiple_rules", True):
+                raise ValueError(msg)
+            else:
+                logger.critical(msg)
+                logger.critical(
+                    """
+                    This should lead to a program crash! Exception due to:
+
+                    >> pymor_cfg['raise_on_multiple_rules'] = False <<
+                    """
+                )
+                logger.warning("Returning the first match.")
+        return matches[0]
+
+    def find_matching_rule_cmip7(self, data_request_variable: DataRequestVariable) -> Rule or None:
+        """Match rules by exact compound name for CMIP7.
+
+        This method compares full CMIP7 compound names without any extraction,
+        preserving branding, frequency, and region information.
+
+        Parameters
+        ----------
+        data_request_variable : DataRequestVariable
+            The CMIP7 data request variable to match.
+
+        Returns
+        -------
+        Rule or None
+            Matched rule or None if no match found.
+        """
+        matches = []
+        drv_compound_name = data_request_variable.variable_id  # Should be full compound name
+        logger.debug(f"Looking for rule matching CMIP7 compound name: {drv_compound_name}")
+
+        for rule in self.rules:
+            if hasattr(rule, "compound_name") and rule.compound_name:
+                # Exact compound name matching for CMIP7
+                if rule.compound_name == drv_compound_name:
+                    logger.debug(f"  Rule '{rule.name}' matches: {rule.compound_name} == {drv_compound_name}")
+                    matches.append(rule)
+                else:
+                    logger.debug(f"  Rule '{rule.name}' does not match: {rule.compound_name} != {drv_compound_name}")
+
+        if len(matches) == 0:
+            msg = f"No rule found for CMIP7 variable {drv_compound_name}"
+            if self._pymor_cfg.get("raise_on_no_rule", False):
+                raise ValueError(msg)
+            elif self._pymor_cfg.get("warn_on_no_rule", False):
+                logger.warning(msg)
+            return None
+        if len(matches) > 1:
+            msg = f"Need only one rule to match to {drv_compound_name}. Found {len(matches)}."
             if self._pymor_cfg.get("raise_on_multiple_rules", True):
                 raise ValueError(msg)
             else:
@@ -596,7 +753,7 @@ class CMORizer:
                 pl = Pipeline.from_dict(p)
                 if self._cluster is not None:
                     pl.assign_cluster(self._cluster)
-                pipelines.append(Pipeline.from_dict(p))
+                pipelines.append(pl)
             else:
                 raise ValueError(f"Invalid pipeline configuration for {p}")
         self.pipelines = pipelines
@@ -621,8 +778,25 @@ class CMORizer:
             rule._pymor_cfg = rule._pycmor_cfg  # For backward compatibility
 
     def _post_init_inherit_rules(self):
+        """Apply ``inherit:`` defaults to rules that do not set the key themselves.
+
+        ``inherit`` is documented as "added to all rules unless the rule
+        overrides", and ``from_dict`` already implements that with
+        ``{**inherit_cfg, **rule}``. This loop then ran over the finished rules
+        and called ``Rule.set``, whose ``force=False`` branch warns and assigns
+        anyway, so every per-rule override of an inherit key was silently
+        replaced by the tier default.
+
+        It was silent in effect but not in the logs: cli110 emitted 26
+        "Attribute grid_label already exists" warnings and shipped 48 files
+        whose grid_label named the wrong grid. Since grid_label is part of the
+        DRS path, two rules that differ only by grid then collide, and one
+        overwrites the other on disk (that is what happened to areacella).
+        """
         for rule_attr, rule_value in self._inherit_cfg.items():
             for rule in self.rules:
+                if hasattr(rule, rule_attr):
+                    continue
                 rule.set(rule_attr, rule_value)
 
     def validate(self):
@@ -858,12 +1032,113 @@ class CMORizer:
         # @flow(task_runner=DaskTaskRunner(address=self._cluster.scheduler_address))
         logger.debug("Defining dynamically generated prefect workflow...")
 
+        # Bound number of rules in flight to W*TPW. The naive
+        # "submit every rule then wait()" path lets every parent fan
+        # out via ``distributed.secede()`` inside save_dataset, with
+        # the scheduler then holding 50-100 concurrent save graphs and
+        # cascading OSError("Timed out trying to connect to scheduler
+        # after 30 s") on cap7_land at ~46 min wall. See
+        # ``DESIGN_PROPOSAL_subflow_deadlock.md`` §10.5.
+        # NOTE: this is the production code path under the current
+        # config-key plumbing (``_pymor_cfg.get('pipeline_orchestrator',
+        # 'prefect')`` in ``parallel_process()`` always falls through
+        # to "prefect" because the schema actually defines
+        # ``pipeline_workflow_orchestrator``; the parallel-dask path
+        # at ``_parallel_process_dask`` has a parallel throttle for
+        # whenever the dispatcher routing is fixed).
+        def _int_or_default(key, default):
+            v = self._pymor_cfg.get(key, default)
+            if v is None or str(v) == "None":
+                return default
+            return int(v)
+
+        n_workers = _int_or_default("dask_n_workers", 1)
+        tpw = _int_or_default("dask_threads_per_worker", 1)
+        max_in_flight = max(1, n_workers * tpw)
+
+        # Per-throttle-group concurrency caps. A pipeline-level
+        # ``throttle_group: <name>`` declaration (see ``Pipeline.__init__``)
+        # joins this group; the group's cap limits how many of its rules
+        # can be in the same submission batch.
+        #
+        # Resolution: PYCMOR_THROTTLE_CAPS env var > inherit yaml
+        # ``throttle_caps`` > default cap of 2 for any encountered group.
+        #
+        # Motivation: lrcs_seaice's 7-rule OIFS-regrid family ran 4 at
+        # once on the driver process, hitting 87 GiB RSS and cascading
+        # rule failures. See FORENSIC_lrcs_seaice_failure.md.
+        throttle_caps = _resolve_throttle_caps(self._pymor_cfg)
+        logger.info(f"Throttle caps (per-group rule submission limit): {throttle_caps or 'none'}")
+
+        def _rule_throttle_group(rule):
+            # Rule-level annotation wins (per-rule override). Falls back
+            # to pipeline-level annotation. This lets unpipelined rules
+            # (no ``pipelines:`` key, default pipeline used) join tier
+            # throttling via ``inherit: throttle_group: <name>``.
+            grp = getattr(rule, "throttle_group", None)
+            if grp:
+                return grp
+            for pl in getattr(rule, "pipelines", None) or []:
+                grp = getattr(pl, "throttle_group", None)
+                if grp:
+                    return grp
+            return None
+
+        def _make_batches(rules):
+            """Yield batches of up to ``max_in_flight`` rules each, with
+            no batch containing more than ``throttle_caps[group]`` rules
+            from the same throttle group (default cap 2 for any
+            encountered group)."""
+            default_cap = 2
+            pending = list(rules)
+            while pending:
+                batch = []
+                group_count = {}
+                remaining = []
+                for rule in pending:
+                    if len(batch) >= max_in_flight:
+                        remaining.append(rule)
+                        continue
+                    grp = _rule_throttle_group(rule)
+                    if grp is not None:
+                        cap = throttle_caps.get(grp, default_cap)
+                        if group_count.get(grp, 0) >= cap:
+                            remaining.append(rule)
+                            continue
+                        group_count[grp] = group_count.get(grp, 0) + 1
+                    batch.append(rule)
+                if not batch:
+                    # Should not happen with sensible caps (cap > 0 and
+                    # at least one rule with no/un-saturated group), but
+                    # guard against infinite loop.
+                    raise RuntimeError(
+                        f"Cannot make progress: {len(pending)} rules deferred "
+                        f"indefinitely. Check throttle caps {throttle_caps} "
+                        f"vs max_in_flight={max_in_flight}."
+                    )
+                yield batch
+                pending = remaining
+
         @flow(name="CMORizer Process")
         def dynamic_flow():
+            rules = list(self.rules)
+            n = len(rules)
+            logger.info(
+                f"Submitting rules in batches of up to {max_in_flight} "
+                f"(n_workers={n_workers} * tpw={tpw}); total rules={n}"
+            )
             rule_results = []
-            for rule in self.rules:
-                rule_results.append(self._process_rule.submit(rule))
-            wait(rule_results)
+            batches = list(_make_batches(rules))
+            for batch_i, batch in enumerate(batches):
+                batch_futures = [self._process_rule.submit(r) for r in batch]
+                wait(batch_futures)
+                rule_results.extend(batch_futures)
+                # Per-batch group counts for visibility under throttling.
+                group_summary = {}
+                for r in batch:
+                    g = _rule_throttle_group(r) or "_unthrottled"
+                    group_summary[g] = group_summary.get(g, 0) + 1
+                logger.info(f"Batch {batch_i + 1}/{len(batches)} done " f"({len(batch)} rules; groups={group_summary})")
             return rule_results
 
         logger.debug("...done!")
@@ -896,26 +1171,140 @@ class CMORizer:
             return unwrapped
 
     def _parallel_process_dask(self, external_client=None):
+        from distributed import as_completed
+
         if external_client:
             client = external_client
         else:
             client = Client(cluster=self._cluster)  # start a local Dask client
-        if wait_for_workers(client, 1):
-            futures = [client.submit(self._process_rule, rule) for rule in self.rules]
-
-            results = client.gather(futures)
-
-            logger.success("Processing completed.")
-            return results
-        else:
+        if not wait_for_workers(client, 1):
             logger.error("Timeout reached waiting for dask cluster, sorry...")
+            return
+
+        # Bound the number of parents in flight to W * TPW. Without this,
+        # the naive ``[client.submit(...) for rule in self.rules]`` list-
+        # comprehension fires every rule simultaneously; once each parent
+        # reaches ``save_dataset`` -> ``to_netcdf`` -> ``dask.compute()``,
+        # ``distributed.secede()`` releases the parent's worker thread
+        # back to the pool, letting dask dispatch the next queued parent.
+        # With N=120+ rules of homogeneous heavy pipelines (cap7_land,
+        # lpjg_monthly_*) the scheduler ends up holding 50-100 concurrent
+        # save graphs; its asyncio loop and TCP accept queue back up,
+        # workers fail to (re-)connect, OSError("Timed out trying to
+        # connect to scheduler after 30 s") cascades. See
+        # ``DESIGN_PROPOSAL_subflow_deadlock.md`` §10.5.
+        # Match the everett config quirk used at line ~216 above:
+        # dask_n_workers / dask_threads_per_worker may come back as None
+        # or the literal string "None" depending on how the yaml parsed.
+        def _int_or_default(key, default):
+            v = self._pymor_cfg.get(key, default)
+            if v is None or str(v) == "None":
+                return default
+            return int(v)
+
+        n_workers = _int_or_default("dask_n_workers", 1)
+        tpw = _int_or_default("dask_threads_per_worker", 1)
+        max_in_flight = max(1, n_workers * tpw)
+        rule_iter = iter(self.rules)
+        futures = []
+        for _ in range(max_in_flight):
+            try:
+                rule = next(rule_iter)
+            except StopIteration:
+                break
+            futures.append(client.submit(self._process_rule, rule))
+        logger.info(
+            f"Submitting rules with rolling window: "
+            f"max_in_flight={max_in_flight} (n_workers={n_workers} * tpw={tpw}); "
+            f"total rules={len(self.rules)}"
+        )
+
+        results = []
+        try:
+            ac = as_completed(futures)
+            for fut in ac:
+                try:
+                    results.append(fut.result())
+                except Exception as exc:
+                    # Per-rule exceptions: log and continue. The behavior
+                    # of the prior ``client.gather(futures)`` was to
+                    # raise the first exception; matching ``return_when``
+                    # semantics here would change ``process()`` callers'
+                    # expectations. Easier to log + collect, preserving
+                    # the rolling-window throughput so a failing tier
+                    # doesn't stall the rest.
+                    logger.error(f"rule future raised: {type(exc).__name__}: {exc}")
+                fut.release()
+                try:
+                    rule = next(rule_iter)
+                except StopIteration:
+                    continue
+                ac.add(client.submit(self._process_rule, rule))
+        finally:
+            # The list ``futures`` holds only the priming wave by now;
+            # the rolling-window submissions live on ``ac``. Both are
+            # released (priming) or already released (rolling) above,
+            # but we still need the worker GC sweep.
+            for f in futures:
+                try:
+                    f.release()
+                except Exception:
+                    pass
+            del futures
+            self._cleanup_dask_workers()
+        logger.success("Processing completed.")
+        return results
 
     def serial_process(self):
-        data = {}
+        succeeded = []
+        failed = {}
         for rule in track(self.rules, description="Processing rules"):
-            data[rule.name] = self._process_rule(rule)
-        logger.success("Processing completed.")
-        return data
+            try:
+                self._process_rule(rule)
+                succeeded.append(rule.name)
+            except Exception as e:
+                logger.error(f"Rule '{rule.name}' failed: {e}")
+                failed[rule.name] = e
+            # Free Dask worker memory between rules to prevent accumulation
+            self._cleanup_dask_workers()
+        if failed:
+            logger.warning(f"{len(failed)} rule(s) failed: {', '.join(failed.keys())}")
+        logger.success(f"Processing completed. {len(succeeded)} succeeded, {len(failed)} failed.")
+        return {name: True for name in succeeded}
+
+    def _cleanup_dask_workers(self):
+        """Release cached Dask task results and trigger GC on workers AND the
+        main process. Threaded-scheduler saves do their compute in main-process
+        threads, so cleaning only the workers misses the dominant source of
+        inter-rule memory accumulation on HR runs."""
+        # Main process cleanup first — this is where threaded-scheduler saves
+        # leak refs (dask graph, xarray Datasets, blosc thread-pool buffers).
+        try:
+            import gc as _gc
+
+            _gc.collect()
+            __import__("ctypes").CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        # Worker-side cleanup (only relevant when compute runs on real workers,
+        # e.g. non-lazy trigger_compute or synchronous save_dataset).
+        if self._cluster is None:
+            return
+        try:
+            client = Client.current()
+        except ValueError:
+            try:
+                client = Client(self._cluster, set_as_default=False)
+            except Exception:
+                return
+        try:
+            import gc as _gc
+
+            client.run(_gc.collect)
+            client.run(lambda: __import__("ctypes").CDLL("libc.so.6").malloc_trim(0))
+            logger.debug("Dask worker memory cleanup completed")
+        except Exception as e:
+            logger.debug(f"Dask worker cleanup skipped: {e}")
 
     @flow
     def check_prefect(self):
@@ -945,14 +1334,52 @@ class CMORizer:
     @staticmethod
     @task(name="Process rule")
     def _process_rule(rule):
-        logger.info(f"Starting to process rule {rule}")
-        data = None
-        if not len(rule.pipelines) > 0:
-            logger.error("No pipeline defined, something is wrong!")
-        for pipeline in rule.pipelines:
-            logger.info(f"Running {str(pipeline)}")
-            data = pipeline.run(data, rule)
-        return data
+        # Whole-rule retry on transient dask/distributed errors.
+        # Why manual loop instead of @task(retries=N): the decorator path
+        # forces Prefect to hash the `rule` argument for retry-state
+        # cache-key computation, which fails (HashError) on Rule objects
+        # and triggered the cli33 regression (atm-tier slowdowns + OOM).
+        # Curated transient list lifted from reverted commit fb639fa;
+        # broader scope (whole pipeline, not just save) catches the
+        # cli33 veg_land OSError that fires from lpjg_yearly_pipeline.
+        max_attempts = int(os.environ.get("PYCMOR_RULE_RETRIES", "3"))
+        rule_name = getattr(rule, "name", "unnamed")
+        for attempt in range(max_attempts):
+            try:
+                logger.info(
+                    f"Starting to process rule {rule}"
+                    + (f" (attempt {attempt+1}/{max_attempts})" if attempt > 0 else "")
+                )
+                data = None
+                if not len(rule.pipelines) > 0:
+                    logger.error("No pipeline defined, something is wrong!")
+                for pipeline in rule.pipelines:
+                    logger.info(f"Running {str(pipeline)}")
+                    data = pipeline.run(data, rule)
+                    if isinstance(data, RuleSkipped):
+                        logger.info(f"Rule {rule_name} ends without output: {data.reason}")
+                        break
+                # Don't ship the final dataset back to the scheduler/driver.
+                # Under parallel/dask orchestration the caller does
+                # client.gather(futures), which deserialises every rule's
+                # return value into the driver process. Even if save_dataset
+                # is the last step and "should" return None, intermediate
+                # paths can leave a Dataset in `data`; with 50+ rules that
+                # accumulates to tens of GB in the driver and OOMs the
+                # cgroup before any worker hits its memory cap. Drop the
+                # reference and return just the rule name so the gather
+                # payload is tiny.
+                del data
+                return rule_name
+            except Exception as exc:
+                if attempt + 1 < max_attempts and _is_transient_compute_error(exc):
+                    logger.warning(
+                        f"Process rule {rule_name}: attempt {attempt+1}/{max_attempts} "
+                        f"hit transient {type(exc).__name__}: {exc}; retrying in 30s"
+                    )
+                    time.sleep(30)
+                    continue
+                raise
 
     def _post_init_create_global_attributes_on_rules(self):
         """Create global attributes on rules using factory pattern."""

@@ -1,0 +1,164 @@
+# CMIP7 CAP7 Sea Ice Variables — Test config with CORE2 mesh
+# Adapted from awi-esm3-veg-hr-variables/cap7_seaice/cmip7_awiesm3-veg-hr_cap7_seaice.yaml
+# Uses low-resolution CORE2 (~100km) for quick testing.
+# 9 rules: 4 daily passthrough, 2 monthly passthrough, 3 monthly scaled
+
+general:
+  name: "awiesm3-cmip7-cap7-seaice-core2-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ba0989
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Scale by constant (m/s → kg m-2 s-1 via ×1000)
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/fesom
+  source_id: AWI-ESM3-VEG-LR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  mesh_path: /work/ab0246/a270092/input/fesom2/core2
+  grid_file: /work/ab0246/a270092/input/fesom2/core2/mesh.nc
+  grid: "FESOM 2.7 unstructured grid CORE2 (126858 surface nodes)"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  output_directory: ./cmorized_output/cap7_seaice_core2_test
+  year_start: 1900
+  year_end: 1901
+
+rules:
+  # ============================================================
+  # Part 1: Daily — direct passthrough from FESOM
+  # ============================================================
+
+  - name: sithick_day
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\..*\.nc
+    compound_name: seaIce.sithick.tavg-u-hxy-si.day.glb
+    model_variable: h_ice
+
+  - name: snd_day
+    inputs:
+      - path: *dp
+        pattern: h_snow\.fesom\..*\.nc
+    compound_name: seaIce.snd.tavg-u-hxy-sn.day.glb
+    model_variable: h_snow
+
+  - name: siu_day
+    inputs:
+      - path: *dp
+        pattern: uice\.fesom\..*\.nc
+    compound_name: seaIce.siu.tavg-u-hxy-si.day.glb
+    model_variable: uice
+
+  - name: siv_day
+    inputs:
+      - path: *dp
+        pattern: vice\.fesom\..*\.nc
+    compound_name: seaIce.siv.tavg-u-hxy-si.day.glb
+    model_variable: vice
+
+  # ============================================================
+  # Part 2: Monthly — direct passthrough or time-averaged
+  # ============================================================
+
+  # sieqthick = m_ice (effective ice thickness = volume per area)
+  - name: sieqthick
+    inputs:
+      - path: *dp
+        pattern: m_ice\.fesom\..*\.nc
+    compound_name: seaIce.sieqthick.tavg-u-hxy-si.mon.glb
+    model_variable: m_ice
+
+  # snw = m_snow (snow mass per area); m → kg m-2 via ×1000 (water density)
+  - name: snw
+    inputs:
+      - path: *dp
+        pattern: m_snow\.fesom\..*\.nc
+    compound_name: seaIce.snw.tavg-u-hxy-si.mon.glb
+    model_variable: m_snow
+    scale_factor: 1000.0
+    scaled_units: "kg m-2"
+    pipelines:
+      - scale_pipeline
+
+  # ============================================================
+  # Part 3: Monthly — precipitation/evaporation (need ×1000 scaling)
+  # ============================================================
+  # FESOM outputs in m/s, CMOR needs kg m-2 s-1 (× rho_water = 1000)
+
+  - name: evspsbl
+    inputs:
+      - path: *dp
+        pattern: evap\.fesom\..*\.nc
+    compound_name: seaIce.evspsbl.tavg-u-hxy-si.mon.glb
+    model_variable: evap
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  - name: prra
+    inputs:
+      - path: *dp
+        pattern: prec\.fesom\..*\.nc
+    compound_name: seaIce.prra.tavg-u-hxy-si.mon.glb
+    model_variable: prec
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  - name: prsn
+    inputs:
+      - path: *dp
+        pattern: snow\.fesom\..*\.nc
+    compound_name: seaIce.prsn.tavg-u-hxy-si.mon.glb
+    model_variable: snow
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline

@@ -373,28 +373,24 @@ class Filecache:
             if len(df) < 2:  # Need at least 2 files for multi-file inference
                 return None
 
-            # Use cached timestamps from start/end instead of re-reading files
-            all_timestamps = []
+            # Use cached timestamps from start/end instead of re-reading files.
+            # Vectorized timestamp parsing — pandas.to_datetime drops into C
+            # and skips the per-row Python overhead of the old iterrows path.
+            # ``errors="coerce"`` mirrors the previous try/except in
+            # vectorized form: bad rows become NaT and get filtered below.
+            starts = pd.to_datetime(df["start"], errors="coerce")
+            ends = pd.to_datetime(df["end"], errors="coerce")
+            steps = df["steps"].values
 
-            for _, row in df.iterrows():
-                try:
-                    # Extract timestamps from cached start/end data
-                    start_ts = pd.Timestamp(row.start)
-                    end_ts = pd.Timestamp(row.end)
+            valid = ~(starts.isna() | ends.isna())
+            starts = starts[valid].values
+            ends = ends[valid].values
+            steps = steps[valid.values]
 
-                    # For files with multiple steps, approximate intermediate timestamps
-                    steps = row.steps
-                    if steps == 1:
-                        all_timestamps.append(start_ts)
-                    elif steps == 2:
-                        all_timestamps.extend([start_ts, end_ts])
-                    else:
-                        # For files with >2 steps, we already have frequency from single-file inference
-                        # Just use start timestamp to represent the file
-                        all_timestamps.append(start_ts)
-
-                except Exception:
-                    continue
+            # steps == 2 contributes both start and end; everything else
+            # contributes start only (the cli7-era behaviour).
+            two_mask = steps == 2
+            all_timestamps = list(starts) + list(ends[two_mask])
 
             if len(all_timestamps) > 2:
                 # Sort all timestamps and infer frequency
@@ -566,8 +562,8 @@ class Filecache:
             df = self.df[self.df.variable == variable]
         if start is None and end is None:
             return df
-        _start = df["start"].apply(pd.Timestamp)
-        _end = df["end"].apply(pd.Timestamp)
+        _start = pd.to_datetime(df["start"])
+        _end = pd.to_datetime(df["end"])
         start = start and pd.Timestamp(start) or _start.min()
         end = end and pd.Timestamp(end) or _end.max()
         df = df[(_start >= start) & (_end <= end)]
@@ -609,13 +605,13 @@ class Filecache:
             df = self.df[self.df.variable == variable]
         if start:
             start_ts = pd.Timestamp(start)
-            _start = df["start"].apply(pd.Timestamp)
+            _start = pd.to_datetime(df["start"])
             is_valid = start_ts >= _start.min()
             if not is_valid:
                 raise ValueError(f"Start date {start} is out-of-bounds. Valid range: {_start.min()} - {_start.max()}")
         if end:
             end_ts = pd.Timestamp(end)
-            _end = df["end"].apply(pd.Timestamp)
+            _end = pd.to_datetime(df["end"])
             is_valid = end_ts <= _end.max()
             if not is_valid:
                 raise ValueError(f"End date {end} is out-of-bounds. Valid range: {_end.min()} - {_end.max()}")
