@@ -1,5 +1,6 @@
 import copy
 import getpass
+import json
 import os
 import time
 from importlib.resources import files
@@ -1270,7 +1271,73 @@ class CMORizer:
         if failed:
             logger.warning(f"{len(failed)} rule(s) failed: {', '.join(failed.keys())}")
         logger.success(f"Processing completed. {len(succeeded)} succeeded, {len(failed)} failed.")
+        self._write_run_manifest(succeeded, failed)
         return {name: True for name in succeeded}
+
+    def _write_run_manifest(self, succeeded, failed):
+        """Record, per rule, whether it raised, was gated off, or wrote files.
+
+        Exceptions are not the only way to lose a variable: a rule can return
+        cleanly and write nothing, which used to be indistinguishable from
+        success. ``self.run_report`` is what the CLI turns into an exit code
+        and what the year driver reads to resubmit exactly the missing rules.
+        """
+        rules_by_name = {getattr(r, "name", "unnamed"): r for r in self.rules}
+        entries = {}
+        for name in succeeded:
+            rule = rules_by_name.get(name)
+            written = list(getattr(rule, "_written_files", []) or [])
+            skipped_reason = getattr(rule, "_skipped_reason", None)
+            if written:
+                status = "ok"
+            elif skipped_reason:
+                status = "skipped"
+            else:
+                status = "no_output"
+            entries[name] = {
+                "status": status,
+                "files": written,
+                "compound_name": getattr(rule, "compound_name", None),
+                "reason": skipped_reason,
+            }
+        for name, exc in failed.items():
+            rule = rules_by_name.get(name)
+            entries[name] = {
+                "status": "failed",
+                "files": list(getattr(rule, "_written_files", []) or []),
+                "compound_name": getattr(rule, "compound_name", None),
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+
+        bad = sorted(n for n, e in entries.items() if e["status"] in ("failed", "no_output"))
+        report = {
+            "config": getattr(self, "_config_file", None),
+            "slurm_job": os.environ.get("SLURM_JOB_ID"),
+            "slurm_array_task": os.environ.get("SLURM_ARRAY_TASK_ID"),
+            "n_rules": len(self.rules),
+            "n_ok": sum(1 for e in entries.values() if e["status"] == "ok"),
+            "n_skipped": sum(1 for e in entries.values() if e["status"] == "skipped"),
+            "incomplete": bad,
+            "rules": entries,
+        }
+        self.run_report = report
+
+        if bad:
+            logger.error(f"{len(bad)} rule(s) produced no output: {', '.join(bad)}")
+
+        path = os.environ.get("PYCMOR_MANIFEST")
+        if not path:
+            logger.debug("PYCMOR_MANIFEST not set; run manifest not written to disk.")
+            return
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            tmp = f"{path}.tmp"
+            with open(tmp, "w") as fh:
+                json.dump(report, fh, indent=1, default=str)
+            os.replace(tmp, path)
+            logger.info(f"Wrote run manifest to {path}")
+        except Exception as exc:
+            logger.error(f"Could not write run manifest to {path}: {exc!r}")
 
     def _cleanup_dask_workers(self):
         """Release cached Dask task results and trigger GC on workers AND the
@@ -1358,6 +1425,13 @@ class CMORizer:
                     data = pipeline.run(data, rule)
                     if isinstance(data, RuleSkipped):
                         logger.info(f"Rule {rule_name} ends without output: {data.reason}")
+                        # Mark the skip so the manifest can tell "gated off on
+                        # purpose" (a dec rule in a non-closing year) from
+                        # "wrote nothing and should have".
+                        try:
+                            setattr(rule, "_skipped_reason", data.reason)
+                        except Exception:
+                            pass
                         break
                 # Don't ship the final dataset back to the scheduler/driver.
                 # Under parallel/dask orchestration the caller does

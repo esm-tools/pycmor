@@ -246,7 +246,19 @@ def process(
     logger.debug(f"Effective config after CLI overrides:\n{yaml.safe_dump(cfg)}")
     cmorizer = CMORizer.from_dict(cfg)
     client = Client(cmorizer._cluster)  # noqa: F841
+    cmorizer._config_file = str(config_file)
     cmorizer.process()
+
+    # Rule failures used to stay inside serial_process, so a shard in which
+    # every rule died still exited 0 and SLURM recorded COMPLETED. At a few
+    # hundred years that silently ships incomplete data. Exit non-zero when
+    # any rule failed or produced no output, so job state can be trusted and
+    # the year driver can act on it.
+    report = getattr(cmorizer, "run_report", None)
+    if report and report.get("incomplete"):
+        incomplete = report["incomplete"]
+        logger.error(f"{len(incomplete)} of {report['n_rules']} rule(s) produced no output: {', '.join(incomplete)}")
+        raise SystemExit(1)
 
 
 @cli.command()

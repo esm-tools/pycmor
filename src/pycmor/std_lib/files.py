@@ -124,6 +124,7 @@ class _Heartbeat:
         self._t0 = None
         self._th = None
         self._timed_out = False
+        self._stalled = False
         self._last_size = -1
         self._last_progress_ts = None
 
@@ -142,7 +143,15 @@ class _Heartbeat:
             while not self._stop.wait(self.interval):
                 n += 1
                 elapsed = time.monotonic() - self._t0
-                logger.info(f"  ⟳ {self.label} still running " f"(t={elapsed:.0f}s, heartbeat #{n})")
+                # Once stalled we keep beating, only slower. The shard
+                # watchdog infers liveness from log activity, so going
+                # silent here made a healthy job look wedged and got it
+                # scancelled after 90 min (cli120 extra_atm, 17 files lost).
+                if not self._stalled or n % 10 == 0:
+                    logger.info(
+                        f"  ⟳ {self.label} still running (t={elapsed:.0f}s, "
+                        f"heartbeat #{n}{', no I/O progress yet' if self._stalled else ''})"
+                    )
                 # Watchdog: poll watch_path size and detect stalls.
                 # watch_path may be a str (single file) or a callable that
                 # returns the current "bytes written so far" — useful for
@@ -161,26 +170,21 @@ class _Heartbeat:
                     if size > self._last_size:
                         self._last_size = size
                         self._last_progress_ts = time.monotonic()
-                    elif time.monotonic() - self._last_progress_ts > self.timeout_s:
+                        self._stalled = False
+                    elif time.monotonic() - self._last_progress_ts > self.timeout_s and not self._stalled:
+                        self._stalled = True
+                        self._timed_out = True
                         logger.warning(
                             f"  ⚠ {self.label}: no I/O progress detected for "
                             f"{self.timeout_s / 60:.0f} min on the rule's "
-                            f"output directory. Stopping further heartbeats. "
-                            f"No action taken — the worker is NOT killed and "
-                            f"the rule is NOT aborted; if the body eventually "
-                            f"completes the result is preserved. (A retry "
-                            f"would only trigger if the body itself returned "
-                            f"after this point; under the typical "
-                            f"syscall-stuck scenario the body cannot return "
-                            f"until SLURM walltime expires.) "
-                            f"This message often appears for genuinely-slow "
-                            f"compute-heavy rules where the dask graph runs "
-                            f"longer than the watchdog timeout before the "
-                            f"first byte is written."
+                            f"output directory. No action taken — the worker "
+                            f"is NOT killed and the rule is NOT aborted. "
+                            f"Heartbeats continue at a reduced rate so the "
+                            f"job still proves it is alive. This is common "
+                            f"for compute-heavy rules whose dask graph runs "
+                            f"longer than the timeout before the first byte "
+                            f"is written."
                         )
-                        self._timed_out = True
-                        self._stop.set()
-                        return
 
         self._th = threading.Thread(target=_tick, name=f"hb-{self.label}", daemon=True)
         self._th.start()
@@ -2321,6 +2325,63 @@ def _rule_allows_tmpfs_staging(rule):
     return bool(val)
 
 
+def _save_progress_bytes(out_dir, tmpfs_dir=None):
+    """Bytes a running save has produced so far, for stall detection.
+
+    Counts finished ``.nc`` and in-progress ``.tmp`` files in the rule's
+    output directory, plus the node-local staging files that
+    ``_atomic_to_netcdf`` writes first. Without the staging files a save is
+    invisible for its entire write: the bytes grow in ``/tmp`` and only reach
+    ``out_dir`` in the final copy. In cli120 that made all 17 extra_atm saves
+    look stalled at exactly 15 minutes, their heartbeats went quiet, and the
+    shard watchdog killed a job that was still writing.
+    """
+    total = 0
+    if out_dir and os.path.isdir(out_dir):
+        try:
+            for name in os.listdir(out_dir):
+                if name.endswith(".nc") or ".tmp" in name:
+                    try:
+                        total += os.path.getsize(os.path.join(out_dir, name))
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    tmpfs_dir = tmpfs_dir or os.environ.get("PYCMOR_TMPFS_DIR", "/tmp")
+    try:
+        for name in os.listdir(tmpfs_dir):
+            # _atomic_to_netcdf stages as "<final>.nc.<random>.tmp"
+            if ".nc." in name and name.endswith(".tmp"):
+                try:
+                    total += os.path.getsize(os.path.join(tmpfs_dir, name))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
+def _record_written_file(rule, path):
+    """Record a file the rule actually wrote, for the end-of-run manifest.
+
+    A rule that returns cleanly without writing anything is a failure we
+    otherwise cannot see: ``serial_process`` only catches exceptions, so a
+    silent no-op rule used to look identical to a successful one. The
+    manifest compares rules against the files they produced, so the driver
+    can resubmit exactly what is missing instead of a whole shard.
+    """
+    if rule is None:
+        return
+    try:
+        written = getattr(rule, "_written_files", None)
+        if written is None:
+            written = []
+            setattr(rule, "_written_files", written)
+        written.append(str(path))
+    except Exception as exc:  # never let bookkeeping break a good write
+        logger.debug(f"could not record written file {path!r}: {exc!r}")
+
+
 def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchronous", **kwargs):
     """Three-stage atomic write:
 
@@ -2346,7 +2407,9 @@ def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchro
     import tempfile
 
     if not _tmpfs_staging_available(rule):
-        return _safe_to_netcdf(ds_or_da, final_path, *args, scheduler=scheduler, **kwargs)
+        result = _safe_to_netcdf(ds_or_da, final_path, *args, scheduler=scheduler, **kwargs)
+        _record_written_file(rule, final_path)
+        return result
 
     tmpdir = os.environ.get("PYCMOR_TMPFS_DIR", "/tmp")
     fd, tmp_path = tempfile.mkstemp(dir=tmpdir, prefix=os.path.basename(final_path) + ".", suffix=".tmp")
@@ -2361,6 +2424,7 @@ def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchro
         os.unlink(tmp_path)
         # Stage 3: same-FS atomic rename
         os.rename(stage_path, final_path)
+        _record_written_file(rule, final_path)
         return result
     except Exception:
         # Best-effort cleanup of both staging locations
@@ -3266,26 +3330,13 @@ def save_dataset(da: xr.DataArray, rule):
     except (TypeError, ValueError):
         max_retries = 2
 
-    # Watchdog: track growth of the rule's output directory total .nc[+.tmp]
-    # bytes. Works for both single-file and multi-file (split-by-timespan)
-    # save paths. Resolved at call time so retries see fresh state.
+    # Watchdog: track growth of the bytes this save is producing. Works for
+    # both single-file and multi-file (split-by-timespan) save paths.
+    # Resolved at call time so retries see fresh state.
     out_dir = getattr(rule, "output_directory", None)
 
     def _outdir_size():
-        if not out_dir or not os.path.isdir(out_dir):
-            return 0
-        total = 0
-        try:
-            for name in os.listdir(out_dir):
-                # Count both finalized .nc and in-progress .nc.tmp.
-                if name.endswith(".nc") or name.endswith(".nc.tmp") or ".tmp" in name:
-                    try:
-                        total += os.path.getsize(os.path.join(out_dir, name))
-                    except OSError:
-                        pass
-        except OSError:
-            return 0
-        return total
+        return _save_progress_bytes(out_dir)
 
     last_exc = None
     for attempt in range(max_retries + 1):
