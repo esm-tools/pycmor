@@ -90,6 +90,12 @@ elif [ "$CONSECUTIVE_FAILS" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
   echo "=== HALTING CHAIN: $CONSECUTIVE_FAILS consecutive failed years (limit $MAX_CONSECUTIVE_FAILS)."
   echo "    Fix the cause, then resubmit starting at $NEXT (or earlier; done years are skipped). ==="
 else
+  # Carry the address given on the first submit down the chain. sbatch's
+  # --mail-user is not an environment variable, so read it back from this
+  # job; otherwise year two onward would mail the account default instead.
+  if [ -z "${MAIL_USER:-}" ] && [ -n "${SLURM_JOB_ID:-}" ]; then
+    MAIL_USER=$(scontrol show job "$SLURM_JOB_ID" 2>/dev/null | grep -oE 'MailUser=[^ ]+' | cut -d= -f2) || MAIL_USER=""
+  fi
   mail_args=()
   [ -n "${MAIL_USER:-}" ] && mail_args=(--mail-user="$MAIL_USER")
   next_jid=$(sbatch --parsable --chdir="$PYCMOR_HOME" --job-name="pycmor-y$NEXT" "${mail_args[@]}" \
