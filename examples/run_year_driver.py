@@ -28,7 +28,9 @@ Usage
                        [--email ADDR] [--poll 120] [--dry-run]
 
 On success it writes ``<WORKDIR>/YEAR.done`` so a supervisor loop can march
-through years by checking for that file.
+through years by checking for that file. On giving up it writes the list of
+problems to ``<WORKDIR>/YEAR.FAILED`` and exits 1. In production this runs
+inside ``run_year_chain.sbatch``, whose SLURM FAIL mail is the notification.
 """
 
 import argparse
@@ -160,16 +162,22 @@ def main():
     ap.add_argument("year")
     ap.add_argument("workdir")
     ap.add_argument("--attempts", type=int, default=3, help="total attempts before giving up (default 3)")
-    ap.add_argument("--email", default=DEFAULT_EMAIL)
+    ap.add_argument(
+        "--email",
+        default=DEFAULT_EMAIL,
+        help="address to mail when the year gives up; pass '' when SLURM's --mail-type=FAIL does the mailing",
+    )
     ap.add_argument("--poll", type=int, default=120, help="seconds between queue checks")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     workdir = Path(args.workdir)
     done_marker = workdir / f"{args.year}.done"
+    failed_marker = workdir / f"{args.year}.FAILED"
     if done_marker.exists():
         log(f"{done_marker} already exists; nothing to do")
         return 0
+    workdir.mkdir(parents=True, exist_ok=True)
 
     problems = []
     bad_tiers = set()
@@ -190,6 +198,7 @@ def main():
 
         if not bad_tiers:
             done_marker.write_text(f"completed after {attempt} attempt(s) at {time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
+            failed_marker.unlink(missing_ok=True)  # a rerun fixed an earlier give-up
             log(f"year {args.year} complete; wrote {done_marker}")
             return 0
 
@@ -208,8 +217,12 @@ def main():
         "Nothing was deleted. Re-running the driver will pick up from the "
         "existing outputs.\n"
     )
-    notify(args.email, f"[pycmor] year {args.year} incomplete after {args.attempts} attempts", body)
-    log("giving up; email sent")
+    # SLURM's own mail only says "job failed", so the details live here where
+    # the mail's job name points you.
+    failed_marker.write_text(body)
+    log(f"giving up; details in {failed_marker}")
+    if args.email:
+        notify(args.email, f"[pycmor] year {args.year} incomplete after {args.attempts} attempts", body)
     return 1
 
 

@@ -219,6 +219,39 @@ def test_driver_marks_the_year_done_once_a_retry_fills_the_gap(driver, tmp_path,
     assert (wd / "1859.done").exists()
 
 
+def test_driver_leaves_details_and_stays_quiet_when_slurm_mails(driver, tmp_path, monkeypatch):
+    """Under run_year_chain.sbatch SLURM sends the one FAIL mail; the driver
+    must not add its own, and must leave the details where the mail points."""
+    wd = _workdir(tmp_path, ["extra_atm_shard_00"], {})
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: ["1"])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr(driver, "notify", lambda *a: pytest.fail("SLURM does the mailing"))
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1859", str(wd), "--email", ""])
+
+    assert driver.main() == 1
+    failed = (wd / "1859.FAILED").read_text()
+    assert "extra_atm_shard_00" in failed and "3 attempts" in failed
+
+
+def test_driver_clears_an_old_failure_once_the_year_completes(driver, tmp_path, monkeypatch):
+    wd = _workdir(tmp_path, ["core_atm_shard_00"], {"core_atm_shard_00": []})
+    (wd / "1859.FAILED").write_text("from an earlier chain\n")
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: ["1"])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1859", str(wd), "--email", ""])
+
+    assert driver.main() == 0
+    assert (wd / "1859.done").exists() and not (wd / "1859.FAILED").exists()
+
+
+def test_driver_skips_a_finished_year_without_submitting(driver, tmp_path, monkeypatch):
+    """Restarting a chain from an earlier year must not redo finished years."""
+    (tmp_path / "1859.done").write_text("ok\n")
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: pytest.fail("finished years are not resubmitted"))
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1859", str(tmp_path)])
+    assert driver.main() == 0
+
+
 @pytest.mark.parametrize("incomplete, exit_code", [([], 0), (["pr_1hr"], 1)])
 def test_process_exit_code_reflects_missing_output(monkeypatch, tmp_path, incomplete, exit_code):
     """A shard whose rules all failed used to exit 0 and look COMPLETED."""
