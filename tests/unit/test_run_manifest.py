@@ -295,11 +295,9 @@ def _fake_worker_process_rule(rule):
 
 
 def test_dask_path_writes_the_manifest_from_worker_results(monkeypatch, tmp_path):
-    """cli121: production runs every shard through _parallel_process_dask, but
-    the manifest was only hooked into serial_process. No shard wrote one, and
-    the driver resubmitted a complete year. The rule copies on the workers are
-    the only ones that see the writes, so the manifest must come from the
-    returned outcomes."""
+    """Under the dask backend the rule copies on the workers are the only ones
+    that see the writes, so the manifest must come from the returned
+    outcomes."""
     from dask.distributed import Client, LocalCluster
 
     manifest = tmp_path / "shard.json"
@@ -323,6 +321,48 @@ def test_dask_path_writes_the_manifest_from_worker_results(monkeypatch, tmp_path
     assert on_disk["rules"]["tos"]["files"] == ["/out/tos.nc"]
     assert on_disk["incomplete"] == ["boom", "silent"]
     assert fake.run_report["incomplete"] == ["boom", "silent"]
+
+
+def test_production_dispatch_writes_the_manifest(monkeypatch, tmp_path):
+    """cli121/cli122: run_hr_shard.sh asks for ``pipeline_orchestrator: dask``,
+    but that key is not in the config schema, so ``process()`` falls through
+    to the prefect path. The manifest was hooked into the other two paths and
+    no production shard wrote one. Go through the real config and dispatch so
+    this test follows whatever path production takes."""
+    from prefect import task
+
+    from pycmor.core.config import PycmorConfigManager
+
+    manifest = tmp_path / "shard.json"
+    monkeypatch.setenv("PYCMOR_MANIFEST", str(manifest))
+
+    fake = CMORizer.__new__(CMORizer)
+    fake.rules = [SimpleNamespace(name=n, compound_name=None) for n in ("tos", "gated", "silent", "boom")]
+    fake._pymor_cfg = PycmorConfigManager.from_pycmor_cfg(
+        {"parallel": True, "pipeline_orchestrator": "dask", "dask_n_workers": 2, "dask_threads_per_worker": 1}
+    )
+    fake._process_rule = task(name="Process rule")(_fake_worker_process_rule)
+    fake.pipelines = []
+    fake._match_pipelines_in_rules = lambda: None
+    fake._cleanup_dask_workers = lambda: None
+    fake._cluster = None
+
+    with pytest.raises(RuntimeError, match="worker blew up"):
+        CMORizer.process(fake)
+
+    on_disk = json.loads(manifest.read_text())
+    status = {n: e["status"] for n, e in on_disk["rules"].items()}
+    assert status == {"tos": "ok", "gated": "skipped", "silent": "no_output", "boom": "failed"}
+    assert on_disk["rules"]["tos"]["files"] == ["/out/tos.nc"]
+    assert on_disk["incomplete"] == ["boom", "silent"]
+
+
+def test_rules_that_never_report_count_as_failed(monkeypatch):
+    """An aborted run must not produce a manifest that looks clean."""
+    rules = [_rule("tos", written=["/out/tos.nc"]), _rule("never")]
+    report = _manifest_for(rules, ["tos"], {}, monkeypatch)
+    assert report["rules"]["never"]["status"] == "failed"
+    assert report["incomplete"] == ["never"]
 
 
 def test_drs_version_is_pinned_by_inherit_or_env(monkeypatch):

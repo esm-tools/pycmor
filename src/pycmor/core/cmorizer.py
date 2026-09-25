@@ -1129,6 +1129,30 @@ class CMORizer:
                 yield batch
                 pending = remaining
 
+        # Filled per batch inside the flow and turned into the run manifest
+        # once it returns, whether or not it failed.
+        succeeded, failed, outcomes = [], {}, {}
+
+        def _collect(rule, fut):
+            rule_name = getattr(rule, "name", "unnamed")
+            try:
+                completed = fut.state.is_completed()
+            except Exception:
+                completed = False
+            if completed:
+                outcome = fut.result()
+                succeeded.append(rule_name)
+                if isinstance(outcome, dict):
+                    outcomes[rule_name] = outcome
+                return
+            try:
+                exc = fut.result(raise_on_failure=False)
+            except Exception as err:
+                exc = err
+            if not isinstance(exc, BaseException):
+                exc = RuntimeError(f"rule ended in state {getattr(fut, 'state', None)}")
+            failed[rule_name] = exc
+
         @flow(name="CMORizer Process")
         def dynamic_flow():
             rules = list(self.rules)
@@ -1142,6 +1166,8 @@ class CMORizer:
             for batch_i, batch in enumerate(batches):
                 batch_futures = [self._process_rule.submit(r) for r in batch]
                 wait(batch_futures)
+                for r, f in zip(batch, batch_futures):
+                    _collect(r, f)
                 rule_results.extend(batch_futures)
                 # Per-batch group counts for visibility under throttling.
                 group_summary = {}
@@ -1159,6 +1185,10 @@ class CMORizer:
             # Dask cluster is available in the singleton, which could be used
             # during unpickling to reattach it to a Pipeline.
             result = dynamic_flow(return_state=True)
+            # This is the path run_hr_shard.sh actually takes (see the note
+            # above), so the manifest the year driver reads is written here.
+            logger.success(f"Processing completed. {len(succeeded)} succeeded, {len(failed)} failed.")
+            self._write_run_manifest(succeeded, failed, outcomes)
             if result.is_failed():
                 exc = result.result(raise_on_failure=False)
                 if isinstance(exc, BaseException):
@@ -1345,6 +1375,16 @@ class CMORizer:
                 "compound_name": getattr(rule, "compound_name", None),
                 "reason": f"{type(exc).__name__}: {exc}",
             }
+        # A rule nobody reported on (the run aborted before reaching it) must
+        # not be mistaken for a clean run.
+        for name, rule in rules_by_name.items():
+            if name not in entries:
+                entries[name] = {
+                    "status": "failed",
+                    "files": [],
+                    "compound_name": getattr(rule, "compound_name", None),
+                    "reason": "rule never finished",
+                }
 
         bad = sorted(n for n, e in entries.items() if e["status"] in ("failed", "no_output"))
         report = {
@@ -1486,10 +1526,10 @@ class CMORizer:
                 # cgroup before any worker hits its memory cap. Drop the
                 # reference and return only a small summary.
                 #
-                # Under the dask orchestrator (what run_hr_shard.sh uses)
-                # this runs on a worker with a pickled copy of the rule, so
-                # the files it wrote only reach the driver through this
-                # return value. The run manifest is built from it.
+                # Under the dask orchestrator this runs on a worker with a
+                # pickled copy of the rule, so the files it wrote only reach
+                # the driver through this return value. Every path builds
+                # the run manifest from it.
                 del data
                 return _rule_outcome(rule, rule_name)
             except Exception as exc:
