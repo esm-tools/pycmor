@@ -82,6 +82,15 @@ def _resolve_throttle_caps(pymor_cfg):
     return caps
 
 
+def _rule_outcome(rule, rule_name):
+    """Small, picklable summary of what a finished rule produced."""
+    return {
+        "rule": rule_name,
+        "files": list(getattr(rule, "_written_files", None) or []),
+        "skipped": getattr(rule, "_skipped_reason", None),
+    }
+
+
 def _is_transient_compute_error(exc):
     """Return True if `exc` is a dask/distributed failure that typically
     recovers on retry. Used by ``_process_rule``'s whole-rule retry loop
@@ -1208,12 +1217,21 @@ class CMORizer:
         max_in_flight = max(1, n_workers * tpw)
         rule_iter = iter(self.rules)
         futures = []
+        # future key -> rule name, so a future that raises can still be
+        # attributed to its rule in the run manifest.
+        names = {}
+
+        def _submit(rule):
+            fut = client.submit(self._process_rule, rule)
+            names[fut.key] = getattr(rule, "name", "unnamed")
+            return fut
+
         for _ in range(max_in_flight):
             try:
                 rule = next(rule_iter)
             except StopIteration:
                 break
-            futures.append(client.submit(self._process_rule, rule))
+            futures.append(_submit(rule))
         logger.info(
             f"Submitting rules with rolling window: "
             f"max_in_flight={max_in_flight} (n_workers={n_workers} * tpw={tpw}); "
@@ -1221,12 +1239,19 @@ class CMORizer:
         )
 
         results = []
+        succeeded, failed, outcomes = [], {}, {}
         try:
             ac = as_completed(futures)
             for fut in ac:
+                rule_name = names.get(fut.key, "unnamed")
                 try:
-                    results.append(fut.result())
+                    outcome = fut.result()
+                    results.append(outcome)
+                    succeeded.append(rule_name)
+                    if isinstance(outcome, dict):
+                        outcomes[rule_name] = outcome
                 except Exception as exc:
+                    failed[rule_name] = exc
                     # Per-rule exceptions: log and continue. The behavior
                     # of the prior ``client.gather(futures)`` was to
                     # raise the first exception; matching ``return_when``
@@ -1240,7 +1265,7 @@ class CMORizer:
                     rule = next(rule_iter)
                 except StopIteration:
                     continue
-                ac.add(client.submit(self._process_rule, rule))
+                ac.add(_submit(rule))
         finally:
             # The list ``futures`` holds only the priming wave by now;
             # the rolling-window submissions live on ``ac``. Both are
@@ -1253,16 +1278,20 @@ class CMORizer:
                     pass
             del futures
             self._cleanup_dask_workers()
-        logger.success("Processing completed.")
+        logger.success(f"Processing completed. {len(succeeded)} succeeded, {len(failed)} failed.")
+        self._write_run_manifest(succeeded, failed, outcomes)
         return results
 
     def serial_process(self):
         succeeded = []
         failed = {}
+        outcomes = {}
         for rule in track(self.rules, description="Processing rules"):
             try:
-                self._process_rule(rule)
+                outcome = self._process_rule(rule)
                 succeeded.append(rule.name)
+                if isinstance(outcome, dict):
+                    outcomes[rule.name] = outcome
             except Exception as e:
                 logger.error(f"Rule '{rule.name}' failed: {e}")
                 failed[rule.name] = e
@@ -1271,10 +1300,10 @@ class CMORizer:
         if failed:
             logger.warning(f"{len(failed)} rule(s) failed: {', '.join(failed.keys())}")
         logger.success(f"Processing completed. {len(succeeded)} succeeded, {len(failed)} failed.")
-        self._write_run_manifest(succeeded, failed)
+        self._write_run_manifest(succeeded, failed, outcomes)
         return {name: True for name in succeeded}
 
-    def _write_run_manifest(self, succeeded, failed):
+    def _write_run_manifest(self, succeeded, failed, outcomes=None):
         """Record, per rule, whether it raised, was gated off, or wrote files.
 
         Exceptions are not the only way to lose a variable: a rule can return
@@ -1283,11 +1312,19 @@ class CMORizer:
         and what the year driver reads to resubmit exactly the missing rules.
         """
         rules_by_name = {getattr(r, "name", "unnamed"): r for r in self.rules}
+        outcomes = outcomes or {}
         entries = {}
         for name in succeeded:
             rule = rules_by_name.get(name)
-            written = list(getattr(rule, "_written_files", []) or [])
-            skipped_reason = getattr(rule, "_skipped_reason", None)
+            # Prefer what the rule reported back: under dask it ran on a
+            # worker and the driver's copy of the rule never saw its writes.
+            outcome = outcomes.get(name)
+            if outcome is not None:
+                written = list(outcome.get("files") or [])
+                skipped_reason = outcome.get("skipped")
+            else:
+                written = list(getattr(rule, "_written_files", []) or [])
+                skipped_reason = getattr(rule, "_skipped_reason", None)
             if written:
                 status = "ok"
             elif skipped_reason:
@@ -1412,6 +1449,12 @@ class CMORizer:
         max_attempts = int(os.environ.get("PYCMOR_RULE_RETRIES", "3"))
         rule_name = getattr(rule, "name", "unnamed")
         for attempt in range(max_attempts):
+            # Start each attempt with empty bookkeeping so a transient
+            # failure after a partial write does not double-count files.
+            try:
+                setattr(rule, "_written_files", [])
+            except Exception:
+                pass
             try:
                 logger.info(
                     f"Starting to process rule {rule}"
@@ -1441,10 +1484,14 @@ class CMORizer:
                 # paths can leave a Dataset in `data`; with 50+ rules that
                 # accumulates to tens of GB in the driver and OOMs the
                 # cgroup before any worker hits its memory cap. Drop the
-                # reference and return just the rule name so the gather
-                # payload is tiny.
+                # reference and return only a small summary.
+                #
+                # Under the dask orchestrator (what run_hr_shard.sh uses)
+                # this runs on a worker with a pickled copy of the rule, so
+                # the files it wrote only reach the driver through this
+                # return value. The run manifest is built from it.
                 del data
-                return rule_name
+                return _rule_outcome(rule, rule_name)
             except Exception as exc:
                 if attempt + 1 < max_attempts and _is_transient_compute_error(exc):
                     logger.warning(

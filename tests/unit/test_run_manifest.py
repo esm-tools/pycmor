@@ -274,3 +274,94 @@ def test_process_exit_code_reflects_missing_output(monkeypatch, tmp_path, incomp
     cfg.write_text("general: {}\n")
     result = CliRunner().invoke(cli_mod.cli, ["process", str(cfg)])
     assert result.exit_code == exit_code, result.output
+
+
+def _fake_worker_process_rule(rule):
+    """Stand-in for CMORizer._process_rule as it behaves on a dask worker:
+    it acts on a copy of the rule, so nothing it records is visible on the
+    driver's rule object. Only the return value comes back."""
+    import copy
+
+    from pycmor.core.cmorizer import _rule_outcome
+
+    rule = copy.deepcopy(rule)
+    if rule.name == "boom":
+        raise RuntimeError("worker blew up")
+    if rule.name == "gated":
+        rule._skipped_reason = "1852 does not close a decade"
+    elif rule.name != "silent":
+        _record_written_file(rule, f"/out/{rule.name}.nc")
+    return _rule_outcome(rule, rule.name)
+
+
+def test_dask_path_writes_the_manifest_from_worker_results(monkeypatch, tmp_path):
+    """cli121: production runs every shard through _parallel_process_dask, but
+    the manifest was only hooked into serial_process. No shard wrote one, and
+    the driver resubmitted a complete year. The rule copies on the workers are
+    the only ones that see the writes, so the manifest must come from the
+    returned outcomes."""
+    from dask.distributed import Client, LocalCluster
+
+    manifest = tmp_path / "shard.json"
+    monkeypatch.setenv("PYCMOR_MANIFEST", str(manifest))
+
+    fake = CMORizer.__new__(CMORizer)
+    fake.rules = [SimpleNamespace(name=n, compound_name=None) for n in ("tos", "gated", "silent", "boom")]
+    fake._pymor_cfg = {"dask_n_workers": 1, "dask_threads_per_worker": 2}
+    fake._process_rule = _fake_worker_process_rule
+    fake._cleanup_dask_workers = lambda: None
+
+    with LocalCluster(n_workers=1, threads_per_worker=2, processes=False, dashboard_address=None) as cluster:
+        with Client(cluster) as client:
+            CMORizer._parallel_process_dask(fake, external_client=client)
+
+    # Nothing leaked back onto the driver's rules, so this is the real test.
+    assert not any(getattr(r, "_written_files", None) for r in fake.rules)
+    on_disk = json.loads(manifest.read_text())
+    status = {n: e["status"] for n, e in on_disk["rules"].items()}
+    assert status == {"tos": "ok", "gated": "skipped", "silent": "no_output", "boom": "failed"}
+    assert on_disk["rules"]["tos"]["files"] == ["/out/tos.nc"]
+    assert on_disk["incomplete"] == ["boom", "silent"]
+    assert fake.run_report["incomplete"] == ["boom", "silent"]
+
+
+def test_drs_version_is_pinned_by_inherit_or_env(monkeypatch):
+    """cli121: the version directory was the date of each write, so one run
+    straddling midnight produced two versions of every dataset."""
+    import datetime
+
+    from pycmor.std_lib.global_attributes import drs_version
+
+    monkeypatch.delenv("PYCMOR_DRS_VERSION", raising=False)
+    assert drs_version({"directory_date": "v20260925"}) == "v20260925"
+    assert drs_version({"directory_date": 20260925}) == "v20260925", "a bare yaml date gets its v"
+    assert drs_version({"directory_date": datetime.date(2026, 9, 25)}) == "v20260925", "unquoted yaml date"
+
+    monkeypatch.setenv("PYCMOR_DRS_VERSION", "v20260101")
+    assert drs_version({}) == "v20260101"
+    assert drs_version({"directory_date": "v20260925"}) == "v20260925", "an explicit rule setting wins"
+
+    monkeypatch.setenv("PYCMOR_DRS_VERSION", "2026-09-25")
+    with pytest.raises(ValueError, match="vYYYYMMDD"):
+        drs_version({})
+
+
+def test_drs_version_falls_back_to_today(monkeypatch):
+    import datetime
+
+    from pycmor.std_lib.global_attributes import drs_version
+
+    monkeypatch.delenv("PYCMOR_DRS_VERSION", raising=False)
+    assert drs_version(None) == datetime.datetime.today().strftime("v%Y%m%d")
+
+
+def test_driver_keeps_one_drs_version_across_attempts(driver, tmp_path, monkeypatch):
+    wd = _workdir(tmp_path, ["extra_atm_shard_00"], {})
+    monkeypatch.delenv("PYCMOR_DRS_VERSION", raising=False)
+    seen = []
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: seen.append(driver.os.environ["PYCMOR_DRS_VERSION"]) or ["1"])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1852", str(wd), "--email", ""])
+
+    driver.main()
+    assert len(seen) == 3 and len(set(seen)) == 1, seen

@@ -42,6 +42,7 @@
 # year is safe: years with a <YEAR>.done marker are skipped immediately.
 #
 # Env knobs: MAX_CONSECUTIVE_FAILS (2), DRIVER_ATTEMPTS (3), MAIL_USER,
+#            PYCMOR_DRS_VERSION (vYYYYMMDD; defaults to the first job's date),
 #            PYCMOR_CONDA_INIT / PYCMOR_CONDA_ENV (as in run_hr_shard.sh).
 
 set -uo pipefail  # deliberately no -e: a failed year must still chain onward
@@ -68,6 +69,14 @@ PYCMOR_CONDA_ENV="${PYCMOR_CONDA_ENV:-pycmor_py312}"
 # shellcheck disable=SC1090
 source "$PYCMOR_CONDA_INIT"
 conda activate "$PYCMOR_CONDA_ENV"
+
+# One DRS version directory for the whole campaign. pycmor otherwise uses the
+# date of each write, which splits a variable's years over many vYYYYMMDD
+# directories and duplicates datasets on every retry (cli121). Set once here
+# on the first year; --export=ALL carries it to the next year, the driver,
+# and every shard.
+export PYCMOR_DRS_VERSION="${PYCMOR_DRS_VERSION:-v$(date +%Y%m%d)}"
+echo "=== DRS version for this campaign: $PYCMOR_DRS_VERSION ==="
 
 WORKDIR="$WORKROOT/y$YEAR"
 echo "=== year $YEAR of $LAST_YEAR  workdir=$WORKDIR  consecutive_fails_so_far=$CONSECUTIVE_FAILS ==="

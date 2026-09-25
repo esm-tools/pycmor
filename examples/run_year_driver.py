@@ -178,6 +178,10 @@ def main():
         log(f"{done_marker} already exists; nothing to do")
         return 0
     workdir.mkdir(parents=True, exist_ok=True)
+    # All attempts of this year write into one DRS version directory. Under
+    # run_year_chain.sbatch this is already set for the whole campaign.
+    os.environ.setdefault("PYCMOR_DRS_VERSION", time.strftime("v%Y%m%d"))
+    log(f"DRS version: {os.environ['PYCMOR_DRS_VERSION']}")
 
     problems = []
     bad_tiers = set()
