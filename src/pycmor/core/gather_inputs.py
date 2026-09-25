@@ -9,6 +9,7 @@ from typing import List
 
 import deprecation
 import dpath
+import numpy as np
 import xarray as xr
 
 from .filecache import register_cache  # noqa: F401
@@ -38,12 +39,20 @@ class InputFileCollection:
     def __init__(self, path, pattern, frequency=None, time_dim_name=None):
         self.path = pathlib.Path(path)
         self.pattern_str = pattern  # Store original pattern string
-        self.pattern = re.compile(pattern)  # Compile the regex pattern
+        try:
+            self.pattern = re.compile(pattern)  # Compile the regex pattern
+        except re.error:
+            # Pattern may be a glob (e.g. LPJ-GUESS "*/run1/*.out") — not valid regex.
+            # Store None; pipelines using glob will read pattern_str directly.
+            self.pattern = None
         self.frequency = frequency
         self.time_dim_name = time_dim_name
 
     @property
     def files(self):
+        if self.pattern is None:
+            # Glob-style pattern — use pathlib.glob instead of regex
+            return sorted(self.path.glob(self.pattern_str))
         files = []
         for file in list(self.path.iterdir()):
             if self.pattern.match(file.name):  # Check if the filename matches the pattern
@@ -270,9 +279,131 @@ def _validate_rule_has_marked_regex(rule: dict, required_marks: List[str] = ["ye
     return all(re.search(rf"\(\?P<{mark}>", pattern) for mark in required_marks)
 
 
+def _filter_files_by_year_range(files, year_start, year_end):
+    """
+    Filter files whose year range overlaps with [year_start, year_end].
+
+    Extracts all 4-digit numbers from each filename and checks if any
+    fall within the requested range. Filenames like ``var_1900-1905.nc``
+    will match if any year in their range overlaps.
+
+    Parameters
+    ----------
+    files : list of pathlib.Path
+        Files to filter.
+    year_start : int
+        First year to include.
+    year_end : int
+        Last year to include.
+
+    Returns
+    -------
+    list of pathlib.Path
+        Filtered and sorted list of files.
+    """
+    year_pattern = re.compile(r"\d{4}")
+    filtered = []
+    for f in files:
+        years = [int(y) for y in year_pattern.findall(f.name)]
+        if not years:
+            # No years in filename — include to be safe
+            filtered.append(f)
+            continue
+        file_start = min(years)
+        file_end = max(years)
+        # Include if the file's year range overlaps with the requested range
+        if file_start <= year_end and file_end >= year_start:
+            filtered.append(f)
+    return sorted(filtered, key=lambda f: f.name)
+
+
+def _check_compatible_schemas(files, rule_spec):
+    """Fail fast when files in the same gather have incompatible primary dims.
+
+    ``open_mfdataset`` lazily concatenates the file list; when two files share
+    a coordinate name but disagree on its size (e.g. a native unstructured
+    ``nod2`` file and a regridded ``lat``/``lon`` variant both matched by a
+    loose ``.*`` pattern), xarray's ``merge_collected`` tries to broadcast-
+    equate the coords and blows up with a multi-petabyte allocation request
+    inside ``dask.tokenize``. Reading just the headers up front turns that
+    failure into an actionable error.
+
+    Opt-out via ``skip_input_schema_check: true`` on the rule when files
+    legitimately differ (e.g. concatenating an areacello fx with monthly
+    data — though that combination would normally use separate steps).
+    """
+    if len(files) < 2:
+        return
+    if rule_spec.get("skip_input_schema_check", False):
+        return
+    try:
+        reference = None
+        ref_path = None
+        for f in files:
+            with xr.open_dataset(f, decode_times=False, engine="netcdf4") as ds:
+                dims = {k: int(v) for k, v in ds.sizes.items() if k != "time"}
+            if reference is None:
+                reference = dims
+                ref_path = f
+                continue
+            for k, v in dims.items():
+                if k in reference and reference[k] != v:
+                    raise ValueError(
+                        "input file list has incompatible schemas. "
+                        f"dim '{k}' = {reference[k]} in {ref_path} "
+                        f"but = {v} in {f}. tighten the rule's input "
+                        "pattern to one grid family, or set "
+                        "skip_input_schema_check: true on the rule if "
+                        "this is intentional."
+                    )
+            for k, v in dims.items():
+                reference.setdefault(k, v)
+    except (OSError, FileNotFoundError) as exc:
+        logger.warning(f"schema pre-check skipped: {exc}")
+
+
+def filter_files_by_year_range(files, year_start, year_end):
+    """Public year-range filter. Accepts paths or strings.
+
+    Wraps :func:`_filter_files_by_year_range` for use from step functions
+    that resolve secondary input lists (e.g. ``second_input_pattern``,
+    ``hnode_pattern``, ``salt_pattern``). Returns the same element type as
+    the input list.
+    """
+    import pathlib as _pl
+
+    files = list(files)
+    return_str = bool(files) and isinstance(files[0], str)
+    paths = [_pl.Path(f) for f in files]
+    filtered = _filter_files_by_year_range(paths, int(year_start), int(year_end))
+    if return_str:
+        return [str(p) for p in filtered]
+    return filtered
+
+
 def load_mfdataset(data, rule_spec):
     """
     Load a dataset from a list of files using xarray.
+
+    Optional perf tuning (default off, opt-in via rule attrs or
+    pycmor config keys; see OPTIMIZATION_PLAN.md round 1):
+
+    - ``xarray_open_mfdataset_engine_override`` (str): override the
+      backend engine per-rule, e.g. ``"h5netcdf"``. h5netcdf is
+      "often faster" than the default netcdf4 backend for
+      ``open_mfdataset`` per the xarray docs, especially with many
+      small chunks.
+
+    - ``xarray_open_mfdataset_inline_array`` (bool): pass
+      ``inline_array=True`` to ``xr.open_mfdataset``. Compacts the
+      dask task graph by inlining chunks as values rather than
+      separate task references — useful when the input has many
+      small chunks (XIOS outputs at 5840–8760 chunks/file).
+
+    NOTE: HDF5 chunk-cache tuning (``rdcc_nbytes``) was investigated
+    but requires a custom H5NetCDFStore wrapper to plumb through
+    xarray's backend kwargs filter; deferred to round 1.5 if engine
+    swap alone proves a win.
 
     Parameters
     ----------
@@ -283,19 +414,110 @@ def load_mfdataset(data, rule_spec):
     """
     engine = rule_spec._pymor_cfg("xarray_open_mfdataset_engine")
     parallel = rule_spec._pymor_cfg("xarray_open_mfdataset_parallel")
+
+    # Round-1 perf knobs (opt-in)
+    def _cfg_first(*keys, default=None):
+        for k in keys:
+            if hasattr(rule_spec, "get"):
+                v = rule_spec.get(k)
+                if v is not None:
+                    return v
+            try:
+                v = rule_spec._pymor_cfg(k)
+                if v is not None:
+                    return v
+            except Exception:
+                pass
+        return default
+
+    inline_array = bool(_cfg_first("xarray_open_mfdataset_inline_array", default=False))
+    # Allow override of engine via rule attr (e.g. "h5netcdf")
+    engine_override = _cfg_first("xarray_open_mfdataset_engine_override")
+    if engine_override:
+        engine = engine_override
+
     all_files = []
     for file_collection in rule_spec.inputs:
         for f in file_collection.files:
             all_files.append(f)
     all_files = _resolve_symlinks(all_files)
-    logger.info(f"Loading {len(all_files)} files using {engine} backend on xarray...")
+    # Filter by year range if specified in rule or inherit. Rules with
+    # centennial input4MIPs forcing files (e.g. ``..._1750-2022.nc`` whose
+    # range doesn't overlap the simulation year) can opt out via
+    # ``skip_input_year_filter: true`` on the rule.
+    year_start = rule_spec.get("year_start", None)
+    year_end = rule_spec.get("year_end", None)
+    skip_filter = rule_spec.get("skip_input_year_filter", False)
+    if year_start is not None and year_end is not None and not skip_filter:
+        all_files = _filter_files_by_year_range(all_files, int(year_start), int(year_end))
+        logger.info(f"Year filter: {year_start}–{year_end}, {len(all_files)} files after filtering")
+
+    open_kwargs = dict(parallel=parallel, use_cftime=True, engine=engine)
+    if inline_array:
+        open_kwargs["inline_array"] = True
+
+    logger.info(
+        f"Loading {len(all_files)} files using {engine} backend "
+        f"(inline_array={inline_array}) on xarray..."
+    )
     for f in all_files:
         logger.info(f"  * {f}")
-    mf_ds = xr.open_mfdataset(all_files, parallel=parallel, use_cftime=True, engine=engine)
-    # Rename non-standard time dimension if specified in rule (e.g., OpenIFS uses different names)
+    _check_compatible_schemas(all_files, rule_spec)
+    mf_ds = xr.open_mfdataset(all_files, **open_kwargs)
+    # Rename non-standard time dimension if specified in rule (e.g., OpenIFS uses different names).
+    # If unspecified, auto-detect the XIOS/NEMO ``time_counter`` convention so
+    # downstream steps (timeavg, set_time_bounds, custom compute_X) get a
+    # ``time`` dim without each rule needing to set time_dimname explicitly.
+    # OpenIFS-XIOS 1hr/3hr/6hr files all ship time_counter; without auto-rename
+    # the data-level year filter below skips them, and arithmetic with a
+    # renamed secondary input drops time entirely.
     time_dimname = rule_spec.get("time_dimname")
+    if not time_dimname or time_dimname not in mf_ds.dims:
+        for cand in ("time_counter", "time_centered"):
+            if cand in mf_ds.dims and "time" not in mf_ds.dims:
+                time_dimname = cand
+                break
     if time_dimname and time_dimname in mf_ds.dims and "time" not in mf_ds.dims:
         mf_ds = mf_ds.rename({time_dimname: "time"})
+        # Companion bnds variable
+        for bnds_old, bnds_new in ((f"{time_dimname}_bounds", "time_bounds"),
+                                   (f"{time_dimname}_bnds", "time_bnds")):
+            if bnds_old in mf_ds.variables and bnds_new not in mf_ds.variables:
+                mf_ds = mf_ds.rename({bnds_old: bnds_new})
+
+    # Data-level year filter (boundary-spill fix).
+    # XIOS per-year input files at 3hr / day cadence include a single
+    # trailing timestep that lands on the NEXT year — e.g. an
+    # ``atmos_3h_..._1851-1851.nc`` file ends at 1852-01-01 01:30:00.
+    # The file-name filter above keeps the file, but pycmor's
+    # split_data_timespan later groups output by timestamp year and emits
+    # a 1-timestep spillover file labelled 1852. Trim those timesteps
+    # here so the year filter is enforced at the data level too.
+    if (
+        year_start is not None
+        and year_end is not None
+        and not skip_filter
+        and "time" in mf_ds.dims
+        and "time" in mf_ds.coords
+    ):
+        import pandas as _pd  # local: gather_inputs.py runs once per rule
+        time_vals = mf_ds["time"].values
+        try:
+            years = _pd.Series(time_vals).dt.year.to_numpy()
+        except (AttributeError, TypeError):
+            # cftime objects don't go through pandas .dt
+            years = np.fromiter(
+                (t.year for t in time_vals), dtype=np.int64, count=len(time_vals)
+            )
+        mask = (years >= int(year_start)) & (years <= int(year_end))
+        if not mask.all():
+            n_dropped = int((~mask).sum())
+            logger.info(
+                f"Data-level year filter: trimming {n_dropped}/{len(time_vals)} "
+                f"timesteps outside [{year_start}, {year_end}]"
+            )
+            mf_ds = mf_ds.isel(time=mask)
+
     return mf_ds
 
 

@@ -1,0 +1,1541 @@
+# CMIP7 LRCS Sea Ice Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_LRCSextra_variables_seaIce.csv + ocean_seaIce.csv
+#
+# Variables NOT included (not available in this configuration):
+#   See cmip7_lrcs_seaice_variables_todo.md for full list of blocked variables.
+
+general:
+  name: "awiesm3-cmip7-lrcs-seaice"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+  # `throttle_caps` lives on the launch side (see submit_hr_year_shards.sh
+  # `tier_throttle_caps` case), not here — yaml-level throttle_caps gets
+  # dropped by the Everett PycmorConfig schema (only declared Options
+  # survive). The per-pipeline `throttle_group: lrcs_seaice_serial`
+  # annotation below is what bind the rules into the group; the cap
+  # value (1 = strict serial) is supplied via the PYCMOR_THROTTLE_CAPS
+  # env var by the submitter.
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Fraction to percent. Used by siconca/siconca_day (hxy-u, no mask).
+  - name: fraction_to_percent_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:fraction_to_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Fraction to percent + mask where no sea ice. Used by simpconc
+  # (hxy-si). Rule must supply aice_path / aice_pattern.
+  - name: fraction_to_percent_mask_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:fraction_to_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Generic: multiply by constant (rho_ice, rho_snow, rho_water, etc.)
+  - name: scale_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # scale_pipeline + mask where no sea ice. For hxy-si rules whose CMIP7
+  # cell_methods is ``area: time: mean where sea_ice (mask=siconc)``.
+  # Rule must supply aice_path / aice_pattern.
+  - name: scale_mask_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Like scale_pipeline but with a clip-to-0 step after the sign-flipping
+  # scale, so only one branch (e.g. snow melt) survives. Used by snm
+  # (hxy-si): the mask_where_no_seaice step enforces CMIP7 cell_methods
+  # ``where sea_ice (mask=siconc)``.
+  - name: snm_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - script://$PYCMOR_HOME/examples/custom_steps.py:clip_negative_to_zero
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Sea ice speed: sqrt(uice² + vice²). hxy-si branding ⇒ mask.
+  - name: sispeed_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sispeed
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # CMIP sfdsi (Downward Sea Ice Basal Salt Flux) reconstructed from
+  # fw_ice + sss under linfs (where realsalt is unreachable). hxy-sea
+  # variant (sfdsi): no masking — fw_ice is intrinsically zero outside
+  # ice so cell_methods ``where sea`` is satisfied by the model itself.
+  - name: sfdsi_from_fw_ice_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfdsi_from_fw_ice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # hxy-si variant of sfdsi_from_fw_ice_pipeline for the SImon `sfdsi`
+  # (sfdsi_seaice rule). CMIP7 cell_methods on seaIce.sfdsi is
+  # ``where sea_ice``; the mask is the only difference from the hxy-sea
+  # variant above.
+  - name: sfdsi_from_fw_ice_mask_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfdsi_from_fw_ice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ice mass transport: velocity × m_ice × cell_width. Both sidmasstranx
+  # and sidmasstrany are hxy-u branding (CMIP7 cell_methods is
+  # ``area: time: mean`` with no ``where sea_ice``), so no mask step.
+  - name: ice_mass_transport_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_mass_transport
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Average normal stress: (sgm11 + sgm22) / 2. hxy-si branding ⇒ mask.
+  - name: sistressave_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sistressave
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Maximum shear stress: sqrt(((sgm11-sgm22)/2)² + sgm12²). hxy-si ⇒ mask.
+  - name: sistressmax_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sistressmax
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Conductive heat flux at ice surface: k_ice*(T_base-T_surface)/h_ice.
+  # hxy-si branding ⇒ mask.
+  - name: siflcondtop_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_siflcondtop
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Sea ice heat content: rho_ice*h_ice*(c_ice*(T_mean-T_melt)-L_f)
+  - name: sihc_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sihc
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Snow heat content: -rho_snow * L_f * h_snow. hxy-si ⇒ mask.
+  - name: sisnhc_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sisnhc
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Freezing point from SSS → sitempbot. hxy-si ⇒ mask.
+  - name: sitempbot_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitempbot
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Freeboard from h_ice and h_snow. hxy-si ⇒ mask.
+  - name: sifb_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sifb
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Effective melt pond fraction: apnd*(1-ipnd/hpnd)*100. hxy-si ⇒ mask.
+  - name: simpeffconc_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_simpeffconc
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Constant field (e.g. drag coefficient). Used by sidragtop/sidragbot,
+  # both hxy-si ⇒ mask.
+  - name: constant_field_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_constant_field
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Regrid from OpenIFS regular grid to FESOM unstructured nodes
+  - name: regrid_atm_to_fesom_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:regrid_oifs_to_fesom
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Regrid from OpenIFS regular grid to FESOM unstructured nodes, then mask to sea-ice-covered nodes
+  # `throttle_group: oifs_regrid` caps how many of this family of rules
+  # run concurrently (cmorizer applies it via per-group submission
+  # limit; default cap 2). With 7 OIFS-regrid rules in lrcs_seaice and
+  # `max_in_flight=4` previously, the driver process hit 87 GiB RSS and
+  # cascaded 15 rule failures (cli16). See
+  # FORENSIC_lrcs_seaice_failure.md.
+  - name: regrid_atm_to_fesom_seaice_mask_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:regrid_oifs_to_fesom
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Same as above but negates the field at the end. IFS surface heat fluxes
+  # (hfls, hfss) are CMIP positive=up; the CMIP sea-ice variants
+  # (sifllattop, siflsenstop) are positive=down. Apply a final
+  # scale_by_constant(-1) step to flip the sign.
+  - name: regrid_atm_to_fesom_seaice_mask_negate_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:regrid_oifs_to_fesom
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Generic hemisphere integral (snow mass, ice area, etc.)
+  - name: hemisphere_integral_pipeline
+    # integrate_over_hemisphere produces a value in m^2 (sum of a_ice *
+    # cell_area). Without handle_unit_conversion afterwards the value
+    # stays in raw m^2 (~1e13) and gets labelled with CMIP `1e6 km2`,
+    # producing FAIL on the daily siarea/siextent ldiag_cmor-style
+    # scalars even though the monthly scalar rules are fine.
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_hemisphere
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Hemisphere integral of a volume-per-area field rebuilt from daily
+  # thickness × concentration. Only sivol at day frequency uses it: m_ice is
+  # monthly-only in this run, so h_ice × a_ice stands in for it. The unit
+  # chain is h_ice·a_ice [m] × cell_area [m²] = m³, converted to `1e3 km3`.
+  - name: ice_volume_hemisphere_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_volume_per_area
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_hemisphere
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Hemisphere-integral pipeline that ALSO applies a constant scaling
+  # after integration. Used by sisnmass (m_snow [m] × cell_area [m²] ×
+  # rho_snow [kg/m³] = kg). The unit chain is:
+  #   m_snow [m]
+  #   -> integrate_over_hemisphere -> values are m³ (volume of snow column)
+  #   -> scale_by_constant(rho_snow=330) -> values are kg (mass)
+  #      and sets scaled_units (e.g. "kg") on the array.
+  #   -> handle_unit_conversion -> kg -> kg (no-op or relabel)
+  - name: hemisphere_integral_scale_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_hemisphere
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Tier-wide throttle: applies to ALL rules (pipelined or default-piped).
+  # cli43 lrcs_seaice_3 still timed out after pipeline-level annotation
+  # because 20 of 64 rules (siarea_north, siextent_north_day, siflcondbot,
+  # sidconcth, sitimefrac, etc.) have no `pipelines:` key, use the default
+  # pipeline, and were thus _unthrottled. With the cmorizer change to read
+  # rule.throttle_group as a fallback, the inherit value propagates to
+  # every rule.
+  throttle_group: lrcs_seaice_serial
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+  oifs_data_path: &odp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g130
+  mesh_path: /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 DARS unstructured mesh (~10 km nominal, 3146761 nodes)"
+  nominal_resolution: "10 km"
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # SImon — DefaultPipeline (direct variable mapping)
+  # ============================================================
+
+  # --- Thermodynamic/dynamic area fraction tendencies ---
+
+  - name: sidconcdyn
+    inputs:
+      - path: *dp
+        pattern: dyngrarea\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidconcdyn.tavg-u-hxy-sea.mon.glb
+    model_variable: dyngrarea
+    model_unit: "s-1"
+
+  - name: sidconcth
+    inputs:
+      - path: *dp
+        pattern: thdgrarea\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidconcth.tavg-u-hxy-sea.mon.glb
+    model_variable: thdgrarea
+    model_unit: "s-1"
+
+  # --- Ice strength ---
+
+  - name: sicompstren
+    inputs:
+      - path: *dp
+        pattern: strength_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sicompstren.tavg-u-hxy-si.mon.glb
+    model_variable: strength_ice
+    model_unit: "N m-1"
+
+  # --- Atmospheric stress on sea ice ---
+
+  - name: sistrxdtop
+    inputs:
+      - path: *dp
+        pattern: atmice_x\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sistrxdtop.tavg-u-hxy-si.mon.glb
+    model_variable: atmice_x
+
+  - name: sistrydtop
+    inputs:
+      - path: *dp
+        pattern: atmice_y\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sistrydtop.tavg-u-hxy-si.mon.glb
+    model_variable: atmice_y
+
+  # --- Ocean stress on sea ice ---
+
+  - name: sistrxubot
+    inputs:
+      - path: *dp
+        pattern: iceoce_x\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sistrxubot.tavg-u-hxy-si.mon.glb
+    model_variable: iceoce_x
+
+  - name: sistryubot
+    inputs:
+      - path: *dp
+        pattern: iceoce_y\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sistryubot.tavg-u-hxy-si.mon.glb
+    model_variable: iceoce_y
+
+  # --- Conductive heat flux at ice base ---
+
+  - name: siflcondbot
+    inputs:
+      - path: *dp
+        pattern: qcon\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siflcondbot.tavg-u-hxy-si.mon.glb
+    model_variable: qcon
+
+  # ============================================================
+  # SImon — scale_pipeline (multiply by constant for unit conversion)
+  # ============================================================
+
+  # --- Mass change from dynamics: dyngrice [m/s] × rho_ice → kg m-2 s-1 ---
+
+  - name: sidmassdyn
+    inputs:
+      - path: *dp
+        pattern: dyngrice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidmassdyn.tavg-u-hxy-si.mon.glb
+    model_variable: dyngrice
+    scale_factor: 910.0
+    scaled_units: "kg m-2 s-1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  # --- Mass change from thermodynamics: thdgrice [m/s] × rho_ice → kg m-2 s-1 ---
+
+  - name: sidmassth
+    inputs:
+      - path: *dp
+        pattern: thdgrice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidmassth.tavg-u-hxy-si.mon.glb
+    model_variable: thdgrice
+    scale_factor: 910.0
+    scaled_units: "kg m-2 s-1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  # --- Snow melt rate: thdgrsn [m/s] × rho_snow → kg m-2 s-1 ---
+
+  - name: snm
+    # FESOM `thdgrsnw` is the NET thermodynamic snow thickness change:
+    #   > 0 → snow accumulates (snowfall > melt+sublimation)
+    #   < 0 → snow melts faster than it accumulates
+    # CMIP `snm` is the snow MELT rate, positive when melting and 0
+    # otherwise. So we flip the sign (-330 = -ρ_snow) and clip the
+    # accumulation branch to 0 in the snm_pipeline. hxy-si ⇒ pipeline
+    # also masks to NaN where a_ice == 0.
+    inputs:
+      - path: *dp
+        pattern: thdgrsnw\.fesom\.\d{4}\.nc
+    compound_name: seaIce.snm.tavg-u-hxy-si.mon.glb
+    model_variable: thdgrsnw
+    scale_factor: -330.0
+    scaled_units: "kg m-2 s-1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - snm_pipeline
+
+  # --- Freshwater flux from sea ice: fw_ice [m/s] × rho_water → kg m-2 s-1 ---
+
+  - name: siflfwbot
+    inputs:
+      - path: *dp
+        pattern: fw_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siflfwbot.tavg-u-hxy-si.mon.glb
+    model_variable: fw_ice
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  # --- Freshwater flux from sea-ice surface (snow): fw_snw [m/s] × rho_water → kg m-2 s-1 ---
+
+  - name: siflfwdrain
+    inputs:
+      - path: *dp
+        pattern: fw_snw\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siflfwdrain.tavg-u-hxy-si.mon.glb
+    model_variable: fw_snw
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  # --- Salt mass in sea ice ---
+  #
+  # FESOM's `m_ice` is effective ice height per cell area (units 'm';
+  # def_stream in io_meandata.F90 long_name "ice height per unit area"),
+  # NOT mass per area as an earlier draft of this rule assumed. The
+  # correct conversion to salt mass per cell area is:
+  #
+  #     sisaltmass [kg/m²] = (sice/1000) × m_ice [m] × rho_ice [kg/m³]
+  #                       = 0.004 × m_ice × 910
+  #                       = 3.64 × m_ice
+  #
+  # Verified: sice = 4.0 psu from
+  # `/work/bb1469/.../Final_CMIP7_IO_Test_06/config/fesom/namelist.ice`;
+  # rhoice = 910 (AOMIP) from `MOD_ICE.F90:61`. Earlier rule used
+  # scale_factor=0.004 which omitted rho_ice — output was ~1000× too low.
+
+  - name: sisaltmass
+    inputs:
+      - path: *dp
+        pattern: m_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisaltmass.tavg-u-hxy-si.mon.glb
+    model_variable: m_ice
+    scale_factor: 3.64       # (sice/1000) * rho_ice = 0.004 * 910
+    scaled_units: "kg m-2"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  # ============================================================
+  # SImon — multi-variable compute pipelines
+  # ============================================================
+
+  - name: sispeed
+    inputs:
+      - path: *dp
+        pattern: uice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sispeed.tavg-u-hxy-si.mon.glb
+    model_variable: uice
+    second_input_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    second_input_pattern: vice\.fesom\.\d{4}\.nc
+    second_variable: vice
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sispeed_pipeline
+
+  # CMIP7 sidmasstran[xy] are in kg/s (total mass crossing a cell edge
+  # per unit time), not kg/(m·s). compute_ice_mass_transport now
+  # multiplies by rho_ice (910 kg/m³ AOMIP) and sqrt(cell_area) from
+  # grid_file (inherited) to convert FESOM's m_ice [m] × uice [m/s]
+  # into kg/s. Previously the rule wrote m²/s mislabelled kg/s.
+  - name: sidmasstranx
+    inputs:
+      - path: *dp
+        pattern: uice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidmasstranx.tavg-u-hxy-u.mon.glb
+    model_variable: uice
+    mice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    rho_ice: 910.0
+    pipelines:
+      - ice_mass_transport_pipeline
+
+  - name: sidmasstrany
+    inputs:
+      - path: *dp
+        pattern: vice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidmasstrany.tavg-u-hxy-u.mon.glb
+    model_variable: vice
+    mice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    rho_ice: 910.0
+    pipelines:
+      - ice_mass_transport_pipeline
+
+  # --- Stress tensor derived (mEVP: sgm11, sgm12, sgm22) ---
+
+  # DEACTIVATED — no instantaneous stress tensor in this run.
+  #
+  # Both DReq entries are branded tpt-u-hxy-si and ask for "an instantaneous
+  # value at the center of the month". FESOM writes sgm11/sgm12/sgm22 as
+  # monthly means (12 records, cell_methods "time: mean"), so publishing these
+  # meant labelling a monthly mean as a snapshot. For sistressmax it is worse
+  # than a labelling problem: the invariant is
+  # sqrt(((sgm11-sgm22)/2)^2 + sgm12^2), a nonlinear function of the
+  # components, so deriving it from monthly means is not even the monthly mean
+  # of the invariant.
+  #
+  # Nothing in the existing output fixes this. Per-timestep stress output is
+  # the only route to a genuine snapshot and sgm11 alone is ~206 MB for 12
+  # records, so roughly 1.5 TB/year/component — not viable at HR.
+  #
+  # Instantaneous streams (sgm11_inst / sgm12_inst / sgm22_inst) are wired up
+  # in esm_tools for runs started after that lands; see
+  # REACTIVATE_AFTER_XIOS_FIX.md for how to bring these two rules back.
+  #
+  # - name: sistressave
+  #   inputs:
+  #     - path: *dp
+  #       pattern: sgm11_inst\.fesom\.\d{4}\.nc
+  #   compound_name: seaIce.sistressave.tpt-u-hxy-si.mon.glb
+  #   model_variable: sgm11
+  #   sgm22_path: *dp
+  #   sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
+  #   aice_path: *dp
+  #   aice_pattern: a_ice\.fesom\.\d{4}\.nc
+  #   pipelines:
+  #     - sistressave_pipeline
+  #
+  # - name: sistressmax
+  #   inputs:
+  #     - path: *dp
+  #       pattern: sgm11_inst\.fesom\.\d{4}\.nc
+  #   compound_name: seaIce.sistressmax.tpt-u-hxy-si.mon.glb
+  #   model_variable: sgm11
+  #   sgm22_path: *dp
+  #   sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
+  #   sgm12_path: *dp
+  #   sgm12_pattern: sgm12_inst\.fesom\.\d{4}\.nc
+  #   aice_path: *dp
+  #   aice_pattern: a_ice\.fesom\.\d{4}\.nc
+  #   pipelines:
+  #     - sistressmax_pipeline
+
+  # ============================================================
+  # SImon — cross-realm (ocean seaIce) freshwater/salt fluxes
+  # ============================================================
+
+  # Downward sea ice basal salt flux. Under linfs (use_virt_salt=.true.)
+  # FESOM never populates real_salt_flux (ice_thermo_cpl.F90 branch is gated
+  # off), so the legacy realsalt-based recipe produced zeros. Reconstruct
+  # the physical salt flux from the ice freshwater flux fw_ice and surface
+  # salinity sss:  sfdsi = -rho_w · (sss/1000) · fw_ice.
+  - name: sfdsi
+    inputs:
+      - path: *dp
+        pattern: fw_ice\.fesom\.\d{4}\.nc
+    compound_name: ocean.sfdsi.tavg-u-hxy-sea.mon.glb
+    model_variable: fw_ice
+    sss_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    sss_variable: sss
+    reference_density: 1025.0
+    pipelines:
+      - sfdsi_from_fw_ice_pipeline
+
+  # Same physical quantity in the SImon table. fw_ice is intrinsically
+  # zero outside sea ice, so the field is already where_sea_ice in
+  # value terms; CMIP7 cell_methods on seaIce.sfdsi nevertheless says
+  # ``where sea_ice (mask=siconc)``, so use the masked variant to write
+  # NaN (not 0) outside the ice pack.
+  - name: sfdsi_seaice
+    inputs:
+      - path: *dp
+        pattern: fw_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sfdsi.tavg-u-hxy-si.mon.glb
+    model_variable: fw_ice
+    sss_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    sss_variable: sss
+    reference_density: 1025.0
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sfdsi_from_fw_ice_mask_pipeline
+
+  # Virtual salt flux into sea water from ice thermodynamics
+  - name: vsfsit
+    inputs:
+      - path: *dp
+        pattern: virtsalt\.fesom\.\d{4}\.nc
+    compound_name: ocean.vsfsit.tavg-u-hxy-sea.mon.glb
+    model_variable: virtsalt
+    scale_factor: 1.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  # Water flux into ocean from ice thermodynamics (Omon table)
+  - name: siflfwbot_omon
+    inputs:
+      - path: *dp
+        pattern: fw_ice\.fesom\.\d{4}\.nc
+    compound_name: ocean.siflfwbot.tavg-u-hxy-sea.mon.glb
+    model_variable: fw_ice
+    scale_factor: 1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - scale_pipeline
+
+  # ============================================================
+  # SImon — post-processed from available output
+  # ============================================================
+
+  # Conductive heat flux at ice surface
+  # qcond_top = k_ice * (T_base - T_surface) / h_ice
+  - name: siflcondtop
+    inputs:
+      - path: *dp
+        pattern: ist\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siflcondtop.tavg-u-hxy-si.mon.glb
+    model_variable: ist
+    sss_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    hice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    hice_pattern: h_ice\.fesom\.\d{4}\.nc
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    k_ice: 2.1656
+    pipelines:
+      - siflcondtop_pipeline
+
+  # Sea ice heat content
+  - name: sihc
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sihc.tavg-u-hxy-sea.mon.glb
+    model_variable: h_ice
+    ist_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    ist_pattern: ist\.fesom\.\d{4}\.nc
+    sss_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    rho_ice: 910.0
+    c_ice: 2090.0
+    L_f: 334000.0
+    pipelines:
+      - sihc_pipeline
+
+  # Snow heat content: -rho_snow * L_f * h_snow (latent heat dominates)
+  - name: sisnhc
+    inputs:
+      - path: *dp
+        pattern: h_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisnhc.tavg-u-hxy-si.mon.glb
+    model_variable: h_snow
+    rho_snow: 330.0
+    L_f: 334000.0
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sisnhc_pipeline
+
+  # Temperature at ice-ocean interface (freezing point from SSS)
+  - name: sitempbot
+    inputs:
+      - path: *dp
+        pattern: sss\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sitempbot.tavg-u-hxy-si.mon.glb
+    model_variable: sss
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sitempbot_pipeline
+
+  # Sea ice freeboard from h_ice and h_snow
+  - name: sifb
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sifb.tavg-u-hxy-si.mon.glb
+    model_variable: h_ice
+    snow_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    snow_pattern: h_snow\.fesom\.\d{4}\.nc
+    snow_variable: h_snow
+    rho_ice: 910.0
+    rho_snow: 330.0
+    rho_water: 1025.0
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sifb_pipeline
+
+  # Atmospheric drag coefficient (constant from namelist.ice: cd_atm_ice=0.0012 — verify against runtime namelist)
+  - name: sidragtop
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidragtop.tavg-u-hxy-si.mon.glb
+    model_variable: a_ice
+    constant_value: 0.0012
+    constant_units: "1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - constant_field_pipeline
+
+  # Ocean drag coefficient (constant from namelist.ice: cd_oce_ice=0.0055)
+  - name: sidragbot
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sidragbot.tavg-u-hxy-si.mon.glb
+    model_variable: a_ice
+    constant_value: 0.0055
+    constant_units: "1"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - constant_field_pipeline
+
+  # Snow mass on sea ice — Northern Hemisphere
+  #
+  # FESOM `m_snow` is snow depth (m) per node. integrate_over_hemisphere
+  # multiplies by cell_area → values become snow VOLUME (m³, mislabeled
+  # as "m" by the helper's attrs.copy). Multiplying by rho_snow gives
+  # snow MASS (kg). The handle_unit_conversion step that the pipeline
+  # added in commit e0e93ee now correctly refuses m → kg (different
+  # dimensions); the fix is to apply rho_snow inside the pipeline before
+  # the unit conversion via the new hemisphere_integral_scale_pipeline.
+  - name: sisnmass_north
+    inputs:
+      - path: *dp
+        pattern: m_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: m_snow
+    hemisphere: "N"
+    scale_factor: 330.0       # rho_snow, kg/m³ (matches FESOM default)
+    scaled_units: "kg"
+    pipelines:
+      - hemisphere_integral_scale_pipeline
+
+  - name: sisnmass_south
+    inputs:
+      - path: *dp
+        pattern: m_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: m_snow
+    hemisphere: "S"
+    scale_factor: 330.0
+    scaled_units: "kg"
+    pipelines:
+      - hemisphere_integral_scale_pipeline
+
+  # ============================================================
+  # SImon — melt ponds (use_meltponds=.true.)
+  # FESOM outputs: apnd (area frac), hpnd (depth), ipnd (lid thickness)
+  # ============================================================
+
+  - name: simpconc
+    inputs:
+      - path: *dp
+        pattern: apnd\.fesom\.\d{4}\.nc
+    compound_name: seaIce.simpconc.tavg-u-hxy-si.mon.glb
+    model_variable: apnd
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - fraction_to_percent_mask_pipeline
+
+  - name: simpthick
+    inputs:
+      - path: *dp
+        pattern: hpnd\.fesom\.\d{4}\.nc
+    compound_name: seaIce.simpthick.tavg-u-hxy-simp.mon.glb
+    model_variable: hpnd
+
+  - name: simprefrozen
+    inputs:
+      - path: *dp
+        pattern: ipnd\.fesom\.\d{4}\.nc
+    compound_name: seaIce.simprefrozen.tavg-u-hxy-simp.mon.glb
+    model_variable: ipnd
+
+  - name: simpeffconc
+    inputs:
+      - path: *dp
+        pattern: apnd\.fesom\.\d{4}\.nc
+    compound_name: seaIce.simpeffconc.tavg-u-hxy-si.mon.glb
+    model_variable: apnd
+    ipnd_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    ipnd_pattern: ipnd\.fesom\.\d{4}\.nc
+    hpnd_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    hpnd_pattern: hpnd\.fesom\.\d{4}\.nc
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - simpeffconc_pipeline
+
+  # ============================================================
+  # SImon — hemisphere-integrated scalars (ldiag_cmor=.true.)
+  # ============================================================
+
+  # FESOM ldiag_cmor scalars come out in `1e12 m2` (mathematically identical
+  # to CMIP `1e6 km2`). Without this declaration pycmor's pint pass parses
+  # the FESOM units literally and ends up multiplying values by 1e12.
+  - name: siarea_north
+    inputs:
+      - path: *dp
+        pattern: siarean\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siarea.tavg-u-hm-u.mon.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: siarean
+    model_unit: "1e12 m2"
+
+  - name: siarea_south
+    inputs:
+      - path: *dp
+        pattern: siareas\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siarea.tavg-u-hm-u.mon.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: siareas
+    model_unit: "1e12 m2"
+
+  # Daily siarea: ldiag_cmor scalars are monthly-only; compute from gridded a_ice
+  # integrate_over_hemisphere returns sum(a_ice * cell_area) in m2 — pint converts to "1e6 km2".
+  - name: siarea_north_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siarea.tavg-u-hm-u.day.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: a_ice
+    model_unit: "m2"
+    hemisphere: "N"
+    pipelines:
+      - hemisphere_integral_pipeline
+
+  - name: siarea_south_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siarea.tavg-u-hm-u.day.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: a_ice
+    model_unit: "m2"
+    hemisphere: "S"
+    pipelines:
+      - hemisphere_integral_pipeline
+
+  - name: siextent_north
+    inputs:
+      - path: *dp
+        pattern: siextentn\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siextent.tavg-u-hm-u.mon.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: siextentn
+    model_unit: "1e12 m2"
+
+  - name: siextent_south
+    inputs:
+      - path: *dp
+        pattern: siextents\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siextent.tavg-u-hm-u.mon.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: siextents
+    model_unit: "1e12 m2"
+
+  # Daily siextent: ldiag_cmor scalars are monthly-only; compute from gridded a_ice with 15% threshold
+  # integrate_over_hemisphere returns sum(1{a_ice>0.15} * cell_area) in m2 — pint converts to "1e6 km2".
+  - name: siextent_north_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siextent.tavg-u-hm-u.day.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: a_ice
+    model_unit: "m2"
+    hemisphere: "N"
+    extent_threshold: 0.15
+    pipelines:
+      - hemisphere_integral_pipeline
+
+  - name: siextent_south_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siextent.tavg-u-hm-u.day.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: a_ice
+    model_unit: "m2"
+    hemisphere: "S"
+    extent_threshold: 0.15
+    pipelines:
+      - hemisphere_integral_pipeline
+
+  - name: sivol_north
+    inputs:
+      - path: *dp
+        pattern: sivoln\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sivol.tavg-u-hm-u.mon.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: sivoln
+
+  - name: sivol_south
+    inputs:
+      - path: *dp
+        pattern: sivols\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sivol.tavg-u-hm-u.mon.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: sivols
+
+  # Daily sivol, rebuilt from the gridded daily fields.
+  #
+  # These used to read the ldiag_cmor scalars sivoln/sivols, same as the
+  # monthly rules above. Those scalars are monthly in this run, so cli108
+  # published a 335-step daily axis carrying 12 distinct values and 323 NaNs.
+  # m_ice would be the right input but is monthly-only too; h_ice and a_ice
+  # are both daily and m_ice = h_ice * a_ice, so the daily field is
+  # reconstructible from output that already exists. Both inputs are daily
+  # means, so the product drops the sub-daily thickness/concentration
+  # covariance: measured against FESOM's per-timestep sivoln for 1586 it runs
+  # +0.094% high on average, 0.107% at worst, correlation 1.000000. A daily
+  # m_ice stream is wired up in esm_tools and removes the approximation for
+  # later runs; see REACTIVATE_AFTER_XIOS_FIX.md.
+  - name: sivol_north_day
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sivol.tavg-u-hm-u.day.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: h_ice
+    model_unit: "m3"
+    hemisphere: "N"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    aice_variable: a_ice
+    pipelines:
+      - ice_volume_hemisphere_pipeline
+
+  - name: sivol_south_day
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sivol.tavg-u-hm-u.day.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    cell_measures: ""
+    model_variable: h_ice
+    model_unit: "m3"
+    hemisphere: "S"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    aice_variable: a_ice
+    pipelines:
+      - ice_volume_hemisphere_pipeline
+
+  # ============================================================
+  # SImon — atmosphere-grid variables (from OpenIFS output)
+  # ============================================================
+
+  # Snow sublimation over sea ice: OpenIFS total sbl (es) regridded to FESOM nodes.
+  # Note: OpenIFS 'sbl' is total snow sublimation from all surfaces (land + sea ice);
+  # no ice-tile-specific sublimation diagnostic is available.
+  - name: sbl_seaice
+    inputs:
+      - path: *odp
+        pattern: atmos_mon_land_sbl_.*\.nc
+    compound_name: seaIce.sbl.tavg-u-hxy-si.mon.glb
+    model_variable: sbl
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Downwelling shortwave flux over sea ice: OpenIFS rsds regridded to FESOM nodes.
+  # Note: total downwelling SW over all surfaces; no ice-tile-specific diagnostic available.
+  - name: rsds_seaice
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsds_.*\.nc
+    compound_name: seaIce.rsds.tavg-u-hxy-si.mon.glb
+    model_variable: rsds
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  - name: rsds_seaice_day
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsds_.*\.nc
+    compound_name: seaIce.rsds.tavg-u-hxy-si.day.glb
+    model_variable: rsds
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Upwelling shortwave flux over sea ice: OpenIFS rsus regridded to FESOM nodes.
+  # Note: total upwelling SW over all surfaces; no ice-tile-specific diagnostic available.
+  - name: rsus_seaice
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsus_.*\.nc
+    compound_name: seaIce.rsus.tavg-u-hxy-si.mon.glb
+    model_variable: rsus
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  - name: rsus_seaice_day
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsus_.*\.nc
+    compound_name: seaIce.rsus.tavg-u-hxy-si.day.glb
+    model_variable: rsus
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Downwelling longwave flux over sea ice: OpenIFS rlds regridded to FESOM nodes.
+  # Note: total downwelling LW over all surfaces; no ice-tile-specific diagnostic available.
+  - name: rlds_seaice
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rlds_.*\.nc
+    compound_name: seaIce.rlds.tavg-u-hxy-si.mon.glb
+    model_variable: rlds
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Upwelling longwave flux over sea ice: OpenIFS rlus regridded to FESOM nodes.
+  # Note: total upwelling LW over all surfaces; no ice-tile-specific diagnostic available.
+  - name: rlus_seaice
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rlus_.*\.nc
+    compound_name: seaIce.rlus.tavg-u-hxy-si.mon.glb
+    model_variable: rlus
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Net latent heat flux over sea ice: OpenIFS hfls regridded to FESOM nodes.
+  # Note: OpenIFS hfls is total latent heat flux over all surfaces; no
+  # ice-tile-specific diagnostic available. Source file `atmos_1h_sfc_hfls_*.nc`
+  # is the CMIP7 atmos output, native reduced-Gaussian grid, already in W m-2
+  # with CMIP sign convention (file_def applies `-slhf/3600`). Hourly cadence
+  # is timeavg'd to monthly downstream — same path as the rsds/rsus_seaice
+  # family, currently F4-blocked (see DESIGN_PROPOSAL_recipe_failures_post_cli.md
+  # §3.4); ships once F4 is closed.
+  # The previous `atmos_mon_land_slhf_*.nc` pattern doesn't exist in OIFS
+  # output — only `atmos_1h_sfc_*` and `atm_remapped_1m_*` variants of
+  # slhf/sshf are produced; atm_remapped_* isn't CMIP7 output (default-on
+  # diagnostic stream that may not always be enabled), so we use atmos_*.
+  - name: sifllattop
+    # IFS hfls is CMIP positive=up (surface_upward_latent_heat_flux). CMIP
+    # sifllattop is positive=down (surface_downward_latent_heat_flux over
+    # sea ice). Use the *_negate_pipeline so scale_by_constant(-1) flips
+    # the sign.
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_hfls_.*\.nc
+    compound_name: seaIce.sifllattop.tavg-u-hxy-si.mon.glb
+    model_variable: hfls
+    scale_factor: -1.0
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_negate_pipeline
+
+  # Net sensible heat flux over sea ice: OpenIFS hfss regridded to FESOM nodes.
+  # Same pattern as sifllattop above — atmos_1h_sfc_hfss_*.nc is the CMIP7
+  # atmos output (file_def applies `-sshf/3600`); F4-blocked until that's
+  # closed.
+  - name: siflsenstop
+    # IFS hfss is CMIP positive=up (surface_upward_sensible_heat_flux). CMIP
+    # siflsenstop is positive=down (surface_downward_sensible_heat_flux over
+    # sea ice). Use the *_negate_pipeline.
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_hfss_.*\.nc
+    compound_name: seaIce.siflsenstop.tavg-u-hxy-si.mon.glb
+    model_variable: hfss
+    scale_factor: -1.0
+    time_dimname: time_counter
+    aice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_to_fesom_seaice_mask_negate_pipeline
+
+  # Sea ice concentration on atmosphere grid: ci [1] → siconca [%]
+  - name: siconca
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *odp
+        pattern: atm_remapped_1m_ci_.*\.nc
+    compound_name: seaIce.siconca.tavg-u-hxy-u.mon.glb
+    model_variable: ci
+    nominal_resolution: "25 km"
+    time_dimname: time_counter
+    pipelines:
+      - fraction_to_percent_pipeline
+
+  - name: siconca_day
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *odp
+        pattern: atm_remapped_1d_ci_.*\.nc
+    compound_name: seaIce.siconca.tavg-u-hxy-u.day.glb
+    model_variable: ci
+    nominal_resolution: "25 km"
+    time_dimname: time_counter
+    pipelines:
+      - fraction_to_percent_pipeline
+
+  # ============================================================
+  # SIday — Daily variables
+  # ============================================================
+
+  - name: sispeed_day
+    inputs:
+      - path: *dp
+        pattern: uice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sispeed.tavg-u-hxy-si.day.glb
+    model_variable: uice
+    second_input_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    second_input_pattern: vice\.fesom\.\d{4}\.nc
+    second_variable: vice
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sispeed_pipeline
+
+  - name: sitimefrac_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sitimefrac.tavg-u-hxy-sea.day.glb
+    model_variable: a_ice
+    model_unit: "1"
+
+  - name: ts_day
+    inputs:
+      - path: *dp
+        pattern: ist\.fesom\.\d{4}\.nc
+    compound_name: seaIce.ts.tavg-u-hxy-si.day.glb
+    model_variable: ist
+
+  # Same rho_snow scaling as sisnmass_north / sisnmass_south above —
+  # see those rules for rationale.
+  - name: sisnmass_north_day
+    inputs:
+      - path: *dp
+        pattern: m_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisnmass.tavg-u-hm-si.day.nh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: m_snow
+    hemisphere: "N"
+    scale_factor: 330.0
+    scaled_units: "kg"
+    pipelines:
+      - hemisphere_integral_scale_pipeline
+
+  - name: sisnmass_south_day
+    inputs:
+      - path: *dp
+        pattern: m_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sisnmass.tavg-u-hm-si.day.sh
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: m_snow
+    hemisphere: "S"
+    scale_factor: 330.0
+    scaled_units: "kg"
+    pipelines:
+      - hemisphere_integral_scale_pipeline

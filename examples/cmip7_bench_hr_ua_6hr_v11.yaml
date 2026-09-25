@@ -1,0 +1,75 @@
+# Bench v11: per-slab pipeline (load→process→save inner loop) with
+# posix_fadvise(DONTNEED) on completed outputs.
+#
+# What changed (vs v1): pycmor's standard save_dataset is replaced with
+# bench_rechunk.py:save_dataset_per_slab. That step splits the incoming
+# Dataset along time into slab_size-step slabs, computes+writes each
+# slab to its own file, then explicitly drops the slab reference, runs
+# gc.collect(), and posix_fadvise(POSIX_FADV_DONTNEED) on the just-written
+# file so the kernel reclaims its page cache.
+#
+# Hypothesis: cgroup peak drops from ~30 GB (mostly page cache for the
+# 13 GB input + 11.7 GB output) to ~5–8 GB (one slab-worth of cache + heap).
+# The 8.5 GB anon-RSS observed in v1 should remain ~unchanged.
+#
+# This bench produces non-CMIP-named output files (slab000_, slab001_, …)
+# because the per-slab path is bench-only; the production version would
+# need to merge slabs into CMIP-DRS-named files. Goal here is *only* to
+# measure whether per-slab + fadvise caps cgroup peak.
+
+general:
+  name: "hr-ua-6hr-bench-v11"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_threads_per_worker: 1
+  dask_memory_limit: 200GB
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/bench_hr_ua_6hr_v11
+
+pipelines:
+  - name: bench_ua_6hr_pipeline_v11
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/bench_rechunk.py:save_dataset_per_slab
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: ua_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ua_1587-1587\.nc
+    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ua
+    lazy_write: true
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    slab_size: 30
+    pipelines:
+      - bench_ua_6hr_pipeline_v11

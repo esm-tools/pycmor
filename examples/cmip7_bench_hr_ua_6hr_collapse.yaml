@@ -1,0 +1,96 @@
+# HR memory-pressure benchmark: ua_6hr_pl7h — the heaviest rule class
+# in cap7_atm. Identical shape/size to the other 6hr_pl7h fields
+# (ta, va, hus, zg). Workers killed at the dask 90% memory budget on
+# 48 GB- and 64 GB-cap configurations during the 2026-05-04 sweep
+# (jobs 24671210, 24671211), suggesting a working-set peak >55 GB
+# despite spill thresholds being tightened.
+#
+# Input:  atmos_6h_pl7h_ua_1587-1587.nc  (~13 GB on disk, blosc_zstd-3)
+#         shape: (time=1460, plev=7, lat=720, lon=1440) float32
+#         raw in-memory: 1460 * 7 * 720 * 1440 * 4B  =  ~42 GB
+# Output: same shape, regridded metadata.
+#
+# This yaml runs the rule serially (parallel=False, 1 worker, 1 thread)
+# so any process-level profiling (py-spy, memray, valgrind massif) sees
+# the actual pycmor + xarray + dask + blosc + HDF5 callstack of the
+# heavy-rule path without the noise of multi-rule scheduling.
+#
+# Suggested follow-up investigations (for the next AI):
+#   - Where does the working set peak inside save_dataset's to_netcdf?
+#     Is xarray materializing the entire dataset before write, or
+#     streaming chunks?
+#   - With lazy_write=true, trigger_compute is a no-op. Does the dask
+#     graph evaluation in to_netcdf hold all 42 GB raw input in memory
+#     after compression?
+#   - Does explicit .chunk(time_chunk_size=...) before save_dataset cap
+#     the in-flight chunks, or is xarray already chunking optimally?
+#   - Try netcdf_write_scheduler: synchronous vs threads — does threads
+#     hold more chunks resident concurrently and inflate peak?
+#   - Try compression_level: 1 (faster, less CPU per chunk) — does
+#     reducing CPU back-pressure let chunks drain to disk faster and
+#     lower the peak?
+
+general:
+  name: "hr-ua-6hr-bench-collapse"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_threads_per_worker: 1
+  # Generous cap so dask doesn't kill the worker before the next AI gets
+  # a profile of where the memory actually lives.
+  dask_memory_limit: 200GB
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/bench_hr_ua_6hr_collapse
+
+pipelines:
+  # DefaultPipeline-style steps. No add_vertical_bounds because the data
+  # is already on pressure levels (CMIP-standard plev7h).
+  - name: bench_ua_6hr_pipeline
+    collapse_steps: true
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: ua_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ua_1587-1587\.nc
+    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ua
+    lazy_write: true
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    netcdf_write_scheduler: threads
+    pipelines:
+      - bench_ua_6hr_pipeline

@@ -1,0 +1,858 @@
+# CMIP7 VEG Land Variables — AWI-ESM3-VEG-HR
+# Generated from 3 CSVs in veg_land/
+#
+# Part 1: IFS/HTESSEL variables via XIOS (3hr, daily, monthly)
+# Part 2: LPJ-GUESS variables from plain-text .out files
+# ~58 producible out of 88 total variables
+
+general:
+  name: "awiesm3-cmip7-veg-land"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+  # `throttle_caps` lives on the launch side (see submit_hr_year_shards.sh
+  # `tier_throttle_caps` case), not here — yaml-level throttle_caps gets
+  # dropped by the Everett PycmorConfig schema. The per-pipeline
+  # `throttle_group: veg_land_serial` annotation below binds the rules
+  # into the group; cap=1 is supplied via PYCMOR_THROTTLE_CAPS env var.
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Custom pipeline for temporal differencing (dgw, dsn, dsw)
+  - name: temporal_diff_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_temporal_diff
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Custom pipeline for terrestrial water storage (summation)
+  - name: mrtws_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mrtws
+      - script://$PYCMOR_HOME/examples/custom_steps.py:clip_small_negatives
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Custom pipeline for snow depth (SWE to physical depth)
+  - name: snd_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_snd
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS monthly loader (Jan..Dec format)
+  - name: lpjg_monthly_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - script://$PYCMOR_HOME/examples/custom_steps.py:clip_small_negatives
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS yearly loader (Lon/Lat/Year/Total format)
+  - name: lpjg_yearly_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_yearly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS yearly Lut loader (Lon/Lat/Year/psl/crp/pst/urb format)
+  - name: lpjg_yearly_lut_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_yearly_lut
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS monthly Lut loader (Lon/Lat/Year/Mth/psl/crp/pst/urb format)
+  - name: lpjg_monthly_lut_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly_lut
+      - script://$PYCMOR_HOME/examples/custom_steps.py:clip_small_negatives
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS monthly Lut loader with scale step (water-equivalent → m, etc.)
+  # Pint cannot convert kg/m2 (water mass per area) to m without a hydrostatic
+  # context; use scale_by_constant 0.001 (mm → m) before the unit relabel.
+  - name: lpjg_monthly_lut_scaled_pipeline
+    throttle_group: veg_land_serial
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly_lut
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Tier-wide throttle: applies to ALL rules (pipelined or default-piped).
+  # Cmorizer reads rule.throttle_group as a fallback when no pipeline
+  # carries the annotation. Combined with PYCMOR_THROTTLE_CAPS=
+  # veg_land_serial:1 from the launcher, this forces strict serial across
+  # the whole tier.
+  throttle_group: veg_land_serial
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/lpj_guess
+  # LPJ-GUESS reads plain-text .out files, so its rules have no netCDF
+  # input to recover cell bounds from and cli109 shipped 165 land files
+  # with none. Its 107132 points are exactly the land cells of the OIFS
+  # TCo319 grid (matched against this file the worst separation is 9e-7
+  # of a chord, and the mapping is 1:1), so the bounds come from there.
+  # Written under the old run root on purpose: --data-path repointing
+  # rewrites it along with every other path.
+  bounds_reference_file: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs/atmos_mon_land_orog_*.nc
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian (~25 km) — LPJ-GUESS on OIFS grid"
+  nominal_resolution: "25 km"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Part 1: IFS/HTESSEL variables via XIOS
+  # ============================================================
+
+  # --- 3hr averaged fields ---
+
+  - name: mrro_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_mrro_.*\.nc
+    compound_name: land.mrro.tavg-u-hxy-lnd.3hr.glb
+    model_variable: mrro
+
+  - name: mrros_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_mrros_.*\.nc
+    compound_name: land.mrros.tavg-u-hxy-lnd.3hr.glb
+    model_variable: mrros
+
+  - name: esn_day
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_esn_.*\.nc
+    compound_name: land.esn.tavg-u-hxy-lnd.day.glb
+    model_variable: esn
+
+  - name: srfrad_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_srfrad_.*\.nc
+    compound_name: land.srfrad.tavg-u-hxy-u.3hr.glb
+    model_variable: srfrad
+
+  - name: hfdsl_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_hfdsl_.*\.nc
+    compound_name: land.hfdsl.tavg-u-hxy-lnd.3hr.glb
+    model_variable: hfdsl
+
+  - name: tslsi_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_tslsi_.*\.nc
+    compound_name: land.tslsi.tpt-u-hxy-lsi.3hr.glb
+    model_variable: tslsi
+
+  # DEACTIVATED 2026-08-07. The DReq wants a genuine 3-hourly MEAN here
+  # (tavg-d100cm, temporal_shape time-intv), but the only 3h mrsol stream
+  # OIFS writes is `online_operation = "instant"`: one instantaneous
+  # sample per 3h window, stamped on the window boundary. A mean cannot
+  # be recovered from a single sample per window, and there is no
+  # higher-frequency mrsol output to average ourselves (only 3h and mon
+  # exist). Running it anyway produced instantaneous data labelled as an
+  # average, with every value shifted one interval and the final window
+  # dropped -- flagged in the DKRZ review of cli108.
+  #
+  # The sibling rule mrsol_3hr_10cm below is unaffected: the DReq entry it
+  # targets is tpt (time-point), which is what the source actually is.
+  #
+  # To re-enable, XIOS needs a 3h time-averaged mrsol stream; then restore
+  # this block unchanged.
+  # - name: mrsol_3hr_100cm
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_land_mrsol_.*\.nc
+  #   compound_name: land.mrsol.tavg-d100cm-hxy-lnd.3hr.glb
+  #   model_variable: mrsol
+
+  # DEACTIVATED 2026-08-07. Wrong depth, not just wrong metadata.
+  # This read atmos_3h_land_mrsol, but that XIOS stream carries the 100cm
+  # field (moisture_content_of_soil_layer_100cm__mrsol,
+  # swvl1*0.07+swvl2*0.21+swvl3*0.72) while this rule labels its output
+  # d10cm. Confirmed on cli108 output: 3hr d10cm mean 72.6 kg m-2 against
+  # 6.9 for the genuinely-10cm monthly rule, a 10.5x ratio matching the
+  # 1.00m/0.10m depth ratio.
+  #
+  # Cannot be repointed with this run's output: the only real 10cm field
+  # written is monthly (atmos_mon_land), so no 3-hourly 10cm data exists.
+  # The esm_tools XIOS file_def now defines atmos_3h_land_mrsol10_inst for
+  # exactly this entry; re-enable against that stream once a run produces it.
+  # - name: mrsol_3hr_10cm
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_land_mrsol10_inst_mrsol_.*\.nc
+  #   compound_name: land.mrsol.tpt-d10cm-hxy-lnd.3hr.glb
+  #   model_variable: mrsol
+
+  # --- Daily averaged fields ---
+
+  - name: mrrob_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_mrrob_.*\.nc
+    compound_name: land.mrrob.tavg-u-hxy-lnd.day.glb
+    model_variable: mrrob
+
+  - name: sbl_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_sbl_.*\.nc
+    compound_name: landIce.sbl.tavg-u-hxy-u.day.glb
+    model_variable: sbl
+
+  - name: snm_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_snm_.*\.nc
+    compound_name: landIce.snm.tavg-u-hxy-lnd.day.glb
+    model_variable: snm
+
+  - name: tsn_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_snow_tsns_.*\.nc
+    compound_name: landIce.tsn.tavg-u-hxy-lnd.day.glb
+    model_variable: tsns
+    time_dimname: time_counter
+
+  # --- Daily fields from custom pipelines ---
+
+  - name: snd_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_sd_.*\.nc
+    compound_name: landIce.snd.tavg-u-hxy-lnd.day.glb
+    model_variable: sd
+    second_input_path: *dp
+    second_input_pattern: atmos_day_land_rsn_.*\.nc
+    second_variable: rsn
+    pipelines:
+      - snd_pipeline
+
+  - name: dgw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_swvl4_.*\.nc
+    compound_name: land.dgw.tavg-u-hxy-lnd.day.glb
+    model_variable: swvl4
+    layer_thickness: 1.89
+    pipelines:
+      - temporal_diff_pipeline
+
+  - name: dsn_day
+    # `sd` is snow depth in m of liquid water equivalent. The temporal_diff
+    # step already hard-codes `* 1000.0` for the m → kg m-2 conversion
+    # (water density). An additional scale_factor of 1000 was double-counting
+    # the conversion and producing extremes of ±1.5e5 kg m-2 day-1.
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_sd_.*\.nc
+    compound_name: land.dsn.tavg-u-hxy-lnd.day.glb
+    model_variable: sd
+    pipelines:
+      - temporal_diff_pipeline
+
+  # dsw / mrtws need swvl1..swvl4 + sd + src loaded together to compute
+  # total water storage. Pattern matches the 6 per-var files via alternation.
+  - name: dsw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_(swvl[1-4]|sd|src)_.*\.nc
+    compound_name: land.dsw.tavg-u-hxy-lnd.day.glb
+    model_variable: total_water
+    pipelines:
+      - temporal_diff_pipeline
+
+  - name: mrtws_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_(swvl[1-4]|sd|src)_.*\.nc
+    compound_name: land.mrtws.tavg-u-hxy-lnd.day.glb
+    model_variable: total_water
+    pipelines:
+      - mrtws_pipeline
+
+  # --- Monthly fields ---
+
+  - name: sbl_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_sbl_.*\.nc
+    compound_name: landIce.sbl.tavg-u-hxy-lnd.mon.glb
+    model_variable: sbl
+
+  # ============================================================
+  # Part 2: LPJ-GUESS variables (plain-text .out files)
+  # ============================================================
+
+  # --- Yearly fraction variables (Eyr) ---
+
+  - name: baresoilFrac_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/baresoilFrac_yearly.out"
+    compound_name: land.baresoilFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_pipeline
+
+  - name: cropFrac_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cropFrac_yearly.out"
+    compound_name: land.cropFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_pipeline
+
+  - name: grassFrac_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/grassFrac_yearly.out"
+    compound_name: land.grassFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_pipeline
+
+  - name: shrubFrac_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/shrubFrac_yearly.out"
+    compound_name: land.shrubFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_pipeline
+
+  - name: treeFrac_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/treeFrac_yearly.out"
+    compound_name: land.treeFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_pipeline
+
+  # --- Yearly Lut variables (Eyr) ---
+
+  - name: cLitterLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLitterLut_yearly.out"
+    compound_name: land.cLitterLut.tpt-u-hxy-multi.yr.glb
+    model_variable: psl
+    source_units: "kg m-2"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: cProductLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cProductLut_yearly.out"
+    compound_name: land.cProductLut.tpt-u-hxy-multi.yr.glb
+    model_variable: psl
+    source_units: "kg m-2"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: cSoilLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cSoilLut_yearly.out"
+    compound_name: land.cSoilLut.tpt-u-hxy-multi.yr.glb
+    model_variable: psl
+    source_units: "kg m-2"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: cVegLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cVegLut_yearly.out"
+    compound_name: land.cVegLut.tpt-u-hxy-multi.yr.glb
+    model_variable: psl
+    source_units: "kg m-2"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: fracLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fracLut_yearly.out"
+    compound_name: land.fracLut.tpt-u-hxy-u.yr.glb
+    model_variable: psl
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: fracInLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fracInLut_yearly.out"
+    compound_name: land.fracInLut.tsum-u-hxy-lnd.yr.glb
+    model_variable: psl
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  - name: fracOutLut_yr
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fracOutLut_yearly.out"
+    compound_name: land.fracOutLut.tsum-u-hxy-lnd.yr.glb
+    model_variable: psl
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines:
+      - lpjg_yearly_lut_pipeline
+
+  # --- Monthly Lut variables (Emon) ---
+
+  - name: fracLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fracLut_monthly.out"
+    compound_name: land.fracLut.tpt-u-hxy-u.mon.glb
+    model_variable: psl
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: gppLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/gppLut_monthly.out"
+    compound_name: land.gppLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: laiLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/laiLut_monthly.out"
+    compound_name: land.laiLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: mrsolLut_mon
+    inputs:
+      - path: *ldp
+        # d10cm branding: mrsosLut is the 0-10 cm tile column, mrsoLut is the
+        # whole soil column. Reading mrsoLut here published ~1 m soil moisture
+        # under a 10 cm label, the same class of error as the mrsol streams.
+        pattern: "*/run1/mrsosLut_monthly.out"
+    compound_name: land.mrsolLut.tavg-d10cm-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: nppLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nppLut_monthly.out"
+    compound_name: land.nppLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: raLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/raLut_monthly.out"
+    compound_name: land.raLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: rhLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/rhLut_monthly.out"
+    compound_name: land.rhLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: irrLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/irrLut_monthly.out"
+    compound_name: land.irrLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  - name: fLulccAtmLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fLulccAtmLut_monthly.out"
+    compound_name: land.fLulccAtmLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+
+  # --- Monthly nitrogen/carbon variables (Emon, Jan..Dec format) ---
+
+  - name: fBNF_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fBNF_monthly.out"
+    compound_name: land.fBNF.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fLuc_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fLuc_monthly.out"
+    compound_name: land.fLuc.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNgas_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNgas_monthly.out"
+    compound_name: land.fNgas.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNgasFire_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNgasFire_monthly.out"
+    compound_name: land.fNgasFire.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNLandToOcean_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNLandToOcean_monthly.out"
+    compound_name: land.fNLandToOcean.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNleach_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNleach_monthly.out"
+    compound_name: land.fNleach.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNLitterSoil_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNLitterSoil_monthly.out"
+    compound_name: land.fNLitterSoil.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNloss_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNloss_monthly.out"
+    compound_name: land.fNloss.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fNup_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fNup_monthly.out"
+    compound_name: land.fNup.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nLand_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nLand_monthly.out"
+    compound_name: land.nLand.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nLitter_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nLitter_monthly.out"
+    compound_name: land.nLitter.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nMineral_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nMineral_monthly.out"
+    compound_name: land.nMineral.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nProduct_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nProduct_monthly.out"
+    compound_name: land.nProduct.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nSoil_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nSoil_monthly.out"
+    compound_name: land.nSoil.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nVeg_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nVeg_monthly.out"
+    compound_name: land.nVeg.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: treeFracBdlDcd_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/treeFracBdlDcd_monthly.out"
+    compound_name: land.treeFracBdlDcd.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: evspsblpot_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/evspsblpot_monthly.out"
+    compound_name: land.evspsblpot.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # ============================================================
+  # added by LASZLO - 29.04.2026
+  # LPJ-GUESS lut and height variables
+  # ============================================================
+
+  - name: nbpLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nbpLut_monthly.out"
+    compound_name: land.nbpLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    source_units: kg m-2 s-1
+    pipelines:
+      - lpjg_monthly_lut_pipeline
+  - name: sweLut_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/sweLut_monthly.out"
+    compound_name: land.sweLut.tavg-u-hxy-multi.mon.glb
+    model_variable: psl
+    # LPJ-GUESS sweLut .out is water-equivalent in mm (== kg m-2). CMIP7 unit is m.
+    # No pint context exists for water-equivalent; pre-scale 1/1000 then relabel as m.
+    scale_factor: 0.001
+    scaled_units: "m"
+    source_units: m
+    pipelines:
+      - lpjg_monthly_lut_scaled_pipeline
+  - name: vegHeight_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/vegHeight_monthly.out"
+    compound_name: land.vegHeight.tavg-u-hxy-veg.mon.glb
+    model_variable: Total
+    source_units: m
+    pipelines:
+      - lpjg_monthly_pipeline
+      - lpjg_monthly_pipeline

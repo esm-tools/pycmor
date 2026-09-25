@@ -1,0 +1,258 @@
+# CMIP7 Core Sea Ice Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_all_core_variables_seaIce.csv + seaIce_ocean.csv
+#
+# Research notes:
+#   - a_ice is fraction (0-1), CMIP wants percentage → fraction_to_percent step
+#   - ist available because AWI-ESM3 compiled with __oifs
+#   - sitimefrac approximated from monthly siconc>0 (binary)
+
+general:
+  name: "awiesm3-cmip7-core-seaice"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # siconc: fraction (0-1) → percentage (0-100)
+  #
+  # nan_to_zero first, because XIOS writes _FillValue (9.96921e+36, NaN
+  # after xarray's mask_and_scale) at every node with no ice — a_ice
+  # contains no exact zeros at all. Checked on a_ice.fesom.1586.nc: of
+  # 3146761 nodes 2316845 are fill and 0 are 0.0, and the fill mask moves
+  # with the season (243385 nodes filled in January carry ice in July), so
+  # it means "no ice now", not land. siconc is branded hxy-u — unmasked,
+  # `area: time: mean`, "percentage of a given grid cell that is covered
+  # by sea ice on the ocean grid" — so ice-free ocean is 0 %, not missing.
+  # Without this step the output is _FillValue wherever there is no ice.
+  # Safe here only because the FESOM native mesh is ocean-only: nod2 has
+  # no land nodes to turn into 0 % ice. Do NOT copy this into the gr
+  # variant or into siconca — both have real land cells. siconca (OpenIFS
+  # grid) stores them as fill today; the gr regrid is due to be fixed to
+  # do the same. Once it is, check whether gr marks ice-free ocean as 0
+  # or as fill: if fill, land and open water are indistinguishable here
+  # and gr needs a land-sea mask rather than this step.
+  - name: siconc_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
+      - script://$PYCMOR_HOME/examples/custom_steps.py:fraction_to_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # sitimefrac: binary ice presence from siconc > 0
+  - name: sitimefrac_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitimefrac
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # simass: m_ice is thickness (m), CMIP wants mass per area (kg m-2) → multiply by rho_ice
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Scale + mask where no sea ice. Used by hxy-si rules whose CMIP7
+  # cell_methods is ``area: time: mean where sea_ice (mask=siconc)``.
+  # Rule must supply aice_path / aice_pattern.
+  - name: scale_mask_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Tier-wide throttle: same HDF5-write-lock-wedge protection as the
+  # other FESOM-ingesting seaice tiers. cli45 core_seaice_1 TIMEOUTed
+  # with 7 saves stuck at heartbeat #16 (siconc/ts/snd/siv/siu/sitimefrac/
+  # sithick). Cap=1 via PYCMOR_THROTTLE_CAPS forces strict serial.
+  throttle_group: core_seaice_serial
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g130
+  mesh_path: /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 DARS unstructured mesh (~10 km nominal, 3146761 nodes)"
+  nominal_resolution: "10 km"
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Monthly (SImon) — DefaultPipeline
+  # ============================================================
+
+  - name: simass
+    inputs:
+      - path: *dp
+        pattern: m_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.simass.tavg-u-hxy-si.mon.glb
+    model_variable: m_ice
+    scale_factor: 917.0
+    scaled_units: "kg m-2"
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - scale_mask_pipeline
+
+  - name: siu
+    inputs:
+      - path: *dp
+        pattern: uice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siu.tavg-u-hxy-si.mon.glb
+    model_variable: uice
+    # vec_autorotate=.true. set in namelist.io
+
+  - name: siv
+    inputs:
+      - path: *dp
+        pattern: vice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siv.tavg-u-hxy-si.mon.glb
+    model_variable: vice
+    # vec_autorotate=.true. set in namelist.io
+
+  # ============================================================
+  # Monthly (SImon) — h_ice, h_snow, ist
+  # ============================================================
+
+  - name: sithick
+    inputs:
+      - path: *dp
+        pattern: h_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sithick.tavg-u-hxy-si.mon.glb
+    model_variable: h_ice
+
+  - name: snd
+    inputs:
+      - path: *dp
+        pattern: h_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.snd.tavg-u-hxy-sn.mon.glb
+    model_variable: h_snow
+
+  - name: ts
+    inputs:
+      - path: *dp
+        pattern: ist\.fesom\.\d{4}\.nc
+    compound_name: seaIce.ts.tavg-u-hxy-si.mon.glb
+    model_variable: ist
+    # ist outputs in K, CMIP wants K — no conversion needed
+
+  # ============================================================
+  # Monthly (SImon) — custom pipelines
+  # ============================================================
+
+  - name: siconc
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siconc.tavg-u-hxy-u.mon.glb
+    model_variable: a_ice
+    pipelines:
+      - siconc_pipeline
+
+  - name: sitimefrac
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sitimefrac.tavg-u-hxy-sea.mon.glb
+    model_variable: a_ice
+    pipelines:
+      - sitimefrac_pipeline
+
+  # ============================================================
+  # Daily (SIday)
+  # ============================================================
+
+  - name: siconc_day
+    inputs:
+      - path: *dp
+        pattern: a_ice\.fesom\.\d{4}\.nc
+    compound_name: seaIce.siconc.tavg-u-hxy-u.day.glb
+    model_variable: a_ice
+    pipelines:
+      - siconc_pipeline

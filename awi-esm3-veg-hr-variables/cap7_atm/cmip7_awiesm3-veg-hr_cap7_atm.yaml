@@ -1,0 +1,849 @@
+# CMIP7 CAP7 Atmosphere Variables — AWI-ESM3-VEG-HR
+# Generated from 4 CSVs in cap7_atm/
+#
+# 62 producible out of 154 total variables.
+# 92 blocked: 17 COSP, 21 tendencies, 9 aerosol, 5 CO2, 4 effective radii,
+#             ~40 IFS source changes needed (convective, radiation profiles,
+#             100m wind, diffuse radiation, tropopause, cloud droplet number).
+
+general:
+  name: "awiesm3-cmip7-cap7-atm"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Model-level (alevel) variables. DefaultPipeline plus the hybrid
+  # sigma-pressure coordinate, which turns the bare OIFS model-level index
+  # into the CMIP7 alternate_hybrid_sigma coordinate (lev, ap, b, ap_bnds,
+  # b_bnds, ps and formula_terms). Runs after map_dimensions so the level
+  # axis is already the DReq's alevel, and after set_time_bounds so ps can
+  # be averaged onto the variable's own time axis.
+  # Wie alevel_pipeline, aber mit laufender Klimatologie statt timeavg.
+  # Fuer pfull_mon, die einzige tclm-Regel: der Schritt bildet die zwoelf
+  # Monatsmittel des Jahres und addiert sie auf einen Zwischenstand ausserhalb
+  # des Laufverzeichnisses, die Klimatologie ist Summe durch Anzahl Jahre.
+  # timeavg faellt weg, das Mitteln macht der Schritt selbst.
+  - name: alevel_climatology_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - script://$PYCMOR_HOME/examples/custom_steps.py:accumulate_monthly_climatology
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: alevel_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+  # hurs: Magnus formula from 2t + 2d
+  - name: hurs_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_hurs
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # huss: Tetens formula from 2d + sp
+  - name: huss_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_huss
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # sfcWind: sqrt(u10^2 + v10^2)
+  - name: sfcwind_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfcwind
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # clwvi: tclw + tciw from daily cap7 output
+  - name: clwvi_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_clwvi
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # snc: snow cover from snow depth (sd)
+  - name: snc_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_snc
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # snd: snow depth from sd and rsn
+  - name: snd_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_snd
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # rtmt: net downward radiative flux at model top
+  - name: rtmt_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_rtmt
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # extract single pressure level (ta@700, wap@500)
+  - name: single_plevel_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:extract_single_plevel
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  # grid_label follows the actual grid of each rule's source, not the tier.
+  # g122 OIFS TCo319 reduced Gaussian (421120 cells, incl. its land and
+  # 30S-90S subsets), g129 the 640x1296 regular regrid, g130 FESOM DARS
+  # nodes, g132 FESOM DARS elements. Rules whose source differs from this
+  # default carry their own grid_label. See
+  # Essential-Model-Documentation/AWI-ESM3-veg-HR-grids.md
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian (~25 km)"
+  nominal_resolution: "25 km"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Part 1: Daily CMOR-ready surface fields (from _day_cap7 XIOS output)
+  # ============================================================
+
+  - name: hfls_day
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_hfls_.*\.nc
+    compound_name: atmos.hfls.tavg-u-hxy-u.day.glb
+    model_variable: hfls
+    lazy_write: true
+
+  - name: hfss_day
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_hfss_.*\.nc
+    compound_name: atmos.hfss.tavg-u-hxy-u.day.glb
+    model_variable: hfss
+    lazy_write: true
+
+  - name: rlus_day
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rlus_.*\.nc
+    compound_name: atmos.rlus.tavg-u-hxy-u.day.glb
+    model_variable: rlus
+    lazy_write: true
+
+  - name: rsus_day
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rsus_.*\.nc
+    compound_name: atmos.rsus.tavg-u-hxy-u.day.glb
+    model_variable: rsus
+    lazy_write: true
+
+  - name: rluscs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rluscs_.*\.nc
+    compound_name: atmos.rluscs.tavg-u-hxy-u.day.glb
+    model_variable: rluscs
+
+  - name: rsuscs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsuscs_.*\.nc
+    compound_name: atmos.rsuscs.tavg-u-hxy-u.day.glb
+    model_variable: rsuscs
+
+  - name: rlds_day
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rlds_.*\.nc
+    compound_name: atmos.rlds.tavg-u-hxy-u.day.glb
+    model_variable: rlds
+    lazy_write: true
+
+  - name: rldscs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rldscs_.*\.nc
+    compound_name: atmos.rldscs.tavg-u-hxy-u.day.glb
+    model_variable: rldscs
+
+  - name: rsdscs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsdscs_.*\.nc
+    compound_name: atmos.rsdscs.tavg-u-hxy-u.day.glb
+    model_variable: rsdscs
+
+  - name: rlut_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rlut_.*\.nc
+    compound_name: atmos.rlut.tavg-u-hxy-u.day.glb
+    model_variable: rlut
+
+  - name: rlutcs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rlutcs_.*\.nc
+    compound_name: atmos.rlutcs.tavg-u-hxy-u.day.glb
+    model_variable: rlutcs
+
+  - name: rsdt_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsdt_.*\.nc
+    compound_name: atmos.rsdt.tavg-u-hxy-u.day.glb
+    model_variable: rsdt
+
+  - name: rsut_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsut_.*\.nc
+    compound_name: atmos.rsut.tavg-u-hxy-u.day.glb
+    model_variable: rsut
+
+  - name: rsutcs_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsutcs_.*\.nc
+    compound_name: atmos.rsutcs.tavg-u-hxy-u.day.glb
+    model_variable: rsutcs
+
+  - name: prc_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_prc_.*\.nc
+    compound_name: atmos.prc.tavg-u-hxy-u.day.glb
+    model_variable: prc
+
+  - name: prsn_day
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_prsn_prsn_.*\.nc
+    compound_name: atmos.prsn.tavg-u-hxy-u.day.glb
+    model_variable: prsn
+
+  - name: prw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_prw_.*\.nc
+    compound_name: atmos.prw.tavg-u-hxy-u.day.glb
+    model_variable: prw
+
+  - name: clivi_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_clivi_.*\.nc
+    compound_name: atmos.clivi.tavg-u-hxy-u.day.glb
+    model_variable: clivi
+
+  - name: snw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_snw_.*\.nc
+    compound_name: landIce.snw.tavg-u-hxy-lnd.day.glb
+    model_variable: snw
+
+  # ============================================================
+  # Part 2: Daily pipeline-computed surface fields
+  # ============================================================
+
+  - name: clwvi_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_tclw_.*\.nc
+    compound_name: atmos.clwvi.tavg-u-hxy-u.day.glb
+    model_variable: tclw
+    second_input_path: *dp
+    second_input_pattern: atmos_day_clivi_.*\.nc
+    second_variable: clivi
+    pipelines:
+      - clwvi_pipeline
+
+  - name: snc_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_sd_.*\.nc
+    compound_name: landIce.snc.tavg-u-hxy-lnd.day.glb
+    model_variable: sd
+    pipelines:
+      - snc_pipeline
+
+  - name: hurs_day_max
+    # Daily extremum must come from sub-daily data: RH computed from the
+    # DAILY MEAN 2t/2d erases the diurnal cycle before the max/min is taken,
+    # so the old atm_remapped_1d_* inputs gave a daily-mean RH under a
+    # max/min label (DKRZ-review-adjacent audit, 2026-08). Hourly is the
+    # best available: with output_step_freq=1h XIOS only ever sees hourly
+    # samples for HR, and for LR the model timestep is hourly, so the
+    # hourly extremum is exact there. timeavg picks max/min off the DReq
+    # cell_methods.
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_2t_.*\.nc
+    compound_name: atmos.hurs.tmax-h2m-hxy-u.day.glb
+    model_variable: 2t
+    second_input_path: *dp
+    second_input_pattern: atmos_1h_sfc_2d_.*\.nc
+    second_variable: 2d
+    pipelines:
+      - hurs_pipeline
+
+  - name: hurs_day_min
+    # Daily extremum must come from sub-daily data: RH computed from the
+    # DAILY MEAN 2t/2d erases the diurnal cycle before the max/min is taken,
+    # so the old atm_remapped_1d_* inputs gave a daily-mean RH under a
+    # max/min label (DKRZ-review-adjacent audit, 2026-08). Hourly is the
+    # best available: with output_step_freq=1h XIOS only ever sees hourly
+    # samples for HR, and for LR the model timestep is hourly, so the
+    # hourly extremum is exact there. timeavg picks max/min off the DReq
+    # cell_methods.
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_2t_.*\.nc
+    compound_name: atmos.hurs.tmin-h2m-hxy-u.day.glb
+    model_variable: 2t
+    second_input_path: *dp
+    second_input_pattern: atmos_1h_sfc_2d_.*\.nc
+    second_variable: 2d
+    pipelines:
+      - hurs_pipeline
+
+  - name: sfcWind_day_max
+    inputs:
+      - path: *dp
+        pattern: atmos_day_minmax_sfcWindmax_.*\.nc
+    compound_name: atmos.sfcWind.tmax-h10m-hxy-u.day.glb
+    model_variable: sfcWindmax
+
+  # ============================================================
+  # Part 3: Daily from plev19 (single-level extraction)
+  # ============================================================
+
+  - name: ta_day_700hPa
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_t_.*\.nc
+    compound_name: atmos.ta.tavg-700hPa-hxy-air.day.glb
+    model_variable: t
+    target_plevel: 70000
+    pipelines:
+      - single_plevel_pipeline
+
+  - name: wap_day_500hPa
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_w_.*\.nc
+    compound_name: atmos.wap.tavg-500hPa-hxy-air.day.glb
+    model_variable: w
+    target_plevel: 50000
+    pipelines:
+      - single_plevel_pipeline
+
+  # ============================================================
+  # Part 4: 3hr fields
+  # ============================================================
+
+  - name: prsn_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_prsn_prsn_.*\.nc
+    compound_name: atmos.prsn.tavg-u-hxy-u.3hr.glb
+    model_variable: prsn
+
+  # ============================================================
+  # Part 5: 1hr fields
+  # ============================================================
+
+  - name: huss_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_2d_.*\.nc
+    compound_name: atmos.huss.tpt-h2m-hxy-u.1hr.glb
+    model_variable: 2d
+    lazy_write: true
+    second_input_path: *dp
+    second_input_pattern: atmos_1h_sfc_sp_.*\.nc
+    second_variable: sp
+    pipelines:
+      - huss_pipeline
+
+  - name: psl_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_msl_.*\.nc
+    compound_name: atmos.psl.tpt-u-hxy-u.1hr.glb
+    model_variable: msl
+    lazy_write: true
+
+  - name: ts_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_ts_ts_.*\.nc
+    compound_name: atmos.ts.tavg-u-hxy-u.1hr.glb
+    model_variable: ts
+    lazy_write: true
+
+  - name: uas_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_10u_.*\.nc
+    compound_name: atmos.uas.tpt-h10m-hxy-u.1hr.glb
+    model_variable: 10u
+    lazy_write: true
+
+  - name: vas_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_10v_.*\.nc
+    compound_name: atmos.vas.tpt-h10m-hxy-u.1hr.glb
+    model_variable: 10v
+    lazy_write: true
+
+  # OIFS XIOS only emits sp at 1hr as ``atmos_1h_sfc_sp`` with
+  # operation="average" (time_centered stamps at HH:30). The CMIP7
+  # registry has both tpt-u-hxy-u.1hr.glb and tavg-u-hxy-u.1hr.glb for
+  # ps; producing tpt would require an ``atmos_1h_pt_sp`` source which
+  # the XIOS config doesn't declare. Use the tavg compound to match the
+  # source's actual time-averaging convention. (3hr / 6hr ps stay tpt
+  # via the ps_3hrPt / ps_6hr rules which DO have an instant source.)
+  - name: ps_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_sp_.*\.nc
+    compound_name: atmos.ps.tavg-u-hxy-u.1hr.glb
+    model_variable: sp
+    lazy_write: true
+
+  - name: rlds_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rlds_.*\.nc
+    compound_name: atmos.rlds.tavg-u-hxy-u.1hr.glb
+    model_variable: rlds
+    lazy_write: true
+
+  - name: rsds_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_rsds_.*\.nc
+    compound_name: atmos.rsds.tavg-u-hxy-u.1hr.glb
+    model_variable: rsds
+    lazy_write: true
+
+  - name: sfcWind_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_10u_.*\.nc
+    compound_name: atmos.sfcWind.tavg-h10m-hxy-u.1hr.glb
+    model_variable: 10u
+    lazy_write: true
+    second_input_path: *dp
+    second_input_pattern: atmos_1h_sfc_10v_.*\.nc
+    second_variable: 10v
+    pipelines:
+      - sfcwind_pipeline
+
+  - name: ps_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_sp_.*\.nc
+    compound_name: atmos.ps.tpt-u-hxy-u.6hr.glb
+    model_variable: sp
+
+  - name: psl_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_msl_.*\.nc
+    compound_name: atmos.psl.tpt-u-hxy-u.6hr.glb
+    model_variable: msl
+
+  - name: ts_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_ts_.*\.nc
+    compound_name: atmos.ts.tpt-u-hxy-u.6hr.glb
+    model_variable: ts
+
+  # ============================================================
+  # Part 7: 6hr instantaneous model-level fields
+  # DISABLED: we decided not to produce 6hr_ml output in XIOS file_def
+  # (too large; see doc/awi_cap7_volume_estimate.txt). Re-enable both
+  # file_def_oifs_cmip7_spinup.xml.j2 and these rules together if needed.
+  # ============================================================
+
+  # - name: ta_6hr_ml
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_6h_ml_ta_.*\.nc
+  #   compound_name: atmos.ta.tpt-al-hxy-u.6hr.glb
+  #   model_variable: ta
+  #   lazy_write: true
+
+  # - name: ua_6hr_ml
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_6h_ml_ua_.*\.nc
+  #   compound_name: atmos.ua.tpt-al-hxy-u.6hr.glb
+  #   model_variable: ua
+  #   lazy_write: true
+
+  # - name: va_6hr_ml
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_6h_ml_va_.*\.nc
+  #   compound_name: atmos.va.tpt-al-hxy-u.6hr.glb
+  #   model_variable: va
+  #   lazy_write: true
+
+  # - name: hus_6hr_ml
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_6h_ml_hus_.*\.nc
+  #   compound_name: atmos.hus.tpt-al-hxy-u.6hr.glb
+  #   model_variable: hus
+  #   lazy_write: true
+
+  # - name: zg_6hr_ml
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_6h_ml_zg_.*\.nc
+  #   compound_name: atmos.zg.tpt-al-hxy-u.6hr.glb
+  #   model_variable: zg
+  #   lazy_write: true
+
+  # ============================================================
+  # Part 8: 6hr instantaneous plev7h fields
+  # ============================================================
+
+  # DEACTIVATED 2026-09-08 — das Modell schreibt die falschen Druckflaechen,
+  # und sie sind nachtraeglich nicht zu beschaffen.
+  #
+  # XIOS legt pressure_levels_7h in namelists/oifs/48r1/xios/cmip7/axis_def.xml
+  # als 100000 92500 85000 70000 50000 25000 10000 an, das ist der CMIP6-Satz.
+  # Der Data Request verlangt 92500 85000 70000 60000 50000 25000 5000. Fuenf
+  # Flaechen stimmen, zwei nicht: 100000 steht wo 60000 gehoert, 10000 wo 5000
+  # gehoert. Nachgemessen an atmos_6h_pl7h_{ta,ua,hus}_1851-1851.nc.
+  #
+  # Betroffen sind 196 Jahre, 1850 bis 2045, der Lauf endete am 27.08.
+  # Rekonstruieren laesst sich nichts: es gibt keinen 6-stuendlichen
+  # Modellflaechen-Strom, nur atmos_day_ml_{cl,pfull} und atmos_mon_ml_*.
+  # 60000 laege zwischen zwei vorhandenen Flaechen und waere interpolierbar,
+  # 5000 liegt ueber der obersten und waere Extrapolation. Beides hiesse, eine
+  # Zahl unter einem Label auszuliefern, das Modellausgabe behauptet.
+  #
+  # Gleiche Klasse wie die sechs Tendenzvariablen und die mrsol-Varianten:
+  # erst die Konfiguration in esm_tools richtigstellen, dann in einem Lauf mit
+  # passenden Daten wieder aktivieren. Fuer LR ist axis_def.xml korrigiert,
+  # siehe HANDOFF_plev7h_pressure_levels.md.
+  # - name: ta_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_ta_.*\.nc
+  # compound_name: atmos.ta.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: ta
+  # lazy_write: true
+  #
+  # - name: ua_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_ua_.*\.nc
+  # compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: ua
+  # lazy_write: true
+  #
+  # - name: va_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_va_.*\.nc
+  # compound_name: atmos.va.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: va
+  # lazy_write: true
+  #
+  # - name: hus_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_hus_.*\.nc
+  # compound_name: atmos.hus.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: hus
+  # lazy_write: true
+  #
+  # - name: zg_6hr_pl7h
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl7h_zg_.*\.nc
+  # compound_name: atmos.zg.tpt-p7h-hxy-air.6hr.glb
+  # model_variable: zg
+  # lazy_write: true
+  #
+  # ============================================================
+  # Part 9: Monthly surface fields
+  # ============================================================
+
+  - name: rtmt_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_(rsdt|rsut|rlut)_.*\.nc
+    compound_name: atmos.rtmt.tavg-u-hxy-u.mon.glb
+    model_variable: rsdt
+    pipelines:
+      - rtmt_pipeline
+
+  - name: ci_mon
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_ci_.*\.nc
+    compound_name: atmos.ci.tavg-u-hxy-u.mon.glb
+    model_variable: ci
+
+  - name: sbl_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_sbl_.*\.nc
+    compound_name: landIce.sbl.tavg-u-hxy-u.mon.glb
+    model_variable: sbl
+
+  # ============================================================
+  # Part 10: Monthly model-level fields
+  # ============================================================
+
+  - name: pfull_mon
+    climatology_state_dir: /work/bb1469/a270092/cmorized/climatologies
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_climatology_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_day_ml_pfull_.*\.nc
+    compound_name: atmos.pfull.tclm-al-hxy-u.mon.glb
+    model_variable: pfull
+    lazy_write: true
+
+  - name: ta_mon_ml
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_ta_.*\.nc
+    compound_name: atmos.ta.tavg-al-hxy-u.mon.glb
+    model_variable: ta
+    lazy_write: true
+
+  - name: hus_mon_ml
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_hus_.*\.nc
+    compound_name: atmos.hus.tavg-al-hxy-u.mon.glb
+    model_variable: hus
+    lazy_write: true
+
+  # hur is emitted directly by XIOS (field_def maps 'r' on model levels to 'hur'),
+  # so no compute-from-ta+hus+pfull pipeline is needed.
+  - name: hur_mon_ml
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_hur_.*\.nc
+    compound_name: atmos.hur.tavg-al-hxy-u.mon.glb
+    model_variable: hur
+    lazy_write: true
+
+  # ============================================================
+  # Part 11: Land/ice variables (from existing pipelines)
+  # ============================================================
+
+  - name: snd_mon
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sd_.*\.nc
+    compound_name: landIce.snd.tavg-u-hxy-lnd.mon.glb
+    model_variable: sd
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1m_rsn_.*\.nc
+    second_variable: rsn
+    pipelines:
+      - snd_pipeline
