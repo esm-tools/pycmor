@@ -3094,6 +3094,10 @@ def _save_dataset_with_native_timespan(
     _write_sched = _get_write_scheduler(rule)
     enc = chunk_encoding if chunk_encoding else None
     _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, _write_sched)
+    # save_mfdataset bypasses _atomic_to_netcdf, so record here or the run
+    # manifest reports every time-axis variable as missing (cli122).
+    for _p in paths:
+        _record_written_file(rule, str(_p))
     return da
 
 
@@ -3740,4 +3744,6 @@ def _save_dataset_impl(da: xr.DataArray, rule):
             # applied via the shared helper.
             _write_sched = _get_write_scheduler(rule)
             _save_mfdataset_worker_or_sync(datasets, paths, final_encoding, extra_kwargs, is_dask, _write_sched)
+            for _p in paths:
+                _record_written_file(rule, str(_p))
             return da
