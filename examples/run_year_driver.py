@@ -3,7 +3,9 @@
 
 Submit the year, wait, check what each shard actually produced, resubmit the
 tiers that came up short, and give up after a bounded number of attempts with
-an email rather than silently shipping an incomplete year.
+an email rather than silently shipping an incomplete year. If every tier comes
+up short on the first attempt the cause is shared, so it gives up right away
+instead of spending two more years of node hours on retries.
 
 Why this exists
 ---------------
@@ -101,6 +103,24 @@ def assess(workdir):
     return bad_tiers, problems
 
 
+def all_tiers(workdir):
+    """Every tier that has at least one shard yaml."""
+    return set(expected_shards(workdir).values())
+
+
+def looks_systematic(workdir, bad_tiers):
+    """True when every tier of a multi-tier year came up short.
+
+    Transient trouble (a node dying, a slow filesystem, the watchdog) hits
+    some tiers, not all of them. When all of them fail, the cause is shared:
+    broken code, missing input, a full disk. Retrying then only burns node
+    hours (cli122 recomputed a complete year twice because the manifest
+    bookkeeping was wrong). A single-tier year is ambiguous, so it retries.
+    """
+    tiers = all_tiers(workdir)
+    return len(tiers) > 1 and bad_tiers >= tiers
+
+
 def submit(run_root, year, workdir, tier=None, dry_run=False):
     env = dict(os.environ)
     if tier:
@@ -185,6 +205,7 @@ def main():
 
     problems = []
     bad_tiers = set()
+    systematic = False
     for attempt in range(1, args.attempts + 1):
         log(f"=== attempt {attempt}/{args.attempts} for year {args.year} ===")
         if attempt == 1:
@@ -209,11 +230,24 @@ def main():
         log(f"attempt {attempt} incomplete; tiers needing retry: {', '.join(sorted(bad_tiers))}")
         for p in problems:
             log(f"  {p}")
+        if attempt == 1 and looks_systematic(workdir, bad_tiers):
+            systematic = True
+            log("every tier came up short on the first attempt; that is systematic, not retrying")
+            break
 
+    if systematic:
+        headline = (
+            f"Cmorization of year {args.year} came up short in every tier on the "
+            "first attempt. That points at a shared cause (code, input data, "
+            "disk), so it was not retried.\n\n"
+        )
+    else:
+        headline = (
+            f"Cmorization of year {args.year} is still incomplete after "
+            f"{args.attempts} attempts and will not be retried automatically.\n\n"
+        )
     body = (
-        f"Cmorization of year {args.year} is still incomplete after "
-        f"{args.attempts} attempts and will not be retried automatically.\n\n"
-        f"Run root : {args.run_root}\n"
+        headline + f"Run root : {args.run_root}\n"
         f"Workdir  : {workdir}\n"
         f"Outputs  : {workdir / 'cmorized'}\n"
         f"Manifests: {workdir / 'cmorized' / '_manifests'}\n\n"
@@ -226,7 +260,8 @@ def main():
     failed_marker.write_text(body)
     log(f"giving up; details in {failed_marker}")
     if args.email:
-        notify(args.email, f"[pycmor] year {args.year} incomplete after {args.attempts} attempts", body)
+        why = "systematic failure, not retried" if systematic else f"incomplete after {args.attempts} attempts"
+        notify(args.email, f"[pycmor] year {args.year} {why}", body)
     return 1
 
 

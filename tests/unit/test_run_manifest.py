@@ -198,6 +198,37 @@ def test_driver_gives_up_after_three_attempts_and_emails(driver, tmp_path, monke
     assert not (wd / "1859.done").exists()
 
 
+def test_driver_stops_at_once_when_every_tier_fails(driver, tmp_path, monkeypatch):
+    """cli122: a bookkeeping bug marked every tier incomplete, and the driver
+    recomputed a complete year twice before giving up. All tiers failing
+    together is systematic, so it gives up after the first attempt."""
+    stems = ["core_atm_shard_00", "core_atm_shard_01", "lrcs_ocean_shard_00", "veg_land_shard_00"]
+    wd = _workdir(tmp_path, stems, {s: ["x"] for s in stems})
+    submits, mails = [], []
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: submits.append(k.get("tier")) or ["1"])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr(driver, "notify", lambda email, subject, body: mails.append((subject, body)) or True)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1852", str(wd), "--email", "me@example.org"])
+
+    assert driver.main() == 1
+    assert submits == [None], "no retries"
+    assert len(mails) == 1 and "systematic" in mails[0][0]
+    assert "not retried" in (wd / "1852.FAILED").read_text()
+
+
+def test_driver_still_retries_when_one_tier_survives(driver, tmp_path, monkeypatch):
+    stems = ["core_atm_shard_00", "lrcs_ocean_shard_00", "veg_land_shard_00"]
+    wd = _workdir(tmp_path, stems, {"core_atm_shard_00": [], "lrcs_ocean_shard_00": ["x"], "veg_land_shard_00": ["y"]})
+    submits = []
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: submits.append(k.get("tier")) or ["1"])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1852", str(wd), "--email", ""])
+
+    assert driver.main() == 1
+    assert submits == [None, "lrcs_ocean", "veg_land", "lrcs_ocean", "veg_land"]
+    assert "3 attempts" in (wd / "1852.FAILED").read_text()
+
+
 def test_driver_marks_the_year_done_once_a_retry_fills_the_gap(driver, tmp_path, monkeypatch):
     wd = _workdir(tmp_path, ["extra_atm_shard_00"], {})
     manifest = wd / "cmorized" / "_manifests" / "extra_atm_shard_00.json"

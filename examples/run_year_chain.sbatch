@@ -18,7 +18,8 @@
 #
 # Mail: this job carries --mail-type=FAIL,TIME_LIMIT and the shard jobs carry
 # none. The driver retries inside this one job and only exits non-zero after
-# its last attempt, so you get exactly one mail per year that could not be
+# its last attempt (or after the first, when every tier failed and retrying is
+# pointless), so you get exactly one mail per year that could not be
 # completed, never one per retry. The details are in <WORKDIR>/<YEAR>.FAILED;
 # SLURM's mail itself only names the job (pycmor-y<YEAR>).
 # TIME_LIMIT is listed separately because FAIL does not cover a timeout, and
