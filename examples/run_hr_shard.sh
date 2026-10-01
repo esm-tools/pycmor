@@ -271,13 +271,20 @@ if [ -n "${MEMORY:-}" ]; then
   CLI_ARGS+=(--memory "${MEMORY}")
 fi
 
+# Per-shard run manifest: which rules wrote files, which were gated off,
+# and which produced nothing. The year driver reads these to resubmit
+# exactly the missing rules instead of a whole shard.
+export PYCMOR_MANIFEST="${PYCMOR_MANIFEST:-$OUTROOT/_manifests/$(basename "$shard_yaml" .yaml).json}"
+mkdir -p "$(dirname "$PYCMOR_MANIFEST")"
+
 echo "=== shard yaml: $shard_yaml  ->  $OUTDIR ==="
+echo "=== manifest: $PYCMOR_MANIFEST ==="
 echo "=== --data-path ${RUN_ROOT}  --year ${YEAR}  --memory ${MEMORY:-<unset>} ==="
 echo "=== config: parallel=True orchestrator=dask N_WORKERS=${N_WORKERS} TPW=${TPW} MEM_PER_WORKER=${MEM_PER_WORKER} PYCMOR_WORKER_COMPUTE=${PYCMOR_WORKER_COMPUTE} ==="
 echo "=== node $(hostname), $(nproc) cores allocated, $(free -g | awk '/^Mem:/{print $2}') GB visible ==="
 
-# Inactivity watchdog: scancel this job if the SLURM log file's mtime
-# stalls. cli60 cap7_aerosol toz_mon hung the shard for 2h after 4/5
+# Inactivity watchdog: scancel this job if the log, the output directory
+# and the node-local save staging all stop changing. cli60 cap7_aerosol toz_mon hung the shard for 2h after 4/5
 # rules had already saved — Prefect/Dask cluster wedge with no output.
 # Default 5400s (90 min): the older 1800s default caught 3D plev saves
 # mid-write (cli104 lost 2 shards). zlib+shuffle silent-save windows on
@@ -295,17 +302,30 @@ if [ "$WEDGE_TIMEOUT_SEC" -gt 0 ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   WEDGE_LOG_FILE="${SLURM_SUBMIT_DIR:-$PWD}/pycmor_hr_shard_${SLURM_JOB_NAME:-shard}_${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-1}.log"
   WEDGE_TARGET_JOB="${SLURM_ARRAY_JOB_ID:+${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}}"
   WEDGE_TARGET_JOB="${WEDGE_TARGET_JOB:-$SLURM_JOB_ID}"
-  echo "=== watchdog: scancel ${WEDGE_TARGET_JOB} if ${WEDGE_LOG_FILE} mtime stalls for ${WEDGE_TIMEOUT_SEC}s ==="
+  echo "=== watchdog: scancel ${WEDGE_TARGET_JOB} if log, ${OUTDIR} and ${PYCMOR_TMPFS_DIR:-/tmp} staging all stall for ${WEDGE_TIMEOUT_SEC}s ==="
   (
     # Brief grace period for the log file to appear.
     sleep 60
     while sleep 60; do
       if [ -f "$WEDGE_LOG_FILE" ]; then
-        mtime=$(stat -c %Y "$WEDGE_LOG_FILE" 2>/dev/null || echo 0)
         now=$(date +%s)
+        mtime=$(stat -c %Y "$WEDGE_LOG_FILE" 2>/dev/null || echo 0)
+        # Progress is the newest of: log activity, files landing in the
+        # output directory, and the node-local staging files that saves
+        # write first (_atomic_to_netcdf stages "<name>.nc.<rand>.tmp" in
+        # PYCMOR_TMPFS_DIR and only copies to OUTDIR at the end). Watching
+        # the log alone killed a healthy job in cli120: all 17 saves were
+        # writing to /tmp, looked frozen from OUTDIR, their heartbeats went
+        # quiet, and this loop scancelled the shard. Only fire when every
+        # signal is stale.
+        pm=$(find "$OUTDIR" -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1) || pm=""
+        [ -n "$pm" ] && [ "$pm" -gt "$mtime" ] && mtime="$pm"
+        pm=$(find "${PYCMOR_TMPFS_DIR:-/tmp}" -maxdepth 1 -name '*.nc.*.tmp' -printf '%T@\n' 2>/dev/null \
+          | sort -n | tail -1 | cut -d. -f1) || pm=""
+        [ -n "$pm" ] && [ "$pm" -gt "$mtime" ] && mtime="$pm"
         age=$((now - mtime))
         if [ "$age" -ge "$WEDGE_TIMEOUT_SEC" ]; then
-          echo "[WATCHDOG] ${WEDGE_LOG_FILE} inactive for ${age}s >= ${WEDGE_TIMEOUT_SEC}s; scancel ${WEDGE_TARGET_JOB}" >&2
+          echo "[WATCHDOG] no log or output activity for ${age}s >= ${WEDGE_TIMEOUT_SEC}s; scancel ${WEDGE_TARGET_JOB}" >&2
           scancel "$WEDGE_TARGET_JOB" || true
           break
         fi

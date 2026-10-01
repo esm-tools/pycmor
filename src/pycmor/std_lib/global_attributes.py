@@ -1,4 +1,5 @@
 import datetime
+import os
 import re
 import uuid
 from abc import abstractmethod
@@ -6,6 +7,37 @@ from abc import abstractmethod
 import xarray as xr
 
 from ..core.factory import MetaFactory
+
+
+_DRS_VERSION_RE = re.compile(r"^v\d{8}$")
+
+
+def drs_version(rule_dict=None):
+    """The ``vYYYYMMDD`` directory that every file of a campaign goes into.
+
+    One ESGF dataset version must hold all of its files, but this used to be
+    the wall-clock date of each individual write. A run crossing midnight
+    split across two versions, every retry on a later day duplicated each
+    dataset, and a year-by-year chain would have spread one variable's 196
+    years over a hundred version directories (cli121).
+
+    Pin it with ``directory_date`` on the rule or in ``inherit``, or with the
+    ``PYCMOR_DRS_VERSION`` environment variable, which run_year_chain.sbatch
+    sets once and forwards to every year and every retry. Today's date is
+    only the fallback for ad-hoc runs.
+    """
+    pinned = (rule_dict or {}).get("directory_date") or os.environ.get("PYCMOR_DRS_VERSION")
+    if isinstance(pinned, (datetime.date, datetime.datetime)):
+        # An unquoted `directory_date: 2026-09-25` in yaml arrives as a date.
+        pinned = pinned.strftime("v%Y%m%d")
+    if pinned:
+        pinned = str(pinned).strip()
+        if not pinned.startswith("v"):
+            pinned = f"v{pinned}"
+        if not _DRS_VERSION_RE.match(pinned):
+            raise ValueError(f"DRS version must look like vYYYYMMDD, got {pinned!r}")
+        return pinned
+    return f"v{datetime.datetime.today().strftime('%Y%m%d')}"
 
 
 class GlobalAttributes(metaclass=MetaFactory):
@@ -185,7 +217,7 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         variable_id = self.get_variable_id()
         branding_suffix = self.get_branding_suffix() or "unknown"
         grid_label = self.get_grid_label()
-        directory_date = f"v{datetime.datetime.today().strftime('%Y%m%d')}"
+        directory_date = drs_version(self.rule_dict)
         return (
             f"{drs_specs}/{mip_era}/{activity_id}/{institution_id}/{source_id}/"
             f"{experiment_id}/{member_id}/{region}/{frequency}/{variable_id}/"
@@ -981,7 +1013,7 @@ class CMIP6GlobalAttributes(GlobalAttributes):
         table_id = self.get_table_id()
         variable_id = self.get_variable_id()
         grid_label = self.get_grid_label()
-        version = f"v{datetime.datetime.today().strftime('%Y%m%d')}"
+        version = drs_version(self.rule_dict)
         directory_path = f"{mip_era}/{activity_id}/{institution_id}/{source_id}/{experiment_id}/{member_id}/{table_id}/{variable_id}/{grid_label}/{version}"  # noqa: E501
         return directory_path
 

@@ -172,6 +172,7 @@ inherit:
   qc_enabled: true
   qc_repack: true
   qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
   qc_ignore_codes: ["VAR004"]
 
   activity_id: CMIP

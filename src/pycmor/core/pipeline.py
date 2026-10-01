@@ -11,6 +11,7 @@ import randomname
 from prefect.cache_policies import INPUTS, NO_CACHE, TASK_SOURCE
 from prefect.tasks import Task
 
+from .skip import RuleSkipped
 from .caching import generate_cache_key  # noqa: F401
 from .cluster import DaskContext
 from .logging import add_to_report_log, logger
@@ -70,9 +71,7 @@ class Pipeline:
             # for the whole pipeline; INPUTS hashing is the only thing
             # that touches the wrapper, and disabling it costs nothing
             # because pycmor runs each pipeline once per process.
-            _has_script_step = any(
-                getattr(s, "__module__", "") == "script" for s in self._steps
-            )
+            _has_script_step = any(getattr(s, "__module__", "") == "script" for s in self._steps)
             if _has_script_step:
                 self._cache_policy = NO_CACHE
             else:
@@ -147,6 +146,7 @@ class Pipeline:
 
             def _run_collapsed_pipeline(data, rule_spec):
                 from prefect.states import State
+
                 for step in steps_to_run:
                     result = step(data, rule_spec)
                     if isinstance(result, State):
@@ -157,12 +157,13 @@ class Pipeline:
                             # data payload; pass the prior data through.
                             result = data
                     data = result
+                    if isinstance(data, RuleSkipped):
+                        return data
                 return data
 
             _run_collapsed_pipeline.__name__ = f"{self.name}_collapsed"
             logger.debug(
-                f"Collapsing {len(self._steps)} steps into one Prefect task "
-                f"({_run_collapsed_pipeline.__name__})."
+                f"Collapsing {len(self._steps)} steps into one Prefect task " f"({_run_collapsed_pipeline.__name__})."
             )
             prefect_tasks = [
                 Task(
@@ -201,6 +202,8 @@ class Pipeline:
     def _run_native(self, data, rule_spec):
         for step in self.steps:
             data = step(data, rule_spec)
+            if isinstance(data, RuleSkipped):
+                return data
         return data
 
     def _run_prefect(self, data, rule_spec):
@@ -241,10 +244,7 @@ class Pipeline:
     @staticmethod
     @add_to_report_log
     def on_completion_native(rule_name, pipeline_name, elapsed_s):
-        logger.success(
-            f"Pipeline '{pipeline_name}' completed for rule "
-            f"'{rule_name}' in {elapsed_s:.1f}s"
-        )
+        logger.success(f"Pipeline '{pipeline_name}' completed for rule " f"'{rule_name}' in {elapsed_s:.1f}s")
 
     @staticmethod
     @add_to_report_log

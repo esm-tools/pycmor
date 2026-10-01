@@ -674,6 +674,7 @@ inherit:
   qc_enabled: true
   qc_repack: true
   qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
   qc_ignore_codes: ["VAR004"]
 
   activity_id: CMIP
@@ -1159,7 +1160,7 @@ rules:
       - path: *dp
         pattern: m_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: m_snow
     hemisphere: "N"
     scale_factor: 330.0       # rho_snow, kg/m³ (matches FESOM default)
@@ -1172,7 +1173,7 @@ rules:
       - path: *dp
         pattern: m_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: m_snow
     hemisphere: "S"
     scale_factor: 330.0
@@ -1237,7 +1238,7 @@ rules:
       - path: *dp
         pattern: siarean\.fesom\.\d{4}\.nc
     compound_name: seaIce.siarea.tavg-u-hm-u.mon.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: siarean
     model_unit: "1e12 m2"
@@ -1247,7 +1248,7 @@ rules:
       - path: *dp
         pattern: siareas\.fesom\.\d{4}\.nc
     compound_name: seaIce.siarea.tavg-u-hm-u.mon.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: siareas
     model_unit: "1e12 m2"
@@ -1259,7 +1260,7 @@ rules:
       - path: *dp
         pattern: a_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siarea.tavg-u-hm-u.day.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: a_ice
     model_unit: "m2"
@@ -1272,7 +1273,7 @@ rules:
       - path: *dp
         pattern: a_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siarea.tavg-u-hm-u.day.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: a_ice
     model_unit: "m2"
@@ -1285,7 +1286,7 @@ rules:
       - path: *dp
         pattern: siextentn\.fesom\.\d{4}\.nc
     compound_name: seaIce.siextent.tavg-u-hm-u.mon.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: siextentn
     model_unit: "1e12 m2"
@@ -1295,7 +1296,7 @@ rules:
       - path: *dp
         pattern: siextents\.fesom\.\d{4}\.nc
     compound_name: seaIce.siextent.tavg-u-hm-u.mon.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: siextents
     model_unit: "1e12 m2"
@@ -1307,7 +1308,7 @@ rules:
       - path: *dp
         pattern: a_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siextent.tavg-u-hm-u.day.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: a_ice
     model_unit: "m2"
@@ -1321,7 +1322,7 @@ rules:
       - path: *dp
         pattern: a_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siextent.tavg-u-hm-u.day.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: a_ice
     model_unit: "m2"
@@ -1335,7 +1336,7 @@ rules:
       - path: *dp
         pattern: sivoln\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.mon.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: sivoln
 
@@ -1344,7 +1345,7 @@ rules:
       - path: *dp
         pattern: sivols\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.mon.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: sivols
 
@@ -1366,7 +1367,7 @@ rules:
       - path: *dp
         pattern: h_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.day.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: h_ice
     model_unit: "m3"
@@ -1382,7 +1383,7 @@ rules:
       - path: *dp
         pattern: h_ice\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.day.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     cell_measures: ""
     model_variable: h_ice
     model_unit: "m3"
@@ -1559,7 +1560,6 @@ rules:
         pattern: atm_remapped_1m_ci_.*\.nc
     compound_name: seaIce.siconca.tavg-u-hxy-u.mon.glb
     model_variable: ci
-    grid: "OpenIFS TCo319 reduced Gaussian, interpolated to 0.25deg regular grid"
     nominal_resolution: "25 km"
     time_dimname: time_counter
     pipelines:
@@ -1573,7 +1573,6 @@ rules:
         pattern: atm_remapped_1d_ci_.*\.nc
     compound_name: seaIce.siconca.tavg-u-hxy-u.day.glb
     model_variable: ci
-    grid: "OpenIFS TCo319 reduced Gaussian, interpolated to 0.25deg regular grid"
     nominal_resolution: "25 km"
     time_dimname: time_counter
     pipelines:
@@ -1621,7 +1620,7 @@ rules:
       - path: *dp
         pattern: m_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnmass.tavg-u-hm-si.day.nh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: m_snow
     hemisphere: "N"
     scale_factor: 330.0
@@ -1634,7 +1633,7 @@ rules:
       - path: *dp
         pattern: m_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnmass.tavg-u-hm-si.day.sh
-    grid_label: g190  # globales Mittel, kein horizontales Gitter
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: m_snow
     hemisphere: "S"
     scale_factor: 330.0

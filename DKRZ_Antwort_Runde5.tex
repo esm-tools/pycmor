@@ -1,0 +1,244 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,urlcolor=blue!60!black,linkcolor=black]{hyperref}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+\emergencystretch=3em
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
+\large Stand nach \code{cli118}: deine \code{aicc}-0.2-Befunde zu \code{cli117}}
+\author{Jan Streffing, AWI}
+\date{11. September 2026}
+
+\begin{document}
+% babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt. Die Shorthands
+% werden erst bei \begin{document} scharfgeschaltet, also muss das hierhin.
+\shorthandoff{"}
+\maketitle
+
+\section{Kurzfassung}
+
+Danke fuer den Lauf mit \code{cc-plugin-aicc} 0.2 auf \code{cli117}. Alle
+Befunde, die bei uns lagen, sind behoben und in \code{cli118} nachgemessen,
+dem Jahr 1851 mit 529 Dateien. Fuenf davon haben wir nach zwei Nachkorrekturen
+noch einmal geschrieben, dazu Abschnitt~\ref{sec:nach}.
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Befund aus deinem Lauf} & \textbf{\code{cli117}} & \textbf{\code{cli118}} \\
+\midrule
+\code{lon} unter \code{valid\_min = 0}               & 299 & 0 \\
+\code{time2}/\code{time4} ohne \code{climatology}     &   3 & 0 \\
+\code{g132}: zwei Saetze Koordinaten                  &   2 Variablen & 0 \\
+\code{hur}: \code{missing\_value}/\code{\_FillValue} unterschiedlich getypt & 3 & 0 \\
+Daten als \code{double}, obwohl der Data Request \code{real} verlangt & 227 & 0 \\
+\code{long\_name} \code{Latitude}/\code{Longitude}   &  41 & 0 \\
+\code{long\_name} \code{ap(k+1/2)}/\code{b(k+1/2)}   &   9 & 0 \\
+\code{g239} im Vokabular und DRS                      &  12 & 0 \\
+\code{plev7h}                                         &   5 & deaktiviert \\
+\code{TIME001}                                        &  42 & 42 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+In \code{cli118} bleiben damit 43 HIGH ueber alle drei Checker: cf 0,
+\code{wcrp\_cmip7} 42, \code{aicc} 1. Die 42 sind \code{TIME001} und haengen an
+deinem \code{\#81}, der eine \code{aicc}-Befund ist \code{vegtype}. Beides kommt
+in Abschnitt~\ref{sec:rest}.
+
+\section{Laenge in $[0, 360]$}
+
+Die Tabelle verlangt fuer \code{longitude} und fuer \code{vertices\_longitude} in
+\code{CMIP7\_grids.json} \code{valid\_min = 0} und \code{valid\_max = 360}. In
+\code{cli117} lagen 299 Dateien in $[-180, 180]$, betroffen waren
+\code{g122} auf \code{ncells} sowie alle Dateien auf \code{g130} und \code{g132}.
+Daneben lagen 161 \code{g122}-Dateien schon im anderen Bereich. Dasselbe
+Gitterlabel kam also mit zwei Koordinatensaetzen, und das duerfte ein guter Teil
+der Konsistenzbefunde zwischen den Datasets gewesen sein.
+
+Hilfskoordinaten und Eckpunkte werden jetzt in den Bereich gebracht.
+Dimensionskoordinaten bleiben unberuehrt, dort wuerde das Umklappen die
+Monotonie zerstoeren, und \code{g129} lag ohnehin schon in $[0, 360]$. Zellen,
+die ueber den Nullmeridian reichen, haben ihre Eckpunkte danach an beiden Enden
+des Bereichs, so wie CMOR sie schreibt. Der cf-Test, ob die Koordinate in ihrer
+Zelle liegt, rechnet die Laenge dafuer zurueck, das haben wir auch in eurem
+\code{compliance-checker}-Checkout nachgesehen.
+
+\section{\code{g132}: ein Satz Koordinaten}
+
+Dein Hinweis, dass \code{tauuo}/\code{tauvo} ein anderes Minimum haben als
+\code{hfx}/\code{hfy}, lag an zwei Quellen. \code{tauuo} und \code{tauvo} kommen mit
+den Elementschwerpunkten aus XIOS, \code{hfx} und \code{hfy} bekamen unsere, als
+Mittel der drei Eckknoten auf der Kugel. Unser Schritt hat die XIOS-Werte bisher
+stehen lassen, sobald eine Datei ueberhaupt \code{lat} mitbrachte.
+
+Die beiden Saetze wichen auf 3{,}96 Mio.\ Zellen voneinander ab, auf 1272
+polnahen Zellen um bis zu 57{,}6 Grad in der Laenge. XIOS mittelt dort die
+Eckpunkt-Laengen in Grad, und das geht in Polnaehe schief. Auf dem Elementgitter
+ersetzen wir jetzt immer. Alle neun \code{g132}-Dateien in \code{cli118} haben
+bitgleiche \code{lat}, \code{lon} und Eckpunkte.
+
+\section{Datentyp nach dem Data Request}
+
+Alle Gleitkommavariablen im CMIP7 Data Request sind \code{real}, also einfach
+genau. 227 der 534 Dateien in \code{cli117} waren \code{double}, meist weil eine
+Einheitenumrechnung oder eine Mittelung \code{float32}-Eingaben hochgestuft hatte.
+Die Daten werden jetzt vor dem Schreiben auf \code{float32} gebracht, und
+\code{missing\_value} und \code{\_FillValue} folgen dem Typ der Daten.
+
+Bei \code{hur} lag noch eine zweite Ursache darunter. Die Feuchteachsen
+\code{hur100p2pct} und \code{hur101pct} haben in der Koordinatentabelle den
+\code{out\_name} \code{hur}, und unser Schritt, der Koordinaten auf den Tabellentyp
+bringt, hat deshalb die Variable selbst wieder als \code{double} geschrieben, mit
+\code{float32}-Fuellwerten. Das war genau die Typmischung, die der cf-Checker
+gemeldet hat und an der \code{check\_appendix\_a} abgestuerzt ist. Der Schritt
+fasst jetzt nur noch Koordinaten an. In \code{cli118} ist keine Variable mehr
+\code{double}, und der Absturz ist weg.
+
+\section{\code{time2} und \code{time4} als Klimatologie}
+
+\code{pfull} \code{tclm} und \code{tas} \code{tmaxavg}/\code{tminavg} tragen jetzt
+\code{time:climatology = "climatology\_bnds"} und kein \code{bounds} mehr. Fuer
+\code{time4} spannt \code{climatology\_bnds} den jeweiligen Monat. Fuer
+\code{time2} laufen die Grenzen vom Monatsanfang im ersten bis zum Monatsende
+im letzten Jahr, das in den Akkumulator eingegangen ist. Den Mittelungszeitraum
+aus \code{DReq\#32} legen wir damit so aus: alle cmorisierten Jahre des Laufs.
+Im Testjahr fallen beide Formen zusammen.
+
+Eine Kleinigkeit dabei: \code{climatology\_bnds} steht numerisch in den Einheiten
+der Zeitachse auf der Platte, ohne eigene Attribute. xarray raeumt
+\code{units} und \code{calendar} nur von der Variable ab, auf die \code{bounds}
+zeigt, nicht von der unter \code{climatology}. Sonst haette cf Appendix A
+\code{calendar} auf einer Datenvariable gemeldet.
+
+Den Tippfehler \code{Satistics} im \code{long\_name} von \code{time4} uebernehmen
+wir aus der Tabelle, der steht schon in deinem \code{CMIP7\_DReq\_Content\#31}.
+
+\section{\code{long\_name} nach Tabelle}
+
+Dimensionskoordinaten tragen jetzt \code{Latitude}/\code{Longitude} wie in
+\code{CMIP7\_coordinate.json}. Die Hilfskoordinaten auf unstrukturierten Gittern
+bleiben kleingeschrieben, dort gilt \code{CMIP7\_grids.json}. Die Formelterme der
+Grenzen heissen \code{ap(k+1/2)} und \code{b(k+1/2)}.
+
+\section{Gitterregister in \code{aicc}}
+
+\code{aicc} fuehrt ein festes Register von \code{g100} bis \code{g236}. Seitdem
+sind 17 Labels ins CV gekommen, die Spezialgitter \code{g010} bis \code{g014} und
+\code{g237} bis \code{g248}, darunter unser \code{g239} und das LR-Gitter
+\code{g238}. Wir uebergeben deshalb ein eigenes Register per
+\code{-O aicc:grid\_config:<json>}: euer Register plus 15 Labels, der Typ jeweils
+aus dem \code{grid\_type}, den EMD fuer das Label fuehrt. \code{g013} und
+\code{g014} fehlen darin, fuer Punkte und Linien kennt \code{aicc} keine Topologie.
+Die 137 vorhandenen Eintraege stimmen alle mit EMD ueberein.
+
+Falls dir das recht ist, schreiben wir das als Issue bei \code{cc-plugin-aicc}
+auf. Ein Register, das aus dem CV gelesen wird, wuerde es gar nicht erst
+veralten lassen.
+
+Mit dem Register wurde auch etwas sichtbar, das vorher an der Gitterpruefung
+haengen blieb: \code{msftm} stand als \code{(time, lev, basin, lat)} auf der
+Platte, die Tabelle verlangt \code{(time, basin, lev, lat)}. Behoben, die
+Hauptvariable folgt jetzt der Dimensionsfolge des Data Request, sobald alle
+ihre Dimensionen darauf abbilden.
+
+\section{Globale Mittel auf \code{g010}}
+
+Die 29 Variablen mit horizontalem Mittel lagen bisher auf \code{g190}. Nach der
+Klaerung im CV-Komitee ist \code{g190} ein Box-Modell-Gitter
+(\code{Essential-Model-Documentation\#1382}), und fuer globale Mittel gilt das
+Spezialgitter \code{g010}. Umgestellt. Die \code{Variable Registry}-Befunde auf
+\code{so} und \code{thetao} aus deinem Lauf tauchen bei uns nicht auf, beide Terme
+stehen in \code{branded\_variable/} von \code{CMIP7-CVs}. Wir vermuten dort einen
+aelteren CV-Stand auf deiner Seite.
+
+\section{Was uebrig bleibt}
+\label{sec:rest}
+
+\begin{center}
+\begin{tabular}{rll}
+\toprule
+\textbf{Anzahl} & \textbf{Befund} & \textbf{wartet auf} \\
+\midrule
+42 HIGH & \code{TIME001}, die halbe Zelle & \code{cc-plugin-wcrp\#81} \\
+ 1 HIGH & \code{vegtype} auf \code{landCoverFrac} & \code{CMIP7\_DReq\_Content\#29} \\
+492 MEDIUM & \glqq Registry has no value for key 'cell\_measures'\grqq{} & \code{WCRP-universe\#334} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{\code{TIME001}.} Laut Beschreibung von \code{\#81} addiert \code{TIME001}
+bei subdaily und dekadischen Daten keine halbe Zelle mehr und prueft den
+midpoint gegen die deklarierten Grenzen. Das sind genau unsere 42. Sobald
+\code{\#81} gemergt ist, pruefen wir \code{cli118} damit.
+
+\textbf{Die 492 MEDIUM.} Die sind neu, seit wir auf \code{cmip7@2.3.0} gewechselt
+sind, und sie liegen nicht an den Dateien. Die Universe-Datenbank 3.2.0, die
+esgvoc aus der Registry laedt, fuehrt fuer \code{known\_branded\_variable} kein
+\code{cell\_measures} und \code{units} statt \code{cf\_units}, obwohl das JSON im
+Repository beides noch hat. Ein Update von esgvoc 4.1.1 auf 6.1.0 aendert daran
+nichts. Das ist \code{WCRP-universe\#334} und \code{cc-plugin-wcrp\#79}, und dein
+\code{\#81} erwaehnt genau diese Kompatibilitaet (\code{units} vs.\
+\code{cf\_units}). Wir erwarten also, dass die 492 mit \code{\#81} ebenfalls
+verschwinden.
+
+\textbf{Zwei Stellen, die wir im cf-Checker selbst sehen.} Sie stehen nicht in
+der Tabelle, weil sie nicht an uns haengen:
+
+\begin{itemize}
+\item \code{formula\_terms} auf \code{lev\_bnds}, in deinem Lauf acht HIGH aus
+  Appendix A. \code{cf\_1\_7.py} verlangt das Attribut auf den Grenzen einer
+  parametrischen Vertikalkoordinate, wie CF 1.7 \S7.1 es vorschreibt, der
+  Appendix-A-Test verbietet es dort. Eine Datei kann nicht beides erfuellen,
+  wir behalten es daher.
+\item Der Test fuer \code{cell\_methods} von Klimatologien ist auf
+  \code{\^{}time:} verankert. Seit \code{time2}/\code{time4} richtige
+  Klimatologien sind, faellt deshalb \code{area: mean time: maximum within days
+  time: mean over days} als MEDIUM durch, obwohl CF andere Achsen davor zulaesst.
+  Drei Dateien.
+\end{itemize}
+
+Beides wuerden wir bei \code{compliance-checker} aufschreiben, ein bestehendes
+Issue dazu haben wir nicht gefunden.
+
+\section{Die FileNotFoundErrors}
+
+Das war nicht diese Woche. Gemeint sind die fuenf fehlenden Reports aus
+\code{cli116} vom 18.\,August, beschrieben in der vierten Antwort:
+\code{cchecker.py} ist dort beim Import gestorben, bevor er eine Datei
+angefasst hat. Seitdem wiederholt der QC-Schritt den Aufruf, wenn kein Report
+entsteht. \code{cli117} hat 534 Reports auf 534 Dateien geliefert,
+\code{cli118} 529 auf 529. In den 63 Logs von \code{cli118} steht kein einziger
+\code{FileNotFoundError}, und die Wiederholung hat nie ausgeloest.
+
+Ob es die Lustre-Probleme waren, koennen wir nicht sagen, der Fehler war nicht
+reproduzierbar.
+
+\section{Wie gemessen wurde}
+\label{sec:nach}
+
+\code{cli118} lief am 10./11.\,September mit allen Korrekturen ausser zweien:
+\code{hur} war noch \code{double} (die zweite Ursache oben) und \code{msftm} in der
+alten Dimensionsfolge. Beides ist behoben, und die fuenf betroffenen Dateien
+sind am 11.\,September in denselben Lauf neu geschrieben. Alle Zahlen oben
+beziehen sich auf diesen Stand.
+
+Checker-Stand: \code{compliance-checker} 6.1.0, \code{cc-plugin-wcrp}
+\code{develop} \code{ba2de16}, \code{cc-plugin-aicc} 0.2.0 mit unserem Register,
+esgvoc 6.1.0 mit \code{cmip7@2.3.0} und \code{universe@3.2.0}. Die
+\code{plev7h}-Variablen sind wie angekuendigt deaktiviert, daher 529 statt 534
+Dateien.
+
+Gute Erholung im Urlaub. Das hier liegt bereit, wenn du zurueck bist.
+
+\end{document}

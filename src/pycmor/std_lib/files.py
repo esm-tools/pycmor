@@ -124,6 +124,7 @@ class _Heartbeat:
         self._t0 = None
         self._th = None
         self._timed_out = False
+        self._stalled = False
         self._last_size = -1
         self._last_progress_ts = None
 
@@ -142,7 +143,15 @@ class _Heartbeat:
             while not self._stop.wait(self.interval):
                 n += 1
                 elapsed = time.monotonic() - self._t0
-                logger.info(f"  ⟳ {self.label} still running " f"(t={elapsed:.0f}s, heartbeat #{n})")
+                # Once stalled we keep beating, only slower. The shard
+                # watchdog infers liveness from log activity, so going
+                # silent here made a healthy job look wedged and got it
+                # scancelled after 90 min (cli120 extra_atm, 17 files lost).
+                if not self._stalled or n % 10 == 0:
+                    logger.info(
+                        f"  ⟳ {self.label} still running (t={elapsed:.0f}s, "
+                        f"heartbeat #{n}{', no I/O progress yet' if self._stalled else ''})"
+                    )
                 # Watchdog: poll watch_path size and detect stalls.
                 # watch_path may be a str (single file) or a callable that
                 # returns the current "bytes written so far" — useful for
@@ -161,26 +170,21 @@ class _Heartbeat:
                     if size > self._last_size:
                         self._last_size = size
                         self._last_progress_ts = time.monotonic()
-                    elif time.monotonic() - self._last_progress_ts > self.timeout_s:
+                        self._stalled = False
+                    elif time.monotonic() - self._last_progress_ts > self.timeout_s and not self._stalled:
+                        self._stalled = True
+                        self._timed_out = True
                         logger.warning(
                             f"  ⚠ {self.label}: no I/O progress detected for "
                             f"{self.timeout_s / 60:.0f} min on the rule's "
-                            f"output directory. Stopping further heartbeats. "
-                            f"No action taken — the worker is NOT killed and "
-                            f"the rule is NOT aborted; if the body eventually "
-                            f"completes the result is preserved. (A retry "
-                            f"would only trigger if the body itself returned "
-                            f"after this point; under the typical "
-                            f"syscall-stuck scenario the body cannot return "
-                            f"until SLURM walltime expires.) "
-                            f"This message often appears for genuinely-slow "
-                            f"compute-heavy rules where the dask graph runs "
-                            f"longer than the watchdog timeout before the "
-                            f"first byte is written."
+                            f"output directory. No action taken — the worker "
+                            f"is NOT killed and the rule is NOT aborted. "
+                            f"Heartbeats continue at a reduced rate so the "
+                            f"job still proves it is alive. This is common "
+                            f"for compute-heavy rules whose dask graph runs "
+                            f"longer than the timeout before the first byte "
+                            f"is written."
                         )
-                        self._timed_out = True
-                        self._stop.set()
-                        return
 
         self._th = threading.Thread(target=_tick, name=f"hb-{self.label}", daemon=True)
         self._th.start()
@@ -398,6 +402,12 @@ def _ensure_horizontal_coord_attrs(ds):
             if k == "axis" and not is_coordinate_variable:
                 attrs.pop(k, None)
                 continue
+            if k == "long_name" and is_coordinate_variable:
+                # CMIP7_coordinate.json calls the axes "Latitude" and
+                # "Longitude", and aicc holds dimension coordinates to that
+                # (41 g129 files in cli117). Auxiliary lat/lon on unstructured
+                # grids follow CMIP7_grids.json, which keeps them lowercase.
+                v = v[:1].upper() + v[1:]
             attrs[k] = v
         bname = f"{name}_bnds"
         if bname in ds.variables:
@@ -465,7 +475,7 @@ def _is_vertical_dim(ds, dim):
     return False
 
 
-def _ensure_cf_dim_order(ds):
+def _ensure_cf_dim_order(ds, rule=None):
     """Put the vertical axis ahead of the horizontal ones (CF §2.4).
 
     CF asks for the relative order T, Z, Y, X. FESOM writes its 3-D fields
@@ -516,6 +526,41 @@ def _ensure_cf_dim_order(ds):
             continue
         logger.info(f"  → CF §2.4 dim order on {var_name!r}: {tuple(dims)} -> {tuple(reordered)}")
         ds[var_name] = da.transpose(*reordered)
+    return _ensure_request_dim_order(ds, rule)
+
+
+def _ensure_request_dim_order(ds, rule):
+    """Put the variable's dimensions in the order the data request lists them.
+
+    The table lists dimensions Fortran-style, so the file order is the reverse.
+    aicc compares against it: cli118 wrote msftm as (time, lev, basin, lat)
+    where the table says ``latitude olevel basin time``, i.e.
+    (time, basin, lev, lat), which is the CMOR order.
+
+    Only applied when every dimension of the variable maps onto a requested
+    axis. Unstructured output carries a cell index the table does not name, so
+    it never qualifies and keeps the order set above.
+    """
+    if rule is None:
+        return ds
+    # Same resolution the dimension mapping uses, which also covers generic
+    # axes such as olevel that have no out_name in the table.
+    from .dimension_mapping import _out_name_for
+
+    drv = getattr(rule, "data_request_variable", None)
+    name = getattr(drv, "out_name", None)
+    if not name or name not in ds.data_vars:
+        return ds
+    da = ds[name]
+    wanted = []
+    for dim in reversed(tuple(getattr(drv, "dimensions", ()) or ())):
+        out_name = _out_name_for(dim)
+        if out_name in da.dims and out_name not in wanted:
+            wanted.append(out_name)
+    if len(wanted) != da.ndim or wanted == list(da.dims):
+        return ds
+    logger.info(f"  → data request dim order on {name!r}: {tuple(da.dims)} -> {tuple(wanted)}")
+    ds[name] = da.transpose(*wanted)
     return ds
 
 
@@ -598,6 +643,42 @@ def _normalise_vertices_naming(ds):
     return ds
 
 
+_GRID_LATLON_NAMES = {"lat": "latitude", "lon": "longitude"}
+
+
+def _ensure_grid_latlon_names(ds):
+    """Name auxiliary lat/lon the way CMIP7_grids.json does.
+
+    Two tables name the horizontal coordinates. ``CMIP7_coordinate.json``
+    covers the axes of regular grids, out_name ``lat``/``lon``, which is
+    what the third DKRZ round moved 41 files to. ``CMIP7_grids.json`` covers
+    the grid variables of curvilinear and unstructured grids, out_name
+    ``latitude``/``longitude``. Our auxiliary coordinates kept whatever XIOS
+    or the mesh called them, and the coordinate checks in cc-plugin-wcrp#81
+    (COORD011) flagged all 455 files on g122, g130 and g132 in cli118.
+
+    Only auxiliary coordinates are renamed; ``lat(lat)`` on a regular grid
+    stays. Every ``coordinates`` attribute is rewritten to match.
+    """
+    if not isinstance(ds, xr.Dataset):
+        return ds
+    renames = {
+        old: new
+        for old, new in _GRID_LATLON_NAMES.items()
+        if old in ds.variables and new not in ds.variables and _is_auxiliary_coord(ds, old)
+    }
+    if not renames:
+        return ds
+    ds = ds.rename(renames)
+    for var in ds.variables.values():
+        for store in (var.attrs, var.encoding):
+            value = store.get("coordinates")
+            if isinstance(value, str):
+                store["coordinates"] = " ".join(renames.get(t, t) for t in value.split())
+    logger.info(f"  → grid variables: {renames} (CMIP7_grids.json out_name)")
+    return ds
+
+
 _UNSTRUCTURED_DIMS = ("ncells", "nod2", "elem", "cell", "cells")
 
 
@@ -642,11 +723,17 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
     Bounds are attached raw; the dateline normalisation later in
     :func:`_ensure_lat_lon_bounds_impl` straightens out triangles that
     straddle the seam.
+
+    On the element grid the centroids are replaced even when XIOS already
+    wrote some. XIOS averages the corner longitudes in degrees, which
+    breaks near the poles: in cli117 tauuo (XIOS centroids) and hfx (ours)
+    both claimed g132 but disagreed on 3.96M cells, by up to 57.6 degrees
+    of longitude on 1272 near-polar ones, and the DKRZ review flagged the
+    two as different grids. One grid label needs one set of coordinates.
     """
     if not isinstance(ds, xr.Dataset) or rule is None:
         return ds
-    if any(n in ds.variables or n in ds.coords for n in ("lat", "latitude")):
-        return ds
+    has_latlon = any(n in ds.variables or n in ds.coords for n in ("lat", "latitude"))
     grid_file = getattr(rule, "grid_file", None)
     if not grid_file or not os.path.exists(str(grid_file)):
         return ds
@@ -663,6 +750,8 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
             break
     if hdim is None:
         return ds
+    if has_latlon and hdim != "elem":
+        return ds
 
     n_cells = ds.sizes[hdim]
     try:
@@ -672,7 +761,7 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
             n_nodes = mesh.sizes.get("ncells")
             n_triags = mesh.sizes.get("ntriags")
 
-            if n_cells == n_nodes:
+            if n_cells == n_nodes and not has_latlon:
                 lat = np.asarray(mesh["lat"].values, dtype=np.float64)
                 lon = np.asarray(mesh["lon"].values, dtype=np.float64)
                 lat_b = np.asarray(mesh["lat_bnds"].values, dtype=np.float64) if "lat_bnds" in mesh else None
@@ -697,14 +786,25 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
                 lat = np.clip(lat, lat_b.min(axis=1), lat_b.max(axis=1))
                 source = "element centroids from triag_nodes"
             else:
-                logger.warning(
-                    f"  → aux coords: {hdim!r} has {n_cells} cells, mesh has "
-                    f"{n_nodes} nodes / {n_triags} elements; cannot match"
-                )
+                if not has_latlon:
+                    logger.warning(
+                        f"  → aux coords: {hdim!r} has {n_cells} cells, mesh has "
+                        f"{n_nodes} nodes / {n_triags} elements; cannot match"
+                    )
                 return ds
     except Exception as exc:
         logger.warning(f"  → aux coord recovery from {grid_file} failed: {exc}")
         return ds
+
+    if has_latlon:
+        stale = [
+            n
+            for n in ("lat", "lon", "latitude", "longitude")
+            + tuple(f"{p}{c}{s}" for c in ("lat", "lon") for p, s in (("", "_bnds"), ("bounds_", "")))
+            if n in ds.variables
+        ]
+        ds = ds.drop_vars(stale)
+        logger.info(f"  → aux coords: replacing XIOS element coordinates {stale} with {source}")
 
     ds = ds.assign_coords(
         {
@@ -914,19 +1014,21 @@ def _ensure_lat_lon_bounds_and_external_vars(ds, rule=None):
     ds = _ensure_lat_lon_bounds_impl(ds, rule)
     ds = _ensure_vertical_bounds(ds)
     ds = _ensure_exact_vertical_bounds(ds)
-    ds = _ensure_climatology_bounds(ds)
+    ds = _ensure_climatology_bounds(ds, rule)
     ds = _ensure_vertical_coord_attrs(ds)
     ds = _ensure_coordinate_long_names(ds, rule)
     ds = _strip_bounds_attributes(ds)
     ds = _strip_variable_positive(ds)
     ds = _drop_unrequested_aux_coords(ds, rule)
+    ds = _ensure_data_dtype(ds, rule)
     ds = _ensure_coordinate_dtypes(ds)
     ds = _ensure_external_variables(ds)
-    ds = _ensure_cf_dim_order(ds)
+    ds = _ensure_cf_dim_order(ds, rule)
     ds = _ensure_coordinates_attr(ds)
     ds = _ensure_horizontal_coord_attrs(ds)
     ds = _strip_unportable_encoding(ds)
     ds = _normalise_vertices_naming(ds)
+    ds = _ensure_grid_latlon_names(ds)
     return ds
 
 
@@ -955,7 +1057,23 @@ _EXACT_VERTICAL_BOUNDS = {
 }
 
 
-def _ensure_climatology_bounds(ds):
+def _climatology_axis(rule):
+    """The requested time axis if the table marks it as a climatology.
+
+    Two do in CMIP7: ``time2`` (``tclm``, a mean within years followed by a
+    mean over years) and ``time4`` (``tmaxavg``/``tminavg``, a monthly mean
+    of daily extremes). CF counts both as climatological statistics.
+    """
+    from .coordinate_attributes import AXIS_ENTRIES
+
+    drv = getattr(rule, "data_request_variable", None)
+    for dim in tuple(getattr(drv, "dimensions", ()) or ()):
+        if str((AXIS_ENTRIES.get(dim) or {}).get("climatology", "")).strip().lower() == "yes":
+            return dim
+    return None
+
+
+def _ensure_climatology_bounds(ds, rule=None):
     """Turn a climatology's time axis into the CF §7.4 form.
 
     A ``tclm`` variable is a mean within years followed by a mean over years, so
@@ -972,6 +1090,13 @@ def _ensure_climatology_bounds(ds):
     cli114 wrote ``time_bnds`` on this variable, which the DKRZ coordinate check
     flagged: a climatology whose bounds say "January 1851" claims to be one
     month of one year.
+
+    Without ``climatology_years`` the rule's time axis decides. cli117 still
+    wrote ordinary bounds on three files: pfull tclm, whose years went missing
+    between the accumulator and the write, and tas tmaxavg/tminavg on
+    ``time4``, which never had them. aicc AICC004 rejects both. There the
+    bounds ``set_time_bounds`` built already span the right months, so they
+    only change role.
     """
     if not isinstance(ds, xr.Dataset):
         return ds
@@ -980,7 +1105,7 @@ def _ensure_climatology_bounds(ds):
         return ds
     years = ds[time_label].attrs.pop("climatology_years", None)
     if not years:
-        return ds
+        return _climatology_from_time_bounds(ds, time_label, rule)
     try:
         first, last = (int(y) for y in str(years).split())
     except ValueError:
@@ -1002,7 +1127,53 @@ def _ensure_climatology_bounds(ds):
     for stale in (f"{time_label}_bnds", f"{time_label}_bounds"):
         if stale in ds.variables:
             ds = ds.drop_vars(stale)
+    _share_time_encoding(ds, time_label, "climatology_bnds")
     logger.info(f"  → climatology bounds: {first}-{last} over {len(months)} months")
+    return ds
+
+
+def _share_time_encoding(ds, time_label, bname):
+    """Store ``bname`` as plain numbers in the time coordinate's units.
+
+    xarray moves units and calendar off the variable named by ``bounds`` when
+    it writes, but not off one named by ``climatology``. Left as datetimes,
+    ``climatology_bnds`` went to disk with its own ``units`` and ``calendar``,
+    and cf Appendix A rejects ``calendar`` on a data variable (HIGH on both
+    climatology test files ahead of cli118). Encoding here, with the units
+    the time coordinate will be written in, keeps the variable bare as CF
+    recommends for bounds. The canonical time encoding is fixed first; it
+    runs again before the write, where it is a no-op.
+    """
+    from xarray.coding.times import encode_cf_datetime
+
+    _force_canonical_time_encoding(ds, time_label)
+    enc = ds[time_label].encoding
+    values = ds[bname].values
+    if values.dtype.kind in ("M", "O") and enc.get("units"):
+        numbers, _, _ = encode_cf_datetime(values, enc["units"], enc.get("calendar", "proleptic_gregorian"))
+        ds[bname] = xr.DataArray(np.asarray(numbers, dtype=np.float64), dims=ds[bname].dims, attrs={})
+    elif values.dtype.kind in ("M", "O"):
+        logger.warning(f"climatology: {time_label} has no encoding units yet, {bname} keeps datetime values")
+    ds[bname].attrs = {}
+    ds[bname].encoding = {"dtype": "float64", "_FillValue": None}
+
+
+def _climatology_from_time_bounds(ds, time_label, rule):
+    axis = _climatology_axis(rule) if rule is not None else None
+    if axis is None:
+        return ds
+    bname = ds[time_label].attrs.get("bounds") or ds[time_label].encoding.get("bounds") or f"{time_label}_bnds"
+    if bname not in ds.variables or "climatology_bnds" in ds.variables:
+        if "climatology_bnds" not in ds.variables:
+            logger.warning(f"climatology: {axis} requested but no {bname} to turn into climatology_bnds")
+        return ds
+    ds = ds.rename({bname: "climatology_bnds"})
+    ds["climatology_bnds"].attrs = {}
+    ds[time_label].attrs.pop("bounds", None)
+    ds[time_label].encoding.pop("bounds", None)
+    ds[time_label].attrs["climatology"] = "climatology_bnds"
+    _share_time_encoding(ds, time_label, "climatology_bnds")
+    logger.info(f"  → climatology bounds: {axis}, {bname} -> climatology_bnds")
     return ds
 
 
@@ -1097,6 +1268,42 @@ def _coordinate_dtypes():
     return resolved
 
 
+def _ensure_data_dtype(ds, rule=None):
+    """Store the variable in the type the data request asks for.
+
+    Every floating-point variable in the CMIP7 data request is ``real``, which
+    is single precision. cli117 wrote 227 of 534 files as double, mostly
+    because a unit conversion or an average promoted float32 input. On hur
+    that also left ``missing_value`` and ``_FillValue`` of different types,
+    which cf flags and which crashed its Appendix A check outright.
+
+    The fill attributes are cast along with the data, so both always match
+    the variable.
+    """
+    if not isinstance(ds, xr.Dataset) or rule is None:
+        return ds
+    drv = getattr(rule, "data_request_variable", None)
+    if getattr(drv, "typ", None) is not float:
+        return ds
+    names = {getattr(drv, "out_name", None), getattr(rule, "cmor_variable", None)}
+    for name in (n for n in names if n and n in ds.data_vars):
+        var = ds[name]
+        if var.dtype.kind != "f":
+            continue
+        if var.dtype != np.float32:
+            logger.info(f"  → data dtype: {name} {var.dtype} -> float32 (data request type real)")
+            new = var.astype(np.float32)
+            new.attrs = dict(var.attrs)
+            new.encoding = {k: v for k, v in var.encoding.items() if k != "dtype"}
+            ds[name] = new
+        var = ds[name]
+        for key in ("missing_value", "_FillValue"):
+            for store in (var.attrs, var.encoding):
+                if store.get(key) is not None:
+                    store[key] = np.float32(store[key])
+    return ds
+
+
 def _ensure_coordinate_dtypes(ds):
     """Store coordinates in the type the CMIP7 tables require.
 
@@ -1114,6 +1321,11 @@ def _ensure_coordinate_dtypes(ds):
         return ds
     for name, dtype in _coordinate_dtypes().items():
         if name not in ds.variables or str(name).startswith("time"):
+            continue
+        # Only coordinates. The relative humidity axes (hur100p2pct,
+        # hur101pct) have out_name "hur", so the hur variable itself matched
+        # and went to disk as double in cli118, undoing the float32 cast.
+        if name in ds.data_vars and name not in ds.dims:
             continue
         var = ds[name]
         if var.dtype.kind in ("S", "U", "O") or str(var.dtype) == dtype:
@@ -1549,6 +1761,46 @@ def _ensure_lat_lon_bounds_impl(ds, rule=None):
                 ds[bname] = new_b
         except Exception as exc:
             logger.warning(f"  → dateline normalise on {bname} failed: {exc}; " f"leaving bnds unchanged")
+
+    # CMIP7 wants longitude in [0, 360]: the longitude axis entry and
+    # vertices_longitude in CMIP7_grids.json both carry valid_min 0 and
+    # valid_max 360, and aicc range-checks them. cli117 shipped 299 files
+    # with lon in [-180, 180] (g122 on ncells, all of g130 and g132), next to
+    # 161 g122 files on the other convention, so the same grid label also
+    # came with two sets of coordinates.
+    #
+    # Wrapping undoes the centroid window above for cells that straddle 0°,
+    # whose vertices then sit at both ends of the range. That is the same
+    # layout CMOR writes, and compliance-checker unwraps longitude before
+    # testing the centroid against its cell. Dimension coordinates are left
+    # alone, wrapping would break their monotonic order.
+    for name in ("lon", "longitude"):
+        if name not in ds.variables or ds[name].dims == (name,):
+            continue
+        coord = ds[name]
+        cv = np.asarray(coord.values, dtype=np.float64)
+        if (cv < 0).any() or (cv >= 360).any():
+            new_c = xr.DataArray(np.mod(cv, 360.0), dims=coord.dims, attrs=dict(coord.attrs))
+            new_c.encoding = dict(coord.encoding)
+            ds = ds.assign_coords({name: new_c}) if name in ds.coords else ds.assign({name: new_c})
+            logger.info(f"  → longitude: wrapped {name} into [0, 360)")
+        bname = coord.attrs.get("bounds") or f"{name}_bnds"
+        if bname not in ds.variables:
+            continue
+        bnds = ds[bname]
+        bv = np.asarray(bnds.values, dtype=np.float64)
+        outside = (bv < 0) | (bv > 360)
+        if outside.any():
+            # Only the values outside the range move, so edges sitting on 0
+            # or 360 stay where they are.
+            wrapped = bv.copy()
+            wrapped[outside] = np.mod(bv[outside], 360.0)
+            new_b = xr.DataArray(wrapped, dims=bnds.dims, attrs=dict(bnds.attrs))
+            new_b.encoding = dict(bnds.encoding)
+            new_b.encoding["dtype"] = "float64"
+            new_b.encoding["_FillValue"] = None
+            ds[bname] = new_b
+            logger.info(f"  → longitude: wrapped {int(outside.sum())} {bname} values into [0, 360]")
 
     return ds
 
@@ -2073,6 +2325,63 @@ def _rule_allows_tmpfs_staging(rule):
     return bool(val)
 
 
+def _save_progress_bytes(out_dir, tmpfs_dir=None):
+    """Bytes a running save has produced so far, for stall detection.
+
+    Counts finished ``.nc`` and in-progress ``.tmp`` files in the rule's
+    output directory, plus the node-local staging files that
+    ``_atomic_to_netcdf`` writes first. Without the staging files a save is
+    invisible for its entire write: the bytes grow in ``/tmp`` and only reach
+    ``out_dir`` in the final copy. In cli120 that made all 17 extra_atm saves
+    look stalled at exactly 15 minutes, their heartbeats went quiet, and the
+    shard watchdog killed a job that was still writing.
+    """
+    total = 0
+    if out_dir and os.path.isdir(out_dir):
+        try:
+            for name in os.listdir(out_dir):
+                if name.endswith(".nc") or ".tmp" in name:
+                    try:
+                        total += os.path.getsize(os.path.join(out_dir, name))
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    tmpfs_dir = tmpfs_dir or os.environ.get("PYCMOR_TMPFS_DIR", "/tmp")
+    try:
+        for name in os.listdir(tmpfs_dir):
+            # _atomic_to_netcdf stages as "<final>.nc.<random>.tmp"
+            if ".nc." in name and name.endswith(".tmp"):
+                try:
+                    total += os.path.getsize(os.path.join(tmpfs_dir, name))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
+def _record_written_file(rule, path):
+    """Record a file the rule actually wrote, for the end-of-run manifest.
+
+    A rule that returns cleanly without writing anything is a failure we
+    otherwise cannot see: ``serial_process`` only catches exceptions, so a
+    silent no-op rule used to look identical to a successful one. The
+    manifest compares rules against the files they produced, so the driver
+    can resubmit exactly what is missing instead of a whole shard.
+    """
+    if rule is None:
+        return
+    try:
+        written = getattr(rule, "_written_files", None)
+        if written is None:
+            written = []
+            setattr(rule, "_written_files", written)
+        written.append(str(path))
+    except Exception as exc:  # never let bookkeeping break a good write
+        logger.debug(f"could not record written file {path!r}: {exc!r}")
+
+
 def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchronous", **kwargs):
     """Three-stage atomic write:
 
@@ -2098,7 +2407,9 @@ def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchro
     import tempfile
 
     if not _tmpfs_staging_available(rule):
-        return _safe_to_netcdf(ds_or_da, final_path, *args, scheduler=scheduler, **kwargs)
+        result = _safe_to_netcdf(ds_or_da, final_path, *args, scheduler=scheduler, **kwargs)
+        _record_written_file(rule, final_path)
+        return result
 
     tmpdir = os.environ.get("PYCMOR_TMPFS_DIR", "/tmp")
     fd, tmp_path = tempfile.mkstemp(dir=tmpdir, prefix=os.path.basename(final_path) + ".", suffix=".tmp")
@@ -2113,6 +2424,7 @@ def _atomic_to_netcdf(ds_or_da, final_path, *args, rule=None, scheduler="synchro
         os.unlink(tmp_path)
         # Stage 3: same-FS atomic rename
         os.rename(stage_path, final_path)
+        _record_written_file(rule, final_path)
         return result
     except Exception:
         # Best-effort cleanup of both staging locations
@@ -2782,6 +3094,10 @@ def _save_dataset_with_native_timespan(
     _write_sched = _get_write_scheduler(rule)
     enc = chunk_encoding if chunk_encoding else None
     _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, _write_sched)
+    # save_mfdataset bypasses _atomic_to_netcdf, so record here or the run
+    # manifest reports every time-axis variable as missing (cli122).
+    for _p in paths:
+        _record_written_file(rule, str(_p))
     return da
 
 
@@ -3018,26 +3334,13 @@ def save_dataset(da: xr.DataArray, rule):
     except (TypeError, ValueError):
         max_retries = 2
 
-    # Watchdog: track growth of the rule's output directory total .nc[+.tmp]
-    # bytes. Works for both single-file and multi-file (split-by-timespan)
-    # save paths. Resolved at call time so retries see fresh state.
+    # Watchdog: track growth of the bytes this save is producing. Works for
+    # both single-file and multi-file (split-by-timespan) save paths.
+    # Resolved at call time so retries see fresh state.
     out_dir = getattr(rule, "output_directory", None)
 
     def _outdir_size():
-        if not out_dir or not os.path.isdir(out_dir):
-            return 0
-        total = 0
-        try:
-            for name in os.listdir(out_dir):
-                # Count both finalized .nc and in-progress .nc.tmp.
-                if name.endswith(".nc") or name.endswith(".nc.tmp") or ".tmp" in name:
-                    try:
-                        total += os.path.getsize(os.path.join(out_dir, name))
-                    except OSError:
-                        pass
-        except OSError:
-            return 0
-        return total
+        return _save_progress_bytes(out_dir)
 
     last_exc = None
     for attempt in range(max_retries + 1):
@@ -3441,4 +3744,6 @@ def _save_dataset_impl(da: xr.DataArray, rule):
             # applied via the shared helper.
             _write_sched = _get_write_scheduler(rule)
             _save_mfdataset_worker_or_sync(datasets, paths, final_encoding, extra_kwargs, is_dask, _write_sched)
+            for _p in paths:
+                _record_written_file(rule, str(_p))
             return da
