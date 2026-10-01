@@ -1,0 +1,25 @@
+# Campaign file for the AWI-ESM3-veg-HR 1pctCO2 run. Copy it into its own
+# directory as campaign.yaml, fill in output_root (and workroot, ideally in
+# the same project so publishing is a rename), then:
+#
+#   examples/start_campaign.sh /path/to/1pctCO2/campaign.yaml
+#
+# See examples/campaign.py for every key.
+name: 1pctCO2
+run_root: /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-1pctCO2_1949
+first_year: 1850
+last_year: 1999
+output_root: /work/<esgf-project>/CMIP7          # complete years are moved here
+# workroot: /work/<esgf-project>/pycmor_work/1pctCO2
+drs_version: v20261001
+mail: jan.streffing@awi.de
+code_ref: feat/cmip7-awiesm3-veg-hr               # pinned to a commit at first start
+inherit:
+  experiment_id: 1pctCO2
+  parent_experiment_id: piControl
+  # The piControl output is written in days since 1850-01-01. The run starts
+  # from the piControl FESOM restart of 1949 and LPJ-GUESS state 1950 (OIFS
+  # cold start), so it branches at piControl 1950-01-01 = day 36524.
+  parent_time_units: days since 1850-01-01
+  branch_time_in_parent: 36524.0
+  branch_time_in_child: 0.0
