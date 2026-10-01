@@ -26,12 +26,12 @@ Example ``campaign.yaml``::
     drs_version: v20261001
     mail: jan.streffing@awi.de
     code_ref: feat/cmip7-awiesm3-veg-hr       # branch, tag or commit; pinned at setup
-    inherit:                       # overrides for every tier's inherit block
-      experiment_id: 1pctCO2
-      parent_experiment_id: piControl
-      parent_time_units: days since 1850-01-01
-      branch_time_in_parent: 36524.0
-      branch_time_in_child: 0.0
+    experiment: 1pctCO2            # metadata profile in repoint_hr_year.EXPERIMENTS
+
+The experiment metadata (experiment_id, parent and branch attributes) comes
+from the named profile in ``repoint_hr_year.py``, so it is reviewed in git and
+pinned with the code. ``inherit`` (optional) adds tier ``inherit`` values that
+no profile covers; it may not repeat a key the profile already sets.
 
 Optional: ``workroot`` (default ``<campaign>/work``; put it in the same
 project as ``output_root`` so publishing is a rename, not a copy),
@@ -43,6 +43,7 @@ the first year of every launch), ``max_consecutive_fails`` (2),
 import argparse
 import copy
 import datetime
+import importlib.util
 import json
 import os
 import re
@@ -58,10 +59,20 @@ HERE = Path(__file__).resolve().parent
 # LPJ-GUESS custom steps). ``apply`` rebinds them to the campaign's code.
 TEMPLATE_REPO = "/work/ab0246/a270092/software/pycmor"
 
-REQUIRED = ("name", "run_root", "first_year", "last_year", "output_root", "drs_version", "mail", "code_ref", "inherit")
+REQUIRED = (
+    "name",
+    "run_root",
+    "first_year",
+    "last_year",
+    "output_root",
+    "drs_version",
+    "mail",
+    "code_ref",
+    "experiment",
+)
 # What determines the content of the output. Changing any of these after
 # setup would make one campaign's years disagree with each other.
-PINNED_FIELDS = ("run_root", "output_root", "drs_version", "inherit")
+PINNED_FIELDS = ("run_root", "output_root", "drs_version", "experiment", "inherit")
 DEFAULTS = {
     "account": "ab0246",
     "driver_attempts": 3,
@@ -74,6 +85,14 @@ DEFAULTS = {
 
 class CampaignError(Exception):
     pass
+
+
+def experiment_profiles():
+    """The metadata profiles repoint_hr_year.py applies, keyed by experiment."""
+    spec = importlib.util.spec_from_file_location("repoint_hr_year", HERE / "repoint_hr_year.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.EXPERIMENTS
 
 
 def load(path):
@@ -89,8 +108,18 @@ def load(path):
         raise CampaignError(f"drs_version {cfg['drs_version']!r} is not vYYYYMMDD")
     if int(cfg["first_year"]) > int(cfg["last_year"]):
         raise CampaignError("first_year is after last_year")
-    if not isinstance(cfg["inherit"], dict) or "experiment_id" not in cfg["inherit"]:
-        raise CampaignError("inherit must be a mapping that sets at least experiment_id")
+    profiles = experiment_profiles()
+    if cfg["experiment"] not in profiles:
+        raise CampaignError(f"experiment {cfg['experiment']!r} has no profile; known: {', '.join(sorted(profiles))}")
+    cfg.setdefault("inherit", {})
+    if not isinstance(cfg["inherit"], dict):
+        raise CampaignError("inherit must be a mapping")
+    clash = sorted(set(cfg["inherit"]) & (set(profiles[cfg["experiment"]]) | {"experiment_id"}))
+    if clash:
+        raise CampaignError(
+            f"inherit sets {', '.join(clash)}, which the {cfg['experiment']!r} profile in repoint_hr_year.py "
+            "owns. Change the profile there instead, so there is one source for experiment metadata."
+        )
     for key in ("run_root", "output_root"):
         if not str(cfg[key]).startswith("/"):
             raise CampaignError(f"{key} must be an absolute path")
@@ -204,6 +233,7 @@ def env(cfg):
         "PYCMOR_HOME": cfg["_code"],
         "PYTHONPATH": pythonpath,
         "PYCMOR_CODE_COMMIT": pin["code_commit"],
+        "EXPERIMENT": cfg["experiment"],
         "RUN_ROOT": cfg["run_root"],
         "FIRST_YEAR": cfg["first_year"],
         "LAST_YEAR": cfg["last_year"],
@@ -257,11 +287,16 @@ def _patch_inherit(text, overrides):
 
 def apply(cfg, yamls_dir):
     """Bind every generated tier yaml in ``yamls_dir`` to this campaign: point
-    in-repo paths at the pinned code and set the campaign's inherit values.
+    in-repo paths at the pinned code and add the campaign's extra inherit
+    values. The experiment metadata itself was written by repoint_hr_year.py
+    from the campaign's profile; this checks that it arrived.
     The result is checked structurally, so a value that did not land, or an
     edit that disturbed anything else, stops the run."""
     overrides = cfg["inherit"]
     code = cfg["_code"]
+    # Profile values are yaml text as repoint writes them; compare parsed.
+    profile = {k: yaml.safe_load(str(v)) for k, v in experiment_profiles()[cfg["experiment"]].items()}
+    profile.setdefault("experiment_id", cfg["experiment"])
     files = sorted(Path(yamls_dir).glob("*.yaml"))
     if not files:
         raise CampaignError(f"no yamls in {yamls_dir}")
@@ -280,7 +315,16 @@ def apply(cfg, yamls_dir):
             raise CampaignError(f"{f.name}: patching inherit changed more than the campaign values")
         if TEMPLATE_REPO + "/" in patched:
             raise CampaignError(f"{f.name}: still refers to {TEMPLATE_REPO}")
+        for key, value in profile.items():
+            have = got["inherit"].get(key)
+            if have != value:
+                raise CampaignError(
+                    f"{f.name}: inherit {key}={have!r}, but the {cfg['experiment']!r} profile says {value!r}. "
+                    "Was EXPERIMENT passed to repoint_hr_year.py?"
+                )
         for rule in got.get("rules") or []:
+            if rule.get("experiment_id", cfg["experiment"]) != cfg["experiment"]:
+                raise CampaignError(f"{f.name}: rule {rule.get('name')!r} sets experiment_id={rule['experiment_id']!r}")
             for key, value in overrides.items():
                 if key in rule and rule[key] != value:
                     raise CampaignError(
