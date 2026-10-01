@@ -229,6 +229,74 @@ def test_driver_still_retries_when_one_tier_survives(driver, tmp_path, monkeypat
     assert "3 attempts" in (wd / "1852.FAILED").read_text()
 
 
+def _year_with_output(tmp_path):
+    wd = _workdir(tmp_path / "y1850", ["core_atm_shard_00", "veg_land_shard_00"], {})
+    drs = wd / "cmorized" / "MIP-DRS7" / "CMIP7" / "CMIP" / "AWI" / "M" / "1pctCO2" / "r1i1p1f1" / "glb"
+    (drs / "mon" / "tas").mkdir(parents=True)
+    (drs / "mon" / "tas" / "tas_1850.nc").write_text("tas")
+    (drs / "fx" / "areacella").mkdir(parents=True)
+    (drs / "fx" / "areacella" / "areacella.nc").write_text("new")
+    (wd / "cmorized" / "qc_atmos.tas.json").write_text("{}")
+    return wd
+
+
+def test_publish_moves_a_finished_year_into_the_shared_tree(driver, tmp_path):
+    wd = _year_with_output(tmp_path)
+    out = tmp_path / "esgf"
+    fx = out / "MIP-DRS7" / "CMIP7" / "CMIP" / "AWI" / "M" / "1pctCO2" / "r1i1p1f1" / "glb" / "fx" / "areacella"
+    fx.mkdir(parents=True)
+    (fx / "areacella.nc").write_text("old")  # written by an earlier year
+
+    assert driver.publish(wd, out) == (2, 1)
+    assert (fx / "areacella.nc").read_text() == "new"
+    assert (out / fx.relative_to(out).parent.parent / "mon" / "tas" / "tas_1850.nc").read_text() == "tas"
+    assert not list((wd / "cmorized").rglob("*.nc")), "nothing left behind"
+    assert (wd / "cmorized" / "qc_atmos.tas.json").exists(), "QC reports stay with the year, out of the ESGF tree"
+    assert not list(out.rglob("*.json"))
+
+
+def test_publish_copies_when_rename_crosses_project_quotas(driver, tmp_path, monkeypatch):
+    import errno
+    import os
+
+    wd = _year_with_output(tmp_path)
+    real_replace = os.replace
+
+    def no_cross_rename(src, dst):
+        if str(src).startswith(str(wd)):
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(driver.os, "replace", no_cross_rename)
+    assert driver.publish(wd, tmp_path / "esgf") == (2, 0)
+    assert len(list((tmp_path / "esgf").rglob("*.nc"))) == 2
+    assert not list((tmp_path / "esgf").rglob("*.publishing"))
+
+
+def test_restart_of_a_complete_year_publishes_without_recomputing(driver, tmp_path, monkeypatch):
+    """A chain killed after the shards finished (or while publishing) must
+    not spend another year of node hours on the restart."""
+    wd = _year_with_output(tmp_path)
+    for stem in ("core_atm_shard_00", "veg_land_shard_00"):
+        (wd / "cmorized" / "_manifests" / f"{stem}.json").write_text(json.dumps({"incomplete": []}))
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: pytest.fail("a complete year is not resubmitted"))
+    out = tmp_path / "esgf"
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1850", str(wd), "--publish-to", str(out)])
+
+    assert driver.main() == 0
+    assert "published 2 file(s)" in (wd / "1850.done").read_text()
+    assert len(list(out.rglob("*.nc"))) == 2
+
+
+def test_a_fresh_year_is_submitted_even_without_manifests(driver, tmp_path, monkeypatch):
+    submits = []
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: submits.append(k.get("tier")) or [])
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1850", str(tmp_path / "y1850"), "--email", ""])
+    driver.main()
+    assert submits[0] is None, "no shards yet must not look like a complete year"
+
+
 def test_driver_marks_the_year_done_once_a_retry_fills_the_gap(driver, tmp_path, monkeypatch):
     wd = _workdir(tmp_path, ["extra_atm_shard_00"], {})
     manifest = wd / "cmorized" / "_manifests" / "extra_atm_shard_00.json"

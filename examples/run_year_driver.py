@@ -36,6 +36,7 @@ inside ``run_year_chain.sbatch``, whose SLURM FAIL mail is the notification.
 """
 
 import argparse
+import errno
 import glob
 import json
 import os
@@ -121,6 +122,41 @@ def looks_systematic(workdir, bad_tiers):
     return len(tiers) > 1 and bad_tiers >= tiers
 
 
+def publish(workdir, output_root):
+    """Move a completed year's netCDF files into the campaign's output tree.
+
+    Runs only after the manifests say the year is complete, so the shared
+    tree (what gets published to ESGF) never holds a partial year. The year's
+    DRS sub-tree is merged in place. A file that already exists there is
+    replaced: fx fields come out of every year under the same name, and a
+    re-run year replaces its earlier output. Rename where possible; across
+    project quotas Lustre refuses that, and the file is copied to a staging
+    name first so the target never shows a half-written file.
+    """
+    src_root = Path(workdir) / "cmorized"
+    dest_root = Path(output_root)
+    moved = replaced = 0
+    for src in sorted(src_root.rglob("*.nc")):
+        rel = src.relative_to(src_root)
+        if rel.parts[0] == "_manifests":
+            continue
+        dest = dest_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            replaced += 1
+        try:
+            os.replace(src, dest)
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+            staging = dest.with_name(dest.name + ".publishing")
+            shutil.copy2(src, staging)
+            os.replace(staging, dest)
+            src.unlink()
+        moved += 1
+    return moved, replaced
+
+
 def submit(run_root, year, workdir, tier=None, dry_run=False):
     env = dict(os.environ)
     if tier:
@@ -176,6 +212,18 @@ def notify(email, subject, body):
         return False
 
 
+def finish(args, workdir, how):
+    note = f"{how} at {time.strftime('%Y-%m-%dT%H:%M:%S')}"
+    if args.publish_to:
+        moved, replaced = publish(workdir, args.publish_to)
+        note += f"; published {moved} file(s) to {args.publish_to} ({replaced} replaced)"
+        log(f"published {moved} file(s) to {args.publish_to} ({replaced} replaced)")
+    (workdir / f"{args.year}.done").write_text(note + "\n")
+    (workdir / f"{args.year}.FAILED").unlink(missing_ok=True)  # a rerun fixed an earlier give-up
+    log(f"year {args.year} complete; wrote {workdir / f'{args.year}.done'}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_root")
@@ -188,6 +236,11 @@ def main():
         help="address to mail when the year gives up; pass '' when SLURM's --mail-type=FAIL does the mailing",
     )
     ap.add_argument("--poll", type=int, default=120, help="seconds between queue checks")
+    ap.add_argument(
+        "--publish-to",
+        default=None,
+        help="output root to move the year's files into once it is complete (campaign mode)",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -202,6 +255,15 @@ def main():
     # run_year_chain.sbatch this is already set for the whole campaign.
     os.environ.setdefault("PYCMOR_DRS_VERSION", time.strftime("v%Y%m%d"))
     log(f"DRS version: {os.environ['PYCMOR_DRS_VERSION']}")
+
+    # A restart after a crash (or after publishing was interrupted) finds the
+    # year already complete; do not recompute it. To redo a year on purpose,
+    # remove its manifests as well as its .done marker.
+    if expected_shards(workdir) and not args.dry_run:
+        bad_tiers, _ = assess(workdir)
+        if not bad_tiers:
+            log("manifests already show this year complete; not resubmitting")
+            return finish(args, workdir, "already complete on restart")
 
     problems = []
     bad_tiers = set()
@@ -222,10 +284,7 @@ def main():
         bad_tiers, problems = assess(workdir)
 
         if not bad_tiers:
-            done_marker.write_text(f"completed after {attempt} attempt(s) at {time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
-            failed_marker.unlink(missing_ok=True)  # a rerun fixed an earlier give-up
-            log(f"year {args.year} complete; wrote {done_marker}")
-            return 0
+            return finish(args, workdir, f"completed after {attempt} attempt(s)")
 
         log(f"attempt {attempt} incomplete; tiers needing retry: {', '.join(sorted(bad_tiers))}")
         for p in problems:

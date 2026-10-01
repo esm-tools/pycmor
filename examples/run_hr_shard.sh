@@ -114,7 +114,7 @@ export PYCMOR_HOME
 #
 # Pinned at ee94f52 (2026-08-13). The clone is shallow; re-pull deliberately
 # rather than by accident, because a table change moves our QC numbers.
-export CMIP7_TABLES_PATH=/work/ab0246/a270092/software/cmip7-cmor-tables/tables
+export CMIP7_TABLES_PATH="${CMIP7_TABLES_PATH:-/work/ab0246/a270092/software/cmip7-cmor-tables/tables}"
 
 N_WORKERS=${N_WORKERS:-4}
 TPW=${TPW:-4}

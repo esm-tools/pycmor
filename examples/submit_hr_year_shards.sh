@@ -132,6 +132,13 @@ fi
 echo "  CMIP7 tables: $CMIP7_TABLES_PATH ($(ls "$CMIP7_TABLES_PATH" | wc -l) files)"
 export CMIP7_TABLES_PATH
 
+# Step 1c: in a campaign, bind the generated yamls to it: experiment
+# metadata from campaign.yaml, in-repo paths to the campaign's pinned code.
+if [ -n "${PYCMOR_CAMPAIGN:-}" ]; then
+  python3 "$HERE/campaign.py" apply "$PYCMOR_CAMPAIGN" "$YAMLS_DIR" \
+    || { echo "ABORT: could not bind the tier yamls to $PYCMOR_CAMPAIGN"; exit 2; }
+fi
+
 # Step 3+4: shard each tier and sbatch as array.
 SHARD_SIZE="${SHARD_SIZE:-20}"
 SHUFFLE_SEED="${SHUFFLE_SEED:-42}"
@@ -224,7 +231,9 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
     continue
   fi
 
-  jobname="pycmor-hr-${short_tier}-y${YEAR}-sh"
+  # JOB_TAG (the campaign name) keeps experiments apart in squeue and makes
+  # cancelling one campaign by name safe while another is running.
+  jobname="pycmor-hr-${JOB_TAG:+${JOB_TAG}-}${short_tier}-y${YEAR}-sh"
 
   # Per-tier memory override. Tiers with rules that genuinely need a
   # 512+ GB cgroup get --mem=512G (smaller pool of ~282 nodes, slower

@@ -1391,6 +1391,7 @@ class CMORizer:
             "config": getattr(self, "_config_file", None),
             "slurm_job": os.environ.get("SLURM_JOB_ID"),
             "slurm_array_task": os.environ.get("SLURM_ARRAY_TASK_ID"),
+            "code_commit": os.environ.get("PYCMOR_CODE_COMMIT"),
             "n_rules": len(self.rules),
             "n_ok": sum(1 for e in entries.values() if e["status"] == "ok"),
             "n_skipped": sum(1 for e in entries.values() if e["status"] == "skipped"),
