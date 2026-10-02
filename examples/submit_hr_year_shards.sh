@@ -314,6 +314,10 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
     # header-only file rather than erroring (cf. hfls in cli108), so the
     # headroom is cheap insurance.
     cap7_atm)  tier_walltime=06:00:00 ;;
+    # Land tiers: in the 1pctCO2 1850 test campaign cap7_land_03,
+    # core_land_00 and extra_land_00/01 were all still saving when SLURM
+    # cancelled them at exactly 3h (TIMEOUT, no error, watchdog quiet).
+    cap7_land|core_land|extra_land) tier_walltime=06:00:00 ;;
   esac
 
   # Per-tier dask worker count. All tiers use the global N_WORKERS (4).

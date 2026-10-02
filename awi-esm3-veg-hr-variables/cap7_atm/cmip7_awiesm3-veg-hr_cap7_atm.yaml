@@ -776,7 +776,8 @@ rules:
   # ============================================================
 
   - name: pfull_mon
-    climatology_state_dir: /work/bb1469/a270092/cmorized/climatologies
+    # climatology_state_dir: deliberately unset, so a campaign's own
+    # PYCMOR_CLIMATOLOGY_STATE_DIR applies (see custom_steps.py)
     ps_path: *dp
     ps_pattern: atmos_6h_pt_sp_.*\.nc
     ps_variable: sp

@@ -2239,6 +2239,10 @@ def integrate_over_pressure_layers(data: xr.DataArray, rule) -> xr.Dataset:
     return result
 
 
+# Used only when neither the rule nor the environment names a state directory.
+# A campaign exports PYCMOR_CLIMATOLOGY_STATE_DIR=<campaign>/climatologies, so
+# each campaign keeps its own accumulator: a test campaign never pools its
+# years with the real one, and nobody needs write access to this path.
 _CLIMATOLOGY_STATE_DEFAULT = "/work/bb1469/a270092/cmorized/climatologies"
 
 
@@ -2365,9 +2369,15 @@ def accumulate_monthly_climatology(data, rule):
 
     Rule attributes:
       - ``climatology_state_dir``: where the accumulator lives, must be outside
-        the per-run scratch directory. Default above.
+        the per-run scratch directory. Falls back to
+        ``$PYCMOR_CLIMATOLOGY_STATE_DIR`` (set by a campaign), then the
+        default above.
     """
-    state_dir = pathlib.Path(rule.get("climatology_state_dir", _CLIMATOLOGY_STATE_DEFAULT))
+    state_dir = pathlib.Path(
+        rule.get("climatology_state_dir")
+        or _os.environ.get("PYCMOR_CLIMATOLOGY_STATE_DIR")
+        or _CLIMATOLOGY_STATE_DEFAULT
+    )
     state_path = _climatology_state_path(rule, state_dir)
     state_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -138,9 +138,9 @@ def test_env_is_valid_shell(campaign, tmp_path, code_repo, monkeypatch):
     path = _write_campaign(tmp_path, code_repo, mail="a b@example.org")
     cfg = campaign.load(path)
     campaign.setup(cfg)
-    script = campaign.env(cfg) + '\nprintf "%s|%s|%s" "$PYTHONPATH" "$MAIL_USER" "$JOB_TAG"'
+    script = campaign.env(cfg) + '\nprintf "%s|%s|%s|%s" "$PYTHONPATH" "$MAIL_USER" "$JOB_TAG" "$PYCMOR_CLIMATOLOGY_STATE_DIR"'
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
-    assert out == f"{cfg['_code']}/src|a b@example.org|1pctCO2"
+    assert out == f"{cfg['_code']}/src|a b@example.org|1pctCO2|{cfg['_dir']}/climatologies"
 
 
 TIER = """\

@@ -241,6 +241,8 @@ def env(cfg):
         "OUTPUT_ROOT": cfg["output_root"],
         "LOGS_DIR": cfg["_logs"],
         "PYCMOR_DRS_VERSION": cfg["drs_version"],
+        # Multi-year accumulators (pfull_mon) belong to the campaign.
+        "PYCMOR_CLIMATOLOGY_STATE_DIR": str(Path(cfg["_dir"]) / "climatologies"),
         "MAIL_USER": cfg["mail"],
         "ACCOUNT": cfg["account"],
         "DRIVER_ATTEMPTS": cfg["driver_attempts"],
