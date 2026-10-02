@@ -504,7 +504,13 @@ class TestPipelineFunction:
         assert "lon" not in ds_result.dims
 
     def test_map_dimensions_with_user_mapping(self):
-        """Test map_dimensions with user-specified mapping"""
+        """Test map_dimensions with user-specified mapping.
+
+        The user maps ``level`` onto the data request dimension ``plev19``,
+        but ``plev19`` is a request-tier name: CMIP7_coordinate.json gives
+        plev3, plev19 and plev39 all the out_name ``plev``. The level count
+        belongs in the dimension's length, so the output dim is ``plev``.
+        """
         ds = xr.Dataset(
             {
                 "ta": (
@@ -534,7 +540,9 @@ class TestPipelineFunction:
 
         ds_mapped = map_dimensions(ds, rule)
 
-        assert "plev19" in ds_mapped.dims
+        assert "plev" in ds_mapped.dims
+        assert ds_mapped.sizes["plev"] == 19
+        assert "plev19" not in ds_mapped.dims
         assert "level" not in ds_mapped.dims
 
 

@@ -137,6 +137,13 @@ olevel:
   axis: Z
   long_name: ocean depth coordinate
 
+lev:
+  standard_name: depth
+  units: m
+  positive: down
+  axis: Z
+  long_name: ocean depth coordinate
+
 olevhalf:
   standard_name: depth
   units: m

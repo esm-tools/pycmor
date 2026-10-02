@@ -1,0 +1,602 @@
+# CMIP7 CAP7 Land Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_CAP7_variables_land.csv
+#
+# 98 total: 12 in core/lrcs/veg/extra, 54 new rules, 2 need new custom step,
+# 30 blocked (per-PFT group, missing .out files, no depth-resolved cSoil).
+# See cmip7_cap7_land_todo.md for full variable tracking.
+
+general:
+  name: "awiesm3-cmip7-cap7-land-tco95-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ba0989
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # LPJ-GUESS monthly loader (Lon/Lat/Year/Jan..Dec format)
+  - name: lpjg_monthly_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/lpj_guess
+  source_id: AWI-ESM3-VEG-LR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo95 reduced Gaussian, interpolated to 1deg regular grid"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/cap7_land_tco95_test
+  year_start: 1900
+  year_end: 1901
+
+rules:
+  # ============================================================
+  # Part 1: LPJ-GUESS monthly variables (49 rules)
+  # ============================================================
+  # All from plain-text .out files: Lon/Lat/Year/Jan..Dec
+  # model_variable = "Total" (single-column monthly format)
+
+  # --- Carbon pools (10) ---
+
+  - name: cLand_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLand_monthly.out"
+    compound_name: land.cLand.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cLeaf_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLeaf_monthly.out"
+    compound_name: land.cLeaf.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cLitter_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLitter_monthly.out"
+    compound_name: land.cLitter.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cLitterCwd_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLitterCwd_monthly.out"
+    compound_name: land.cLitterCwd.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cLitterSubSurf_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLitterSubSurf_monthly.out"
+    compound_name: land.cLitterSubSurf.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cLitterSurf_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cLitterSurf_monthly.out"
+    compound_name: land.cLitterSurf.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cOther_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cOther_monthly.out"
+    compound_name: land.cOther.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cProduct_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cProduct_monthly.out"
+    compound_name: land.cProduct.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cRoot_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cRoot_monthly.out"
+    compound_name: land.cRoot.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cStem_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cStem_monthly.out"
+    compound_name: land.cStem.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Carbon pool totals (2) ---
+
+  - name: cSoil_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cSoil_monthly.out"
+    compound_name: land.cSoil.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cVeg_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cVeg_monthly.out"
+    compound_name: land.cVeg.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Carbon fluxes: fire & disturbance (9) ---
+
+  - name: fAnthDisturb_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fAnthDisturb_monthly.out"
+    compound_name: land.fAnthDisturb.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fDeforestToAtmos_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fDeforestToAtmos_monthly.out"
+    compound_name: land.fDeforestToAtmos.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fDeforestToProduct_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fDeforestToProduct_monthly.out"
+    compound_name: land.fDeforestToProduct.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fFire_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFire_monthly.out"
+    compound_name: land.fFire.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fFireAll_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: land.fFireAll.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fFireNat_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireNat_monthly.out"
+    compound_name: land.fFireNat.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fHarvestToAtmos_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fHarvestToAtmos_monthly.out"
+    compound_name: land.fHarvestToAtmos.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fLitterFire_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fLitterFire_monthly.out"
+    compound_name: land.fLitterFire.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fVegFire_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fVegFire_monthly.out"
+    compound_name: land.fVegFire.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Carbon fluxes: litter/soil/product (4) ---
+
+  - name: fCLandToOcean_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fCLandToOcean_monthly.out"
+    compound_name: land.fCLandToOcean.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fLitterSoil_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fLitterSoil_monthly.out"
+    compound_name: land.fLitterSoil.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fProductDecomp_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fProductDecomp_monthly.out"
+    compound_name: land.fProductDecomp.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: fVegLitter_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fVegLitter_monthly.out"
+    compound_name: land.fVegLitter.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Productivity & respiration totals (6) ---
+
+  - name: gpp_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/gpp_monthly.out"
+    compound_name: land.gpp.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nbp_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nbp_monthly.out"
+    compound_name: land.nbp.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: nep_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/nep_monthly.out"
+    compound_name: land.nep.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: npp_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/npp_monthly.out"
+    compound_name: land.npp.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: ra_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/ra_monthly.out"
+    compound_name: land.ra.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: rh_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/rh_monthly.out"
+    compound_name: land.rh.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Respiration components (6) ---
+
+  - name: raLeaf_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/raLeaf_monthly.out"
+    compound_name: land.raLeaf.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: raOther_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/raOther_monthly.out"
+    compound_name: land.raOther.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: raRoot_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/raRoot_monthly.out"
+    compound_name: land.raRoot.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: raStem_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/raStem_monthly.out"
+    compound_name: land.raStem.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: rhLitter_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/rhLitter_monthly.out"
+    compound_name: land.rhLitter.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: rhSoil_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/rhSoil_monthly.out"
+    compound_name: land.rhSoil.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Land cover fractions (8) ---
+
+  - name: baresoilFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/baresoilFrac_monthly.out"
+    compound_name: land.baresoilFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: cropFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cropFrac_monthly.out"
+    compound_name: land.cropFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: grassFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/grassFrac_monthly.out"
+    compound_name: land.grassFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: landCoverFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/landCoverFrac_monthly.out"
+    compound_name: land.landCoverFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: pastureFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/pastureFrac_monthly.out"
+    compound_name: land.pastureFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: residualFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/residualFrac_monthly.out"
+    compound_name: land.residualFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: shrubFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/shrubFrac_monthly.out"
+    compound_name: land.shrubFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: treeFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/treeFrac_monthly.out"
+    compound_name: land.treeFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # --- Other LPJ-GUESS variables (4) ---
+
+  - name: burntFractionAll_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/burntFractionAll_monthly.out"
+    compound_name: land.burntFractionAll.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: prveg_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/prveg_monthly.out"
+    compound_name: land.prveg.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: tran_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/tran_monthly.out"
+    compound_name: land.tran.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  - name: vegFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/vegFrac_monthly.out"
+    compound_name: land.vegFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # ============================================================
+  # Part 2: IFS daily variables (4 rules)
+  # ============================================================
+
+  # mrro daily: timeavg 3hr XIOS output to daily
+  - name: mrro_day
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_mrro_.*\.nc
+    compound_name: land.mrro.tavg-u-hxy-lnd.day.glb
+    model_variable: mrro
+
+  # mrso daily: from daily XIOS output (requires XIOS XML change)
+  - name: mrso_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_mrso_.*\.nc
+    compound_name: land.mrso.tavg-u-hxy-lnd.day.glb
+    model_variable: mrso
+
+  # mrsol daily d10cm: timeavg 3hr XIOS output to daily
+  - name: mrsol_day_10cm
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_mrsol_.*\.nc
+    compound_name: land.mrsol.tavg-d10cm-hxy-lnd.day.glb
+    model_variable: mrsol
+
+  # tslsi daily: timeavg 3hr XIOS skt to daily
+  - name: tslsi_day
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_land_tslsi_.*\.nc
+    compound_name: land.tslsi.tavg-u-hxy-u.day.glb
+    model_variable: tslsi
+
+  # ============================================================
+  # Part 3: IFS 1hr variable (1 rule)
+  # ============================================================
+
+  # tas 1hr global: same XIOS file as extra_land 30S-90S, but full globe
+  - name: tas_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_tas_.*\.nc
+    compound_name: land.tas.tavg-u-hxy-u.1hr.glb
+    model_variable: 2t

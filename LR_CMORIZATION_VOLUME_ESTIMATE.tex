@@ -1,0 +1,98 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.8cm,top=1.4cm,bottom=1.2cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{parskip}
+\setlist{nosep,leftmargin=1.2em}
+\setlength{\parskip}{4pt}
+\emergencystretch=3em
+\pagestyle{empty}
+\definecolor{accent}{RGB}{0,84,140}
+\newcommand{\sect}[1]{\vspace{6pt}{\color{accent}\large\bfseries #1}\par\vspace{1pt}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\keyfig}[2]{\begin{tabular}[t]{@{}c@{}}{\color{accent}\Large\bfseries #1}\\[-1pt]{\footnotesize #2}\end{tabular}}
+
+\begin{document}
+
+{\color{accent}\LARGE\bfseries AWI-ESM3 LR: estimated CMIP7 output per model year}\\[2pt]
+{\small TCo95 + FESOM 2.7 core3 + REcoM + LPJ-GUESS \textbar\ scaled from the measured HR test year \code{cli119} \textbar\ 15 September 2026}
+
+\sect{Result}
+LR writes everything HR writes, plus the rules deactivated for HR, plus REcoM. That is \textbf{about 600 to 710
+files per model year}, against 502 for HR, and \textbf{about 110\,GB per year} if daily 3D biogeochemistry is
+left out, or \textbf{about 160\,GB} with it. The grids are much smaller than HR, so the larger file count
+comes to between a quarter and a third of HR's 470\,GB.
+
+\vspace{2pt}
+\begin{center}
+\keyfig{600--710}{files per year}\hfill
+\keyfig{502}{HR files per year}\hfill
+\keyfig{$\approx$\,110\,GB}{per year, monthly REcoM}\hfill
+\keyfig{$\approx$\,160\,GB}{with daily 3D REcoM}\hfill
+\keyfig{11--16\,TB}{per 100 years}
+\end{center}
+
+\sect{What LR writes}
+\begin{tabularx}{\linewidth}{@{}Xrr@{}}
+\toprule
+\textbf{part} & \textbf{files per year} & \textbf{GB per year} \\
+\midrule
+Everything HR writes, scaled to LR grids (table below) & 502 & 41 \\
+Reactivated: 6-hourly atmosphere on model levels (ta, ua, va, hus, zg) & 5 & 30--50 \\
+Reactivated: 3-hourly atmosphere on 6 pressure levels (ta, ua, va, hus, wap) & 5 & 8 \\
+Reactivated: 6-hourly atmosphere on 7 pressure levels (ta, ua, va, hus, zg), fixed for LR & 5 & 4 \\
+Reactivated: ocean tendencies (6, yearly), \code{msftmmpa} (2, GM on in LR), daily \code{hfx}/\code{hfy} (2),
+sea-ice stress (2), soil moisture variants (3), sub-daily \code{ps}/\code{ts} (2), grass height (1) & 18 & $<$\,3 \\
+REcoM, monthly ocean biogeochemistry as currently written & 69--178 & 10--13 \\
+\midrule
+\textbf{total without daily 3D biogeochemistry} & \textbf{604--713} & \textbf{$\approx$\,100--120} \\
+REcoM daily 3D fields requested by CMIP7 (\code{detoc}, \code{dissoc}, \code{phycalc}, \code{phypico}, \code{zmeso}, \code{zmicro}, \code{zooc}) & (within 178) & +50 \\
+\bottomrule
+\end{tabularx}
+
+\vspace{2pt}
+Not per year: 17 fixed fields once per run, 9 decadal files once per decade, one climatology.
+
+\sect{Everything HR writes, scaled to LR}
+HR's cmorized volume was measured per grid on one full model year and divided by the ratio of cells, for 3D ocean
+fields also by the ratio of vertical levels. Coarse grids compress slightly worse per value and the fixed overhead
+per file does not shrink, so this part lies between 40 and 55\,GB.
+
+\begin{tabularx}{\linewidth}{@{}Xrlr@{}}
+\toprule
+\textbf{grid} & \textbf{HR} & \textbf{HR cells $\rightarrow$ LR cells} & \textbf{LR} \\
+\midrule
+native atmosphere and land & 274\,GB & TCo319 421\,120 $\rightarrow$ TCo95 40\,320 ($\div$10.4) & 26.3\,GB \\
+regridded atmosphere       &  68\,GB & 1296$\times$640 $\rightarrow$ 400$\times$192 ($\div$10.8) & 6.3\,GB \\
+FESOM nodes, 2D and 3D     & 110\,GB & DARS 3\,146\,761 $\rightarrow$ core3 220\,509, 57 $\rightarrow$ 48 levels & 7.1\,GB \\
+FESOM elements, 2D and 3D  &  18\,GB & 6\,229\,020 $\rightarrow$ 426\,403 & 1.1\,GB \\
+\bottomrule
+\end{tabularx}
+
+\sect{How the added parts were estimated}
+\begin{itemize}
+\item \textbf{Reactivated rules.} 44 rules are commented out for HR; 11 of them are produced by another active rule
+      already, which leaves 33 new files. Sizes of the sub-daily atmosphere sets come from HR's measured compressed
+      bytes per stored value (about 1\,byte on model levels, 1.7--2.7\,bytes on pressure levels), applied to the LR grid.
+      The model-level range reflects 91 or 137 vertical levels, which was not confirmed for LR.
+\item \textbf{REcoM, files.} The test run \code{RECOM\_concdriven\_04} writes 69 biogeochemistry streams. The CMIP7 data
+      request has 178 ocean biogeochemistry entries, 44 of them Southern Ocean subsets, and several entries derive
+      from the same stream (surface values, integrals, sums over plankton groups). The real count is likely near 178.
+\item \textbf{REcoM, volume.} The 69 streams are 11\,GB per year of raw output, all monthly. Cmorizing keeps 82--94\,\%
+      of monthly 3D ocean fields (measured on HR \code{temp} and \code{salt}), about 10\,GB, plus a few GB for surface
+      and regional entries. The seven daily 3D fields are about 7.6\,GB each and need daily REcoM output.
+\end{itemize}
+
+\sect{Not covered}
+Compute time (HR's 33 node-hours per year is I/O-bound and does not scale reliably) and the length of each LR
+experiment; all numbers are per model year.
+
+{\footnotesize Sources: HR \code{/scratch/a/a270092/pycmor\_hr/cli119}; LR mesh \code{/work/ab0246/a270092/input/fesom2/core3};
+deactivated rules in \code{awi-esm3-veg-hr-variables/};\\
+LR atmosphere and REcoM \code{/work/bb1469/a270092/runtime/awiesm3-develop-cc/} (\code{cc\_tco95\_c}, \code{RECOM\_concdriven\_04})}
+
+\end{document}

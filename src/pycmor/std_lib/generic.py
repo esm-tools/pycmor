@@ -702,9 +702,11 @@ def trigger_compute(data, rule_spec, *args, **kwargs):
     >>> print("OUTPUT (computed):", computed.values)
     OUTPUT (computed): [11. 12. 13.]
     """
+    if rule_spec.get("lazy_write", False):
+        logger.info("lazy_write=True: keeping data lazy for streaming write")
+        return data
     if hasattr(data, "compute"):
         return data.compute()
-    # Data doesn't have a compute method, do nothing
     return data
 
 

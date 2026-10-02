@@ -266,6 +266,49 @@ class CMIP7DataRequestTableHeader(DataRequestTableHeader):
         )
 
     @classmethod
+    def from_variable_metadata(cls, var_dict: dict) -> "CMIP7DataRequestTableHeader":
+        """Create synthetic table header from a single variable's metadata.
+
+        This method creates a minimal table header for CMIP7 variables loaded
+        by compound name, ensuring downstream code that expects table_header
+        doesn't break.
+
+        Parameters
+        ----------
+        var_dict : dict
+            Variable metadata dictionary containing frequency, modeling_realm, etc.
+
+        Returns
+        -------
+        CMIP7DataRequestTableHeader
+            Synthetic table header with values derived from variable metadata.
+        """
+        # Derive table_id from cmip6_table if available, otherwise construct from realm+frequency
+        table_id = var_dict.get("cmip6_table")
+        if not table_id:
+            realm = var_dict.get("modeling_realm", "unknown")
+            frequency = var_dict.get("frequency", "")
+            realm_letter = {"ocean": "O", "atmos": "A", "land": "L", "seaIce": "SI"}.get(
+                realm, realm[0].upper() if realm else "X"
+            )
+            table_id = f"{realm_letter}{frequency}" if frequency else realm_letter
+
+        # Get realm as list
+        realm = var_dict.get("modeling_realm", "unknown")
+        realm_list = [realm] if isinstance(realm, str) else realm
+
+        # Calculate approx_interval from frequency
+        frequency = var_dict.get("frequency", "")
+        approx_interval = cls._approx_interval_from_frequency(frequency)
+
+        return cls(
+            _table_id=table_id,
+            _realm=realm_list,
+            _approx_interval=approx_interval,
+            _generic_levels=[],
+        )
+
+    @classmethod
     def from_all_var_info(cls, table_name: str, all_var_info: dict = None) -> "CMIP7DataRequestTableHeader":
         """Create header from all_var_info.json for a specific table.
 
@@ -675,7 +718,8 @@ class CMIP7DataRequestTable(DataRequestTable):
         header = CMIP7DataRequestTableHeader.from_all_var_info(table_name, all_var_info)
         variables = []
         for var_name, var_dict in all_var_info["Compound Name"].items():
-            if var_dict.get("cmip6_cmor_table") == table_name:
+            # Use cmip6_table (not cmip6_cmor_table) to match metadata format
+            if var_dict.get("cmip6_table") == table_name:
                 variables.append(CMIP7DataRequestVariable.from_dict(var_dict))
         return cls(header, variables)
 
@@ -702,9 +746,7 @@ class CMIP7DataRequestTable(DataRequestTable):
         with open(_all_var_info, "r") as f:
             all_var_info = json.load(f)
 
-        table_ids = set(
-            v.get("cmip6_cmor_table") for v in all_var_info["Compound Name"].values() if v.get("cmip6_cmor_table")
-        )
+        table_ids = set(v.get("cmip6_table") for v in all_var_info["Compound Name"].values() if v.get("cmip6_table"))
 
         for table_id in table_ids:
             yield cls.from_all_var_info(table_id, all_var_info)

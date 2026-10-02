@@ -3,14 +3,15 @@ Pipeline of the data processing steps.
 """
 
 import copy
+import os
+import time
 from datetime import timedelta
 
 import randomname
-from prefect import flow
-from prefect.cache_policies import INPUTS, TASK_SOURCE
+from prefect.cache_policies import INPUTS, NO_CACHE, TASK_SOURCE
 from prefect.tasks import Task
-from prefect_dask import DaskTaskRunner
 
+from .skip import RuleSkipped
 from .caching import generate_cache_key  # noqa: F401
 from .cluster import DaskContext
 from .logging import add_to_report_log, logger
@@ -26,6 +27,8 @@ class Pipeline:
         cache_policy=None,
         dask_cluster=None,
         cache_expiration=None,
+        collapse_steps=None,
+        throttle_group=None,
     ):
         self._steps = args
         self.name = name or randomname.get_name()
@@ -35,8 +38,44 @@ class Pipeline:
         if workflow_backend is None:
             workflow_backend = "prefect"
         self._workflow_backend = workflow_backend
+        # Throttle group: pipelines sharing the same key compete for a
+        # bounded slot count in ``cmorizer._parallel_process_prefect``.
+        # Used to cap driver-process concurrency for memory-heavy rule
+        # families (lrcs_seaice's OIFS-regrid family explodes driver RSS
+        # past 80 GiB when 4 run concurrently — see
+        # FORENSIC_lrcs_seaice_failure.md §"Why ONLY lrcs_seaice"). Default
+        # None means unthrottled; caps live in
+        # ``PYCMOR_THROTTLE_CAPS=group:N,...`` env or rule yaml inherit
+        # ``throttle_caps:`` map. Default per-group cap (when not
+        # configured) is 2 — small enough to prevent driver pileup, big
+        # enough to keep some throughput.
+        self.throttle_group = throttle_group
+        # Round-2 perf knob: if set, collapse all pipeline steps into a
+        # single Prefect task. Trades per-step task caching for ~13×
+        # less Prefect orchestration overhead per rule (Prefect 3.x:
+        # ~2.4 s/task scheduler latency × 13 steps × N rules adds up).
+        # Default off; can be set per-pipeline via yaml ``collapse_steps``
+        # or globally via env var ``PYCMOR_PREFECT_COLLAPSE=1``.
+        if collapse_steps is None:
+            collapse_steps = os.environ.get("PYCMOR_PREFECT_COLLAPSE", "1") in ("1", "true", "True", "yes")
+        self._collapse_steps = bool(collapse_steps)
         if cache_policy is None:
-            self._cache_policy = TASK_SOURCE + INPUTS
+            # ``script://`` step loader creates a synthetic module called
+            # "script" (see core.utils.get_function_from_script). Anything
+            # the script defines, including ``@functools.lru_cache``
+            # wrappers used as helpers, carries ``__module__ == "script"``.
+            # Prefect's INPUTS cache policy pickles every task argument
+            # (the Rule + bound steps), and pickle fails to serialise
+            # those wrappers because "script" isn't a re-importable module
+            # name. Detect script-loaded steps and downgrade to NO_CACHE
+            # for the whole pipeline; INPUTS hashing is the only thing
+            # that touches the wrapper, and disabling it costs nothing
+            # because pycmor runs each pipeline once per process.
+            _has_script_step = any(getattr(s, "__module__", "") == "script" for s in self._steps)
+            if _has_script_step:
+                self._cache_policy = NO_CACHE
+            else:
+                self._cache_policy = TASK_SOURCE + INPUTS
             self._prefect_cache_kwargs["cache_policy"] = self._cache_policy
 
         if cache_expiration is None:
@@ -92,16 +131,57 @@ class Pipeline:
     def _prefectize_steps(self):
         # Turn all steps into Prefect tasks:
         raw_steps = copy.deepcopy(self._steps)
-        prefect_tasks = []
-        for i, step in enumerate(self._steps):
-            logger.debug(f"[{i+1}/{len(self._steps)}] Converting step {step.__name__} to Prefect task.")
-            prefect_tasks.append(
-                Task(
-                    fn=step,
-                    **self._prefect_cache_kwargs,
-                    # cache_key_fn=generate_cache_key,
-                )
+
+        if self._collapse_steps and self._steps:
+            # Collapse all pipeline steps into a single Prefect task to
+            # eliminate per-step orchestration overhead. Step bodies still
+            # execute in order; only the Task wrapping is consolidated.
+            #
+            # Some steps (e.g. ``pycmor.core.caching.manual_checkpoint``)
+            # return a Prefect ``State`` object when the workflow backend
+            # is "prefect", relying on the per-step Prefect Task chain
+            # to unwrap it. With all steps in one Task, we have to do
+            # the unwrapping ourselves.
+            steps_to_run = list(self._steps)
+
+            def _run_collapsed_pipeline(data, rule_spec):
+                from prefect.states import State
+
+                for step in steps_to_run:
+                    result = step(data, rule_spec)
+                    if isinstance(result, State):
+                        try:
+                            result = result.result(raise_on_failure=True)
+                        except Exception:
+                            # Step intentionally returned a state without a
+                            # data payload; pass the prior data through.
+                            result = data
+                    data = result
+                    if isinstance(data, RuleSkipped):
+                        return data
+                return data
+
+            _run_collapsed_pipeline.__name__ = f"{self.name}_collapsed"
+            logger.debug(
+                f"Collapsing {len(self._steps)} steps into one Prefect task " f"({_run_collapsed_pipeline.__name__})."
             )
+            prefect_tasks = [
+                Task(
+                    fn=_run_collapsed_pipeline,
+                    **self._prefect_cache_kwargs,
+                )
+            ]
+        else:
+            prefect_tasks = []
+            for i, step in enumerate(self._steps):
+                logger.debug(f"[{i+1}/{len(self._steps)}] Converting step {step.__name__} to Prefect task.")
+                prefect_tasks.append(
+                    Task(
+                        fn=step,
+                        **self._prefect_cache_kwargs,
+                        # cache_key_fn=generate_cache_key,
+                    )
+                )
 
         self._steps = prefect_tasks
         self._steps_are_prefectized = True
@@ -122,35 +202,58 @@ class Pipeline:
     def _run_native(self, data, rule_spec):
         for step in self.steps:
             data = step(data, rule_spec)
+            if isinstance(data, RuleSkipped):
+                return data
         return data
 
     def _run_prefect(self, data, rule_spec):
-        logger.debug("Dynamically creating workflow with DaskTaskRunner...")
+        # Run the pipeline's prefectised steps synchronously in the calling
+        # thread. Earlier versions wrapped this in a per-rule ``@flow`` whose
+        # ``DaskTaskRunner`` shared the parent task's pool; that nested
+        # submission caused a parent×child resource-allocation deadlock at
+        # production scale. See DESIGN_PROPOSAL_subflow_deadlock.md §3-§4.
         cmor_name = rule_spec.get("cmor_name")
         rule_name = rule_spec.get("name", cmor_name)
-        if getattr(self, "_cluster", None) is None:
-            logger.warning("No cluster assigned to this pipeline. Using local Dask cluster.")
-            dask_scheduler_address = None
-        else:
-            dask_scheduler_address = self._cluster.scheduler.address
+        logger.info(f"Pipeline '{self.name}' running for rule '{rule_name}'")
+        t0 = time.monotonic()
+        try:
+            result = self._run_native(data, rule_spec)
+        except BaseException as exc:
+            elapsed = time.monotonic() - t0
+            try:
+                self.on_failure_native(
+                    rule_name=rule_name,
+                    pipeline_name=self.name,
+                    elapsed_s=elapsed,
+                    exception=exc,
+                )
+            except Exception as cb_exc:
+                logger.warning(f"on_failure_native callback raised: {cb_exc}")
+            raise
+        elapsed = time.monotonic() - t0
+        try:
+            self.on_completion_native(
+                rule_name=rule_name,
+                pipeline_name=self.name,
+                elapsed_s=elapsed,
+            )
+        except Exception as cb_exc:
+            logger.warning(f"on_completion_native callback raised: {cb_exc}")
+        return result
 
-        @flow(
-            flow_run_name=f"{self.name} - {rule_name}",
-            description=f"{rule_spec.get('description', '')}",
-            task_runner=DaskTaskRunner(address=dask_scheduler_address),
-            on_completion=[self.on_completion],
-            on_failure=[self.on_failure],
+    @staticmethod
+    @add_to_report_log
+    def on_completion_native(rule_name, pipeline_name, elapsed_s):
+        logger.success(f"Pipeline '{pipeline_name}' completed for rule " f"'{rule_name}' in {elapsed_s:.1f}s")
+
+    @staticmethod
+    @add_to_report_log
+    def on_failure_native(rule_name, pipeline_name, elapsed_s, exception):
+        logger.error(
+            f"Pipeline '{pipeline_name}' FAILED for rule '{rule_name}' "
+            f"after {elapsed_s:.1f}s: "
+            f"{type(exception).__name__}: {exception}"
         )
-        def dynamic_flow(data, rule_spec):
-            return self._run_native(data, rule_spec)
-
-        result = dynamic_flow(data, rule_spec, return_state=True)
-        if result.is_failed():
-            exc = result.result(raise_on_failure=False)
-            if isinstance(exc, BaseException):
-                raise exc
-            raise RuntimeError(f"Pipeline '{self.name}' failed for rule '{rule_name}': {exc}")
-        return result.result()
 
     @staticmethod
     @add_to_report_log
@@ -192,6 +295,8 @@ class Pipeline:
                 name=data.get("name"),
                 cache_expiration=data.get("cache_expiration"),
                 workflow_backend=data.get("workflow_backend"),
+                collapse_steps=data.get("collapse_steps"),
+                throttle_group=data.get("throttle_group"),
             )
         if "steps" in data:
             return cls.from_callable_strings(
@@ -199,6 +304,8 @@ class Pipeline:
                 name=data.get("name"),
                 cache_expiration=data.get("cache_expiration"),
                 workflow_backend=data.get("workflow_backend"),
+                collapse_steps=data.get("collapse_steps"),
+                throttle_group=data.get("throttle_group"),
             )
         raise ValueError("Pipeline data must have 'uses' or 'steps' key")
 
@@ -330,6 +437,12 @@ class DefaultPipeline(FrozenPipeline):
         "pycmor.std_lib.generic.get_variable",
         "pycmor.std_lib.add_vertical_bounds",
         "pycmor.std_lib.timeaverage.timeavg",
+        # CF/CMIP and wcrp TIME001 require time == midpoint(time_bnds). The
+        # step is a no-op when bnds already exist; otherwise it builds the
+        # canonical month-start bounds and realigns the time coord. Uses
+        # the std_lib wrapper so DataArray-typed pipeline payloads still
+        # round-trip through the Dataset-only inner function.
+        "pycmor.std_lib.set_time_bounds",
         "pycmor.std_lib.units.handle_unit_conversion",
         "pycmor.std_lib.attributes.set_global",
         "pycmor.std_lib.attributes.set_variable",
@@ -339,8 +452,54 @@ class DefaultPipeline(FrozenPipeline):
         "pycmor.std_lib.generic.trigger_compute",
         "pycmor.std_lib.generic.show_data",
         "pycmor.std_lib.files.save_dataset",
+        # Opt-in per-shard QC. No-op unless ``qc_enabled: true`` is set
+        # on the rule (or in ``inherit:``); see pycmor.std_lib.qc.
+        "pycmor.std_lib.qc.run_compliance_checker",
     )
     NAME = "pycmor.pipeline.DefaultPipeline"
+
+
+class AreacelloFxPipeline(FrozenPipeline):
+    """Fixed pipeline producing ``areacello`` from an unstructured ocean mesh.
+
+    Reads ``rule.grid_file`` for ``cell_area`` and writes a CMIP7 fx
+    file. Configs need only set ``compound_name``, ``model_variable``,
+    and ``inputs`` (the mesh file), then reference this pipeline via
+    ``uses: pycmor.pipeline.AreacelloFxPipeline``.
+    """
+
+    STEPS = (
+        "pycmor.std_lib.cell_measures.load_gridfile",
+        "pycmor.std_lib.cell_measures.compute_areacello",
+        "pycmor.std_lib.attributes.set_global",
+        "pycmor.std_lib.attributes.set_variable",
+        "pycmor.std_lib.attributes.set_coordinates",
+        "pycmor.std_lib.dimensions.map_dimensions",
+        "pycmor.std_lib.files.save_dataset",
+        "pycmor.std_lib.qc.run_compliance_checker",
+    )
+    NAME = "pycmor.pipeline.AreacelloFxPipeline"
+
+
+class AreacellaFxPipeline(FrozenPipeline):
+    """Fixed pipeline producing ``areacella`` from lat/lon on a regular grid.
+
+    Loads any model output file, picks a field, and applies the
+    spherical-Earth cell-area formula on the field's lat/lon coords.
+    Reference via ``uses: pycmor.core.pipeline.AreacellaFxPipeline``.
+    """
+
+    STEPS = (
+        "pycmor.core.gather_inputs.load_mfdataset",
+        "pycmor.std_lib.cell_measures.compute_areacella",
+        "pycmor.std_lib.attributes.set_global",
+        "pycmor.std_lib.attributes.set_variable",
+        "pycmor.std_lib.attributes.set_coordinates",
+        "pycmor.std_lib.dimensions.map_dimensions",
+        "pycmor.std_lib.files.save_dataset",
+        "pycmor.std_lib.qc.run_compliance_checker",
+    )
+    NAME = "pycmor.pipeline.AreacellaFxPipeline"
 
 
 class TestingPipeline(FrozenPipeline):
