@@ -1029,30 +1029,34 @@ def select_year(data, rule):
 
 def broadcast_forcing_year_to_monthly(data, rule):
     """
-    Select one reference year from a long forcing record and broadcast it
-    to 12 monthly timestamps labeled with the model run year.
+    Turn a long annual forcing record into the 12 monthly values OpenIFS
+    used in the model run year, time-stamped within that year.
 
-    piControl pattern: AWI-ESM3 runs with fixed 1850 GHG forcing perpetually,
-    but model calendar years are arbitrary (e.g. 1587). The cmor output must
-    contain the 1850 reference values, time-stamped within the model year.
-    Replaces the ``select_year`` + ``upsample_to_monthly`` combo for that
-    case (upsample-by-ffill produces only 1 record from 1 input, not 12).
+    The values follow ece_cmip_ghg.F90 (see ``oifs_ghg_mole_fraction``):
+    with ``forcing_year`` set (the namelist's NCMIPFIXYR; piControl, 1pctCO2,
+    abrupt-4xCO2) every month carries that year's value, whatever the model
+    calendar says (e.g. 1587). With ``forcing_year`` null (historical) the
+    model year's own values are used, interpolated monthly between the
+    annual ones as the model does. Replaces the ``select_year`` +
+    ``upsample_to_monthly`` combo (upsample-by-ffill produces only 1 record
+    from 1 input, not 12).
 
     Rule attributes:
       - ``year``: int / str / 4-digit; the model run year (output timestamps).
-      - ``forcing_year``: int / str / 4-digit; year to read from the file
-        (e.g. 1850 for CMIP piControl reference).
+      - ``forcing_year``: int / str / 4-digit, or null; the year to read from
+        the file (1850 for the CMIP piControl reference), null to follow the
+        model year.
     """
     year = _resolve_year(rule)
     forcing_year = rule.get("forcing_year") if hasattr(rule, "get") else getattr(rule, "forcing_year", None)
-    if year is None or forcing_year is None:
+    if year is None:
         raise ValueError(
-            "broadcast_forcing_year_to_monthly requires both `year` (model "
-            "run year, or year_start==year_end via CLI) and `forcing_year` "
-            "(year to read from forcing file)"
+            "broadcast_forcing_year_to_monthly requires `year` (model run year, or year_start==year_end via CLI)"
         )
     year_i = int(year)
-    forcing_year_i = int(forcing_year)
+    fixed_year = None if forcing_year is None else int(forcing_year)
+    # Template year for shape and attributes; the values are set below.
+    forcing_year_i = fixed_year if fixed_year is not None else min(year_i, 2022)
 
     time_name = None
     for name in ("time", "time_counter", "Time", "TIME", "t"):
@@ -1097,6 +1101,8 @@ def broadcast_forcing_year_to_monthly(data, rule):
 
     new_times = np.array([cftime.DatetimeProlepticGregorian(year_i, m, 16, 12, 0, 0) for m in range(1, 13)])
     result = sliced.expand_dims({time_name: new_times})
+    monthly = [oifs_ghg_mole_fraction(year_i, m, data, fixed_year, time_name=time_name) for m in range(1, 13)]
+    result = result.copy(data=np.asarray(monthly, dtype=result.dtype).reshape(result.shape))
 
     try:
         if _src_enc and time_name in getattr(result, "coords", {}):
@@ -1109,43 +1115,46 @@ def broadcast_forcing_year_to_monthly(data, rule):
 
 
 # How OpenIFS (ecearth/climate/ece_cmip_ghg.F90) prescribes CO2 per CMIP
-# experiment. The experiment profile in repoint_hr_year.py picks one through
-# the rule's ``co2_scenario``; ``forcing_year`` plays the namelist's NCMIPFIXYR.
-_CO2_SCENARIOS = ("fixed", "historical", "1pct", "abrupt4x")
+# experiment, mirroring its namelist NAMECECMIP. ``forcing_year`` is
+# NCMIPFIXYR and applies to every gas: set, the gases stay at that year's
+# values; null (historical), they follow the model year. ``co2_scenario``
+# changes CO2 only: file (as read), 1pct (L1pctCO2) or abrupt4x (LANxCO2 with
+# RNxCO2=4). The experiment profiles in repoint_hr_year.py set both.
+_CO2_SCENARIOS = ("file", "1pct", "abrupt4x")
 # OpenIFS constants: M(CO2)/M(air) (ZCO2RMWG), Earth radius RA, gravity RG.
 _CO2_RMWG = 1.5191923
 _EARTH_RADIUS = 6371229.0
 _GRAVITY = 9.80665
 
 
-def _oifs_annual_co2(forcing, year, scenario, fixed_year):
-    """The annual CO2 mole fraction (ppm) OpenIFS uses for ``year``."""
-    if scenario == "historical":
-        # NCMIPFIXYR unset: the file's own year, repeating 2022 beyond it.
-        return float(forcing.sel(time=str(min(year, 2022))).item())
-    base = float(forcing.sel(time=str(fixed_year)).item())
-    if scenario == "1pct":
-        return base * 1.01 ** (year - fixed_year)
-    if scenario == "abrupt4x":
-        return 4.0 * base
-    return base
+def _oifs_annual_ghg(series, year, fixed_year, co2_scenario="file", time_name="time"):
+    """The annual mole fraction OpenIFS uses for ``year``, in the file's units."""
+    # NCMIPFIXYR unset: the model year, repeating 2022 beyond the record.
+    source_year = fixed_year if fixed_year is not None else min(year, 2022)
+    value = float(series.sel({time_name: str(source_year)}).item())
+    if co2_scenario == "1pct":
+        return value * 1.01 ** (year - fixed_year)
+    if co2_scenario == "abrupt4x":
+        return 4.0 * value
+    return value
 
 
-def oifs_co2_mole_fraction(year, month, forcing, scenario, fixed_year):
-    """Monthly CO2 (ppm) as ece_cmip_ghg.F90 prescribes it.
+def oifs_ghg_mole_fraction(year, month, series, fixed_year, co2_scenario="file", time_name="time"):
+    """Monthly mole fraction as ece_cmip_ghg.F90 prescribes it.
 
     The model holds annual values and interpolates linearly between the two
     years either side of the month, reaching year y's value in June: months
     1-6 move from y-1 towards y with weight (month+6)/12, months 7-12 from y
-    towards y+1 with weight (month-6)/12. So in 1pctCO2 the series is a
-    monthly ramp, and January 1850 sits below the 1850 value.
+    towards y+1 with weight (month-6)/12. So in historical and 1pctCO2 the
+    series is a monthly ramp (January 1850 of 1pctCO2 sits below the 1850
+    value); with a fixed year and no CO2 change it is constant.
     """
     if month <= 6:
         first, weight = year - 1, (month + 6) / 12.0
     else:
         first, weight = year, (month - 6) / 12.0
-    c1 = _oifs_annual_co2(forcing, first, scenario, fixed_year)
-    c2 = _oifs_annual_co2(forcing, first + 1, scenario, fixed_year)
+    c1 = _oifs_annual_ghg(series, first, fixed_year, co2_scenario, time_name)
+    c2 = _oifs_annual_ghg(series, first + 1, fixed_year, co2_scenario, time_name)
     return c1 + weight * (c2 - c1)
 
 
@@ -1160,21 +1169,21 @@ def co2mass_from_prescribed_co2(data, rule):
     monthly ``sp`` on the regular lat-lon grid): mass = ps * 4 pi RA^2 / RG.
 
     Rule attributes:
-      - ``co2_scenario``: fixed | historical | 1pct | abrupt4x, set by the
-        experiment profile; piControl keeps the tier default, fixed.
-      - ``forcing_year``: the model's NCMIPFIXYR, the base year of fixed,
-        1pct and abrupt4x. Not used for historical.
+      - ``co2_scenario``: file | 1pct | abrupt4x, set by the experiment
+        profile; piControl and historical keep the tier default, file.
+      - ``forcing_year``: the model's NCMIPFIXYR, the base year of 1pct and
+        abrupt4x; null (historical) follows the model year.
       - ``co2_forcing_file``: the annual global-mean input4MIPs CO2 file the
         model read.
     """
-    scenario = rule.get("co2_scenario") or "fixed"
+    scenario = rule.get("co2_scenario") or "file"
     if scenario not in _CO2_SCENARIOS:
         raise ValueError(f"co2_scenario {scenario!r}: expected one of {', '.join(_CO2_SCENARIOS)}")
     fixed_year = rule.get("forcing_year")
-    if scenario != "historical":
-        if fixed_year is None:
-            raise ValueError(f"co2_scenario {scenario!r} needs forcing_year (the model's NCMIPFIXYR)")
-        fixed_year = int(fixed_year)
+    fixed_year = None if fixed_year is None else int(fixed_year)
+    if scenario != "file" and fixed_year is None:
+        # The model aborts on this combination too (ece_cmip.F90).
+        raise ValueError(f"co2_scenario {scenario!r} needs forcing_year (the model's NCMIPFIXYR)")
     forcing_file = rule.get("co2_forcing_file")
     if not forcing_file:
         raise ValueError("co2mass_from_prescribed_co2 needs co2_forcing_file")
@@ -1188,7 +1197,7 @@ def co2mass_from_prescribed_co2(data, rule):
 
     years = da[time_name].dt.year.values
     months = da[time_name].dt.month.values
-    ppm = [oifs_co2_mole_fraction(int(y), int(m), forcing, scenario, fixed_year) for y, m in zip(years, months)]
+    ppm = [oifs_ghg_mole_fraction(int(y), int(m), forcing, fixed_year, scenario) for y, m in zip(years, months)]
     mole_fraction = xr.DataArray(np.asarray(ppm), dims=time_name, coords={time_name: da[time_name]})
     logger.info(f"co2mass: scenario={scenario} base_year={fixed_year} CO2 ppm {ppm[0]:.3f} .. {ppm[-1]:.3f}")
 

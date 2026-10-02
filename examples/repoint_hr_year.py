@@ -74,14 +74,17 @@ _BRANCHED_OFF_PICONTROL_1949 = {
     "branch_time_in_child": "0.0",
 }
 #
-# co2_scenario tells co2mass_mon how OpenIFS set CO2 in that run (namelist
-# NAMECECMIP): historical reads the input4MIPs file year by year
-# (NCMIPFIXYR unset), 1pctCO2 grows the forcing_year value by 1%/yr
-# (L1pctCO2), abrupt-4xCO2 holds it at 4x (LANxCO2, RNxCO2=4). piControl
-# keeps the cap7_aerosol default, fixed.
+# forcing_year and co2_scenario mirror how OpenIFS set the greenhouse gases
+# in that run (namelist NAMECECMIP), for the GHG rules in cap7_aerosol.
+# forcing_year is NCMIPFIXYR: the cap7_aerosol default 1850 holds every gas
+# at 1850 (piControl, 1pctCO2, abrupt-4xCO2); historical leaves NCMIPFIXYR
+# unset, so null there makes CH4, N2O, the CFCs and CO2 follow the model
+# year. co2_scenario changes CO2 alone: 1pctCO2 grows it by 1%/yr
+# (L1pctCO2), abrupt-4xCO2 holds it at 4x (LANxCO2, RNxCO2=4); the others
+# keep the default, file.
 EXPERIMENTS = {
     "piControl": {},
-    "historical": {"experiment_id": "historical", **_BRANCHED_OFF_PICONTROL_1949, "co2_scenario": "historical"},
+    "historical": {"experiment_id": "historical", **_BRANCHED_OFF_PICONTROL_1949, "forcing_year": "null"},
     "1pctCO2": {"experiment_id": "1pctCO2", **_BRANCHED_OFF_PICONTROL_1949, "co2_scenario": "1pct"},
     "abrupt-4xCO2": {"experiment_id": "abrupt-4xCO2", **_BRANCHED_OFF_PICONTROL_1949, "co2_scenario": "abrupt4x"},
 }

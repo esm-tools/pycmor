@@ -32,11 +32,12 @@ jobqueue:
     walltime: '00:30:00'
 
 pipelines:
-  # GHG scalar pipeline: read piControl reference year (1850) from the
-  # centennial input4MIPs forcing record, broadcast to 12 monthly timestamps
-  # in the model run year, then convert ppt/ppb -> mol/mol via scale_factor.
+  # GHG scalar pipeline: the 12 monthly values OpenIFS used in the model
+  # year, from the centennial input4MIPs forcing record: forcing_year's
+  # values (1850; piControl, 1pctCO2, abrupt-4xCO2), or with forcing_year
+  # null the model year's own, interpolated monthly (historical).
   # `year` (model year) is injected per-run by examples/repoint_hr_year.py;
-  # `forcing_year` is set in the inherit block for piControl semantics.
+  # `forcing_year` is set in the inherit block and by the historical profile.
   # Without this, the rule would emit one output file per year of the input
   # record (273 files for a 1750-2022 forcing file).
   - name: ghg_scalar_pipeline
@@ -99,14 +100,16 @@ inherit:
   netcdf_write_scheduler: synchronous
   data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
   ghg_path: &ghg /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg
-  # CMIP piControl reference year — read 1850 GHG values from the centennial
+  # The model's NCMIPFIXYR: read 1850 GHG values from the centennial
   # input4MIPs forcing file regardless of the model run year. The cmor output
   # time axis is rewritten to the model `year` (injected per-run by repoint).
+  # The historical profile in repoint_hr_year.py sets it to null, so the
+  # gases follow the model year, as in that run.
   forcing_year: 1850
-  # How the model set CO2 (co2mass_mon): fixed at forcing_year here, for
-  # piControl. The other experiments' profiles in repoint_hr_year.py
-  # replace it with historical, 1pct or abrupt4x.
-  co2_scenario: fixed
+  # How the model changed CO2 on top of that (co2mass_mon): file means not
+  # at all (piControl, historical). The 1pctCO2 and abrupt-4xCO2 profiles
+  # replace it with 1pct or abrupt4x.
+  co2_scenario: file
   source_id: AWI-ESM3-4-2-veg-HR
   institution_id: AWI
   institution: "Alfred Wegener Institute for Polar and Marine Research"
