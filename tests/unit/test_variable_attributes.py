@@ -29,3 +29,15 @@ def test_variable_attrs_dataarray(rule_after_cmip6_cmorizer_init, mocker):
     # Check that required attributes are set
     for attr in ["standard_name", "long_name"]:
         assert attr in d
+
+
+def test_rule_variable_attributes_override_the_data_request(rule_after_cmip6_cmorizer_init, mocker):
+    rule = rule_after_cmip6_cmorizer_init
+    rule._pycmor_cfg = mocker.Mock(return_value=1.0e30)
+    standard_name = rule.data_request_variable.attrs["standard_name"]
+    rule.variable_attributes = {"comment": "model-specific note"}
+
+    da = set_variable_attrs(xr.DataArray(name=rule.model_variable), rule)
+
+    assert da.attrs["comment"] == "model-specific note"
+    assert da.attrs["standard_name"] == standard_name

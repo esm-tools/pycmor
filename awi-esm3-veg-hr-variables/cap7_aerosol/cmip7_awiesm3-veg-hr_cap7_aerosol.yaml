@@ -158,6 +158,10 @@ rules:
     scale_factor: 1.0
     scaled_units: "1E-12"
     skip_input_year_filter: true
+    # The model's radiation did not use this file (ece_cmip_ghg.F90 reads
+    # cfc11eq); this is the actual CFC-11 the variable stands for.
+    variable_attributes:
+      comment: "Global mean mole fraction of CFC-11, from the input4MIPs CMIP7 greenhouse gas concentrations (CR-CMIP-1-0-0). This is the actual CFC-11 concentration. The model's radiation does not use it: OpenIFS represents all halocarbons except CFC-12 as CFC-11-equivalent (input4MIPs cfc11eq, i.e. their combined radiative effect expressed as CFC-11), used together with actual CFC-12."
     pipelines:
       - ghg_scalar_pipeline
 

@@ -138,6 +138,10 @@ def set_variable_attrs(ds: Union[xr.Dataset, xr.DataArray], rule: Rule) -> Union
             logger.info(f"variable_attrs: rewriting non-UDUNITS units {_u!r} -> {_new_u!r}")
             attrs["units"] = _new_u
 
+    # Rule-level overrides (``variable_attributes:`` in the rule yaml), e.g. a
+    # model-specific comment. Applied last, so they win over the data request.
+    attrs.update(rule.get("variable_attributes") or {})
+
     logger.info("Setting the following attributes:")
     for k, v in attrs.items():
         logger.info(f"{k}: {v}")
