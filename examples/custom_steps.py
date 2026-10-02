@@ -1108,6 +1108,96 @@ def broadcast_forcing_year_to_monthly(data, rule):
     return result
 
 
+# How OpenIFS (ecearth/climate/ece_cmip_ghg.F90) prescribes CO2 per CMIP
+# experiment. The experiment profile in repoint_hr_year.py picks one through
+# the rule's ``co2_scenario``; ``forcing_year`` plays the namelist's NCMIPFIXYR.
+_CO2_SCENARIOS = ("fixed", "historical", "1pct", "abrupt4x")
+# OpenIFS constants: M(CO2)/M(air) (ZCO2RMWG), Earth radius RA, gravity RG.
+_CO2_RMWG = 1.5191923
+_EARTH_RADIUS = 6371229.0
+_GRAVITY = 9.80665
+
+
+def _oifs_annual_co2(forcing, year, scenario, fixed_year):
+    """The annual CO2 mole fraction (ppm) OpenIFS uses for ``year``."""
+    if scenario == "historical":
+        # NCMIPFIXYR unset: the file's own year, repeating 2022 beyond it.
+        return float(forcing.sel(time=str(min(year, 2022))).item())
+    base = float(forcing.sel(time=str(fixed_year)).item())
+    if scenario == "1pct":
+        return base * 1.01 ** (year - fixed_year)
+    if scenario == "abrupt4x":
+        return 4.0 * base
+    return base
+
+
+def oifs_co2_mole_fraction(year, month, forcing, scenario, fixed_year):
+    """Monthly CO2 (ppm) as ece_cmip_ghg.F90 prescribes it.
+
+    The model holds annual values and interpolates linearly between the two
+    years either side of the month, reaching year y's value in June: months
+    1-6 move from y-1 towards y with weight (month+6)/12, months 7-12 from y
+    towards y+1 with weight (month-6)/12. So in 1pctCO2 the series is a
+    monthly ramp, and January 1850 sits below the 1850 value.
+    """
+    if month <= 6:
+        first, weight = year - 1, (month + 6) / 12.0
+    else:
+        first, weight = year, (month - 6) / 12.0
+    c1 = _oifs_annual_co2(forcing, first, scenario, fixed_year)
+    c2 = _oifs_annual_co2(forcing, first + 1, scenario, fixed_year)
+    return c1 + weight * (c2 - c1)
+
+
+def co2mass_from_prescribed_co2(data, rule):
+    """
+    Total atmospheric CO2 mass (kg) per month, as the model prescribed it.
+
+    AWI-ESM3 carries no CO2 tracer. OpenIFS radiation uses one global mass
+    mixing ratio, RCARDI = CO2[ppm] * 1e-6 * M(CO2)/M(air), so the CO2 mass
+    the model holds is RCARDI times the mass of the atmosphere, taken here
+    from the month's area-weighted global-mean surface pressure (``data``,
+    monthly ``sp`` on the regular lat-lon grid): mass = ps * 4 pi RA^2 / RG.
+
+    Rule attributes:
+      - ``co2_scenario``: fixed | historical | 1pct | abrupt4x, set by the
+        experiment profile; piControl keeps the tier default, fixed.
+      - ``forcing_year``: the model's NCMIPFIXYR, the base year of fixed,
+        1pct and abrupt4x. Not used for historical.
+      - ``co2_forcing_file``: the annual global-mean input4MIPs CO2 file the
+        model read.
+    """
+    scenario = rule.get("co2_scenario") or "fixed"
+    if scenario not in _CO2_SCENARIOS:
+        raise ValueError(f"co2_scenario {scenario!r}: expected one of {', '.join(_CO2_SCENARIOS)}")
+    fixed_year = rule.get("forcing_year")
+    if scenario != "historical":
+        if fixed_year is None:
+            raise ValueError(f"co2_scenario {scenario!r} needs forcing_year (the model's NCMIPFIXYR)")
+        fixed_year = int(fixed_year)
+    forcing_file = rule.get("co2_forcing_file")
+    if not forcing_file:
+        raise ValueError("co2mass_from_prescribed_co2 needs co2_forcing_file")
+    with xr.open_dataset(forcing_file, decode_times=xr.coders.CFDatetimeCoder(use_cftime=True)) as ds:
+        forcing = ds["co2"].load()
+
+    da = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    time_name = next(n for n in ("time", "time_counter") if n in da.dims)
+    weights = np.cos(np.deg2rad(da["lat"]))
+    atmosphere_mass = da.weighted(weights).mean(("lat", "lon")) * 4.0 * np.pi * _EARTH_RADIUS**2 / _GRAVITY
+
+    years = da[time_name].dt.year.values
+    months = da[time_name].dt.month.values
+    ppm = [oifs_co2_mole_fraction(int(y), int(m), forcing, scenario, fixed_year) for y, m in zip(years, months)]
+    mole_fraction = xr.DataArray(np.asarray(ppm), dims=time_name, coords={time_name: da[time_name]})
+    logger.info(f"co2mass: scenario={scenario} base_year={fixed_year} CO2 ppm {ppm[0]:.3f} .. {ppm[-1]:.3f}")
+
+    result = (mole_fraction * 1e-6 * _CO2_RMWG * atmosphere_mass).astype("float64")
+    result.attrs = {"units": "kg"}
+    result.name = rule.model_variable
+    return result
+
+
 def scale_by_constant(data, rule):
     """
     Multiply data by a constant factor from rule.scale_factor.

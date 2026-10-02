@@ -56,6 +56,25 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # co2mass: the CO2 OpenIFS prescribed (per experiment and year, see
+  # co2mass_from_prescribed_co2) times the month's atmospheric mass from
+  # the model's own surface pressure.
+  - name: co2mass_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:co2mass_from_prescribed_co2
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Scale pipeline for toz: tco3 (kg m-2) -> toz (m)
   # toz(m) = tco3(kg/m2) / rho_O3_STP = tco3 / 2.1415
   - name: toz_pipeline
@@ -84,6 +103,10 @@ inherit:
   # input4MIPs forcing file regardless of the model run year. The cmor output
   # time axis is rewritten to the model `year` (injected per-run by repoint).
   forcing_year: 1850
+  # How the model set CO2 (co2mass_mon): fixed at forcing_year here, for
+  # piControl. The other experiments' profiles in repoint_hr_year.py
+  # replace it with historical, 1pct or abrupt4x.
+  co2_scenario: fixed
   source_id: AWI-ESM3-4-2-veg-HR
   institution_id: AWI
   institution: "Alfred Wegener Institute for Polar and Marine Research"
@@ -179,6 +202,22 @@ rules:
     skip_input_year_filter: true
     pipelines:
       - ghg_scalar_pipeline
+
+  # co2mass: total atmospheric CO2 mass. No CO2 tracer, but the CO2 OpenIFS
+  # prescribed is known exactly: the input4MIPs value of forcing_year, grown
+  # 1%/yr (1pctCO2), times 4 (abrupt-4xCO2), or the file's own year
+  # (historical), interpolated monthly as ece_cmip_ghg.F90 does. Input is
+  # the model's monthly surface pressure, for the atmosphere's mass.
+  - name: co2mass_mon
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_.*\.nc
+    compound_name: atmos.co2mass.tavg-u-hm-u.mon.glb
+    grid_label: g010  # globale Summe, wie die GHG-Skalare oben
+    model_variable: sp
+    co2_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/co2_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+    pipelines:
+      - co2mass_pipeline
 
   # toz: total column ozone from IFS prescribed ozone
   # tco3 (kg m-2) -> toz (m) via division by O3 density at STP (2.1415 kg/m3)
