@@ -1101,7 +1101,10 @@ def broadcast_forcing_year_to_monthly(data, rule):
 
     new_times = np.array([cftime.DatetimeProlepticGregorian(year_i, m, 16, 12, 0, 0) for m in range(1, 13)])
     result = sliced.expand_dims({time_name: new_times})
-    monthly = [oifs_ghg_mole_fraction(year_i, m, data, fixed_year, time_name=time_name) for m in range(1, 13)]
+    # The annual series arrives lazily (open_mfdataset) and is tiny; load it
+    # once rather than per lookup (dask arrays have no .item()).
+    series = data.compute()
+    monthly = [oifs_ghg_mole_fraction(year_i, m, series, fixed_year, time_name=time_name) for m in range(1, 13)]
     result = result.copy(data=np.asarray(monthly, dtype=result.dtype).reshape(result.shape))
 
     try:
