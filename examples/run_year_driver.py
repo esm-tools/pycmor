@@ -174,10 +174,14 @@ def clear_manifests(workdir, tier=None):
     one: in test-1pctCO2 y1850 a shard hit its walltime, its manifest from
     three days earlier still said "all ok", and the year was published with
     two files from the earlier run.
+
+    ``tier`` is matched the way submit_hr_year_shards.sh matches TIER
+    (``*TIER*``), so the ``<tier>_gr`` that WITH_GR=yes resubmits along with
+    ``<tier>`` loses its manifests too.
     """
     removed = 0
     for path in glob.glob(str(Path(workdir) / "cmorized" / "_manifests" / "*.json")):
-        if tier is None or tier_of(Path(path).stem) == tier:
+        if tier is None or tier in tier_of(Path(path).stem):
             os.unlink(path)
             removed += 1
     return removed
@@ -341,8 +345,8 @@ def main():
         f"Outputs  : {workdir / 'cmorized'}\n"
         f"Manifests: {workdir / 'cmorized' / '_manifests'}\n\n"
         "Outstanding problems:\n" + "\n".join(f"  - {p}" for p in problems) + "\n\n"
-        "Nothing was deleted. Re-running the driver will pick up from the "
-        "existing outputs.\n"
+        "The outputs written so far are kept, but re-running the driver does "
+        "not resume from them: it resubmits every tier and recomputes them.\n"
     )
     # SLURM's own mail only says "job failed", so the details live here where
     # the mail's job name points you.

@@ -330,6 +330,15 @@ def test_resubmitting_one_tier_clears_only_its_manifests(driver, tmp_path):
     assert driver.clear_manifests(wd) == 1
 
 
+def test_resubmitting_a_tier_also_clears_its_gr_variant(driver, tmp_path):
+    """TIER=extra_land resubmits extra_land_gr as well (the submit script
+    globs *TIER*), so its manifests must go with it."""
+    stems = ["extra_land_shard_00", "extra_land_gr_shard_00", "core_land_shard_00"]
+    wd = _workdir(tmp_path, stems, {s: [] for s in stems})
+    assert driver.clear_manifests(wd, "extra_land") == 2
+    assert [p.stem for p in (wd / "cmorized" / "_manifests").glob("*.json")] == ["core_land_shard_00"]
+
+
 def test_a_manifest_from_other_code_does_not_count(driver, tmp_path, monkeypatch):
     """A year restarted after a repin must not be accepted on the strength of
     what the previous code wrote."""
