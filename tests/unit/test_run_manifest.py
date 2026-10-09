@@ -297,6 +297,53 @@ def test_a_fresh_year_is_submitted_even_without_manifests(driver, tmp_path, monk
     assert submits[0] is None, "no shards yet must not look like a complete year"
 
 
+def test_a_stale_manifest_cannot_vouch_for_a_shard_that_died(driver, tmp_path, monkeypatch):
+    """test-1pctCO2 y1850: extra_land_shard_01 hit its walltime on the rerun
+    and wrote no manifest, but its manifest from the run three days earlier
+    still said "all ok". The year was declared complete and published with
+    two files from the earlier run. The real submit() is used here, with a
+    stand-in for the submit script that lets one shard die."""
+    stems = ["core_atm_shard_00", "extra_land_shard_00", "extra_land_shard_01"]
+    wd = _workdir(tmp_path, stems, {"core_atm_shard_00": ["x"], "extra_land_shard_00": [], "extra_land_shard_01": []})
+    mdir = wd / "cmorized" / "_manifests"
+    fake = tmp_path / "fake_submit.sh"
+    fake.write_text(
+        "#!/bin/bash\n"
+        f"for s in core_atm_shard_00 extra_land_shard_00; do echo '{{\"incomplete\": []}}' > {mdir}/$s.json; done\n"
+        "echo 'submitted x jid=1'\n"
+    )
+    fake.chmod(0o755)
+    monkeypatch.setattr(driver, "SUBMIT", fake)
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["run_year_driver.py", "/run", "1850", str(wd), "--attempts", "1", "--email", ""])
+
+    assert driver.main() == 1
+    assert "extra_land_shard_01: no manifest" in (wd / "1850.FAILED").read_text()
+    assert not (wd / "1850.done").exists()
+
+
+def test_resubmitting_one_tier_clears_only_its_manifests(driver, tmp_path):
+    stems = ["core_atm_shard_00", "extra_land_shard_00", "extra_land_shard_01"]
+    wd = _workdir(tmp_path, stems, {s: [] for s in stems})
+    assert driver.clear_manifests(wd, "extra_land") == 2
+    assert [p.stem for p in (wd / "cmorized" / "_manifests").glob("*.json")] == ["core_atm_shard_00"]
+    assert driver.clear_manifests(wd) == 1
+
+
+def test_a_manifest_from_other_code_does_not_count(driver, tmp_path, monkeypatch):
+    """A year restarted after a repin must not be accepted on the strength of
+    what the previous code wrote."""
+    wd = _workdir(tmp_path, ["core_atm_shard_00", "veg_land_shard_00"], {})
+    mdir = wd / "cmorized" / "_manifests"
+    (mdir / "core_atm_shard_00.json").write_text(json.dumps({"incomplete": [], "code_commit": "b" * 40}))
+    (mdir / "veg_land_shard_00.json").write_text(json.dumps({"incomplete": [], "code_commit": "a" * 40}))
+    monkeypatch.setenv("PYCMOR_CODE_COMMIT", "b" * 40)
+    tiers, problems = driver.assess(wd)
+    assert tiers == {"veg_land"} and "pinned to bbbbbbbbbb" in problems[0]
+    monkeypatch.delenv("PYCMOR_CODE_COMMIT")
+    assert driver.assess(wd) == (set(), []), "outside a campaign there is no pin to compare with"
+
+
 def test_driver_marks_the_year_done_once_a_retry_fills_the_gap(driver, tmp_path, monkeypatch):
     wd = _workdir(tmp_path, ["extra_atm_shard_00"], {})
     manifest = wd / "cmorized" / "_manifests" / "extra_atm_shard_00.json"

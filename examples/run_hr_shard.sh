@@ -283,15 +283,30 @@ echo "=== --data-path ${RUN_ROOT}  --year ${YEAR}  --memory ${MEMORY:-<unset>} =
 echo "=== config: parallel=True orchestrator=dask N_WORKERS=${N_WORKERS} TPW=${TPW} MEM_PER_WORKER=${MEM_PER_WORKER} PYCMOR_WORKER_COMPUTE=${PYCMOR_WORKER_COMPUTE} ==="
 echo "=== node $(hostname), $(nproc) cores allocated, $(free -g | awk '/^Mem:/{print $2}') GB visible ==="
 
-# Inactivity watchdog: scancel this job if the log, the output directory
-# and the node-local save staging all stop changing. cli60 cap7_aerosol toz_mon hung the shard for 2h after 4/5
-# rules had already saved — Prefect/Dask cluster wedge with no output.
+# Inactivity watchdog: scancel this job when it has stopped making progress.
+# cli60 cap7_aerosol toz_mon hung the shard for 2h after 4/5 rules had
+# already saved — Prefect/Dask cluster wedge with no output.
 # Default 5400s (90 min): the older 1800s default caught 3D plev saves
 # mid-write (cli104 lost 2 shards). zlib+shuffle silent-save windows on
 # cl_day/pfull_day/hurs_3hr routinely hit 50-70 min. 90 min covers those
-# without letting a genuine wedge burn the full 8h walltime. Override
+# without letting a genuine wedge burn the full walltime. Override
 # via WEDGE_TIMEOUT_SEC=<seconds>; set 0 to disable.
+#
+# What counts as progress:
+#   - a new log line, EXCEPT the slow heartbeat a stalled save keeps
+#     printing ("... no I/O progress yet"). pycmor's heartbeat watches each
+#     rule's own output directory and its node-local staging, so that line
+#     already means "alive, but this save is writing nothing". Counting it
+#     kept a wedged shard alive until its 6h walltime (test-1pctCO2 y1850
+#     extra_land_shard_01: three saves stuck for 5.8h, never killed).
+#   - a save staging file in PYCMOR_TMPFS_DIR being written (cli120: 17
+#     healthy saves were writing to /tmp and got killed when only the log
+#     was watched).
+# The shared output directory is deliberately not watched: with the DRS
+# layout every shard of the year writes into it, so another shard's files
+# would vouch for a wedged one.
 WEDGE_TIMEOUT_SEC="${WEDGE_TIMEOUT_SEC:-5400}"
+WEDGE_POLL_SEC="${WEDGE_POLL_SEC:-60}"
 if [ "$WEDGE_TIMEOUT_SEC" -gt 0 ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   # Derive the log path from where sbatch was invoked rather than hardcoding
   # a checkout. `#SBATCH --output` above is a relative filename, so SLURM
@@ -302,30 +317,27 @@ if [ "$WEDGE_TIMEOUT_SEC" -gt 0 ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   WEDGE_LOG_FILE="${SLURM_SUBMIT_DIR:-$PWD}/pycmor_hr_shard_${SLURM_JOB_NAME:-shard}_${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-1}.log"
   WEDGE_TARGET_JOB="${SLURM_ARRAY_JOB_ID:+${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}}"
   WEDGE_TARGET_JOB="${WEDGE_TARGET_JOB:-$SLURM_JOB_ID}"
-  echo "=== watchdog: scancel ${WEDGE_TARGET_JOB} if log, ${OUTDIR} and ${PYCMOR_TMPFS_DIR:-/tmp} staging all stall for ${WEDGE_TIMEOUT_SEC}s ==="
+  echo "=== watchdog: scancel ${WEDGE_TARGET_JOB} after ${WEDGE_TIMEOUT_SEC}s without progress (new log lines other than stalled heartbeats, or ${PYCMOR_TMPFS_DIR:-/tmp} staging writes) ==="
   (
     # Brief grace period for the log file to appear.
-    sleep 60
-    while sleep 60; do
+    sleep "$WEDGE_POLL_SEC"
+    last_progress=$(date +%s)
+    last_lines=-1
+    last_staging=""
+    while sleep "$WEDGE_POLL_SEC"; do
       if [ -f "$WEDGE_LOG_FILE" ]; then
         now=$(date +%s)
-        mtime=$(stat -c %Y "$WEDGE_LOG_FILE" 2>/dev/null || echo 0)
-        # Progress is the newest of: log activity, files landing in the
-        # output directory, and the node-local staging files that saves
-        # write first (_atomic_to_netcdf stages "<name>.nc.<rand>.tmp" in
-        # PYCMOR_TMPFS_DIR and only copies to OUTDIR at the end). Watching
-        # the log alone killed a healthy job in cli120: all 17 saves were
-        # writing to /tmp, looked frozen from OUTDIR, their heartbeats went
-        # quiet, and this loop scancelled the shard. Only fire when every
-        # signal is stale.
-        pm=$(find "$OUTDIR" -type f -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1) || pm=""
-        [ -n "$pm" ] && [ "$pm" -gt "$mtime" ] && mtime="$pm"
-        pm=$(find "${PYCMOR_TMPFS_DIR:-/tmp}" -maxdepth 1 -name '*.nc.*.tmp' -printf '%T@\n' 2>/dev/null \
-          | sort -n | tail -1 | cut -d. -f1) || pm=""
-        [ -n "$pm" ] && [ "$pm" -gt "$mtime" ] && mtime="$pm"
-        age=$((now - mtime))
+        lines=$(grep -vc 'no I/O progress yet' "$WEDGE_LOG_FILE" 2>/dev/null) || lines="${lines:-0}"
+        staging=$(find "${PYCMOR_TMPFS_DIR:-/tmp}" -maxdepth 1 -name '*.nc.*.tmp' -printf '%T@ %s\n' 2>/dev/null \
+          | sort -n | tail -1) || staging=""
+        if [ "$lines" != "$last_lines" ] || [ "$staging" != "$last_staging" ]; then
+          last_progress=$now
+          last_lines=$lines
+          last_staging=$staging
+        fi
+        age=$((now - last_progress))
         if [ "$age" -ge "$WEDGE_TIMEOUT_SEC" ]; then
-          echo "[WATCHDOG] no log or output activity for ${age}s >= ${WEDGE_TIMEOUT_SEC}s; scancel ${WEDGE_TARGET_JOB}" >&2
+          echo "[WATCHDOG] no progress for ${age}s >= ${WEDGE_TIMEOUT_SEC}s (only stalled heartbeats in the log, no staging writes); scancel ${WEDGE_TARGET_JOB}" >&2
           scancel "$WEDGE_TARGET_JOB" || true
           break
         fi

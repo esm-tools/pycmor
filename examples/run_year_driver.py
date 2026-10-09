@@ -97,6 +97,15 @@ def assess(workdir):
             bad_tiers.add(tier)
             problems.append(f"{stem}: no manifest (shard died before finishing)")
             continue
+        # A manifest from other code than this campaign is pinned to describes
+        # output the current code did not produce (a year restarted after a
+        # repin). It does not count, whatever it says.
+        pinned = os.environ.get("PYCMOR_CODE_COMMIT")
+        wrote = man.get("code_commit")
+        if pinned and wrote and wrote != pinned:
+            bad_tiers.add(tier)
+            problems.append(f"{stem}: manifest is from code {wrote[:10]}, the campaign is pinned to {pinned[:10]}")
+            continue
         incomplete = man.get("incomplete") or []
         if incomplete:
             bad_tiers.add(tier)
@@ -157,7 +166,28 @@ def publish(workdir, output_root):
     return moved, replaced
 
 
+def clear_manifests(workdir, tier=None):
+    """Remove the manifests of the shards about to run again.
+
+    A manifest must describe the run that just happened. Left in place, an
+    old one vouches for a shard that died this time without writing a new
+    one: in test-1pctCO2 y1850 a shard hit its walltime, its manifest from
+    three days earlier still said "all ok", and the year was published with
+    two files from the earlier run.
+    """
+    removed = 0
+    for path in glob.glob(str(Path(workdir) / "cmorized" / "_manifests" / "*.json")):
+        if tier is None or tier_of(Path(path).stem) == tier:
+            os.unlink(path)
+            removed += 1
+    return removed
+
+
 def submit(run_root, year, workdir, tier=None, dry_run=False):
+    if not dry_run:
+        removed = clear_manifests(workdir, tier)
+        if removed:
+            log(f"removed {removed} manifest(s) of {tier or 'all tiers'} before resubmitting")
     env = dict(os.environ)
     if tier:
         env["TIER"] = tier
