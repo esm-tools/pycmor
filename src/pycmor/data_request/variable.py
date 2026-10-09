@@ -444,7 +444,7 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     _table_name: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data, compound_name=None):
         """Create a CMIP7DataRequestVariable from a dictionary.
 
         Parameters
@@ -453,6 +453,9 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             Dictionary containing variable metadata from CMIP7 data request.
             Expected keys include all standard metadata fields plus CMIP7-specific
             fields like 'cmip7_compound_name', 'branding_label', 'region', etc.
+        compound_name : str, optional
+            CMIP7 compound name (realm.variable.branding.frequency.region).
+            If provided, takes precedence over value in data dict.
 
         Returns
         -------
@@ -477,7 +480,7 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             _spatial_shape=data["spatial_shape"],
             _temporal_shape=data["temporal_shape"],
             # CMIP7-specific fields
-            _cmip7_compound_name=data.get("cmip7_compound_name"),
+            _cmip7_compound_name=compound_name or data.get("cmip7_compound_name"),
             _branding_label=data.get("branding_label"),
             _region=data.get("region"),
             # CMIP6 backward compatibility
@@ -528,10 +531,26 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             "long_name": self.long_name,
             "units": self.units,
             "cell_methods": self.cell_methods,
+            "cell_measures": self.cell_measures,
             "comment": self.comment,
         }
-        # Remove None values
-        return {k: v for k, v in attrs.items() if v is not None}
+        # Drop None values and CMIP7 sentinel placeholders like "::MODEL" that
+        # indicate the field is model-specific and not defined by the data request.
+        def _is_sentinel(v):
+            return isinstance(v, str) and v.strip().startswith("::")
+
+        # cell_measures="" is the CMIP7 canonical value for scalar variables
+        # without spatial cell-measures (siextent, sivol, siarea, sisnmass,
+        # mass-int compounds, ...). wcrp ATTR001 requires the attr to be
+        # present even when empty — drop the empty-string filter only for
+        # cell_measures; the other empty-string fields stay dropped so an
+        # accidental blank standard_name/long_name doesn't get written.
+        return {
+            k: v for k, v in attrs.items()
+            if v is not None
+            and (v != "" or k == "cell_measures")
+            and not _is_sentinel(v)
+        }
 
     @property
     def cell_measures(self) -> str:
@@ -622,6 +641,10 @@ class CMIP7DataRequestVariable(DataRequestVariable):
         return self._positive
 
     @property
+    def spatial_shape(self) -> str:
+        return self._spatial_shape
+
+    @property
     def standard_name(self) -> str:
         return self._standard_name
 
@@ -649,6 +672,18 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     def region(self) -> Optional[str]:
         """CMIP7 region code (e.g., 'GLB', '30S-90S')."""
         return self._region
+
+    @property
+    def temporal_shape(self) -> str:
+        """CMIP7 temporal shape (``time-intv``, ``time-point``, ``time-fxc``,
+        ``climatology``, ``diurnal-cycle``, or ``None``). Consumed by
+        ``std_lib.time_bounds._axis_must_have_bounds`` to decide whether
+        to keep or drop time_bnds at the end of the pipeline. Without
+        this getter that lookup silently defaulted to keeping bnds and
+        every tpt (time-point) file tripped wcrp TIME001 because the
+        filename token derived from bnds while the actual stamp did not.
+        """
+        return self._temporal_shape
 
     @property
     def typ(self) -> type:

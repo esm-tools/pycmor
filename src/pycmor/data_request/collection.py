@@ -68,15 +68,34 @@ class CMIP7DataRequest(DataRequest):
 
     @classmethod
     def from_all_var_info(cls, data):
+        from .table import CMIP7DataRequestTableHeader
+
         tables = {}
         variables = {}
-        table_ids = set(k.split(".")[0] for k in data["Compound Name"].keys())
-        for table_id in table_ids:
-            table = CMIP7DataRequestTable.from_all_var_info(table_id, data)
-            tables[table_id] = table
-            for variable in table.variables:
-                variable.table_header = table.header
-                variables[variable.variable_id] = variable
+
+        # CMIP7: Index variables by compound name directly (no table dependency)
+        for cmip7_compound_name, var_dict in data["Compound Name"].items():
+            variable = CMIP7DataRequestVariable.from_dict(var_dict, compound_name=cmip7_compound_name)
+
+            # Create synthetic table header from variable metadata
+            # This ensures downstream code that expects table_header doesn't break
+            table_header = CMIP7DataRequestTableHeader.from_variable_metadata(var_dict)
+            variable.table_header = table_header
+
+            variables[cmip7_compound_name] = variable
+
+        # Optional: Build tables for backward compatibility with code that expects them
+        # Group by cmip6_table if available (for legacy support)
+        table_ids = set(v.get("cmip6_table") for v in data["Compound Name"].values() if v.get("cmip6_table"))
+        if table_ids:
+            for table_id in table_ids:
+                table = CMIP7DataRequestTable.from_all_var_info(table_id, data)
+                tables[table_id] = table
+                # Link table headers to variables that were grouped into tables
+                for variable in table.variables:
+                    if not hasattr(variable, "table_header") or variable.table_header is None:
+                        variable.table_header = table.header
+
         return cls(tables, variables)
 
     @classmethod

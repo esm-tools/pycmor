@@ -21,6 +21,7 @@ import numpy as np
 import xarray as xr
 
 from ..data_request.variable import DataRequestVariable
+from .coordinate_attributes import AXIS_ENTRIES
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class DimensionMapper:
         # Vertical coordinates - atmosphere
         "model_level": [
             r"^alev(el)?s?$",
-            r"^(model_)?level(_\w+)?$",
+            r"^(model_)?levels?(_\w+)?$",
             r"^lev$",
         ],
         # Vertical coordinates - height
@@ -97,6 +98,7 @@ class DimensionMapper:
         "time": [
             r"^time\d*$",
             r"^t$",
+            r"^time_counter$",
         ],
     }
 
@@ -205,6 +207,18 @@ class DimensionMapper:
             if len(values) == 0:
                 return None
 
+            # Integer index sequence (e.g. OIFS ``model_levels`` = 1..137,
+            # or any 0..N-1 model-level numbering): treat as model_level
+            # before the lat/lon range checks pick it up because the small
+            # integers fit inside the longitude (0..360) window. Without
+            # this guard the OIFS atmospheric model-level dim ends up
+            # renamed to ``longitude`` in the output, which trips cf §2.4
+            # dim-order on every variable on alevel.
+            if (np.issubdtype(values.dtype, np.integer) or np.all(np.equal(np.mod(values, 1), 0))) and len(values) > 1:
+                diffs = np.diff(values.astype(float))
+                if np.all(diffs == 1) and float(values[0]) in (0.0, 1.0):
+                    return "model_level"
+
             # Check for latitude (-90 to 90)
             if np.all(values >= -90) and np.all(values <= 90):
                 if len(values) > 10:  # Likely a grid
@@ -257,35 +271,7 @@ class DimensionMapper:
         Optional[str]
             CMIP dimension name or None if no match
         """
-        # Map dimension types to CMIP dimension patterns
-        type_to_cmip = {
-            "latitude": ["latitude", "lat", "gridlatitude"],
-            "longitude": ["longitude", "lon", "gridlongitude"],
-            "time": ["time", "time1", "time2", "time3"],
-            "pressure": [
-                "plev",
-                "plev3",
-                "plev4",
-                "plev7",
-                "plev8",
-                "plev19",
-                "plev23",
-                "plev27",
-                "plev39",
-            ],
-            "depth": ["olevel", "olevhalf", "oline", "depth"],
-            "height": [
-                "height",
-                "height2m",
-                "height10m",
-                "height100m",
-                "alt16",
-                "alt40",
-            ],
-            "model_level": ["alevel", "alevhalf"],
-        }
-
-        possible_names = type_to_cmip.get(dim_type, [])
+        possible_names = _type_to_cmip().get(dim_type, [])
 
         # Find matching CMIP dimension
         for cmip_dim in cmip_dimensions:
@@ -445,15 +431,46 @@ class DimensionMapper:
             ds_mapped = mapper.apply_mapping(ds, {'latitude': 'lat', 'longitude': 'lon'})
         """
         logger.info("Applying dimension mapping")
+        # CMIP convention: the on-disk time-axis variable is ALWAYS named
+        # "time", regardless of which CMOR axis ID (time / time1 / time2 /
+        # time3) the data request points at. The numeric suffix only drives
+        # the cell_methods string ("time: point" vs "time: mean") inside
+        # CMOR; it is NOT a separate dim name. wcrp_cmip7 TIME003 and
+        # ATTR001 hardcode "time", so a tpt-style file shipped with dim
+        # name "time1" trips them ("Missing 'time' variable") even though
+        # the data request asks for axis time1. Collapse here so the file
+        # writes "time".
+        mapping = {src: ("time" if tgt in ("time1", "time2", "time3") else tgt) for src, tgt in mapping.items()}
         rename_dict = {}
 
         for source_dim, cmip_dim in mapping.items():
             if source_dim != cmip_dim:
                 rename_dict[source_dim] = cmip_dim
                 logger.info(f"  Renaming: {source_dim} → {cmip_dim}")
+                # Also rename the matching `{source}_bnds` aux variable if
+                # present. xr.Dataset.rename({src: tgt}) only renames the
+                # dim and its index coord; a separately-named bounds aux
+                # (e.g. `time_counter_bnds` from LPJ-GUESS / NEMO-style
+                # output) is left under its old name, which then trips
+                # cf §7.1 (orphan bnds) and wcrp TIME003 (no `time` var).
+                src_bnds = f"{source_dim}_bnds"
+                tgt_bnds = f"{cmip_dim}_bnds"
+                if src_bnds in ds.variables and tgt_bnds not in ds.variables:
+                    rename_dict[src_bnds] = tgt_bnds
+                    logger.info(f"  Renaming bnds: {src_bnds} → {tgt_bnds}")
 
         if rename_dict:
             ds = ds.rename(rename_dict)
+            # Fix up the `bounds` attr pointer on the renamed coord so it
+            # references the renamed bnds aux, not the old name.
+            for source_dim, cmip_dim in mapping.items():
+                if source_dim == cmip_dim or cmip_dim not in ds.variables:
+                    continue
+                coord_attrs = ds[cmip_dim].attrs
+                old_bnds = f"{source_dim}_bnds"
+                new_bnds = f"{cmip_dim}_bnds"
+                if coord_attrs.get("bounds") == old_bnds and new_bnds in ds.variables:
+                    coord_attrs["bounds"] = new_bnds
             logger.info(f"Renamed {len(rename_dict)} dimensions")
         else:
             logger.info("No dimension renaming needed")
@@ -715,6 +732,116 @@ class DimensionMapper:
         return mapping
 
 
+# Data request dimension names that are *not* output names. Resolved after the
+# DReq dimension match so the file carries the real coordinate name.
+#
+# ``olevel``/``olevhalf`` have no entry in CMIP7_coordinate.json at all (the
+# concrete options are listed individually, e.g. ``depth_coord``), so they are
+# mapped by hand. ``alevel``/``alevhalf`` are deliberately absent: the
+# atmospheric options are parametric coordinates and the hybrid coordinate step
+# names that axis itself. Renaming them here would hand them the ocean
+# depth_coord metadata that coordinate_metadata.yaml attaches to "lev"
+# (standard_name depth, units m), i.e. 137 model levels labelled as ocean depth
+# in metres.
+_GENERIC_LEVEL_OUT_NAME = {
+    "olevel": "lev",
+    "olevhalf": "lev",
+}
+
+
+# The hand-maintained half of the dimension-type map. Kept as the base so the
+# candidate order (and with it the existing disambiguation behaviour) does not
+# change; names derived from the coordinate table are appended, never inserted.
+_STATIC_TYPE_TO_CMIP = {
+    "latitude": ["latitude", "lat", "gridlatitude"],
+    "longitude": ["longitude", "lon", "gridlongitude"],
+    "time": ["time", "time1", "time2", "time3"],
+    "pressure": ["plev", "plev3", "plev4", "plev7", "plev8", "plev19", "plev23", "plev27", "plev39"],
+    "depth": ["olevel", "olevhalf", "oline", "depth"],
+    "height": ["height", "height2m", "height10m", "height100m", "alt16", "alt40"],
+    "model_level": ["alevel", "alevhalf"],
+}
+
+# Z-axis standard_names, grouped into the dimension types this module uses.
+_Z_STANDARD_NAMES = {
+    "air_pressure": "pressure",
+    "depth": "depth",
+    "height": "height",
+    "altitude": "height",
+    "model_level_number": "model_level",
+}
+
+_TYPE_TO_CMIP_CACHE: Optional[Dict[str, List[str]]] = None
+
+
+def _type_to_cmip() -> Dict[str, List[str]]:
+    """Dimension type -> the data request names that denote it.
+
+    The static table above only listed the axes we had happened to meet, which
+    silently broke matching for the rest: a source ``sdepth`` never matched the
+    request's ``sdepth`` because "depth" only knew olevel/olevhalf/oline/depth,
+    and ``plev7h`` never matched because "pressure" only listed ``plev\\d+``.
+    An unmatched dimension is not renamed at all, so it reached the file under
+    its model name and no amount of out_name resolution downstream could help.
+    That is why cli114 shipped ``sdepth`` and ``pressure_levels_7h``.
+
+    CMIP7_coordinate.json already classifies every axis: ``axis`` gives X/Y/T/Z
+    and, within Z, ``standard_name`` separates pressure (22 entries), depth
+    (11), height/altitude (5) and the parametric coordinates. Derive from that
+    and append to the static lists, so new request tiers work without another
+    edit here.
+    """
+    global _TYPE_TO_CMIP_CACHE
+    if _TYPE_TO_CMIP_CACHE is not None:
+        return _TYPE_TO_CMIP_CACHE
+
+    derived = {key: list(names) for key, names in _STATIC_TYPE_TO_CMIP.items()}
+    axis_to_type = {"Y": "latitude", "X": "longitude", "T": "time"}
+    for name, entry in sorted(AXIS_ENTRIES.items()):
+        axis = entry.get("axis")
+        dim_type = axis_to_type.get(axis)
+        if dim_type is None and axis == "Z":
+            standard_name = str(entry.get("standard_name") or "")
+            dim_type = _Z_STANDARD_NAMES.get(standard_name)
+            if dim_type is None and standard_name.startswith(("atmosphere_", "ocean_sigma")):
+                dim_type = "model_level"
+        if dim_type and name not in derived[dim_type]:
+            derived[dim_type].append(name)
+    _TYPE_TO_CMIP_CACHE = derived
+    return derived
+
+
+def _out_name_for(dim: str) -> str:
+    """Resolve a data request dimension name to its CMOR ``out_name``.
+
+    The data request names a dimension by the *request tier* it belongs to;
+    what belongs on disk is the ``out_name`` from CMIP7_coordinate.json. 110 of
+    its entries differ from their key, and writing the key through produced a
+    long tail of findings that all had the same cause::
+
+        latitude   -> lat        41 files, plus most of the AICC006
+        longitude  -> lon        dimension-ordering findings
+        plev19     -> plev       the count is a tier marker, not a name
+        plev7h     -> plev
+        sdepth     -> depth
+        oplayer4   -> pdepth
+
+    This used to be two hardcoded special cases (a dict for ``olevel`` and a
+    regex for ``plev\\d+``), which fixed the two we had noticed and left the
+    rest. Resolving from the table covers all of them, including the ones we
+    have not hit yet.
+
+    Falls back to the name itself when the table has no entry, so unknown or
+    model-specific dimensions pass through untouched.
+    """
+    entry = AXIS_ENTRIES.get(dim)
+    if entry:
+        out_name = entry.get("out_name")
+        if out_name:
+            return str(out_name)
+    return _GENERIC_LEVEL_OUT_NAME.get(dim, dim)
+
+
 def map_dimensions(ds: Union[xr.Dataset, xr.DataArray], rule) -> Union[xr.Dataset, xr.DataArray]:
     """
     Pipeline function to map dimensions from source to CMIP requirements
@@ -799,6 +926,14 @@ def map_dimensions(ds: Union[xr.Dataset, xr.DataArray], rule) -> Union[xr.Datase
             elif validation_mode == "warn":
                 logger.warning(error_msg)
             # ignore mode: do nothing
+
+        # The data request names a dimension by the request tier it belongs to;
+        # what belongs on disk is the CMOR out_name. "olevel ist nur ein
+        # Platzhalter" (Schupfner, Teil 2) was the first instance we hit, and
+        # the same is true of latitude/longitude, every plevN, sdepth and
+        # oplayer4. Resolve all of them from CMIP7_coordinate.json rather than
+        # patching them one at a time; see _out_name_for.
+        mapping = {src: _out_name_for(dst) for src, dst in mapping.items()}
 
         # Apply mapping
         ds = mapper.apply_mapping(ds, mapping)

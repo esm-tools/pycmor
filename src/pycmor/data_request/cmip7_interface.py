@@ -19,7 +19,7 @@ Usage:
 >>> from pycmor.core.logging import logger
 >>> interface = CMIP7Interface()
 >>> logger.disable("pycmor")  # Disable logging, it interferes with doctests
->>> interface.load_metadata('v1.2.2.2')
+>>> interface.load_metadata('v1.2.2.5')
 >>> len(interface.metadata.get('Compound Name', {})) > 0
 True
 >>>
@@ -83,7 +83,7 @@ class CMIP7Interface:
     --------
     >>> logger.disable("pycmor")
     >>> interface = CMIP7Interface()
-    >>> interface.load_metadata('v1.2.2.2')
+    >>> interface.load_metadata('v1.2.2.5')
     >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
     >>> print(metadata['standard_name'])
     air_temperature
@@ -121,7 +121,7 @@ class CMIP7Interface:
 
     def load_metadata(
         self,
-        version: str = "v1.2.2.2",
+        version: str = "v1.2.2.5",
         metadata_file: Optional[Union[str, Path]] = None,
         force_reload: bool = False,
     ) -> None:
@@ -131,7 +131,7 @@ class CMIP7Interface:
         Parameters
         ----------
         version : str, optional
-            Version to load. Default is "v1.2.2.2".
+            Version to load. Default is "v1.2.2.5".
         metadata_file : str or Path, optional
             Path to a local metadata JSON file. If provided, loads from file
             instead of using the API.
@@ -519,14 +519,14 @@ class CMIP7Interface:
 
 
 # Convenience function
-def get_cmip7_interface(version: str = "v1.2.2.2", metadata_file: Optional[Union[str, Path]] = None) -> CMIP7Interface:
+def get_cmip7_interface(version: str = "v1.2.2.5", metadata_file: Optional[Union[str, Path]] = None) -> CMIP7Interface:
     """
     Get a CMIP7Interface instance with metadata loaded.
 
     Parameters
     ----------
     version : str, optional
-        Version to load. Default is "v1.2.2.2".
+        Version to load. Default is "v1.2.2.5".
     metadata_file : str or Path, optional
         Path to metadata file. If None, attempts to use API.
 

@@ -111,9 +111,10 @@ XARRAY_OPTIONS = {
         "dataarray": {
             "attrs": {
                 "missing_value": {
-                    "default": 1.0e30,
+                    "default": 1.0e20,
                     "doc": (
-                        "Default missing value to use for xarray DataArray " "attributes and encoding. Default is 1e30."
+                        "Default missing value to use for xarray DataArray attributes and encoding. "
+                        "CMIP/CMOR spec requires 1.0e20."
                     ),
                     "parser": float,
                 },
@@ -258,6 +259,19 @@ class PycmorConfig:
                 ],
             ),
         )
+        dask_n_workers = Option(
+            default=None,
+            doc="Number of Dask workers for LocalCluster. Defaults to CPU count if not set.",
+        )
+        dask_threads_per_worker = Option(
+            default=None,
+            doc="Threads per Dask worker for LocalCluster. Defaults to CPU count // n_workers if not set.",
+        )
+        dask_memory_limit = Option(
+            default=None,
+            doc="Per-worker memory limit (string like '12GB') for LocalCluster. "
+                "LocalCluster otherwise reads node-total RAM via psutil, which is unsafe under a cgroup cap.",
+        )
         dask_cluster_scaling_fixed_jobs = Option(
             default=5,
             doc="Number of jobs to create for Jobqueue-backed Dask Cluster",
@@ -360,8 +374,8 @@ class PycmorConfig:
             parser=_parse_bool,
         )
         xarray_default_missing_value = Option(
-            default=1.0e30,
-            doc="Which missing value to use for xarray. Default is 1e30.",
+            default=1.0e20,
+            doc="Which missing value to use for xarray. CMIP/CMOR spec requires 1.0e20.",
             parser=float,
         )
         xarray_open_mfdataset_engine = Option(
@@ -463,7 +477,7 @@ class PycmorConfig:
             parser=_parse_bool,
         )
         netcdf_compression_level = Option(
-            default=4,
+            default=1,
             doc="Compression level for NetCDF files (1-9). Higher values give better compression but slower I/O.",
             parser=int,
         )
@@ -551,9 +565,14 @@ class PycmorConfigManager(ConfigManager):
         list
             List of environment objects in priority order (first has highest priority).
         """
+        # Prefix dict keys with namespace so they match the namespaced lookup.
+        # The YAML 'pycmor:' section provides keys like 'dask_cluster', but the
+        # manager looks for 'pycmor_dask_cluster' due to the namespace.
+        raw = run_specific_cfg or {}
+        prefixed = {f"{cls._NAMESPACE}_{k}": v for k, v in raw.items()}
         return [
             ConfigOSEnv(),  # Highest: Environment variables
-            ConfigDictEnv(run_specific_cfg or {}),  # Run-specific configuration
+            ConfigDictEnv(prefixed),  # Run-specific configuration (namespace-prefixed)
             ConfigYamlEnv(cls._CONFIG_FILES),  # Lowest: User config file
         ]
 

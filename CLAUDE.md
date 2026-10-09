@@ -31,6 +31,13 @@ Key features:
 
 ## Development Commands
 
+### Environment Setup
+```bash
+# Load conda environment
+source ~/loadconda.sh
+conda activate pycmor_py312
+```
+
 ### Installation
 
 #### Using pip (traditional)

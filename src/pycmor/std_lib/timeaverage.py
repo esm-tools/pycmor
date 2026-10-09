@@ -174,6 +174,57 @@ def _frequency_from_approx_interval(interval: str):
 
 
 def timeavg(da: xr.DataArray, rule):
+    """Preserve the source time epoch across :func:`_timeavg_impl`.
+
+    ``xr.DataArray.resample`` builds a fresh time index and drops its
+    ``encoding``, so ``units``/``calendar`` would otherwise be gone as
+    soon as averaging happens. Capture them before the resample and
+    restore them afterwards, using ``setdefault`` so anything deliberately
+    set downstream still wins.
+
+    This is the first half of keeping one time epoch across the dataset.
+    The second half is in ``std_lib.time_bounds.time_bounds``, where
+    assigning the ``time_bnds`` coord would otherwise clear the encoding
+    again. Neither fix works alone: without this one there is nothing for
+    ``time_bounds`` to preserve, and without that one the value restored
+    here is wiped before it reaches disk.
+
+    Why it matters: with the epoch lost,
+    ``time_bounds._force_canonical_time_encoding`` takes its documented
+    "source has no units" fallback and derives a date-only epoch from the
+    first timestamp, which differs per file (monthly ``days since
+    1851-01-16``, daily ``days since 1851-01-01``, yearly ``days since
+    1851-07-02``). The inputs carry no such spread; OIFS and FESOM both
+    ship ``seconds since 1850-01-01``. A per-file epoch is not wrong on
+    its own, cftime decodes each file correctly, but it leaves the dataset
+    with no single time reference, which CMIP7 assumes when it defines
+    ``branch_time_in_child`` as being in "the time units and time model of
+    the child".
+    """
+    _src_enc = {}
+    try:
+        if "time" in getattr(da, "coords", {}):
+            for _k in ("units", "calendar"):
+                _v = da["time"].encoding.get(_k)
+                if _v:
+                    _src_enc[_k] = _v
+    except Exception as _exc:  # pragma: no cover - defensive
+        logger.debug(f"timeavg: could not read source time encoding: {_exc}")
+
+    out = _timeavg_impl(da, rule)
+
+    try:
+        if _src_enc and "time" in getattr(out, "coords", {}):
+            for _k, _v in _src_enc.items():
+                out["time"].encoding.setdefault(_k, _v)
+            logger.debug(f"timeavg: restored source time encoding {_src_enc}")
+    except Exception as _exc:  # pragma: no cover - defensive
+        logger.debug(f"timeavg: could not restore source time encoding: {_exc}")
+
+    return out
+
+
+def _timeavg_impl(da: xr.DataArray, rule):
     """
     Time averages data with respect to time-method (mean/climatology/instant.)
 
@@ -285,19 +336,128 @@ def timeavg(da: xr.DataArray, rule):
     >>> print(f"First timestamp: {result_adjusted.time.values[0]}")  # doctest: +ELLIPSIS
     First timestamp: 2023-01-1...
     """
+    # F5 instrumentation (DESIGN_PROPOSAL_recipe_failures_post_cli.md §3.5):
+    # the sbl_seaice 12-vs-7 CoordinateValidationError persists across runs.
+    # Standalone repro outside the pipeline gives 12 groups; the 7 enters
+    # somewhere in the step chain. Log the time-coord size at timeavg entry
+    # so we can localize whether shrinkage happens before or inside this
+    # function. Drop once F5 is closed.
+    try:
+        cmor_var = getattr(rule, "cmor_variable", "?")
+        if "time" in getattr(da, "coords", {}):
+            t = da["time"]
+            t_unique = t.to_index().is_unique
+            t_size = t.size
+            t_first = t.values[0] if t_size else None
+            t_last = t.values[-1] if t_size else None
+            logger.info(
+                f"timeavg [{cmor_var}] entry: da.time.size={t_size} "
+                f"is_unique={t_unique} first={t_first} last={t_last}"
+            )
+        else:
+            logger.info(f"timeavg [{cmor_var}] entry: no 'time' coord (frequency={getattr(rule.data_request_variable, 'frequency', '?')})")
+    except Exception as _exc:
+        logger.warning(f"timeavg instrumentation failed: {_exc}")
+
     drv = rule.data_request_variable
+    if drv.frequency == "fx" or getattr(drv, 'table_header', None) is None or getattr(drv.table_header, 'approx_interval', None) is None:
+        logger.info(f"Variable with frequency={drv.frequency!r} has no approx_interval — skipping time averaging")
+        rule.frequency_str = getattr(drv, 'frequency', 'fx') or "fx"
+        rule.time_method = "FIXED"
+        return da
     approx_interval = drv.table_header.approx_interval
     frequency_str = _frequency_from_approx_interval(approx_interval)
     logger.debug(f"{approx_interval=} {frequency_str=}")
     # attach the frequency_str to rule, it is referenced when creating file name
     rule.frequency_str = frequency_str
     time_method = _get_time_method(drv.frequency)
+    # CMIP6 marked instantaneous frequencies with a "Pt" suffix (3hrPt,
+    # 6hrPt, monPt, ...) so _get_time_method's regex worked. CMIP7
+    # dropped the suffix — frequency is just "3hr"/"6hr"/"mon" and the
+    # signal lives in cell_methods ("time: point" vs "time: mean").
+    # Without this override, every CMIP7 tpt-* sub-daily / monthly rule
+    # is treated as MEAN here, which (a) runs .mean() instead of .first()
+    # on the resample and (b) applies the +interval*0.5 midpoint shift
+    # to instants. Net effect: stamps move +3h for 6hr / +1.5h for 3hr
+    # / +0.5h for 1hr, with cell_methods on disk still saying "time:
+    # point" — wrong values AND mismatched metadata.
+    cm = (getattr(drv, "cell_methods", "") or "").lower()
+    if "time: point" in cm and time_method != "INSTANTANEOUS":
+        logger.info(
+            f"  cell_methods has 'time: point'; overriding time_method "
+            f"({time_method} -> INSTANTANEOUS) for CMIP7 tpt rule"
+        )
+        time_method = "INSTANTANEOUS"
+    # Same story for the daily-extremum brandings (tmax-/tmin-). The DReq
+    # asks for ``time: maximum`` / ``time: minimum``; without this the rule
+    # falls through to MEAN and emits a daily mean under a max/min label.
+    # Feed these from a sub-daily source: the extremum is only as good as
+    # the sampling, so an hourly input gives an hourly-resolution extremum.
+    # (IFS can do better via its mx2t/mn2t accumulators, which track every
+    # model timestep, but with output_step_freq=1h XIOS only ever sees
+    # hourly samples anyway, and for LR the model timestep *is* hourly so
+    # the two coincide.)
+    elif "time: maximum" in cm and time_method != "MAXIMUM":
+        logger.info(f"  cell_methods has 'time: maximum'; overriding time_method ({time_method} -> MAXIMUM)")
+        time_method = "MAXIMUM"
+    elif "time: minimum" in cm and time_method != "MINIMUM":
+        logger.info(f"  cell_methods has 'time: minimum'; overriding time_method ({time_method} -> MINIMUM)")
+        time_method = "MINIMUM"
     rule.time_method = time_method
+    # FESOM yearly files and concat'd hemispheric selects can yield a
+    # non-monotonic time index, which breaks xr.resample. Sort once if needed.
+    if "time" in getattr(da, "coords", {}):
+        try:
+            if not bool(da.indexes["time"].is_monotonic_increasing):
+                logger.warning(
+                    f"Time index for {getattr(rule, 'cmor_variable', '<unknown>')} "
+                    "is not monotonic; sorting before resample."
+                )
+                da = da.sortby("time")
+        except (KeyError, AttributeError):
+            pass
+    # Default flox engine is "numpy" (vectorised, zero JIT cold-start).
+    # The default flox path ("numbagg") JIT-compiles each aggregator via
+    # numba on first use — ~30 s per (aggregator, dtype, worker) triple.
+    # On HR runs with fresh Dask workers this dominated wall time. The
+    # numpy engine is within a small factor of numbagg once warm.
+    # Override per-rule or via config key ``flox_engine`` when needed.
+    _flox_engine = rule.get("flox_engine") if hasattr(rule, "get") else None
+    if not _flox_engine and hasattr(rule, "_pycmor_cfg"):
+        try:
+            _flox_engine = rule._pycmor_cfg("flox_engine")
+        except Exception:
+            _flox_engine = None
+    if not _flox_engine:
+        _flox_engine = "numpy"
+    _resample_kw = {"engine": _flox_engine}
     if time_method == "INSTANTANEOUS":
+        # xarray's DataArrayResample.first() does not accept the flox
+        # ``engine`` kwarg (no flox aggregator path for the "pick first
+        # element per group" reduction). Before the cmip7 cell_methods
+        # override added in 6c0a3c59, every CMIP7 tpt rule fell through
+        # to MEAN because CMIP6's Pt suffix was dropped; that masked the
+        # latent TypeError. Call .first() without the engine kwarg.
         ds = da.resample(time=frequency_str).first()
+    elif time_method in ("MAXIMUM", "MINIMUM"):
+        # Daily (or other interval) extremum. Like MEAN this describes an
+        # interval rather than an instant, so the stamp is placed at the
+        # interval midpoint below by falling through to the same offset
+        # handling.
+        _red = "max" if time_method == "MAXIMUM" else "min"
+        ds = getattr(da.resample(time=frequency_str), _red)(**_resample_kw)
+        offset = rule.get("adjust_timestamp", "mid")
+        offset_presets = {"first": 0, "start": 0, "last": 1, "end": 1, "mid": 0.5}
+        _off = offset_presets.get(offset, 0.5) if isinstance(offset, str) else float(offset)
+        if _off:
+            ds = ds.assign_coords(
+                time=ds.time + pd.to_timedelta(float(approx_interval) * _off, unit="D")
+            )
     elif time_method == "MEAN":
-        ds = da.resample(time=frequency_str).mean()
-        offset = rule.get("adjust_timestamp", None)
+        ds = da.resample(time=frequency_str).mean(**_resample_kw)
+        # CMIP spec: time coordinate of MEAN-averaged data sits at the midpoint
+        # of its averaging interval. Default to "mid" unless user overrides.
+        offset = rule.get("adjust_timestamp", "mid")
         offset_presets = {
             "first": 0,
             "start": 0,
@@ -330,17 +490,19 @@ def timeavg(da: xr.DataArray, rule):
                 timestamps = []
                 magnitude = re.search(r"(\d+(?:\.\d+)?)?", frequency_str).group(0) or 1
                 magnitude = float(magnitude)
+                # Subtract 1 day only at offset==1.0 (to stay inside the period);
+                # for midpoint (offset=0.5) the bare ndays*offset is correct.
+                correction = pd.to_timedelta("1d") if offset >= 1.0 else pd.to_timedelta(0)
                 if "MS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_month.values[0] * magnitude
-                        # NOTE: removing a day is requied to avoid overflow of the interval into next month
-                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - correction
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 elif "YS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
                         ndays = grp.time.dt.days_in_year.values[0] * magnitude
-                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - pd.to_timedelta("1d")
+                        new_offset = pd.to_timedelta(f"{ndays}d") * offset - correction
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)
                 else:

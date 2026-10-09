@@ -1,0 +1,197 @@
+# CMIP7 LRCS Land Variables — AWI-ESM3-VEG-HR
+# All 6 deferred core_land variables now implemented:
+# 3 from LPJ-GUESS monthly output (evspsblsoi, evspsblveg, mrfso)
+# 3 derived from IFS static fields (sftgif, mrsofc, rootd)
+
+general:
+  name: "awiesm3-cmip7-lrcs-land"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # LPJ-GUESS monthly loader (Jan..Dec format)
+  - name: lpjg_monthly_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Custom fx pipeline for IFS-derived static fields (sftgif, mrsofc, rootd)
+  - name: sftgif_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sftgif
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: mrsofc_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mrsofc
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: rootd_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_rootd
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/lpj_guess
+  # LPJ-GUESS reads plain-text .out files, so its rules have no netCDF
+  # input to recover cell bounds from and cli109 shipped 165 land files
+  # with none. Its 107132 points are exactly the land cells of the OIFS
+  # TCo319 grid (matched against this file the worst separation is 9e-7
+  # of a chord, and the mapping is 1:1), so the bounds come from there.
+  # Written under the old run root on purpose: --data-path repointing
+  # rewrites it along with every other path.
+  bounds_reference_file: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs/atmos_mon_land_orog_*.nc
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian (~25 km) — LPJ-GUESS on OIFS grid"
+  nominal_resolution: "25 km"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # Bare soil evaporation (monthly, from LPJ-GUESS; outputs kg m-2 s-1)
+  - name: evspsblsoi
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/evspsblsoi_monthly.out"
+    compound_name: land.evspsblsoi.tavg-u-hxy-lnd.mon.glb
+    model_variable: evspsblsoi
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # Canopy water evaporation (monthly, from LPJ-GUESS; outputs kg m-2 s-1)
+  - name: evspsblveg
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/evspsblveg_monthly.out"
+    compound_name: land.evspsblveg.tavg-u-hxy-lnd.mon.glb
+    model_variable: evspsblveg
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # Soil frozen water content (monthly, from LPJ-GUESS; outputs kg m-2)
+  - name: mrfso
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/mrfso_monthly.out"
+    compound_name: landIce.mrfso.tavg-u-hxy-lnd.mon.glb
+    model_variable: mrfso
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # ============================================================
+  # Derived from IFS static fields (fx)
+  # ============================================================
+
+  # Glacier fraction from vegetation type fields
+  - name: sftgif
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh)_.*\.nc
+    compound_name: land.sftgif.ti-u-hxy-u.fx.glb
+    model_variable: sftgif
+    pipelines:
+      - sftgif_pipeline
+
+  # Field capacity from soil type lookup
+  - name: mrsofc
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_slt_.*\.nc
+    compound_name: land.mrsofc.ti-u-hxy-lnd.fx.glb
+    model_variable: mrsofc
+    pipelines:
+      - mrsofc_pipeline
+
+  # Maximum root depth from vegetation type weighted average
+  - name: rootd
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh)_.*\.nc
+    compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
+    model_variable: rootd
+    pipelines:
+      - rootd_pipeline

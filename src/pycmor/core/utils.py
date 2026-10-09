@@ -233,6 +233,7 @@ def get_callable_by_script(step_signature):
     script_spec = step_signature.split("script://")[1]
     script_path = script_spec.split(":")[0]
     function_name = script_spec.split(":")[1]
+    script_path = os.path.expanduser(os.path.expandvars(script_path))
     return get_function_from_script(script_path, function_name)
 
 
