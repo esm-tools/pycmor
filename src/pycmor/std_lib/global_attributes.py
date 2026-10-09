@@ -246,25 +246,29 @@ class CMIP7GlobalAttributes(GlobalAttributes):
     def get_variant_label(self):
         return self.rule_dict["variant_label"]
 
+    # CMIP7 writes the four indices with their letter ("r1", "i1", "p1", "f1"),
+    # unlike CMIP6's bare integers: the CMIP7 CVs define them as ^r[0-9]+$ and
+    # so on (cmip7-cmor-tables cmor-cvs.json, esgvoc cmip7). A bare "1" fails
+    # wcrp ATTR004 on every file.
     def get_physics_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return str(components["physics_index"])
+        return f"p{components['physics_index']}"
 
     def get_forcing_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return str(components["forcing_index"])
+        return f"f{components['forcing_index']}"
 
     def get_initialization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return str(components["initialization_index"])
+        return f"i{components['initialization_index']}"
 
     def get_realization_index(self):
         variant_label = self.get_variant_label()
         components = self._variant_label_components(variant_label)
-        return str(components["realization_index"])
+        return f"r{components['realization_index']}"
 
     # ========================================================================
     # Source and institution attributes
