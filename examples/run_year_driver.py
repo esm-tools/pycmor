@@ -203,6 +203,18 @@ def submit(run_root, year, workdir, tier=None, dry_run=False):
     sys.stdout.write(res.stdout)
     sys.stderr.write(res.stderr)
     if res.returncode != 0:
+        # The script may have queued some tiers before it failed. Nothing would
+        # wait for or assess them, and a restart would run them a second time
+        # into the same files, so take them back out of the queue.
+        jids = re.findall(r"jid=(\d+)", res.stdout)
+        if jids:
+            subprocess.run(["scancel", *jids])
+            log(f"cancelled {len(jids)} job(s) queued before the failure: {', '.join(jids)}")
+        tail = "\n".join((res.stdout + res.stderr).strip().splitlines()[-15:])
+        (Path(workdir) / f"{year}.FAILED").write_text(
+            f"Submitting year {year} failed (rc={res.returncode}); nothing was cmorized.\n"
+            f"Jobs cancelled: {', '.join(jids) or 'none'}\n\nLast lines of the submit output:\n{tail}\n"
+        )
         raise SystemExit(f"submit failed with rc={res.returncode}")
     return re.findall(r"jid=(\d+)", res.stdout)
 

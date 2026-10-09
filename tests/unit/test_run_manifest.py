@@ -339,6 +339,33 @@ def test_resubmitting_a_tier_also_clears_its_gr_variant(driver, tmp_path):
     assert [p.stem for p in (wd / "cmorized" / "_manifests").glob("*.json")] == ["core_land_shard_00"]
 
 
+def test_a_failed_submission_cancels_what_it_queued(driver, tmp_path, monkeypatch):
+    """test-1pctCO2 y1850 with WITH_GR=yes: the submit script queued 22 tiers,
+    then died on the empty veg_seaice_gr. The driver exited and left the 22
+    arrays running with nothing to assess them, and wrote no .FAILED."""
+    wd = _workdir(tmp_path, ["core_atm_shard_00"], {})
+    fake = tmp_path / "fake_submit.sh"
+    fake.write_text("#!/bin/bash\necho '  submitted a jid=101'\necho '  submitted b jid=102'\nexit 2\n")
+    fake.chmod(0o755)
+    monkeypatch.setattr(driver, "SUBMIT", fake)
+    cancelled = []
+    real_run = driver.subprocess.run
+
+    def run(cmd, *a, **k):
+        if cmd[0] == "scancel":
+            cancelled.extend(cmd[1:])
+            return SimpleNamespace(returncode=0)
+        return real_run(cmd, *a, **k)
+
+    monkeypatch.setattr(driver.subprocess, "run", run)
+
+    with pytest.raises(SystemExit, match="rc=2"):
+        driver.submit("/run", "1850", wd)
+    assert cancelled == ["101", "102"]
+    failed = (wd / "1850.FAILED").read_text()
+    assert "Jobs cancelled: 101, 102" in failed and "jid=102" in failed
+
+
 def test_a_manifest_from_other_code_does_not_count(driver, tmp_path, monkeypatch):
     """A year restarted after a repin must not be accepted on the strength of
     what the previous code wrote."""

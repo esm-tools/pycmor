@@ -236,7 +236,10 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
       shard --shard-size "$tier_shard_size" \
       --seed "$SHUFFLE_SEED" \
       --out-dir "$shards_dir" >/dev/null
-  num_shards=$(ls -1 "$shards_dir"/*.yaml | wc -l)
+  # find, not ls: with no shard yamls (veg_seaice_gr, whose only rule needs the
+  # FESOM mesh) ls fails, and under pipefail that aborted the whole submission
+  # after the tiers before it were already queued.
+  num_shards=$(find "$shards_dir" -maxdepth 1 -name '*.yaml' | wc -l)
   if [ "$num_shards" -lt 1 ]; then
     echo "WARN: $short_tier produced no shards; skipping."
     continue
