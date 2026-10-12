@@ -323,6 +323,21 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
     cap7_land|core_land|extra_land) tier_walltime=06:00:00 ;;
   esac
 
+  # Per-tier inactivity watchdog (run_hr_shard.sh, default 5400s). A save
+  # computes in memory before it writes its first byte, and the log only
+  # repeats "no I/O progress yet" meanwhile, which the watchdog does not count
+  # as progress. extra_atm's cl and pfull spend 7533-7866s that way (test-
+  # 1pctCO2 y1850, 2 and 5 Oct), so 5400s cancelled a healthy shard on 9 Oct.
+  # cap7_atm's pfull needs 4160s, too close to 5400s. Every other tier stays
+  # under 1000s. An explicit WEDGE_TIMEOUT_SEC (0 disables) wins for all tiers.
+  tier_wedge_timeout="${WEDGE_TIMEOUT_SEC:-5400}"
+  if [ -z "${WEDGE_TIMEOUT_SEC:-}" ]; then
+    case "$short_tier" in
+      extra_atm) tier_wedge_timeout=10800 ;;
+      cap7_atm)  tier_wedge_timeout=7200 ;;
+    esac
+  fi
+
   # Per-tier dask worker count. All tiers use the global N_WORKERS (4).
   # The earlier extra_atm=3 override was a fix for the Fix #3 eager-
   # gather driver-pileup OOM, but cli35 flipped extra_atm to fix3=off,
@@ -443,12 +458,12 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
         -J "$jobname" \
         --time="$tier_walltime" \
         $MEM_FLAG \
-        --export=ALL,CGROUP_GB=$tier_cgroup,SHARD_FIX3=$FIX3,N_WORKERS=$tier_workers,MEM_PER_WORKER=$tier_mem_per_worker,SHARD_JEMALLOC=$tier_jemalloc,SHARD_DRS=$SHARD_DRS,PYCMOR_THROTTLE_CAPS=$tier_throttle_caps \
+        --export=ALL,CGROUP_GB=$tier_cgroup,SHARD_FIX3=$FIX3,N_WORKERS=$tier_workers,MEM_PER_WORKER=$tier_mem_per_worker,SHARD_JEMALLOC=$tier_jemalloc,SHARD_DRS=$SHARD_DRS,PYCMOR_THROTTLE_CAPS=$tier_throttle_caps,WEDGE_TIMEOUT_SEC=$tier_wedge_timeout \
         "$HERE/run_hr_shard.sh" \
         "$shards_dir" "$RUN_ABS" "$YEAR" "$tier_outsub" 2>&1) \
     || { echo "sbatch failed for $short_tier"; continue; }
   submitted+=("$jid:$short_tier[$num_shards shards, $MEM_FLAG, fix3=$FIX3, t=$tier_walltime, n_w=$tier_workers, jem=$tier_jemalloc, drs=$SHARD_DRS]")
-  echo "  submitted $jobname  jid=$jid  shards=$num_shards  $MEM_FLAG  fix3=$FIX3  t=$tier_walltime  n_w=$tier_workers  jem=$tier_jemalloc  drs=$SHARD_DRS"
+  echo "  submitted $jobname  jid=$jid  shards=$num_shards  $MEM_FLAG  fix3=$FIX3  t=$tier_walltime  n_w=$tier_workers  jem=$tier_jemalloc  drs=$SHARD_DRS  wedge=${tier_wedge_timeout}s"
 done
 
 echo
