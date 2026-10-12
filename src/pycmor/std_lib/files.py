@@ -1483,6 +1483,89 @@ def _match_cells(ds, src, tol=1e-3):
     return take
 
 
+def _expand_global_subset_to_reference_grid(ds, rule):
+    """Put a ``glb`` file that holds only some cells of its grid onto all of them.
+
+    LPJ-GUESS writes its 107132 land points, which are cells of the OIFS
+    TCo319 grid, and those files went out as ``(time, ncells=107132)`` under
+    ``grid_label`` g122. But g122 is registered with 421120 cells, and a
+    ``grid_label`` has to describe the grid in the file: the DKRZ QC compares
+    the two (review round 7, 165 files). The CMIP way to report a land field
+    is on the atmosphere grid with missing values elsewhere, which also lines
+    the files up with ``areacella`` and ``sftlf``.
+
+    Applies when the rule names a ``bounds_reference_file`` (the full grid),
+    the DRS region is ``glb``, and the live cells match reference cells one to
+    one. A region file (``30S-90S``) is a subset on purpose and is left alone.
+    Set ``keep_subset_grid: true`` on a rule to opt out.
+    """
+    import glob as _glob
+
+    import numpy as np
+
+    if rule is None or not isinstance(ds, xr.Dataset):
+        return ds
+    ref = getattr(rule, "bounds_reference_file", None)
+    if not ref or getattr(rule, "keep_subset_grid", False):
+        return ds
+    if str(getattr(rule, "compound_name", "") or "").rsplit(".", 1)[-1] != "glb":
+        return ds
+    pair = next(((a, b) for a, b in (("lat", "lon"), ("latitude", "longitude")) if a in ds and b in ds), None)
+    if pair is None:
+        return ds
+    lat_name, lon_name = pair
+    if ds[lat_name].ndim != 1 or ds[lon_name].dims != ds[lat_name].dims:
+        return ds
+    cell_dim = ds[lat_name].dims[0]
+    files = sorted(_glob.glob(str(ref)))[:1]
+    if not files:
+        logger.warning(f"  -> bounds_reference_file {ref} matches nothing; cannot check the grid is complete")
+        return ds
+    with xr.open_dataset(files[0], decode_times=False) as src:
+        src_pair = next(((a, b) for a, b in (("lat", "lon"), ("latitude", "longitude")) if a in src and b in src), None)
+        if src_pair is None:
+            return ds
+        n_full = int(src[src_pair[0]].size)
+        n_live = int(ds.sizes[cell_dim])
+        if n_live >= n_full:
+            return ds
+        take = _match_cells(ds, src)
+        if take is None or np.unique(take).size != take.size:
+            logger.warning(
+                f"  -> {n_live} cells are not a clean subset of the {n_full}-cell reference grid; "
+                "leaving the file on its subset. Its grid_label will not match the registered grid."
+            )
+            return ds
+        full_lat = np.asarray(src[src_pair[0]].values, dtype=np.float64).ravel()
+        full_lon = np.asarray(src[src_pair[1]].values, dtype=np.float64).ravel()
+    attrs = {lat_name: dict(ds[lat_name].attrs), lon_name: dict(ds[lon_name].attrs)}
+    # Bounds on the subset would be reindexed to NaN; drop them so the
+    # recovery below attaches the reference grid's polygons for every cell.
+    stale = [
+        v for v in ds.variables if cell_dim in ds[v].dims and v not in (lat_name, lon_name) and _is_bounds_var_name(v)
+    ]
+    if stale:
+        for name in (lat_name, lon_name):
+            attrs[name].pop("bounds", None)
+    full = ds.drop_vars(stale).assign_coords({cell_dim: take}).reindex({cell_dim: np.arange(n_full)})
+    full = full.drop_vars(cell_dim)
+    full = full.assign_coords(
+        {
+            lat_name: xr.DataArray(full_lat, dims=(cell_dim,), attrs=attrs[lat_name]),
+            lon_name: xr.DataArray(full_lon, dims=(cell_dim,), attrs=attrs[lon_name]),
+        }
+    )
+    for name in (lat_name, lon_name):
+        full[name].encoding.update({k: v for k, v in ds[name].encoding.items() if k != "_FillValue"})
+        full[name].encoding["_FillValue"] = None
+    for name in ds.variables:
+        if name in full.variables and name not in (lat_name, lon_name):
+            full[name].encoding.update(ds[name].encoding)
+    full.attrs = dict(ds.attrs)
+    logger.info(f"  -> expanded {n_live} cells onto the {n_full}-cell reference grid (missing elsewhere)")
+    return full
+
+
 def _recover_bounds_from_inputs(ds, rule, coord_name, declared_bounds_name):
     """Pull a bounds variable from the first ``rule.inputs`` file when the
     live dataset has lost it (XIOS bounds carry an extra nvertex dim and
@@ -1575,6 +1658,7 @@ def _ensure_lat_lon_bounds_impl(ds, rule=None):
 
     if not isinstance(ds, xr.Dataset):
         return ds
+    ds = _expand_global_subset_to_reference_grid(ds, rule)
     # Adopt XIOS-style `bounds_lat` / `bounds_lon` bounds if present (rename to
     # the CF-standard `<coord>_bnds` form and update the `bounds` attr). If the
     # referenced bounds variable was dropped during variable selection (XIOS
