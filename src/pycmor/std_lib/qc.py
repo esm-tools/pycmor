@@ -252,15 +252,26 @@ def _strip_leading_underscore_attrs(files: list[Path]) -> None:
     preserves those attrs through its rewrite. Strip them here so the cf
     §2.3 finding clears without changing the lossy-compression behaviour.
     Operates in place via netCDF4 (re-opens each file ``r+``).
+
+    Holds the lock xarray takes around every netCDF4 call. The netCDF-C
+    library is not thread-safe, and in a parallel shard this runs in one
+    rule's thread while other rules save or strip: test-1pctCO2 y1850
+    cap7_land_shard_03 aborted in netCDF-C (``nc4_nc4f_list_add: Assertion``)
+    with four rules in this QC step at once.
     """
     try:
         import netCDF4  # noqa: F401  (lazy import — qc.py shouldn't pull netCDF4 unless used)
     except ImportError:
         logger.warning("qc: netCDF4 not available; skipping leading-_ attr strip")
         return
+    from xarray.backends.locks import HDF5_LOCK, NETCDFC_LOCK, combine_locks
+
+    # Same locks, same order as xarray's NETCDF4_PYTHON_LOCK, so the two
+    # cannot deadlock against each other.
+    lock = combine_locks([NETCDFC_LOCK, HDF5_LOCK])
     for fp in files:
         try:
-            with netCDF4.Dataset(str(fp), "r+") as ds:
+            with lock, netCDF4.Dataset(str(fp), "r+") as ds:
                 stripped = []
                 for vname, var in ds.variables.items():
                     if vname in ds.dimensions:
