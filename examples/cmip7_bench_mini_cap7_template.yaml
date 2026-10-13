@@ -1,0 +1,95 @@
+# Mini-cap7: 7 heaviest rules from cap7_atm to characterise contention.
+#   5x 6hr_pl7h:  ua, va, ta, hus, zg  (1460 ts × 7 plev × 421120 cell)
+#   2x 1hr:       uas, ts              (8760 ts × 421120 cell)
+# Used by the OPTIMIZATION_PLAN.md "mini-cap7 sweep" to find the
+# (W, Mem) Pareto knee at fixed TPW=4.
+#
+# Template — runscript will substitute {{DATA_PATH}}, {{N_WORKERS}},
+# {{MEM_LIMIT}}, {{OUTPUT_DIR}} via sed before pycmor process.
+
+general:
+  name: "mini-cap7-{{TAG}}"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: True
+  pipeline_orchestrator: dask
+  dask_cluster: "local"
+  dask_n_workers: {{N_WORKERS}}
+  dask_threads_per_worker: 4
+  dask_memory_limit: {{MEM_LIMIT}}
+
+# Use the global env var instead, set in the runscript:
+# export PYCMOR_PREFECT_COLLAPSE=1
+
+inherit:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: synchronous
+  data_path: &dp {{DATA_PATH}}
+  source_id: AWI-ESM-3
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: {{OUTPUT_DIR}}
+
+rules:
+  - name: ua_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ua_.*\.nc
+    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ua
+    lazy_write: true
+  - name: va_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_va_.*\.nc
+    compound_name: atmos.va.tpt-p7h-hxy-air.6hr.glb
+    model_variable: va
+    lazy_write: true
+  - name: ta_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ta_.*\.nc
+    compound_name: atmos.ta.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ta
+    lazy_write: true
+  - name: hus_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_hus_.*\.nc
+    compound_name: atmos.hus.tpt-p7h-hxy-air.6hr.glb
+    model_variable: hus
+    lazy_write: true
+  - name: zg_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_zg_.*\.nc
+    compound_name: atmos.zg.tpt-p7h-hxy-air.6hr.glb
+    model_variable: zg
+    lazy_write: true
+  - name: uas_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_10u_.*\.nc
+    compound_name: atmos.uas.tpt-h10m-hxy-u.1hr.glb
+    model_variable: 10u
+    lazy_write: true
+  - name: ts_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_ts_ts_.*\.nc
+    compound_name: atmos.ts.tavg-u-hxy-u.1hr.glb
+    model_variable: ts
+    lazy_write: true

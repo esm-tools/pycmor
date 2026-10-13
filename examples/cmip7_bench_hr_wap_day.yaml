@@ -1,0 +1,86 @@
+# HR write-path benchmark: wap_day — representative 3D daily plev rule.
+# In job 24405290 wap_day took 403 s (next-slowest after tasmax_mon's
+# numba-compile outlier, which is now fixed by the numpy default engine).
+#
+# Input:  atm_remapped_1d_pl_cmip7_w_1d_pl_cmip7_1586-1586.nc  (~9.1 GB)
+#         shape: (time=365, plev=19, lat=720, lon=1440) float32
+# Output: same shape, regriddded metadata → expected ≈ 7–8 GB compressed
+#
+# Uses lazy_write: true (production default for heavy 3D rules) so
+# trigger_compute is a no-op and all the work lands in save_dataset.
+
+general:
+  name: "hr-wap-day-bench"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Test_16n/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/bench_hr_wap_day
+
+pipelines:
+  # DefaultPipeline steps (module paths copied verbatim from
+  # pycmor.core.pipeline.DefaultPipeline.STEPS) with a rechunk_time step
+  # inserted just before save_dataset, so the dask chunks match the
+  # larger netCDF chunks we want on disk.
+  - name: bench_rechunk_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rechunk_time
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: wap_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_w_1587-1587\.nc
+    compound_name: atmos.wap.tavg-p19-hxy-u.day.glb
+    model_variable: w
+    lazy_write: true
+    # With the system (module-loaded) libnetcdf+HDF5 stack the zstd codec
+    # is available and ~3-5x faster than zlib-1 at a similar ratio.
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    # The system HDF5 1.14.2 build is thread-safe (verified with
+    # H5is_library_threadsafe). Use the dask "threads" scheduler so
+    # multiple chunks compress+write concurrently rather than in a
+    # single-core stream.
+    netcdf_write_scheduler: threads
+    # Rechunk before save so HDF5 stores 30-day chunks instead of 1-day
+    # chunks -> ~12x fewer chunk-writes + metadata ops on save.
+    time_chunk_size: 30
+    # Lossy BitGroom quantization to 5 sig digits is now the pycmor
+    # default; set `netcdf_quantize_mode: null` on any rule that must
+    # stay bit-exact. Leaving the defaults is what we're benching here.
+    pipelines:
+      - bench_rechunk_pipeline

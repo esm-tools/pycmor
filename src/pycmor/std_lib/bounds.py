@@ -78,14 +78,17 @@ def calculate_bounds_1d(coord: xr.DataArray) -> xr.DataArray:
         # Extrapolate for last point using spacing from previous midpoint
         bounds[-1, 1] = values[-1] + (values[-1] - midpoints[-1])
 
-    # Create DataArray with appropriate dimensions
+    # Create DataArray with appropriate dimensions.
+    # CF §7.1: bounds variables MUST NOT carry boundary-related attrs of
+    # their own (long_name, units, standard_name, axis, positive, ...).
+    # They inherit those from the parent coord at read time. Setting a
+    # long_name here trips wcrp/cf §7.1 with a "non matching boundary
+    # related attributes: ['long_name']" finding.
     dim_name = coord.dims[0]
     bounds_da = xr.DataArray(
         bounds,
         dims=[dim_name, "bnds"],
-        attrs={
-            "long_name": f"{coord.attrs.get('long_name', coord.name)} bounds",
-        },
+        attrs={},
     )
 
     return bounds_da
@@ -323,6 +326,9 @@ def add_vertical_bounds(
             "height",
             "alt",
             "altitude",
+            # Potential-density vertical coord for msftm-rho-style
+            # (meridional overturning streamfunction in density space).
+            "rho",
         ]
 
     ds_out = ds.copy()

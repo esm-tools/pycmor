@@ -108,6 +108,27 @@ doc = [
     "watchdog[watchmedo]>=4.0.1",
 ]
 
+# Optional CMIP7 QC toolchain. Enable with: pip install -e ".[qc]"
+# Pulls the IOOS compliance-checker engine, the WCRP CMIP plugin
+# (registers `wcrp_cmip6` / `wcrp_cmip6plus` / `wcrp_cmip7` suites and
+# the `esgvoc` controlled-vocabulary cache), and the cmip7_repack tool
+# used by the `qc_repack: true` pre-step in pycmor.std_lib.qc.
+#
+# IMPORTANT: esgvoc >= 4 switched from local-clone to pre-built sqlite
+# databases. After install you MUST initialise the local CV cache, or
+# the wcrp_cmip7 FILE001 check will crash with
+# `EsgvocDbError: Universe database is not installed or active`:
+#
+#     esgvoc use universe@latest
+#     esgvoc use cmip7@latest
+#
+qc = [
+    "compliance-checker>=6.1",
+    "cc-plugin-wcrp>=2.3",
+    "esgvoc>=4.1",
+    "cmip7_repack>=1.1",
+]
+
 fesom = [
     # NOTE(PG): pyfesom2 is now auto-publishing (GH pyfesom2 #215)
     #           See the relevant information in shell::
@@ -116,6 +137,8 @@ fesom = [
     "pyfesom2",
     # FESOM test datasets (external package)
     "pycmor-test-data-fesom @ git+https://github.com/fesom/pycmor_test_data.git@v0.2.0",
+    # tripyview — used for MHT / MOC diagnostics via calc_mhflx_box_fast, calc_xmoc
+    "tripyview @ git+https://github.com/FESOM/tripyview.git",
 ]
 
 cmip7 = [
@@ -164,7 +187,11 @@ exclude = ["tests*"]
 [tool.setuptools.package-data]
 pycmor = [
     "data/*.yaml",
-    "data/cmip7/all_var_info.json",
+    # Glob rather than naming all_var_info.json alone: CMIP7_coordinate.json
+    # was already being read at runtime without ever being packaged, so it
+    # only resolved in an editable install. CMIP7_grids.json and
+    # CMIP7_formula_terms.json join it for the coordinate work.
+    "data/cmip7/*.json",
     "tutorial/datasets/*.yaml",
 ]
 

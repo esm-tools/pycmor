@@ -1,0 +1,67 @@
+# Bench v8: chunked load (chunks={time_counter: 30}) instead of post-load rechunk.
+# Replaces pycmor.core.gather_inputs.load_mfdataset with the custom
+# bench_rechunk.py:load_mfdataset_chunked which calls open_mfdataset with
+# explicit chunks. This avoids the rechunk shuffle in v2 / v2b.
+# Hypothesis: similar peak to v2b, possibly faster wall.
+
+general:
+  name: "hr-ua-6hr-bench-v8"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_threads_per_worker: 1
+  dask_memory_limit: 200GB
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/bench_hr_ua_6hr_v8
+
+pipelines:
+  - name: bench_ua_6hr_pipeline_v8
+    steps:
+      - script://$PYCMOR_HOME/examples/bench_rechunk.py:load_mfdataset_chunked
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: ua_6hr_pl7h
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl7h_ua_1587-1587\.nc
+    compound_name: atmos.ua.tpt-p7h-hxy-air.6hr.glb
+    model_variable: ua
+    lazy_write: true
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    netcdf_write_scheduler: threads
+    load_chunks:
+      time_counter: 30
+    pipelines:
+      - bench_ua_6hr_pipeline_v8

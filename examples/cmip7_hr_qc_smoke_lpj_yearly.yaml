@@ -1,0 +1,83 @@
+# Minimal HR LPJ-GUESS yearly QC smoke test.
+# Targets the E1 / E2 fixes from cli69: 8-digit YYYYMMDD-YYYYMMDD
+# filename token for yearly frequency + (year_start, next_year_start)
+# bnds + midpoint realignment.
+# Expectation: cf 0/0, wcrp_cmip7 0/0 after commit a4900a3c.
+
+general:
+  name: "cmip7-hr-qc-smoke-lpj-yearly"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ab0246
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  - name: lpjg_yearly_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_yearly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  lpjg_data_path: &ldp /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-piControl/outdata/lpj_guess
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian (~25 km), LPJ-GUESS on OIFS grid"
+  nominal_resolution: "25 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  output_directory: ./cmorized_output_smoke_lpj_yearly
+  year_start: 1850
+  year_end: 1850
+  file_timespan: "1YS"
+  qc_enabled: true
+  qc_repack: true
+  qc_tests:
+    - cf
+    - wcrp_cmip7
+  qc_criteria: normal
+  qc_fail_on_mandatory: false
+
+rules:
+  - name: baresoilFrac_yr_smoke
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/baresoilFrac_yearly.out"
+    compound_name: land.baresoilFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    pipelines:
+      - lpjg_yearly_pipeline

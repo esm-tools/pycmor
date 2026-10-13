@@ -1,0 +1,114 @@
+# Focused development yaml for three ocean streamfunction custom steps:
+#   compute_msftm_density, compute_msftmmpa_depth, compute_msftmmpa_density.
+#
+# Targets CORE2 mesh + LR_run_test outdata (year 1900, monthly).
+# LR_run_test has the full FESOM dMOC + GM bolus output family
+# (std_dens_DIV, std_dens_DIVbolus, std_dens_{Z,H,dVdT}, density_dMOC,
+# bolus_w) so all three rules execute end-to-end.
+#
+# Requires PYCMOR_HOME, e.g.:
+#   export PYCMOR_HOME=/work/ab0246/a270092/software/pycmor
+
+general:
+  name: "dev-msftm-lr-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+
+pipelines:
+  - name: msftm_density_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftm_density
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: msftmmpa_depth_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftmmpa_depth
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: msftmmpa_density_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_msftmmpa_density
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/fesom
+  source_id: AWI-ESM-3
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  mesh_path: &mp /work/ab0246/a270092/input/fesom2/core2
+  grid_file: /work/ab0246/a270092/input/fesom2/core2/mesh.nc
+  basin_mask_file: /work/ab0246/a270092/input/fesom2/core2/basin_mask.nc
+  time_dimname: time
+  grid: "FESOM 2.7 unstructured grid CORE2 (126858 surface nodes)"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  output_directory: ./cmorized_output/dev_msftm_lr_test
+
+rules:
+  # MOC density-space, total advective: resolved + bolus (bolus skipped if absent).
+  - name: msftm_density
+    inputs:
+      - path: *dp
+        pattern: std_dens_DIV\.fesom\..*\.nc
+    compound_name: ocean.msftm.tavg-rho-hyb-sea.mon.glb
+    model_variable: msftm
+    pipelines:
+      - msftm_density_pipeline
+
+  # MOC due to parameterised eddy advection, depth-space: needs bolus_w.
+  # Auto-skipped on Test_16n (Fer_GM=.false. → no bolus_w files).
+  - name: msftmmpa_depth
+    inputs:
+      - path: *dp
+        pattern: bolus_w\.fesom\..*\.nc
+    compound_name: ocean.msftmmpa.tavg-ol-hyb-sea.mon.glb
+    model_variable: msftmmpa
+    pipelines:
+      - msftmmpa_depth_pipeline
+
+  # MOC due to parameterised eddy advection, density-space: needs std_dens_DIVbolus.
+  # Auto-skipped on Test_16n (Fer_GM=.false. → no std_dens_DIVbolus files).
+  - name: msftmmpa_density
+    inputs:
+      - path: *dp
+        pattern: std_dens_DIVbolus\.fesom\..*\.nc
+    compound_name: ocean.msftmmpa.tavg-rho-hyb-sea.mon.glb
+    model_variable: msftmmpa
+    pipelines:
+      - msftmmpa_density_pipeline
