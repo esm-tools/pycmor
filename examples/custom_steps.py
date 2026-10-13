@@ -6998,7 +6998,11 @@ def add_hybrid_sigma_coordinate(data, rule):
     ps = _load_secondary_mf(rule, "ps_path", "ps_pattern", "ps_variable")
     ps = _average_onto_time_axis(ps, ds)
     ps = ps.rename("ps")
-    ps.attrs = {"standard_name": "air_pressure", "long_name": "Surface Air Pressure", "units": "Pa"}
+    # surface_air_pressure is the CMIP7 value: CMIP7_formula_terms.json since
+    # 2026-09-15 (cmip7-cmor-tables#153), confirmed in WCRP-universe#413. The CV
+    # still carries the old "air_pressure" and wcrp COORD003 flags this until it
+    # follows; aicc AICC003 flagged the old value on all nine model-level files.
+    ps.attrs = {"standard_name": "surface_air_pressure", "long_name": "Surface Air Pressure", "units": "Pa"}
     ds["ps"] = ps
 
     # CMIP7_coordinate.json gives alternate_hybrid_sigma stored_direction

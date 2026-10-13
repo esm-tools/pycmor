@@ -1,7 +1,7 @@
 {
     "Header": {
         "Conventions": "CF-1.12",
-        "checksum": "md5: a01390ee659aca51fb0a6a6881acbdd9",
+        "checksum": "md5: ef9785c15384bf28fdaacd3c30a745f4",
         "cmor_version": "3.15",
         "generic_levels": "",
         "int_missing_value": "-999",
@@ -11,7 +11,7 @@
         "positive": "",
         "product": "model-output",
         "realm": "",
-        "table_date": "2026-07-21 13:16:24",
+        "table_date": "2026-09-15 12:08:04",
         "table_id": "forumula_terms",
         "type": "real",
         "valid_max": "",
@@ -126,7 +126,7 @@
             "dimensions": "longitude latitude",
             "long_name": "Surface Altitude",
             "out_name": "orog",
-            "standard_name": "",
+            "standard_name": "surface_altitude",
             "type": "real",
             "units": "m"
         },
@@ -134,7 +134,7 @@
             "dimensions": "latitude",
             "long_name": "Surface Altitude",
             "out_name": "orog",
-            "standard_name": "",
+            "standard_name": "surface_altitude",
             "type": "real",
             "units": "m"
         },
@@ -150,7 +150,7 @@
             "dimensions": "longitude latitude time",
             "long_name": "Surface Air Pressure",
             "out_name": "ps",
-            "standard_name": "air_pressure",
+            "standard_name": "surface_air_pressure",
             "type": "real",
             "units": "Pa"
         },
@@ -158,7 +158,7 @@
             "dimensions": "longitude latitude time1",
             "long_name": "Surface Air Pressure",
             "out_name": "ps",
-            "standard_name": "air_pressure",
+            "standard_name": "surface_air_pressure",
             "type": "real",
             "units": "Pa"
         },
@@ -166,7 +166,7 @@
             "dimensions": "longitude latitude time2",
             "long_name": "Surface Air Pressure",
             "out_name": "ps",
-            "standard_name": "air_pressure",
+            "standard_name": "surface_air_pressure",
             "type": "real",
             "units": "Pa"
         },
@@ -174,7 +174,7 @@
             "dimensions": "latitude time1",
             "long_name": "Surface Air Pressure",
             "out_name": "ps",
-            "standard_name": "air_pressure",
+            "standard_name": "surface_air_pressure",
             "type": "real",
             "units": "Pa"
         },
