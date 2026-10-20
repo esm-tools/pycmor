@@ -1,0 +1,141 @@
+id: tco95-core3-raw-monthly-v1
+accumulation_seconds: 3600
+excludes:
+- REcoM
+- atmospheric CO2
+defaults:
+  grid_label: gn
+  nominal_resolution: 100 km
+  calendar: gregorian
+  time_calendar: proleptic_gregorian
+  time_dimname: time_counter
+  netcdf_compression_codec: zlib
+  netcdf_compression_level: 1
+  netcdf_write_scheduler: synchronous
+  qc_enabled: true
+  qc_repack: true
+  qc_tests:
+  - cf
+  - wcrp_cmip7
+  qc_ignore_codes: []
+  qc_fail_on_mandatory: false
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: false
+  parallel: true
+  pipeline_orchestrator: dask
+  dask_cluster: local
+  dask_n_workers: 1
+  dask_threads_per_worker: 1
+  dask_memory_limit: 24GB
+  dask_cluster_scaling_mode: fixed
+  dask_cluster_scaling_fixed_jobs: 1
+pipelines:
+- name: lr_monthly
+  steps:
+  - pycmor.awiesm3_lr.load_monthly
+  - pycmor.awiesm3_lr.monthly_time
+  - pycmor.awiesm3_lr.transform
+  - pycmor.std_lib.set_time_bounds
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+- name: lr_lpj
+  steps:
+  - pycmor.awiesm3_lr.load_lpj
+  - pycmor.awiesm3_lr.monthly_time
+  - pycmor.std_lib.set_time_bounds
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+- name: lr_linear
+  steps:
+  - pycmor.awiesm3_lr.load_linear
+  - pycmor.awiesm3_lr.monthly_time
+  - pycmor.std_lib.set_time_bounds
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+- name: lr_fx
+  steps:
+  - pycmor.awiesm3_lr.load_fx
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+- name: lr_lpj_yearly
+  steps:
+  - pycmor.awiesm3_lr.load_lpj_yearly
+  - pycmor.std_lib.set_time_bounds
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+- name: lr_lpj_lut
+  steps:
+  - pycmor.awiesm3_lr.load_lpj_lut
+  - pycmor.awiesm3_lr.monthly_time
+  - pycmor.std_lib.set_time_bounds
+  - pycmor.std_lib.units.handle_unit_conversion
+  - pycmor.std_lib.attributes.set_global
+  - pycmor.std_lib.attributes.set_variable
+  - pycmor.std_lib.attributes.set_coordinates
+  - pycmor.std_lib.dimensions.map_dimensions
+  - pycmor.std_lib.generic.trigger_compute
+  - pycmor.awiesm3_lr.exact_vertical_bounds
+  - pycmor.std_lib.files.save_dataset
+  - pycmor.std_lib.qc.run_compliance_checker
+tier_files:
+- cap7_aerosol/cmip7_awiesm3-lr_cap7_aerosol.yaml
+- cap7_atm/cmip7_awiesm3-lr_cap7_atm.yaml
+- cap7_land/cmip7_awiesm3-lr_cap7_land.yaml
+- cap7_ocean/cmip7_awiesm3-lr_cap7_ocean.yaml
+- cap7_seaice/cmip7_awiesm3-lr_cap7_seaice.yaml
+- core_atm/cmip7_awiesm3-lr_core_atm.yaml
+- core_land/cmip7_awiesm3-lr_core_land.yaml
+- core_ocean/cmip7_awiesm3-lr_core_ocean.yaml
+- core_seaice/cmip7_awiesm3-lr_core_seaice.yaml
+- extra_atm/cmip7_awiesm3-lr_extra_atm.yaml
+- extra_land/cmip7_awiesm3-lr_extra_land.yaml
+- lrcs_land/cmip7_awiesm3-lr_lrcs_land.yaml
+- lrcs_ocean/cmip7_awiesm3-lr_lrcs_ocean.yaml
+- lrcs_seaice/cmip7_awiesm3-lr_lrcs_seaice.yaml
+- veg_atm/cmip7_awiesm3-lr_veg_atm.yaml
+- veg_land/cmip7_awiesm3-lr_veg_land.yaml
+- veg_seaice/cmip7_awiesm3-lr_veg_seaice.yaml
+job_groups:
+- atmos
+- ocean
+- seaice
+- land
+- fx_areacella_atmos
+- fx_areacella_lpj
+- fx_areacello

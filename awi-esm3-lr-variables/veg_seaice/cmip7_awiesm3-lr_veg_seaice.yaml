@@ -1,0 +1,9 @@
+tier: veg_seaice
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules: []
+not_enabled:
+- name: sisnhc_day
+  compound_name: seaIce.sisnhc.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

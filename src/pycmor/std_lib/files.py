@@ -2991,11 +2991,14 @@ def split_data_timespan(ds, rule):
     list
         A list of datasets, each containing a chunk of the original dataset.
     """
+    time_label = get_time_label(ds)
+    # A singleton cannot be split, and already carries its period bounds.
+    # Do not reopen a source merely to find an irrelevant cut: non-NetCDF
+    # readers (for example annual LPJ .out tables) may have supplied it.
+    if not time_label or ds[time_label].size <= 1:
+        return [ds]
     time_cuts = file_timespan_tail(rule)
     ncuts = len(time_cuts)
-    time_label = get_time_label(ds)
-    if not time_label:
-        return [ds]
     resampled_times = ds[time_label].values
     ref = pd.DataFrame(resampled_times, columns=["dateindex"])
     ref["mark"] = ncuts
@@ -3052,32 +3055,11 @@ def _save_dataset_with_native_timespan(
     # Ensure time encoding is properly applied to each dataset
     for i, ds in enumerate(datasets):
         if time_label in ds.variables:
-            # If we have custom units and calendar, use xarray's CF encoding function
-            # Only apply if both are actual strings (not Mock objects or None)
-            if (
-                "units" in time_encoding
-                and "calendar" in time_encoding
-                and isinstance(time_encoding["units"], str)
-                and isinstance(time_encoding["calendar"], str)
-            ):
-                from xarray.coding.times import encode_cf_datetime
-
-                # Get the current time values (should be datetime objects)
-                time_values = ds[time_label].values
-
-                # Use xarray's CF encoding function to encode the datetime values
-                encoded_values, _, _ = encode_cf_datetime(
-                    time_values,
-                    units=time_encoding["units"],
-                    calendar=time_encoding["calendar"],
-                )
-
-                # Replace the time coordinate with the encoded values
-                ds[time_label] = xr.DataArray(encoded_values, dims=[time_label], attrs=ds[time_label].attrs.copy())
-
-            # Set time units as an attribute for metadata.
-            if "units" in time_encoding and isinstance(time_encoding["units"], str):
-                ds[time_label].attrs["units"] = time_encoding["units"]
+            # Keep datetime coordinates until xarray serializes the file. Early
+            # numeric encoding breaks time detection, bounds and filename ranges.
+            # In particular an explicit time_units + time_calendar recipe must
+            # not turn a monthly product into an apparently fixed-field product.
+            ds[time_label].attrs.pop("units", None)
             # Do NOT set calendar in attrs — xarray's CF encoder copies
             # encoding["calendar"] to the variable's file attributes and
             # raises if the key is already present in attrs. See the
@@ -3552,40 +3534,11 @@ def _save_dataset_impl(da: xr.DataArray, rule):
     if rule._pycmor_cfg("xarray_time_remove_fill_value_attr"):
         time_encoding["_FillValue"] = None
 
-    # If we have custom units and calendar, use xarray's CF encoding function
-    # Only apply if both are actual strings (not Mock objects or None)
-    if (
-        "units" in time_encoding
-        and "calendar" in time_encoding
-        and isinstance(time_encoding["units"], str)
-        and isinstance(time_encoding["calendar"], str)
-    ):
-        from xarray.coding.times import encode_cf_datetime
-
-        # Convert the dataset to Dataset if it's a DataArray
-        if isinstance(da, xr.DataArray):
-            # Ensure DataArray has a name before converting to Dataset
-            if da.name is None:
-                da = da.rename("data")
-            da = da.to_dataset()
-
-        # Get the current time values (should be datetime objects)
-        time_values = da[time_label].values
-
-        # Use xarray's CF encoding function to encode the datetime values
-        encoded_values, _, _ = encode_cf_datetime(
-            time_values,
-            units=time_encoding["units"],
-            calendar=time_encoding["calendar"],
-        )
-
-        # Replace the time coordinate with the encoded values
-        da[time_label] = xr.DataArray(encoded_values, dims=[time_label], attrs=da[time_label].attrs.copy())
-
-    # Set time units as an attribute for metadata. Only set if it is an
-    # actual string (not a Mock).
-    if "units" in time_encoding and isinstance(time_encoding["units"], str):
-        da[time_label].attrs["units"] = time_encoding["units"]
+    # Encoding belongs to the NetCDF writer, not the in-memory coordinate:
+    # split_data_timespan below still needs a DatetimeIndex/CFTimeIndex.
+    # Converting to numbers here caused resampling errors for OpenIFS and
+    # silently missing time bounds/range tokens for FESOM and LPJ-GUESS.
+    da[time_label].attrs.pop("units", None)
     # Do NOT set calendar in attrs. xarray's CF encoder (encode_cf_variable
     # in xarray/coding/times.py) copies encoding["calendar"] to the file's
     # variable attributes at save time and explicitly refuses if attrs
@@ -3696,7 +3649,14 @@ def _save_dataset_impl(da: xr.DataArray, rule):
         )
     else:
         file_timespan_as_offset = pd.tseries.frequencies.to_offset(file_timespan)
-        file_timespan_as_dt = pd.Timestamp.now() + file_timespan_as_offset - pd.Timestamp.now()
+        # Compare one complete representative calendar period, not the time
+        # remaining from today's date to its next boundary. For example, 1YS
+        # in October is still a full year, not ~74 days. Using the clock here
+        # sent annual LPJ tables into the NetCDF-only source-file fallback.
+        # This is only the approximate grouping-size check; output bounds
+        # continue to come from the actual data/calendar, including leap years.
+        period_start = file_timespan_as_offset.rollback(pd.Timestamp(2001, 1, 1))
+        file_timespan_as_dt = period_start + file_timespan_as_offset - period_start
         approx_interval = float(rule.data_request_variable.table_header.approx_interval)
         dt = pd.Timedelta(approx_interval, unit="d")
         if file_timespan_as_dt < dt:

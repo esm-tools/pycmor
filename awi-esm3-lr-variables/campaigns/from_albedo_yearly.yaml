@@ -1,0 +1,41 @@
+name: lr-from-albedo-yearly
+run_root: /work/bb1469/a270270/runtime/awiesm3-v3.5.1-cc/06_Coupled_CC_v3.5.1_30yr_2190_2219_fromAlbedo_yearly
+state_dir: /work/ab0995/a270270/cmorization_LR/campaigns/from_albedo_yearly
+output_root: /work/ab0995/a270270/cmorization_LR/output/from_albedo_yearly
+first_year: 2190
+last_year: 2219
+# Pick up new archived years while this model experiment is running.
+follow: true
+settle_seconds: 300
+poll_seconds: 300
+max_attempts: 3
+profile: tco95-core3-raw-monthly-v1
+accumulation_seconds: 3600
+venv: /work/ab0995/a270270/cmorization_LR/venv
+cache_root: /work/ab0995/a270270/cmorization_LR/cache
+metadata:
+  dreq: /work/ab0995/a270270/cmorization_LR/metadata/v1.2.2.4/metadata.json
+  cv: /work/ab0995/a270270/cmorization_LR/metadata/CMIP7-CVs
+grids:
+  atmos: /work/ab0995/a270270/cmorization_LR/metadata/atmos_grid.nc
+  lpj: /work/ab0995/a270270/cmorization_LR/metadata/lpj_grid.nc
+  core3: /work/ab0995/a270270/cmorization_LR/metadata/core3_grid.nc
+inherit:
+  source_id: LR-PRACTICE
+  institution_id: AWI
+  institution: Alfred Wegener Institute for Polar and Marine Research
+  experiment_id: piControl-spinup
+  activity_id: CMIP
+  variant_label: r1i1p1f1
+  comment: >-
+    Development CMORization of the v3.5.1-cc continuation, fixed-1850 forcing.
+    REcoM and atmospheric CO2 products excluded. Source/member/grid and branch
+    metadata require team approval before publication.
+slurm:
+  account: ab0995
+  partition: shared
+  cpus: 4
+  memory: 32G
+  time: "04:00:00"
+  concurrency: 4
+  driver_time: "3-00:00:00"

@@ -1,0 +1,239 @@
+tier: lrcs_ocean
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: wfo
+  compound_name: ocean.wfo.tavg-u-hxy-sea.mon.glb
+  model_variable: fw
+  expected_units: m s-1
+  lr_scale: -1025
+  lr_units: kg m-2 s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: fw\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: tob
+  compound_name: ocean.tob.tavg-u-hxy-sea.mon.glb
+  model_variable: temp
+  expected_units: degC
+  lr_scale: 1
+  lr_units: degC
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_bottom: true
+  lr_input:
+    component: fesom
+    pattern: temp\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: sob
+  compound_name: ocean.sob.tavg-u-hxy-sea.mon.glb
+  model_variable: salt
+  expected_units: 1e-3
+  lr_scale: 1
+  lr_units: '0.001'
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_bottom: true
+  lr_input:
+    component: fesom
+    pattern: salt\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+not_enabled:
+- name: pbo
+  compound_name: ocean.pbo.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: volo
+  compound_name: ocean.volo.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tos_ga
+  compound_name: ocean.tos.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sos_ga
+  compound_name: ocean.sos.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: thetao_ga
+  compound_name: ocean.thetao.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: so_ga
+  compound_name: ocean.so.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: obvfsq
+  compound_name: ocean.obvfsq.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vsf
+  compound_name: ocean.vsf.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: evspsbl
+  compound_name: ocean.evspsbl.tavg-u-hxy-ifs.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vsfcorr
+  compound_name: ocean.vsfcorr.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mlotst_day
+  compound_name: ocean.mlotst.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: uos
+  compound_name: ocean.uos.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vos
+  compound_name: ocean.vos.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tossq
+  compound_name: ocean.tossq.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sossq
+  compound_name: ocean.sossq.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: zossq
+  compound_name: ocean.zossq.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mlotstsq
+  compound_name: ocean.mlotstsq.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pso
+  compound_name: ocean.pso.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: masso
+  compound_name: ocean.masso.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: phcint
+  compound_name: ocean.phcint.tavg-op4-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: scint
+  compound_name: ocean.scint.tavg-op4-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: opottempmint
+  compound_name: ocean.opottempmint.tavg-u-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: somint
+  compound_name: ocean.somint.tavg-u-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: volcello_fx
+  compound_name: ocean.volcello.ti-ol-hxy-sea.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: difvho
+  compound_name: ocean.difvho.tavg-ol-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: difvso
+  compound_name: ocean.difvso.tavg-ol-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: difmxylo
+  compound_name: ocean.difmxylo.tavg-ol-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: thetao_dec
+  compound_name: ocean.thetao.tavg-ol-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: so_dec
+  compound_name: ocean.so.tavg-ol-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tauuo_dec
+  compound_name: ocean.tauuo.tavg-u-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tauvo_dec
+  compound_name: ocean.tauvo.tavg-u-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: thkcello_dec
+  compound_name: ocean.thkcello.tavg-ol-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: volo_dec
+  compound_name: ocean.volo.tavg-u-hm-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: masscello_dec
+  compound_name: ocean.masscello.tavg-ol-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: volcello_dec
+  compound_name: ocean.volcello.tavg-ol-hxy-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: masso_dec
+  compound_name: ocean.masso.tavg-u-hm-sea.dec.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: msftbarot
+  compound_name: ocean.msftbarot.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsdoabsorb
+  compound_name: ocean.rsdoabsorb.tavg-ol-hxy-sea.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: msftm_density
+  compound_name: ocean.msftm.tavg-rho-hyb-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfx
+  compound_name: ocean.sfx.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfx_int
+  compound_name: ocean.sfx.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfy
+  compound_name: ocean.sfy.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfy_int
+  compound_name: ocean.sfy.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: msftmz
+  compound_name: ocean.msftm.tavg-ol-hyb-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfbasin
+  compound_name: ocean.hfbasin.tavg-u-hyb-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sltbasin
+  compound_name: ocean.sltbasin.tavg-u-hyb-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

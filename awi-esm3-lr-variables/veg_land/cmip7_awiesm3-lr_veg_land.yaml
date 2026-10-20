@@ -1,0 +1,565 @@
+tier: veg_land
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: fBNF_mon
+  compound_name: land.fBNF.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fBNF_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fLuc_mon
+  compound_name: land.fLuc.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fLuc_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNgas_mon
+  compound_name: land.fNgas.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNgas_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNgasFire_mon
+  compound_name: land.fNgasFire.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNgasFire_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNLandToOcean_mon
+  compound_name: land.fNLandToOcean.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNLandToOcean_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNleach_mon
+  compound_name: land.fNleach.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNleach_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNLitterSoil_mon
+  compound_name: land.fNLitterSoil.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNLitterSoil_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNloss_mon
+  compound_name: land.fNloss.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNloss_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fNup_mon
+  compound_name: land.fNup.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fNup_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nLand_mon
+  compound_name: land.nLand.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nLand_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nLitter_mon
+  compound_name: land.nLitter.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nLitter_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nMineral_mon
+  compound_name: land.nMineral.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nMineral_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nProduct_mon
+  compound_name: land.nProduct.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nProduct_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nSoil_mon
+  compound_name: land.nSoil.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nSoil_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nVeg_mon
+  compound_name: land.nVeg.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nVeg_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: treeFracBdlDcd_mon
+  compound_name: land.treeFracBdlDcd.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: treeFracBdlDcd_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: evspsblpot_mon
+  compound_name: land.evspsblpot.tavg-u-hxy-lnd.mon.glb
+  model_variable: Total
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: evspsblpot_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: vegHeight_mon
+  compound_name: land.vegHeight.tavg-u-hxy-veg.mon.glb
+  model_variable: Total
+  source_units: m
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: vegHeight_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: baresoilFrac_yr
+  compound_name: land.baresoilFrac.tavg-u-hxy-u.yr.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj_yearly
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: baresoilFrac_yearly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: cropFrac_yr
+  compound_name: land.cropFrac.tavg-u-hxy-u.yr.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj_yearly
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: cropFrac_yearly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: grassFrac_yr
+  compound_name: land.grassFrac.tavg-u-hxy-u.yr.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj_yearly
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: grassFrac_yearly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: shrubFrac_yr
+  compound_name: land.shrubFrac.tavg-u-hxy-u.yr.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj_yearly
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: shrubFrac_yearly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: treeFrac_yr
+  compound_name: land.treeFrac.tavg-u-hxy-u.yr.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj_yearly
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: treeFrac_yearly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: gppLut_mon
+  compound_name: land.gppLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: gppLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: laiLut_mon
+  compound_name: land.laiLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: '1'
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: laiLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: mrsolLut_mon
+  compound_name: land.mrsolLut.tavg-d10cm-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: mrsosLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nppLut_mon
+  compound_name: land.nppLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nppLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: raLut_mon
+  compound_name: land.raLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: raLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: rhLut_mon
+  compound_name: land.rhLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: rhLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: irrLut_mon
+  compound_name: land.irrLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: irrLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: fLulccAtmLut_mon
+  compound_name: land.fLulccAtmLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: fLulccAtmLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: nbpLut_mon
+  compound_name: land.nbpLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: nbpLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: sweLut_mon
+  compound_name: land.sweLut.tavg-u-hxy-multi.mon.glb
+  model_variable: psl
+  source_units: m
+  pipelines:
+  - lr_lpj_lut
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_scale: 0.001
+  lr_units: m
+  lr_input:
+    component: lpj_guess
+    pattern: sweLut_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+not_enabled:
+- name: mrro_3hr
+  compound_name: land.mrro.tavg-u-hxy-lnd.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrros_3hr
+  compound_name: land.mrros.tavg-u-hxy-lnd.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: esn_day
+  compound_name: land.esn.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: srfrad_3hr
+  compound_name: land.srfrad.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfdsl_3hr
+  compound_name: land.hfdsl.tavg-u-hxy-lnd.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tslsi_3hr
+  compound_name: land.tslsi.tpt-u-hxy-lsi.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrrob_day
+  compound_name: land.mrrob.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sbl_day
+  compound_name: landIce.sbl.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snm_day
+  compound_name: landIce.snm.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tsn_day
+  compound_name: landIce.tsn.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snd_day
+  compound_name: landIce.snd.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: dgw_day
+  compound_name: land.dgw.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: dsn_day
+  compound_name: land.dsn.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: dsw_day
+  compound_name: land.dsw.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrtws_day
+  compound_name: land.mrtws.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sbl_mon
+  compound_name: landIce.sbl.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cLitterLut_yr
+  compound_name: land.cLitterLut.tpt-u-hxy-multi.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cProductLut_yr
+  compound_name: land.cProductLut.tpt-u-hxy-multi.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cSoilLut_yr
+  compound_name: land.cSoilLut.tpt-u-hxy-multi.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cVegLut_yr
+  compound_name: land.cVegLut.tpt-u-hxy-multi.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: fracLut_yr
+  compound_name: land.fracLut.tpt-u-hxy-u.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: fracInLut_yr
+  compound_name: land.fracInLut.tsum-u-hxy-lnd.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: fracOutLut_yr
+  compound_name: land.fracOutLut.tsum-u-hxy-lnd.yr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: fracLut_mon
+  compound_name: land.fracLut.tpt-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

@@ -1,0 +1,52 @@
+tier: core_land
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: areacella_lpj
+  compound_name: atmos.areacella.ti-u-hxy-u.fx.glb
+  model_variable: cell_area
+  lr_mesh_variable: cell_area
+  lr_units: m2
+  grid_label: gn
+  grid: 'Practice grid: lpj_grid'
+  pipelines:
+  - lr_fx
+  lr_grid_key: lpj
+  lr_group: fx_areacella_lpj
+not_enabled:
+- name: evspsbl
+  compound_name: atmos.evspsbl.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrro
+  compound_name: land.mrro.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrros
+  compound_name: land.mrros.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snw
+  compound_name: landIce.snw.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: orog
+  compound_name: land.orog.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrso
+  compound_name: land.mrso.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrsol
+  compound_name: land.mrsol.tavg-d10cm-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snc
+  compound_name: landIce.snc.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: slthick
+  compound_name: land.slthick.ti-sl-hxy-lnd.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
