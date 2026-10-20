@@ -955,27 +955,45 @@ rules:
   # ============================================================
   # 6-hourly instantaneous pressure levels (plev3)
   # ============================================================
-
-  - name: ta_6hr
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl3_t_.*\.nc
-    compound_name: atmos.ta.tpt-p3-hxy-air.6hr.glb
-    model_variable: t
-    lazy_write: true
-
-  - name: ua_6hr
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl3_u_.*\.nc
-    compound_name: atmos.ua.tpt-p3-hxy-air.6hr.glb
-    model_variable: u
-    lazy_write: true
-
-  - name: va_6hr
-    inputs:
-      - path: *dp
-        pattern: atmos_6h_pl3_v_.*\.nc
-    compound_name: atmos.va.tpt-p3-hxy-air.6hr.glb
-    model_variable: v
-    lazy_write: true
+  #
+  # Off for HR. atmos_6h_pl3_* is labelled 850/500/250 hPa but holds the
+  # data from 1000/925/850 hPa. OpenIFS interpolates only to the XIOS axis
+  # pressure_levels (FullPos, suxios.F90), and pressure_levels_3 was a
+  # standalone axis without axis_ref, so XIOS wrote the first three of the
+  # 19 levels under the new labels. Checked on piControl 1852: the January
+  # mean matches atmos_mon_pl_ta at 1000/925/850 hPa to 0.03 K and is 8 to
+  # 55 K off at the labelled levels.
+  #
+  # Nothing can be rebuilt; HR has no 6-hourly stream on all 19 levels or
+  # on model levels. The running experiments get the fixed axis from their
+  # next chunk on (examples/HANDOVER_HR_plev_axes.md). Bring these rules
+  # back for the years after that once the first fixed year per experiment
+  # is known.
+  #
+  # LR is not affected: awi-esm3-lr-variables/core_atm/
+  # cmip7xml_awiesm3-lr_atmos.yaml keeps the three rules, and the axis is
+  # fixed in esm_tools for v3.5.1.
+  #
+  # - name: ta_6hr
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl3_t_.*\.nc
+  # compound_name: atmos.ta.tpt-p3-hxy-air.6hr.glb
+  # model_variable: t
+  # lazy_write: true
+  #
+  # - name: ua_6hr
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl3_u_.*\.nc
+  # compound_name: atmos.ua.tpt-p3-hxy-air.6hr.glb
+  # model_variable: u
+  # lazy_write: true
+  #
+  # - name: va_6hr
+  # inputs:
+  # - path: *dp
+  # pattern: atmos_6h_pl3_v_.*\.nc
+  # compound_name: atmos.va.tpt-p3-hxy-air.6hr.glb
+  # model_variable: v
+  # lazy_write: true
