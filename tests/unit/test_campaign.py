@@ -276,6 +276,25 @@ def test_lr_rules_point_at_lr_grids_and_paths(repoint):
         assert y["inherit"]["source_id"] == spec["source_id"]
 
 
+LR_KEEPS_WHAT_HR_DROPPED = {
+    # HR switched these off because its plev3 XIOS axis was not a zoom of the
+    # FullPos axis and wrote the wrong levels. The v3.5.1 XML fixes the axis,
+    # so LR must keep them; an HR deactivation copied into the LR tree would
+    # silently lose them.
+    "atmos.ta.tpt-p3-hxy-air.6hr.glb",
+    "atmos.ua.tpt-p3-hxy-air.6hr.glb",
+    "atmos.va.tpt-p3-hxy-air.6hr.glb",
+}
+
+
+def test_lr_keeps_the_rules_hr_dropped_for_its_own_output_faults(repoint):
+    spec = repoint.MODELS["lr"]
+    active = set()
+    for src in sorted(spec["src_dir"].glob(spec["yaml_glob"])):
+        active |= {r["compound_name"] for r in yaml.safe_load(src.read_text())["rules"]}
+    assert LR_KEEPS_WHAT_HR_DROPPED <= active, sorted(LR_KEEPS_WHAT_HR_DROPPED - active)
+
+
 def test_campaign_model_is_validated_exported_and_pinned(campaign, tmp_path, code_repo, monkeypatch):
     monkeypatch.setenv("CMIP7_TABLES_PATH", str(tmp_path))
     with pytest.raises(campaign.CampaignError, match="model"):
