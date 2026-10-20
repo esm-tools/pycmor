@@ -14,9 +14,10 @@ pycmor:
   warn_on_no_rule: false
   parallel: false
   dask_cluster: "local"
-  # Small local cluster; the default takes the whole node.
+  # Small local cluster; the default takes the whole node (cores and memory).
   dask_n_workers: 1
   dask_threads_per_worker: 4
+  dask_memory_limit: "16GB"
 
 pipelines:
   - name: ecearth4_oifs_reduced
