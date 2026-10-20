@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pycmor env on MN5 from pixi.lock, plus CMIP7 DReq metadata.
-# Usage: PYCMOR_WORK=<dir on gpfs> env_mn5.sh plan|install|check
+# Usage: PYCMOR_WORK=<dir> [CMIP7_CMOR_COMMON=<checkout>] env_mn5.sh plan|install|check
 # install needs internet (login node with access).
 set -euo pipefail
 
@@ -15,6 +15,8 @@ WORK=${PYCMOR_WORK:?set PYCMOR_WORK to a work dir (not HOME)}
 PIXI=$WORK/bin/pixi
 DREQ_VENV=$WORK/dreq-venv
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
+# cmip7-cmor-common checkout for ecearth4/steps.py; optional.
+COMMON=${CMIP7_CMOR_COMMON:-}
 
 # Caches off HOME (quota).
 export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
@@ -29,6 +31,7 @@ env        $SRC/.pixi/envs/default (pixi install --frozen)
 submodules $(git -C "$SRC" submodule status | awk '{printf "%s@%.8s ", $2, $1}')
 dreq       CMIP7-data-request-api $DREQ_API_VERSION in $DREQ_VENV
 metadata   $METADATA
+common     ${COMMON:-not set (ecearth4 steps unavailable)}
 EOF
 }
 
@@ -51,6 +54,11 @@ install() {
         "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m venv "$DREQ_VENV"
         "$DREQ_VENV/bin/pip" install -q "CMIP7-data-request-api==$DREQ_API_VERSION"
     fi
+    # common deps (numpy, netCDF4) are in the lock: --no-deps keeps it intact.
+    if [ -n "$COMMON" ]; then
+        "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m ensurepip > /dev/null
+        "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m pip install -q --no-deps "$COMMON"
+    fi
     if [ ! -s "$METADATA" ]; then
         tmp=$(mktemp -d)
         "$DREQ_VENV/bin/export_dreq_lists_json" -a "$DREQ_VERSION" "$tmp/experiments.json" -m "$METADATA"
@@ -62,6 +70,9 @@ install() {
 check() {
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
         'import sys, pycmor; print("pycmor", pycmor.__version__, "python", sys.version.split()[0])'
+    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
+        'from importlib.metadata import version; print("cmip7-cmor-common", version("cmip7-cmor-common"))' \
+        2>/dev/null || echo "cmip7-cmor-common not installed"
     python3 - "$METADATA" <<'EOF'
 import hashlib, json, sys
 p = sys.argv[1]
