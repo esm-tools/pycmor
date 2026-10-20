@@ -182,7 +182,8 @@ Conversions follow the archived data and model implementation:
   division by the model's water density. ``wfo = -1025 * fw``.
 * ``hfds = -fh``. Velocity output already has geographic vector rotation.
 * Vertical velocity uses both adjacent archived interfaces; no artificial
-  bottom zero is inserted. Bottom properties use ``depth_lev - 2``.
+  bottom zero is inserted. Bottom properties use ``depth_lev - 1``: on CORE3
+  ``depth_lev`` is the number of wet layers.
 * ``sieqthick`` is the whole-cell equivalent ice thickness, not thickness
   divided by ice concentration. Zero-ice filling excludes shelf cavities.
 * CORE3 areas use actual model element areas distributed to adjacent nodes.

@@ -88,8 +88,10 @@ def transform(data, rule):
         data=(upper+lower)*0.5
         data[dim].attrs.update(standard_name='depth',long_name='Ocean layer midpoint depth',units='m',positive='down',axis='Z')
     if rule.get('lr_bottom',False):
+        # CORE3 depth_lev is the number of wet layers, so the bottom layer is
+        # depth_lev-1 (checked against LR temp: last finite layer at every node)
         with xr.open_dataset(rule.grid_file,decode_times=False) as mesh:
-            indices=mesh.depth_lev.values.astype(int)-2
+            indices=mesh.depth_lev.values.astype(int)-1
         dim=next(d for d in data.dims if d in ('nz1','nz','lev','depth'))
         horizontal=next(d for d in data.dims if d not in ('time',dim))
         if len(indices)!=data.sizes[horizontal] or np.any(indices<0) or np.any(indices>=data.sizes[dim]):

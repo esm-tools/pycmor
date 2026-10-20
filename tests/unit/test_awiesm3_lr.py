@@ -126,7 +126,7 @@ def test_lpj_yearly_bounds_and_lut_tile_order(tmp_path):
 
 def test_lr_complete_interfaces_and_bottom_selection(tmp_path):
     mesh=tmp_path/'mesh.nc'
-    xr.Dataset({'depth':('level',[2.5,10.]),'depth_bnds':('interface',[0.,5.,15.]),'depth_lev':('ncells',[3,2])}).to_netcdf(mesh)
+    xr.Dataset({'depth':('level',[2.5,10.]),'depth_bnds':('interface',[0.,5.,15.]),'depth_lev':('ncells',[2,1])}).to_netcdf(mesh)
     data=xr.DataArray([[0.,2.,4.],[2.,4.,np.nan]],dims=('nod2','nz1'),coords={'nz1':[0.,5.,15.]},attrs={'units':'m s-1'})
     result=transform(data,Rule(name='wo',grid_file=str(mesh),lr_interface_midpoints=True))
     np.testing.assert_allclose(result,[[1,3],[3,np.nan]],equal_nan=True)

@@ -130,7 +130,7 @@ def main():
                         if r.get('lr_interface_midpoints'):shapes=shapes[:-1]+(shapes[-1]-1,)
                         bottom=None
                         if r.get('lr_bottom'):
-                            with nc.Dataset(r['grid_file']) as m:bottom=m['depth_lev'][:].astype(int)-2
+                            with nc.Dataset(r['grid_file']) as m:bottom=m['depth_lev'][:].astype(int)-1
                             shapes=shapes[:-1]
                         permutations=[order for order in itertools.permutations(range(len(shapes))) if tuple(shapes[i] for i in order)==target]
                         assert len(permutations)==1,(shapes,target)
