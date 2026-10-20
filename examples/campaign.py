@@ -27,6 +27,7 @@ Example ``campaign.yaml``::
     mail: jan.streffing@awi.de
     code_ref: feat/cmip7-awiesm3-veg-hr       # branch, tag or commit; pinned at setup
     experiment: 1pctCO2            # metadata profile in repoint_hr_year.EXPERIMENTS
+    model: hr                      # optional, hr (default) or lr; repoint_hr_year.MODELS
 
 The experiment metadata (experiment_id, parent and branch attributes) comes
 from the named profile in ``repoint_hr_year.py``, so it is reviewed in git and
@@ -87,12 +88,16 @@ class CampaignError(Exception):
     pass
 
 
-def experiment_profiles():
-    """The metadata profiles repoint_hr_year.py applies, keyed by experiment."""
+def _repoint_module():
     spec = importlib.util.spec_from_file_location("repoint_hr_year", HERE / "repoint_hr_year.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.EXPERIMENTS
+    return mod
+
+
+def experiment_profiles(model="hr"):
+    """The metadata profiles repoint_hr_year.py applies, keyed by experiment."""
+    return _repoint_module().experiment_profiles(model)
 
 
 def load(path):
@@ -108,7 +113,11 @@ def load(path):
         raise CampaignError(f"drs_version {cfg['drs_version']!r} is not vYYYYMMDD")
     if int(cfg["first_year"]) > int(cfg["last_year"]):
         raise CampaignError("first_year is after last_year")
-    profiles = experiment_profiles()
+    cfg.setdefault("model", "hr")
+    models = _repoint_module().MODELS
+    if cfg["model"] not in models:
+        raise CampaignError(f"model {cfg['model']!r} unknown; known: {', '.join(sorted(models))}")
+    profiles = experiment_profiles(cfg["model"])
     if cfg["experiment"] not in profiles:
         raise CampaignError(f"experiment {cfg['experiment']!r} has no profile; known: {', '.join(sorted(profiles))}")
     cfg.setdefault("inherit", {})
@@ -159,7 +168,13 @@ def _resolve(code, ref):
 
 
 def _pinned_view(cfg, sha):
-    return {"code_commit": sha, **{k: cfg[k] for k in PINNED_FIELDS}}
+    view = {"code_commit": sha, **{k: cfg[k] for k in PINNED_FIELDS}}
+    # The model is pinned too, but only recorded when it is not the default,
+    # so the pins of the HR campaigns started before the field existed still
+    # verify.
+    if cfg.get("model", "hr") != "hr":
+        view["model"] = cfg["model"]
+    return view
 
 
 def setup(cfg, repin=False):
@@ -176,7 +191,7 @@ def setup(cfg, repin=False):
     if pin_path.exists():
         old = json.loads(pin_path.read_text())
         if old != view and not repin:
-            changed = sorted(k for k in view if old.get(k) != view.get(k))
+            changed = sorted(k for k in set(view) | set(old) if old.get(k) != view.get(k))
             raise CampaignError(
                 f"campaign is pinned and {', '.join(changed)} changed since. Years already done used the "
                 "pinned values. If the change is deliberate, rerun setup with --repin."
@@ -216,7 +231,7 @@ def verify(cfg):
         raise CampaignError(f"{code} has local changes:\n{dirty}")
     current = _pinned_view(cfg, head)
     if current != pin:
-        changed = sorted(k for k in current if pin.get(k) != current.get(k))
+        changed = sorted(k for k in set(current) | set(pin) if pin.get(k) != current.get(k))
         raise CampaignError(f"campaign.yaml changed {', '.join(changed)} since it was pinned; rerun setup with --repin")
     return head
 
@@ -234,6 +249,7 @@ def env(cfg):
         "PYTHONPATH": pythonpath,
         "PYCMOR_CODE_COMMIT": pin["code_commit"],
         "EXPERIMENT": cfg["experiment"],
+        "MODEL": cfg["model"],
         "RUN_ROOT": cfg["run_root"],
         "FIRST_YEAR": cfg["first_year"],
         "LAST_YEAR": cfg["last_year"],
@@ -297,7 +313,7 @@ def apply(cfg, yamls_dir):
     overrides = cfg["inherit"]
     code = cfg["_code"]
     # Profile values are yaml text as repoint writes them; compare parsed.
-    profile = {k: yaml.safe_load(str(v)) for k, v in experiment_profiles()[cfg["experiment"]].items()}
+    profile = {k: yaml.safe_load(str(v)) for k, v in experiment_profiles(cfg["model"])[cfg["experiment"]].items()}
     profile.setdefault("experiment_id", cfg["experiment"])
     files = sorted(Path(yamls_dir).glob("*.yaml"))
     if not files:
@@ -322,7 +338,7 @@ def apply(cfg, yamls_dir):
             if have != value:
                 raise CampaignError(
                     f"{f.name}: inherit {key}={have!r}, but the {cfg['experiment']!r} profile says {value!r}. "
-                    "Was EXPERIMENT passed to repoint_hr_year.py?"
+                    "Was EXPERIMENT passed to repoint_hr_year.py (and MODEL, for LR)?"
                 )
         for rule in got.get("rules") or []:
             if rule.get("experiment_id", cfg["experiment"]) != cfg["experiment"]:

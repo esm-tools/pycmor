@@ -34,11 +34,22 @@
 #                          truth — the gr yamls are regenerated each run,
 #                          never committed.
 #   N_WORKERS, TPW, MEM_PER_WORKER, CGROUP_GB — see run_hr_shard.sh
+#   MODEL                  hr (default) or lr. Selects the tier tree, the
+#                          template run and the EMD identity in
+#                          repoint_hr_year.py (MODELS there), and for lr the
+#                          smaller resource defaults below. Unset or hr
+#                          submits exactly what this script always did.
 set -euo pipefail
 
 RUN="${1:?usage: $0 <run_name_or_abspath> <year> [workdir]}"
 YEAR="${2:?usage: $0 <run> <year> [workdir]}"
-WORKDIR="${3:-/scratch/${USER:0:1}/$USER/pycmor_hr/$(basename "$RUN")_y${YEAR}_shards}"
+MODEL="${MODEL:-hr}"
+case "$MODEL" in
+  hr|lr) ;;
+  *) echo "ABORT: MODEL=$MODEL, expected hr or lr"; exit 2 ;;
+esac
+export MODEL
+WORKDIR="${3:-/scratch/${USER:0:1}/$USER/pycmor_${MODEL}/$(basename "$RUN")_y${YEAR}_shards}"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$WORKDIR"
@@ -55,8 +66,9 @@ export PYCMOR_HOME="${PYCMOR_HOME:-$(cd "$HERE/.." && pwd)}"
 ACCOUNT="${ACCOUNT:-ab0246}"
 
 # Resolve the run argument to a full path (matches repoint_hr_year.py's
-# resolve_run_dir logic). Relative names resolve under RUNTIME_ROOT.
-RUNTIME_ROOT=/work/bb1469/a270092/runtime/awiesm3-develop
+# resolve_run_dir logic). Relative names resolve under RUNTIME_ROOT, which
+# repoint_hr_year.py holds per MODEL.
+RUNTIME_ROOT="$(python3 "$HERE/repoint_hr_year.py" --runtime-root)"
 case "$RUN" in
   /*) RUN_ABS="$RUN" ;;
   *)  RUN_ABS="$RUNTIME_ROOT/$RUN" ;;
@@ -72,7 +84,7 @@ mkdir -p "$YAMLS_DIR"
 # Passed explicitly rather than relying on the inherited environment, so the
 # profile in use is visible in this script and in the job log.
 EXPERIMENT="${EXPERIMENT:-piControl}"
-echo "=== experiment metadata profile: $EXPERIMENT ==="
+echo "=== experiment metadata profile: $EXPERIMENT (model $MODEL) ==="
 python3 "$HERE/repoint_hr_year.py" "$RUN" "$YEAR" "$YAMLS_DIR" "$EXPERIMENT"
 
 # Step 1b: optionally derive gr-grid yamls for FESOM-ingesting tiers.
@@ -161,6 +173,22 @@ export N_WORKERS=${N_WORKERS:-4}
 export TPW=${TPW:-4}
 export MEM_PER_WORKER=${MEM_PER_WORKER:-48GB}  # bumped from 32GB after cli22 cap7_land_05 OOM'd on hourly OIFS tas
 export CGROUP_GB=${CGROUP_GB:-256}
+# LR (TCo95 + CORE3) grids are about 10x smaller than HR, so an LR shard
+# does not need a whole exclusive compute node. It runs on the `shared`
+# partition with a quarter node (32 cores, 96 GB), which is what costs node
+# hours. The per-tier HR overrides below (512G for extra_atm, 2x96GB for
+# lrcs_ocean, 3 rules per core_atm shard, 6h walltimes) were all sized on
+# HR volumes and are replaced for LR after they are computed. Each of these
+# can still be set from the environment.
+if [ "$MODEL" = "lr" ]; then
+  LR_PARTITION="${LR_PARTITION:-shared}"
+  LR_CPUS="${LR_CPUS:-32}"
+  LR_MEM_GB="${LR_MEM_GB:-96}"
+  LR_MEM_PER_WORKER="${LR_MEM_PER_WORKER:-16GB}"
+  LR_SHARD_SIZE="${LR_SHARD_SIZE:-30}"
+  LR_WALLTIME="${LR_WALLTIME:-02:00:00}"
+  LR_LONG_WALLTIME="${LR_LONG_WALLTIME:-04:00:00}"
+fi
 export PYCMOR_PREFECT_COLLAPSE=${PYCMOR_PREFECT_COLLAPSE:-1}
 # SHARD_DRS=on enables the CMIP DRS sub-tree under each shard's OUTDIR
 # (pycmor.enable_output_subdirs). When on, the per-tier "<tier>/cmorized"
@@ -231,6 +259,12 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
     *)          tier_shard_size="$SHARD_SIZE" ;;
   esac
 
+  # LR: one shard size for every tier. The HR core_atm=3 and extra_land=5
+  # splits work around stalls of heavy HR saves accumulating in one process.
+  if [ "$MODEL" = "lr" ]; then
+    tier_shard_size="$LR_SHARD_SIZE"
+  fi
+
   # Run the splitter; capture how many shards it produced.
   python3 "$HERE/shard_tier_yaml.py" "$yaml" \
       shard --shard-size "$tier_shard_size" \
@@ -247,7 +281,7 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
 
   # JOB_TAG (the campaign name) keeps experiments apart in squeue and makes
   # cancelling one campaign by name safe while another is running.
-  jobname="pycmor-hr-${JOB_TAG:+${JOB_TAG}-}${short_tier}-y${YEAR}-sh"
+  jobname="pycmor-${MODEL}-${JOB_TAG:+${JOB_TAG}-}${short_tier}-y${YEAR}-sh"
 
   # Per-tier memory override. Tiers with rules that genuinely need a
   # 512+ GB cgroup get --mem=512G (smaller pool of ~282 nodes, slower
@@ -444,6 +478,20 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
     tier_outsub="${short_tier}/cmorized"
   fi
 
+  # LR resources, replacing the HR per-tier values computed above.
+  PARTITION_FLAGS=""
+  if [ "$MODEL" = "lr" ]; then
+    MEM_FLAG="--mem=${LR_MEM_GB}G"
+    tier_cgroup="$LR_MEM_GB"
+    tier_workers="$N_WORKERS"
+    tier_mem_per_worker="$LR_MEM_PER_WORKER"
+    PARTITION_FLAGS="--partition=$LR_PARTITION --cpus-per-task=$LR_CPUS"
+    case "$short_tier" in
+      extra_atm|cap7_atm|cap7_land|core_land|extra_land) tier_walltime="$LR_LONG_WALLTIME" ;;
+      *) tier_walltime="$LR_WALLTIME" ;;
+    esac
+  fi
+
   # Cap concurrency for this array. If num_shards <= cap, no cap needed
   # (--array=1-1%1 is equivalent to --array=1-1 but printing the %1
   # makes the log noisier; keep it bare when not capping).
@@ -457,7 +505,7 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
         --array="$array_spec" \
         -J "$jobname" \
         --time="$tier_walltime" \
-        $MEM_FLAG \
+        $MEM_FLAG $PARTITION_FLAGS \
         --export=ALL,CGROUP_GB=$tier_cgroup,SHARD_FIX3=$FIX3,N_WORKERS=$tier_workers,MEM_PER_WORKER=$tier_mem_per_worker,SHARD_JEMALLOC=$tier_jemalloc,SHARD_DRS=$SHARD_DRS,PYCMOR_THROTTLE_CAPS=$tier_throttle_caps,WEDGE_TIMEOUT_SEC=$tier_wedge_timeout \
         "$HERE/run_hr_shard.sh" \
         "$shards_dir" "$RUN_ABS" "$YEAR" "$tier_outsub" 2>&1) \
@@ -469,5 +517,5 @@ done
 echo
 echo "Submitted ${#submitted[@]} tiers (each as a SLURM array)."
 echo "Outputs: $OUTROOT"
-echo "Watch:   squeue -u \$USER -n pycmor-hr"
+echo "Watch:   squeue -u \$USER -n pycmor-${MODEL}"
 echo "Each array task logs to: pycmor_hr_shard_<jobname>_<jobid>_<arrayidx>.log"

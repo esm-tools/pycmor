@@ -1,5 +1,6 @@
 import copy
 import datetime
+import fnmatch
 import pathlib
 import re
 import typing
@@ -247,8 +248,23 @@ class Rule:
 
     @property
     def input_patterns(self):
-        """Return a list of compiled regex patterns for the input files."""
-        return [re.compile(f"{inp.path}/{inp.pattern_str}") for inp in self.inputs]
+        """Return a list of compiled regex patterns for the input files.
+
+        A pattern that does not compile as a regex is a glob: that is how
+        ``InputFileCollection`` reads it (``pathlib.glob``), e.g. the LPJ-GUESS
+        ``**/<name>.out`` patterns. Such a pattern is translated with
+        ``fnmatch`` here, so that ``str(rule)`` (logged when a rule starts) and
+        ``_rule_for_filepath`` do not raise ``re.error`` on it. Patterns that
+        compile are used as before.
+        """
+        patterns = []
+        for inp in self.inputs:
+            full = f"{inp.path}/{inp.pattern_str}"
+            try:
+                patterns.append(re.compile(full))
+            except re.error:
+                patterns.append(re.compile(fnmatch.translate(full)))
+        return patterns
 
     def clone(self):
         """Creates a copy of this rule object as it is currently configured."""

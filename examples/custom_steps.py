@@ -114,6 +114,23 @@ def load_gridfile(data, rule):
 # ============================================================
 
 
+def _last_wet_level(depth_lev, rule):
+    """0-based index of the deepest wet level per node, from mesh ``depth_lev``.
+
+    The two meshes in use store ``depth_lev`` differently. In the DARS2
+    mesh.nc (HR) it is the 0-based index of the deepest wet layer: temp and
+    hnode in the HR output are finite through exactly that index at every
+    node. In the CORE3 mesh.nc (LR) it is the number of wet layers, one more:
+    temp in the LR output is finite through ``depth_lev - 1`` at every node.
+    Rules on CORE3 say so with ``depth_lev_counts_levels: true``; without it
+    the HR reading applies, so HR output does not change.
+    """
+    depth_lev = np.asarray(depth_lev, dtype=np.int64)
+    if bool(rule.get("depth_lev_counts_levels", False)):
+        return depth_lev - 1
+    return depth_lev
+
+
 def compute_deptho(data, rule):
     """
     Compute ocean bathymetry (sea floor depth) from FESOM mesh.
@@ -128,9 +145,9 @@ def compute_deptho(data, rule):
         # depth_lev = number of active vertical levels per cell
         # depth = 1D array of level depths
         depth = data["depth"].values
-        depth_lev = data["depth_lev"].values
+        last_wet = _last_wet_level(data["depth_lev"].values, rule)
         # Bottom depth = depth at the last active level
-        bottom_depth = np.array([depth[min(int(nl), len(depth) - 1)] for nl in depth_lev])
+        bottom_depth = np.array([depth[min(int(nl), len(depth) - 1)] for nl in last_wet])
         result = xr.DataArray(
             bottom_depth,
             dims=data["depth_lev"].dims,
@@ -241,7 +258,7 @@ def _mesh_vertical_geometry(data):
     return depth, thickness
 
 
-def _profile_over_cells(profile, data, attrs, name):
+def _profile_over_cells(profile, data, attrs, name, rule=None):
     """Broadcast a per-level profile onto the mesh, masked below the sea floor.
 
     The ``ti-ol-hxy-sea`` branding these fx variables carry says horizontal
@@ -253,13 +270,24 @@ def _profile_over_cells(profile, data, attrs, name):
     Columns are cut off at the sea floor using the mesh's ``depth_lev``.
     Sampling ``hnode`` against ``depth_lev`` shows the number of wet levels
     is ``depth_lev + 1`` (a node with ``depth_lev=3`` has 4 finite levels),
-    so level ``k`` is wet where ``k <= depth_lev``.
+    so level ``k`` is wet where ``k <= depth_lev``. That holds for DARS2;
+    CORE3 counts differently, see ``_last_wet_level``.
     """
     nlev = profile.size
     if "depth_lev" not in data:
         raise ValueError("Mesh file must contain 'depth_lev' to mask below the sea floor")
-    depth_lev = np.asarray(data["depth_lev"].values, dtype=np.int64).ravel()
+    if rule is None:
+        rule = {}
+    depth_lev = _last_wet_level(data["depth_lev"].values, rule).ravel()
     wet = np.arange(nlev)[:, None] <= depth_lev[None, :]
+    # Ice-shelf cavities (LR, CORE3 with use_cavity): the column starts at
+    # the cavity ceiling, not at the surface. ``cav_nod_lev`` is the 0-based
+    # index of the first wet level (cavity_nlvls.out minus 1; 0 in open
+    # ocean, 10047 nonzero nodes on CORE3, all south of 60S). DARS2 has no
+    # cavities and its mesh.nc no such variable, so HR is unchanged.
+    if "cav_nod_lev" in data:
+        cav_lev = np.nan_to_num(np.asarray(data["cav_nod_lev"].values, dtype=float).ravel()).astype(np.int64)
+        wet &= np.arange(nlev)[:, None] >= cav_lev[None, :]
     values = np.where(wet, profile.astype(np.float32)[:, None], np.float32(np.nan))
     return xr.DataArray(values, dims=["lev", "ncells"], attrs=attrs, name=name)
 
@@ -299,6 +327,7 @@ def compute_thkcello_fx(data, rule):
         data,
         {"units": "m", "standard_name": "cell_thickness"},
         rule.model_variable,
+        rule,
     )
     return _attach_level_coord(result, depth)
 
@@ -320,6 +349,7 @@ def compute_masscello_fx(data, rule):
         data,
         {"units": "kg m-2", "standard_name": "sea_water_mass_per_unit_area"},
         rule.model_variable,
+        rule,
     )
     return _attach_level_coord(result, depth)
 
@@ -931,6 +961,29 @@ def _elem_geometry(grid_file):
     return edge, tri
 
 
+def _hnode_on_data_months(hnode, data):
+    """Give each time step of ``data`` the monthly ``hnode`` of its month.
+
+    hnode is only written monthly. The daily hfx/hfy rules (LR, utemp_day)
+    multiply it into daily utemp, and xarray's alignment on ``time`` would
+    keep only the days that happen to carry a monthly time stamp. Returned
+    unchanged when both have the same number of records, which is every
+    monthly rule (HR and LR hfx/hfy/hfxint/hfyint).
+    """
+    if "time" not in hnode.dims or "time" not in data.dims:
+        return hnode
+    if hnode.sizes["time"] == data.sizes["time"]:
+        return hnode
+    h_months = [(t.year, t.month) for t in hnode.indexes["time"]]
+    want = [(t.year, t.month) for t in data.indexes["time"]]
+    missing = sorted(set(want) - set(h_months))
+    if missing:
+        raise ValueError(f"hnode has no record for month(s) {missing[:3]}{'...' if len(missing) > 3 else ''}")
+    take = [h_months.index(ym) for ym in want]
+    hnode = hnode.isel(time=xr.DataArray(take, dims=["time"]))
+    return hnode.assign_coords(time=data["time"].values)
+
+
 def compute_heat_transport(data, rule):
     """
     Compute oceanic heat transport across cell faces in watts.
@@ -951,6 +1004,7 @@ def compute_heat_transport(data, rule):
     if grid_file is None:
         raise ValueError("compute_heat_transport requires 'grid_file'")
     hnode = _load_secondary_mf(rule, "hnode_path", "hnode_pattern", "hnode_variable")
+    hnode = _hnode_on_data_months(hnode, data)
 
     horiz_dim = next((d for d in ("elem", "nod2", "ncells") if d in data.dims), data.dims[-1])
 
@@ -1302,7 +1356,13 @@ def extract_bottom(data, rule):
         bottom_idx = mesh["nlevels_nod2D"].values - 2  # 0-based, last valid midpoint
     elif "nlevels" in mesh:
         bottom_idx = mesh["nlevels"].values - 2
+    elif "depth_lev" in mesh and rule.get("depth_lev_counts_levels", False):
+        # CORE3 (LR): see _last_wet_level. Verified against the LR temp output.
+        bottom_idx = _last_wet_level(mesh["depth_lev"].values, rule)
     elif "depth_lev" in mesh:
+        # NB: on DARS2 depth_lev is already the last wet index (see
+        # _last_wet_level), so this picks the level two above the bottom.
+        # Kept as is so HR output does not change; flagged for review.
         bottom_idx = mesh["depth_lev"].values.astype(int) - 2
     else:
         mesh.close()
@@ -1839,21 +1899,30 @@ def average_w_interfaces_to_midpoints(data, rule):
     mesh.close()
 
     nz_data = data.sizes[vertical_dim]
-    if nz_data != n_midpoints:
-        raise ValueError(
-            f"Expected vertical size {n_midpoints} (FESOM cell layers, " f"matches mesh 'depth'); got {nz_data}"
+    if nz_data == n_midpoints + 1:
+        # w on all N+1 interfaces, seabed included, against a mesh whose
+        # 'depth' lists exactly the N layers. That is the CORE3 mesh.nc
+        # (47 layers, w nz1=48). The DARS2 mesh.nc instead carries one junk
+        # trailing 'depth' entry, so there w (57) matches 'depth' (57) and
+        # takes the padded branch below, which gives the same midpoints.
+        upper = data.isel({vertical_dim: slice(0, -1)})
+        lower = data.isel({vertical_dim: slice(1, None)})
+    elif nz_data == n_midpoints:
+        # Pad the deepest interface with zero (bottom BC: w=0 at seabed),
+        # then average adjacent interfaces to get midpoints.
+        upper = data
+        lower = xr.concat(
+            [
+                data.isel({vertical_dim: slice(1, None)}),
+                xr.zeros_like(data.isel({vertical_dim: 0})).expand_dims({vertical_dim: 1}),
+            ],
+            dim=vertical_dim,
         )
-
-    # Pad the deepest interface with zero (bottom BC: w=0 at seabed),
-    # then average adjacent interfaces to get midpoints.
-    upper = data
-    lower = xr.concat(
-        [
-            data.isel({vertical_dim: slice(1, None)}),
-            xr.zeros_like(data.isel({vertical_dim: 0})).expand_dims({vertical_dim: 1}),
-        ],
-        dim=vertical_dim,
-    )
+    else:
+        raise ValueError(
+            f"Expected vertical size {n_midpoints} or {n_midpoints + 1} (FESOM cell layers "
+            f"matching mesh 'depth', or all their interfaces); got {nz_data}"
+        )
     # Strip stale interface coords on `lower` so the addition doesn't
     # trigger an axis-value mismatch.
     lower = lower.assign_coords({vertical_dim: upper[vertical_dim].values})
@@ -2742,6 +2811,7 @@ def compute_volcello_fx(data, rule):
         data,
         {"units": "m3", "standard_name": "ocean_volume", "long_name": "Ocean Grid-Cell Volume"},
         rule.model_variable,
+        rule,
     )
     result = result * np.asarray(cell_area.values, dtype=np.float32)[None, :]
     result.attrs = {"units": "m3", "standard_name": "ocean_volume", "long_name": "Ocean Grid-Cell Volume"}

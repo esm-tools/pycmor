@@ -11,6 +11,21 @@ enabled mappings; ``not_enabled`` explicitly records HR products not yet
 enabled for this LR diagnostic profile. An empty tier is intentional, not
 permission to use HR conversions or invent unavailable diagnostics.
 
+Each tier directory also holds a second file, ``cmip7xml_awiesm3-lr_*.yaml``.
+These are the full HR rule set adapted to TCO95/CORE3, plus the rules that
+were switched off for HR and can come back for LR
+(``notes/LR_reactivation_plan.md``). They target runs written with the
+CMIP7 XIOS output of v3.5.1 (``oifs.cmip7_cmor_output`` and
+``fesom.cmip7_cmor_output``), not the raw-monthly archive this workflow
+reads. They run through the HR machinery with ``MODEL=lr``
+(``examples/repoint_hr_year.py``, ``examples/submit_hr_year_shards.sh``).
+``profile.yaml`` does not list them, so this workflow never loads them,
+and the ``MODEL=lr`` glob only matches the ``cmip7xml_`` prefix.
+
+``obgc/``, ``co2/`` and ``icebergs_cavities/`` hold the Data Request
+v1.2.2.5 lists for ocean biogeochemistry, the carbon cycle and icebergs
+and ice-shelf cavities, with size estimates per model year. No rules yet.
+
 ``profile.yaml`` contains shared pipelines, defaults and the tier-file list.
 ``campaigns/*.yaml`` contains experiment settings: paths, requested years,
 metadata, grids and Slurm resources. No leg length is configured.
