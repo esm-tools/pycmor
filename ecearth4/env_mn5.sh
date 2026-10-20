@@ -5,6 +5,8 @@
 set -euo pipefail
 
 PIXI_VERSION=${PIXI_VERSION:-0.81.0}
+# sha256 of the 0.81.0 musl tarball; set both when changing the version.
+PIXI_SHA256=${PIXI_SHA256:-7aa3ec39aecceff9062fa2ed4d42cbaa0bdc25ddea727d048e061cf188d434f6}
 DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 DREQ_API_VERSION=${DREQ_API_VERSION:-1.5.1}
 
@@ -35,8 +37,11 @@ install() {
         || { echo "no internet: run on a login node with access" >&2; exit 1; }
     mkdir -p "$WORK/bin" "$(dirname "$METADATA")"
     if [ ! -x "$PIXI" ]; then
-        curl -fsSL "https://github.com/prefix-dev/pixi/releases/download/v$PIXI_VERSION/pixi-x86_64-unknown-linux-musl.tar.gz" \
-            | tar xz -C "$WORK/bin" pixi
+        tgz=$(mktemp)
+        curl -fsSL -o "$tgz" "https://github.com/prefix-dev/pixi/releases/download/v$PIXI_VERSION/pixi-x86_64-unknown-linux-musl.tar.gz"
+        echo "$PIXI_SHA256  $tgz" | sha256sum -c --quiet || { echo "pixi checksum mismatch" >&2; rm -f "$tgz"; exit 1; }
+        tar xzf "$tgz" -C "$WORK/bin" pixi
+        rm -f "$tgz"
     fi
     git -C "$SRC" submodule update --init
     # --frozen: the lock is older than pyproject.toml (--locked refuses it).
@@ -64,6 +69,10 @@ h = json.load(open(p))["Header"]
 print("metadata", h["dreq content version"], h["no. of variables"], "variables, api", h["dreq api version"])
 print("sha256", hashlib.sha256(open(p, "rb").read()).hexdigest())
 EOF
+    # Content pycmor picks up without explicit paths (always set them).
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/pycmor
+    echo "pycmor cache $cache:"
+    ls -ld --time-style=+%F "$cache"/*/* 2>/dev/null | awk '{print "  " $6, $7}' || true
 }
 
 case ${1:-} in
