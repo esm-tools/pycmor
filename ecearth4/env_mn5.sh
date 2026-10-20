@@ -18,6 +18,9 @@ METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 # cmip7-cmor-common checkout for ecearth4/steps.py; optional.
 COMMON=${CMIP7_CMOR_COMMON:-}
 
+# Locked env only: no ~/.local packages (pip --user) on top of it.
+export PYTHONNOUSERSITE=1
+
 # Caches off HOME (quota).
 export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
 export UV_CACHE_DIR=$WORK/cache/uv PIP_CACHE_DIR=$WORK/cache/pip
@@ -70,6 +73,9 @@ install() {
 check() {
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
         'import sys, pycmor; print("pycmor", pycmor.__version__, "python", sys.version.split()[0])'
+    # Every module must come from the env (sys.prefix), not from ~/.local.
+    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
+        'import sys, numpy, xarray; [print(m.__name__, m.__version__, "ok" if m.__file__.startswith(sys.prefix) else "OUTSIDE ENV " + m.__file__) for m in (numpy, xarray)]'
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
         'from importlib.metadata import version; print("cmip7-cmor-common", version("cmip7-cmor-common"))' \
         2>/dev/null || echo "cmip7-cmor-common not installed"
