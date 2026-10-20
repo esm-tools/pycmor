@@ -233,13 +233,59 @@ def test_apply_refuses_a_value_that_does_not_parse_back(campaign, repoint, tmp_p
 
 
 @pytest.mark.parametrize("experiment", ["piControl", "1pctCO2", "abrupt-4xCO2", "historical"])
-def test_every_profile_binds_all_real_tier_yamls(campaign, repoint, tmp_path, code_repo, experiment):
-    """All 17 real tier yamls, through repoint and apply as the shards get them."""
-    cfg = campaign.load(_write_campaign(tmp_path, code_repo, experiment=experiment))
+@pytest.mark.parametrize("model", ["hr", "lr"])
+def test_every_profile_binds_all_real_tier_yamls(campaign, repoint, tmp_path, code_repo, experiment, model):
+    """All real tier yamls of each model, through repoint and apply as the shards get them."""
+    cfg = campaign.load(_write_campaign(tmp_path, code_repo, experiment=experiment, model=model))
     ydir = tmp_path / "yamls"
     ydir.mkdir()
-    for src in sorted((REPO / "awi-esm3-veg-hr-variables").glob("*/cmip7_awiesm3-veg-hr*.yaml")):
-        (ydir / f"{src.parent.name}.yaml").write_text(repoint.repoint_yaml(src, "/work/run", "1850", experiment))
-    assert campaign.apply(cfg, ydir) == 17
+    spec = repoint.MODELS[model]
+    srcs = sorted(spec["src_dir"].glob(spec["yaml_glob"]))
+    assert len(srcs) >= 17, "one yaml per tier, 17 tiers"
+    for src in srcs:
+        (ydir / f"{src.parent.name}.yaml").write_text(repoint.repoint_yaml(src, "/work/run", "1850", experiment, model))
+    assert campaign.apply(cfg, ydir) == len(srcs)
     for f in ydir.glob("*.yaml"):
-        assert yaml.safe_load(f.read_text())["inherit"]["experiment_id"] == experiment, f.name
+        text = f.read_text()
+        inherit = yaml.safe_load(text)["inherit"]
+        assert inherit["experiment_id"] == experiment, f.name
+        assert inherit["source_id"] == spec["source_id"], f.name
+        if experiment != "piControl":
+            assert inherit["parent_source_id"] == spec["source_id"], f.name
+        assert "__LR_" not in text, f"{f.name}: an EMD placeholder was not filled in"
+        assert "/work/run/outdata/" in text and spec["old_run_token"] + "/outdata" not in text, f.name
+
+
+def test_hr_model_is_the_unchanged_default(repoint):
+    """MODEL=hr must leave every HR value as it was before models existed."""
+    assert repoint.DEFAULT_MODEL == "hr"
+    hr = repoint.MODELS["hr"]
+    assert hr["placeholders"] == {}
+    assert (hr["runtime_root"], hr["old_run_token"]) == (repoint.RUNTIME_ROOT, repoint.OLD_RUN_TOKEN)
+    assert repoint.experiment_profiles("hr") == repoint.EXPERIMENTS
+
+
+def test_lr_rules_point_at_lr_grids_and_paths(repoint):
+    """No HR grid label, mesh or source_id may survive in the LR tree."""
+    spec = repoint.MODELS["lr"]
+    for src in sorted(spec["src_dir"].glob(spec["yaml_glob"])):
+        y = yaml.safe_load(repoint.repoint_yaml(src, "/work/run", "1850", "piControl", "lr"))
+        labels = {y["inherit"]["grid_label"]} | {r["grid_label"] for r in y["rules"] if "grid_label" in r}
+        assert not labels & {"g122", "g129", "g130", "g132"}, (src.name, labels)
+        assert "dars2" not in str(y), src.name
+        assert y["inherit"]["source_id"] == spec["source_id"]
+
+
+def test_campaign_model_is_validated_exported_and_pinned(campaign, tmp_path, code_repo, monkeypatch):
+    monkeypatch.setenv("CMIP7_TABLES_PATH", str(tmp_path))
+    with pytest.raises(campaign.CampaignError, match="model"):
+        campaign.load(_write_campaign(tmp_path, code_repo, model="mr"))
+    hr = campaign.load(_write_campaign(tmp_path, code_repo))
+    assert hr["model"] == "hr" and "model" not in campaign._pinned_view(hr, "x"), "HR pins stay as they were"
+    lr = campaign.load(_write_campaign(tmp_path, code_repo, model="lr"))
+    assert campaign._pinned_view(lr, "x")["model"] == "lr"
+    campaign.setup(lr)
+    assert "export MODEL=lr" in campaign.env(lr)
+    # Switching an LR campaign to HR afterwards changes what it produces.
+    with pytest.raises(campaign.CampaignError, match="model"):
+        campaign.verify(campaign.load(_write_campaign(tmp_path, code_repo)))

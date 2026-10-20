@@ -20,8 +20,13 @@ EXPERIMENT (or the EXPERIMENT env var) selects the metadata profile
 written into `inherit:` — default piControl, which is what the source
 yamls already carry. Use `historical` for a branch-off run.
 
+MODEL (env var, default hr) selects the model: hr reads
+awi-esm3-veg-hr-variables/, lr reads awi-esm3-lr-variables/ and fills in
+its EMD placeholders. See MODELS.
+
 Examples:
   repoint_hr_year.py Test_16n 1587 /scratch/$USER/cmorize_Test_16n_y1587
+  MODEL=lr repoint_hr_year.py pi 1850 /scratch/$USER/pycmor_lr/pi_y1850/yamls
   repoint_hr_year.py /work/bb1469/.../runtime/awiesm3-develop/Test_16n 1587 ./out
 """
 from __future__ import annotations
@@ -31,7 +36,8 @@ import pathlib
 import re
 import sys
 
-SRC_DIR = pathlib.Path(__file__).resolve().parent.parent / "awi-esm3-veg-hr-variables"
+REPO = pathlib.Path(__file__).resolve().parent.parent
+SRC_DIR = REPO / "awi-esm3-veg-hr-variables"
 # The token to swap in the source yamls' hardcoded data paths.
 # Must match what's literally in awi-esm3-veg-hr-variables/<tier>/*.yaml today
 # (current: ``Final_CMIP7_IO_Test_01``). If the hardcoded path drifts, update
@@ -39,6 +45,53 @@ SRC_DIR = pathlib.Path(__file__).resolve().parent.parent / "awi-esm3-veg-hr-vari
 # awk -F/ '{print $(NF-1)}' | sort -u`` to find the current value.
 OLD_RUN_TOKEN = "Final_CMIP7_IO_Test_01"
 RUNTIME_ROOT = "/work/bb1469/a270092/runtime/awiesm3-develop"
+
+# Model profiles, selected with the MODEL env var (default hr).
+#
+# Each model has its own tier tree, whose yamls hardcode one template run
+# (runtime_root/old_run_token) that repointing swaps for the requested run.
+# runtime_root also resolves relative run names. ``hr`` is the values above,
+# unchanged, so the HR output of this script stays byte-for-byte the same.
+#
+# ``placeholders`` is the one place where the LR identity waiting on the EMD
+# is defined. The LR yamls carry the tokens on the left; repointing writes
+# the values on the right. Swap a value here once the EMD has it:
+#   - source_id: no LR model is registered yet (EMD decision D2 open);
+#     AWI-ESM3-veg-LR is a placeholder name.
+#   - native atmosphere, ocean nodes, ocean elements: g235 (TCO95, 40320
+#     cells), g236 (CORE3, 220509 nodes) and g238 (CORE3, 426403 elements)
+#     are registered horizontal_grid_cell entries (checked on EMD src-data
+#     2026-10-19), but not yet linked to an LR source_id, so verify them
+#     when the LR model record lands.
+#   - regular atmosphere regrid (TCo95 -> 400 x 192, 0.9 x 0.9375 deg): no
+#     grid cell is registered; g999 is a placeholder and QC flags it.
+_LR_SOURCE_ID = "AWI-ESM3-veg-LR"  # TODO(EMD): placeholder
+MODELS = {
+    "hr": {
+        "src_dir": SRC_DIR,
+        "yaml_glob": "*/cmip7_awiesm3-veg-hr*.yaml",
+        "runtime_root": RUNTIME_ROOT,
+        "old_run_token": OLD_RUN_TOKEN,
+        "source_id": "AWI-ESM3-4-2-veg-HR",
+        "placeholders": {},
+    },
+    "lr": {
+        "src_dir": REPO / "awi-esm3-lr-variables",
+        "yaml_glob": "*/cmip7_awiesm3-lr*.yaml",
+        # Template run: the v3.5.0-cc LR test run (pi, core3).
+        "runtime_root": "/work/ab1095/a270073/out/awiesm3-v3.5.0-cc",
+        "old_run_token": "pi",
+        "source_id": _LR_SOURCE_ID,
+        "placeholders": {
+            "__LR_SOURCE_ID__": _LR_SOURCE_ID,
+            "__LR_GRID_ATM__": "g235",  # TODO(EMD): verify
+            "__LR_GRID_ATM_REGULAR__": "g999",  # TODO(EMD): placeholder, not registered
+            "__LR_GRID_OCEAN__": "g236",  # TODO(EMD): verify
+            "__LR_GRID_OCEAN_ELEM__": "g238",  # TODO(EMD): verify
+        },
+    },
+}
+DEFAULT_MODEL = "hr"
 
 # Experiment metadata profiles.
 #
@@ -90,6 +143,25 @@ EXPERIMENTS = {
 }
 DEFAULT_EXPERIMENT = "piControl"
 
+
+def experiment_profiles(model: str = DEFAULT_MODEL) -> dict:
+    """EXPERIMENTS for ``model``: parent_source_id names that model.
+
+    The branch attributes are the HR ones for every model. TODO(LR): the
+    LR historical/1pctCO2/abrupt-4xCO2 runs do not exist yet; check their
+    branch year and calendars against _BRANCHED_OFF_PICONTROL_1949 when
+    they do.
+    """
+    source_id = MODELS[model]["source_id"]
+    out = {}
+    for name, profile in EXPERIMENTS.items():
+        profile = dict(profile)
+        if "parent_source_id" in profile:
+            profile["parent_source_id"] = source_id
+        out[name] = profile
+    return out
+
+
 # Run-directory spellings that differ from the CV experiment_id, for the
 # mismatch guard only. Without this, `AWI-ESM3-VEG-HR-CMIP7-abrupt4xCO2_1949`
 # would not be recognised as abrupt-4xCO2 and the guard would wave through a
@@ -97,8 +169,8 @@ DEFAULT_EXPERIMENT = "piControl"
 RUN_NAME_ALIASES = {"abrupt4xco2": "abrupt-4xCO2"}
 
 
-def resolve_run_dir(arg: str) -> str:
-    return arg if arg.startswith("/") else f"{RUNTIME_ROOT}/{arg}"
+def resolve_run_dir(arg: str, model: str = DEFAULT_MODEL) -> str:
+    return arg if arg.startswith("/") else f"{MODELS[model]['runtime_root']}/{arg}"
 
 
 def check_run_matches_experiment(run_dir: str, experiment: str) -> None:
@@ -125,7 +197,7 @@ def check_run_matches_experiment(run_dir: str, experiment: str) -> None:
         )
 
 
-def apply_experiment(text: str, experiment: str, src_name: str) -> str:
+def apply_experiment(text: str, experiment: str, src_name: str, model: str = DEFAULT_MODEL) -> str:
     """Rewrite the inherit: metadata for `experiment`.
 
     Keys already present are replaced in place; keys the piControl yamls do
@@ -134,7 +206,7 @@ def apply_experiment(text: str, experiment: str, src_name: str) -> str:
     the yamls stay human-authored text and are never round-tripped through
     a yaml dumper, which would reflow them and drop every comment.
     """
-    profile = EXPERIMENTS[experiment]
+    profile = experiment_profiles(model)[experiment]
     if not profile:
         return text
 
@@ -209,7 +281,25 @@ def add_year_to_pattern(pat: str, year: str) -> str:
     return out
 
 
-def repoint_yaml(src: pathlib.Path, run_dir: str, year: str, experiment: str = DEFAULT_EXPERIMENT) -> str:
+def apply_placeholders(text: str, model: str, src_name: str) -> str:
+    """Write the model's EMD placeholder values (MODELS[...]['placeholders'])."""
+    placeholders = MODELS[model]["placeholders"]
+    for token, value in placeholders.items():
+        text = text.replace(token, value)
+    left = sorted(set(re.findall(r"__LR_[A-Z_]+__", text)))
+    if left:
+        raise SystemExit(
+            f"ERROR: {src_name} still contains {', '.join(left)} after repointing for\n"
+            f"       MODEL={model}. Define them in MODELS[{model!r}]['placeholders'] in this script."
+        )
+    return text
+
+
+def repoint_yaml(
+    src: pathlib.Path, run_dir: str, year: str, experiment: str = DEFAULT_EXPERIMENT, model: str = DEFAULT_MODEL
+) -> str:
+    runtime_root = MODELS[model]["runtime_root"]
+    old_run_token = MODELS[model]["old_run_token"]
     text = src.read_text()
     # Path swap: any HR_test_01 path -> the requested run dir.
     #
@@ -221,7 +311,7 @@ def repoint_yaml(src: pathlib.Path, run_dir: str, year: str, experiment: str = D
     # yamls kept pointing at the TEMPLATE run. The cmorization would then
     # process the wrong model run and the output would look entirely normal.
     # Fail loudly instead of producing plausible, wrong results.
-    old_path = f"{RUNTIME_ROOT}/{OLD_RUN_TOKEN}"
+    old_path = f"{runtime_root}/{old_run_token}"
     if old_path not in text:
         raise SystemExit(
             f"ERROR: {src.name} does not contain the expected template path:\n"
@@ -232,7 +322,7 @@ def repoint_yaml(src: pathlib.Path, run_dir: str, year: str, experiment: str = D
             f"       the template run's data instead of {run_dir}."
         )
     text = re.sub(
-        rf"{re.escape(RUNTIME_ROOT)}/{OLD_RUN_TOKEN}",
+        rf"{re.escape(runtime_root)}/{old_run_token}",
         run_dir,
         text,
     )
@@ -279,12 +369,21 @@ def repoint_yaml(src: pathlib.Path, run_dir: str, year: str, experiment: str = D
         flags=re.M,
     )
 
-    text = apply_experiment(text, experiment, src.name)
+    text = apply_placeholders(text, model, src.name)
+    text = apply_experiment(text, experiment, src.name, model)
 
     return text
 
 
 def main() -> int:
+    model = os.environ.get("MODEL", DEFAULT_MODEL)
+    if model not in MODELS:
+        print(f"ERROR: unknown MODEL {model!r}; known: {', '.join(sorted(MODELS))}", file=sys.stderr)
+        return 1
+    if sys.argv[1:] == ["--runtime-root"]:
+        # For submit_hr_year_shards.sh, so relative run names resolve the same way.
+        print(MODELS[model]["runtime_root"])
+        return 0
     if len(sys.argv) not in (4, 5):
         print(__doc__.strip(), file=sys.stderr)
         return 2
@@ -296,7 +395,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    run_dir = resolve_run_dir(run_arg)
+    run_dir = resolve_run_dir(run_arg, model)
     workdir = pathlib.Path(workdir_arg).resolve()
     check_run_matches_experiment(run_dir, experiment)
 
@@ -309,21 +408,24 @@ def main() -> int:
 
     workdir.mkdir(parents=True, exist_ok=True)
 
-    yamls = sorted(SRC_DIR.glob("*/cmip7_awiesm3-veg-hr*.yaml"))
+    src_dir = MODELS[model]["src_dir"]
+    yamls = sorted(src_dir.glob(MODELS[model]["yaml_glob"]))
     if not yamls:
-        print(f"ERROR: no HR yamls under {SRC_DIR}", file=sys.stderr)
+        print(f"ERROR: no {model.upper()} yamls under {src_dir}", file=sys.stderr)
         return 1
 
     for src in yamls:
         tier = src.parent.name
         dest = workdir / f"{tier}.yaml"
-        dest.write_text(repoint_yaml(src, run_dir, year, experiment))
+        dest.write_text(repoint_yaml(src, run_dir, year, experiment, model))
         print(f"  {tier:<14}  ->  {dest}")
 
     print(f"\nWrote {len(yamls)} repointed yamls into {workdir}")
     print(f"  source run: {run_dir}")
     print(f"  year filter: {year}")
     print(f"  experiment:  {experiment}")
+    if model != DEFAULT_MODEL:
+        print(f"  model:       {model}")
     return 0
 
 
