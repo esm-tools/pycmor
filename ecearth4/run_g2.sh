@@ -11,6 +11,9 @@ DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 RUN=$WORK/g2/$(date +%Y%m%d_%H%M%S)
 PIXI=${PIXI:-$WORK/bin/pixi}
+# Locked env only (no ~/.local); caches as env_mn5.sh.
+export PYTHONNOUSERSITE=1
+export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
 
 render() {
     sed -e "s|@SRC@|$SRC|g" -e "s|@METADATA@|$METADATA|g" \
