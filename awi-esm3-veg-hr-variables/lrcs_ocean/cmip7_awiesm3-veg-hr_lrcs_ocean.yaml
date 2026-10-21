@@ -621,14 +621,18 @@ rules:
     model_variable: N2
     lazy_write: true
 
-  # wfo — water flux into sea water (fw × rho_water)
+  # wfo — water flux into sea water. FESOM's fw is positive upward and
+  # already divided by the reference density 1025: at ice-free nodes in
+  # piControl January 1852, fw = -0.9756 * (evap+prec+snow+runoff) with
+  # r = -0.99999. So wfo = -1025 * fw. The earlier +1000 gave the wrong
+  # sign and a 2.5 % smaller magnitude.
   - name: wfo
     inputs:
       - path: *dp
         pattern: fw\.fesom\.\d{4}\.nc
     compound_name: ocean.wfo.tavg-u-hxy-sea.mon.glb
     model_variable: fw
-    scale_factor: 1000.0
+    scale_factor: -1025.0
     scaled_units: "kg m-2 s-1"
     pipelines:
       - scale_pipeline
