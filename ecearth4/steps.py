@@ -6,6 +6,7 @@ them to xarray, which pycmor passes between steps.
 from datetime import date
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from cmip7_cmor_common import lpjg
@@ -85,3 +86,22 @@ def load_lpjg(data, rule):
         },
     )
     return xr.decode_cf(ds)
+
+
+def daily_statistic_time(data, rule):
+    """Daily OIFS statistic written as XIOS instant: move stamps to mid-day.
+
+    OIFS computes the daily maximum/minimum itself; XIOS writes it once a
+    day, stamped at the end of that day (00:00 next day, zero-width bounds).
+    Resampling by calendar day would put it one day late, so the stamp moves
+    back 12 h, into the day it describes. Only with rule option
+    daily_statistic: true and when stamps sit at 00:00.
+    """
+    if not rule.get("daily_statistic", False):
+        return data
+    dim = next(d for d in data.dims if d.startswith("time"))
+    t = data[dim]
+    if not bool((t.dt.hour == 0).all()):
+        return data
+    # pd.Timedelta works with cftime and datetime64 alike.
+    return data.assign_coords({dim: t - pd.Timedelta(hours=12)})
