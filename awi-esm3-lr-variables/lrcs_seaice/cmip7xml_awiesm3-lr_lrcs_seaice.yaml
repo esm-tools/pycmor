@@ -590,9 +590,10 @@ pipelines:
       - pycmor.std_lib.qc.run_compliance_checker
 
   # Hemisphere integral of a volume-per-area field rebuilt from daily
-  # thickness × concentration. Only sivol at day frequency uses it: m_ice is
-  # monthly-only in this run, so h_ice × a_ice stands in for it. The unit
-  # chain is h_ice·a_ice [m] × cell_area [m²] = m³, converted to `1e3 km3`.
+  # thickness × concentration. The unit chain is h_ice·a_ice [m] ×
+  # cell_area [m²] = m³, converted to `1e3 km3`. No LR rule uses it any more:
+  # sivol_*_day read the daily m_ice_day stream (hemisphere_integral_pipeline).
+  # Kept for runs without that stream.
   - name: ice_volume_hemisphere_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -674,6 +675,12 @@ inherit:
   # CORE3 mesh.nc stores depth_lev as the number of wet layers, DARS2 as the
   # index of the deepest one (custom_steps._last_wet_level).
   depth_lev_counts_levels: true
+  # Hemisphere integrals (siarea/siextent/sivol/sisnmass from gridded fields)
+  # weight by FESOM's open-ocean surface area, not mesh.nc cell_area, which
+  # also counts the part of a node under an ice shelf. With cell_area the
+  # January 1850 test gave SH siarea 1.3% and sivol 2.9% above FESOM's own
+  # siareas/sivols scalars; with nod_area[0] siarea matches to 0.1%.
+  surface_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
   grid: "FESOM 2.8 CORE3 unstructured mesh (~10-120 km, 220509 nodes)"
   nominal_resolution: "25 km"
   output_directory: ./cmorized_output/awiesm3
@@ -935,31 +942,40 @@ rules:
   # which for sistressmax (sqrt(((sgm11-sgm22)/2)^2 + sgm12^2), nonlinear)
   # is not even the monthly mean of the invariant, so the rules stayed off.
   # The v3.5.1 FESOM cmip7 file_def writes sgm11_inst / sgm12_inst /
-  # sgm22_inst (operation="instant", one sample per month).
+  # sgm22_inst (operation="instant", one sample per month). Their variables
+  # are named after the stream (sgm11_inst, ...), and they live on elements
+  # like tauuo, hence the element grid label.
   #
   - name: sistressave
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
     inputs:
       - path: *dp
         pattern: sgm11_inst\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistressave.tpt-u-hxy-si.mon.glb
-    model_variable: sgm11
+    model_variable: sgm11_inst
     sgm22_path: *dp
     sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
+    sgm22_variable: sgm22_inst
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:
       - sistressave_pipeline
 
   - name: sistressmax
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
     inputs:
       - path: *dp
         pattern: sgm11_inst\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistressmax.tpt-u-hxy-si.mon.glb
-    model_variable: sgm11
+    model_variable: sgm11_inst
     sgm22_path: *dp
     sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
+    sgm22_variable: sgm22_inst
     sgm12_path: *dp
     sgm12_pattern: sgm12_inst\.fesom\.\d{4}\.nc
+    sgm12_variable: sgm12_inst
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:
@@ -1345,50 +1361,42 @@ rules:
     cell_measures: ""
     model_variable: sivols
 
-  # Daily sivol, rebuilt from the gridded daily fields.
+  # Daily sivol, integrated from the daily m_ice_day stream.
   #
   # These used to read the ldiag_cmor scalars sivoln/sivols, same as the
-  # monthly rules above. Those scalars are monthly in this run, so cli108
-  # published a 335-step daily axis carrying 12 distinct values and 323 NaNs.
-  # m_ice would be the right input but is monthly-only too; h_ice and a_ice
-  # are both daily and m_ice = h_ice * a_ice, so the daily field is
-  # reconstructible from output that already exists. Both inputs are daily
-  # means, so the product drops the sub-daily thickness/concentration
-  # covariance: measured against FESOM's per-timestep sivoln for 1586 it runs
-  # +0.094% high on average, 0.107% at worst, correlation 1.000000. A daily
-  # m_ice stream is wired up in esm_tools and removes the approximation for
-  # later runs; see REACTIVATE_AFTER_XIOS_FIX.md.
+  # monthly rules above. Those scalars are monthly, so HR cli108 published a
+  # 335-step daily axis carrying 12 distinct values and 323 NaNs. HR then
+  # rebuilt the daily field as h_ice * a_ice (ice_volume_hemisphere_pipeline),
+  # which drops the sub-daily thickness/concentration covariance (+0.094% on
+  # average against FESOM's per-timestep sivoln for 1586). The v3.5.1 FESOM
+  # cmip7 file_def writes a daily m_ice_day alias stream (sea-ice volume per
+  # area, m) for exactly these rules, so LR integrates it directly, the same
+  # way siarea_*_day integrates a_ice. The variable in the file is m_ice_day.
   - name: sivol_north_day
     inputs:
       - path: *dp
-        pattern: h_ice\.fesom\.\d{4}\.nc
+        pattern: m_ice_day\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.day.nh
     grid_label: g011  # Mittel über die Nordhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     cell_measures: ""
-    model_variable: h_ice
+    model_variable: m_ice_day
     model_unit: "m3"
     hemisphere: "N"
-    aice_path: *dp
-    aice_pattern: a_ice\.fesom\.\d{4}\.nc
-    aice_variable: a_ice
     pipelines:
-      - ice_volume_hemisphere_pipeline
+      - hemisphere_integral_pipeline
 
   - name: sivol_south_day
     inputs:
       - path: *dp
-        pattern: h_ice\.fesom\.\d{4}\.nc
+        pattern: m_ice_day\.fesom\.\d{4}\.nc
     compound_name: seaIce.sivol.tavg-u-hm-u.day.sh
     grid_label: g012  # Mittel über die Südhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     cell_measures: ""
-    model_variable: h_ice
+    model_variable: m_ice_day
     model_unit: "m3"
     hemisphere: "S"
-    aice_path: *dp
-    aice_pattern: a_ice\.fesom\.\d{4}\.nc
-    aice_variable: a_ice
     pipelines:
-      - ice_volume_hemisphere_pipeline
+      - hemisphere_integral_pipeline
 
   # ============================================================
   # SImon — atmosphere-grid variables (from OpenIFS output)

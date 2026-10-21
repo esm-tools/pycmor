@@ -649,14 +649,20 @@ rules:
     model_variable: N2
     lazy_write: true
 
-  # wfo — water flux into sea water (fw × rho_water)
+  # wfo — water flux into sea water (-fw × rho_0)
+  # FESOM fw is positive upward and divided by the model's rho_0 = 1025:
+  # in the January 1850 LR test, over ice-free ocean equatorward of 50°,
+  # fw = -0.9756 * (evap + prec + snow + runoff), correlation -0.99997,
+  # and 0.9756 = 1000/1025. So wfo = -1025 * fw (as in Laszlo's
+  # cmip7_awiesm3-lr workflow). The HR rule still uses +1000; if HR FESOM
+  # has the same fw convention, it has the wrong sign too.
   - name: wfo
     inputs:
       - path: *dp
         pattern: fw\.fesom\.\d{4}\.nc
     compound_name: ocean.wfo.tavg-u-hxy-sea.mon.glb
     model_variable: fw
-    scale_factor: 1000.0
+    scale_factor: -1025.0
     scaled_units: "kg m-2 s-1"
     pipelines:
       - scale_pipeline
@@ -759,6 +765,8 @@ rules:
   # and read the daily utemp_day / vtemp_day streams the v3.5.1 FESOM cmip7
   # file_def adds (3D on elements, ldiag_trflx on). hnode stays monthly;
   # compute_heat_transport takes each day's layer thickness from its month.
+  # The alias streams name their variable after the stream, so the variable
+  # in utemp_day.fesom.<year>.nc is utemp_day, not utemp.
   # WARNING: the daily 3D input is large (HR DARS: 3.1M nodes x 56 levels;
   # LR CORE3: 426403 elements x 47 levels, about 16 GB/year raw each).
   - name: hfx_int_day
@@ -768,7 +776,7 @@ rules:
       - path: *dp
         pattern: utemp_day\.fesom\.\d{4}\.nc
     compound_name: ocean.hfx.tavg-u-hxy-sea.day.glb
-    model_variable: utemp
+    model_variable: utemp_day
     scale_factor: 4095900.0
     scaled_units: "W"
     hnode_path: *dp
@@ -786,7 +794,7 @@ rules:
       - path: *dp
         pattern: vtemp_day\.fesom\.\d{4}\.nc
     compound_name: ocean.hfy.tavg-u-hxy-sea.day.glb
-    model_variable: vtemp
+    model_variable: vtemp_day
     scale_factor: 4095900.0
     scaled_units: "W"
     hnode_path: *dp
