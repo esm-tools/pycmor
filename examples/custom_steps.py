@@ -707,6 +707,13 @@ def integrate_over_hemisphere(data, rule):
       - hemisphere: 'N' or 'S'
       - extent_threshold: float, optional — if set, binarise data > threshold
             before integrating (default: None, i.e. use data as-is)
+      - surface_area_file: optional fesom.mesh.diag.nc. When set, the weight
+            is its top-level ``nod_area`` instead of the mesh ``cell_area``.
+            Needed on meshes with ice-shelf cavities (LR CORE3): cell_area
+            counts the full node area, including the part under the ice
+            shelf, while nod_area[0] is the open-ocean surface FESOM itself
+            integrates over (0 at cavity nodes, smaller at cavity edges).
+            Unset (HR, no cavities) keeps cell_area.
     """
     grid_file = rule.get("grid_file")
     hemisphere = rule.get("hemisphere", "N")
@@ -723,6 +730,17 @@ def integrate_over_hemisphere(data, rule):
         cell_area = mesh["cluster_area"]
     else:
         raise ValueError("Mesh must contain 'cell_area' or 'cluster_area'")
+    surface_area_file = rule.get("surface_area_file", None)
+    if surface_area_file:
+        with xr.open_dataset(surface_area_file) as diag:
+            nod_area = diag["nod_area"]
+            vdim = next(d for d in nod_area.dims if d != "nod2")
+            surface = nod_area.isel({vdim: 0}).fillna(0).values
+        if surface.shape != cell_area.shape:
+            raise ValueError(
+                f"surface_area_file nod_area has {surface.shape} nodes, mesh cell_area {cell_area.shape}"
+            )
+        cell_area = xr.DataArray(surface, dims=cell_area.dims)
 
     # Get latitude for hemisphere selection
     if "lat" in mesh:
@@ -6049,8 +6067,12 @@ def _align_zmoc_to_cmip(per_basin, mesh, time_coord_source):
     # ``positive=down``).
     lev = -np.asarray(mesh.zlev[:nz])
 
+    # Same half-degree axis as compute_msftmz. The whole-degree
+    # np.arange(-90, 91, 1) used here before matched none of tripyview's
+    # floor(lat/dlat)*dlat + dlat/2 labels, so the reindex below returned
+    # all NaN (LR msftmmpa_depth, January 1850 test, every value missing).
     dlat = 1.0
-    lat_centers = np.arange(-90.0, 90.0 + dlat, dlat)
+    lat_centers = _global_lat_centers(dlat)
     out = np.full((ntime, nz, 3, lat_centers.size), np.nan, dtype=np.float64)
     for j, name in enumerate(_CMIP_BASIN_NAMES):
         da = per_basin[name].reindex(lat=lat_centers)
