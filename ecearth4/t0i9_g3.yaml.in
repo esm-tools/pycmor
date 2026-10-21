@@ -1,0 +1,63 @@
+# G3: nbp mon from t0i9 (EC-Earth4 LPJ-GUESS, .out.gz on land points).
+# Rendered by run.sh (case t0i9_g3); @...@ are filled from its environment.
+# Content paths explicit; identity as ecemor's t0i9 run.
+# nbp passed through as written by LPJG (CMIP sign convention, positive
+# into land; same as ece2cmor3 and ecemor): no flip, no clipping.
+general:
+  name: "ecearth4-t0i9-g3"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "@METADATA@"
+  CV_Dir: "@SRC@/CMIP7-CVs"
+  CMIP_Tables_Dir: "@SRC@/src/pycmor/data/cmip7"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: false
+  parallel: false
+  dask_cluster: "local"
+  # Small local cluster; the default takes the whole node (cores and memory).
+  dask_n_workers: 1
+  dask_threads_per_worker: 4
+  dask_memory_limit: "16GB"
+
+pipelines:
+  - name: ecearth4_lpjg
+    steps:
+      - script://@SRC@/ecearth4/steps.py:load_lpjg
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.files.save_dataset
+
+inherit:
+  source_id: EC-Earth4
+  institution_id: EC-Earth-Consortium
+  activity_id: CMIP
+  experiment_id: historical
+  variant_label: r1i1p1f1
+  parent_experiment_id: piControl
+  parent_activity_id: CMIP
+  parent_time_units: "days since 1850-01-01"
+  branch_time_in_parent: 0.0
+  grid_label: g114
+  grid: "regular Gaussian N128 from LPJ-GUESS land points on the TL255 reduced Gaussian grid"
+  nominal_resolution: "100 km"
+  qc_enabled: false
+  output_directory: "@OUT@"
+
+rules:
+  - name: nbp
+    inputs:
+      - path: "@SAMPLES@/t0i9"
+        pattern: nbp_monthly.out.gz
+    compound_name: land.nbp.tavg-u-hxy-lnd.mon.glb
+    model_variable: nbp
+    model_unit: "kg m-2 s-1"
+    pipelines: [ecearth4_lpjg]
