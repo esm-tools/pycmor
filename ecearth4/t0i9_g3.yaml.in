@@ -1,6 +1,7 @@
 # G3: nbp mon from t0i9 (EC-Earth4 LPJ-GUESS, .out.gz on land points).
 # Rendered by run.sh (case t0i9_g3); @...@ are filled from its environment.
-# Content paths explicit; identity as ecemor's t0i9 run.
+# Content paths explicit, never from cache or download; identity as ecemor's
+# t0i9 run.
 # nbp passed through as written by LPJG (CMIP sign convention, positive
 # into land; same as ece2cmor3 and ecemor): no flip, no clipping.
 general:
