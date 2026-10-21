@@ -276,6 +276,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
@@ -356,6 +357,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_salt_transport
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -374,6 +376,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_salt_transport_integrated
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -462,6 +465,7 @@ pipelines:
       - pycmor.std_lib.decadal.decadal_gate
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - pycmor.std_lib.add_vertical_bounds
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -712,6 +716,12 @@ rules:
     compound_name: ocean.uos.tavg-u-hxy-sea.day.glb
     model_variable: unod_sfc
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vnod_sfc (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vnod_sfc\.fesom\.\d{4}\.nc
+    vector_partner_variable: vnod_sfc
     pipelines:
       - surface_2d_pipeline
 
@@ -722,6 +732,12 @@ rules:
     compound_name: ocean.vos.tavg-u-hxy-sea.day.glb
     model_variable: vnod_sfc
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with unod_sfc (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: unod_sfc\.fesom\.\d{4}\.nc
+    vector_partner_variable: unod_sfc
     pipelines:
       - surface_2d_pipeline
 
@@ -1023,6 +1039,12 @@ rules:
     netcdf_tmpfs_staging: false
 
   - name: tauuo_dec
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with ty_sur (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: ty_sur\.fesom\.\d{4}\.nc
+    vector_partner_variable: ty_sur
     pipelines:
       - decadal_pipeline
     grid_label: g132
@@ -1034,6 +1056,12 @@ rules:
     model_variable: tx_sur
 
   - name: tauvo_dec
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with tx_sur (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: tx_sur\.fesom\.\d{4}\.nc
+    vector_partner_variable: tx_sur
     pipelines:
       - decadal_pipeline
     grid_label: g132
@@ -1280,6 +1308,12 @@ rules:
     reference_density: 1025.0
     transport_component: x
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vnod (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vnod\.fesom\.\d{4}\.nc
+    vector_partner_variable: vnod
     pipelines:
       - salt_transport_pipeline
 
@@ -1295,6 +1329,12 @@ rules:
     reference_density: 1025.0
     transport_component: x
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vnod (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vnod\.fesom\.\d{4}\.nc
+    vector_partner_variable: vnod
     pipelines:
       - salt_transport_integrated_pipeline
 
@@ -1310,6 +1350,12 @@ rules:
     reference_density: 1025.0
     transport_component: y
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with unod (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: unod\.fesom\.\d{4}\.nc
+    vector_partner_variable: unod
     pipelines:
       - salt_transport_pipeline
 
@@ -1325,6 +1371,12 @@ rules:
     reference_density: 1025.0
     transport_component: y
     lazy_write: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with unod (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: unod\.fesom\.\d{4}\.nc
+    vector_partner_variable: unod
     pipelines:
       - salt_transport_integrated_pipeline
 
@@ -1362,6 +1414,12 @@ rules:
     model_variable: hfbasin
     # compute_hfbasin_tripyview loads utemp as a secondary input alongside
     # the primary vtemp; both are needed for the edge-crossing integral.
+    # No rotate_vector_to_geographic here, on purpose: utemp/vtemp are in
+    # FESOM's rotated frame and so are the edge vectors tripyview crosses
+    # them with (edge_cross_dxdy in fesom.mesh.diag.nc matches the rotated-
+    # frame centroid-to-edge vectors to 1e-12, the geographic ones only to
+    # ~50 %). u*dy - v*dx does not depend on the frame as long as both are in
+    # the same one; rotating only utemp/vtemp would break it.
     utemp_path: *dp
     utemp_pattern: utemp\.fesom\.\d{4}\.nc
     utemp_variable: utemp
@@ -1381,6 +1439,8 @@ rules:
     model_variable: sltbasin
     # compute_sltbasin_tripyview loads usalt as a secondary input alongside
     # the primary vsalt; both are needed for the edge-crossing integral.
+    # Not rotated, for the same reason as hfbasin: usalt/vsalt and the
+    # mesh-diag edge vectors share FESOM's rotated frame.
     usalt_path: *dp
     usalt_pattern: usalt\.fesom\.\d{4}\.nc
     usalt_variable: usalt

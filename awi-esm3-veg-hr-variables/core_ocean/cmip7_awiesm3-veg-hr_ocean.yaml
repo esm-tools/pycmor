@@ -6,6 +6,9 @@
 #   - MLD3 is the CMIP-compliant definition (sigma_t=0.03), not MLD1
 #   - uo/vo use unod/vnod (nodal, nod2 grid) instead of u/v (elem grid)
 #   - tauuo/tauvo still on elem grid — may need elem→node step
+#   - FESOM writes all vectors in its rotated model frame (XIOS mode forces
+#     vec_autorotate=.false.); the vector rules rotate them to geographic
+#     with rotate_vector_to_geographic
 
 general:
   name: "awiesm3-cmip7-core-ocean"
@@ -161,11 +164,39 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
-  # Mass transport pipeline: load velocity → extract → multiply by rho_0*dz
+  # DefaultPipeline plus rotate_vector_to_geographic, for the vector rules
+  # that would otherwise run on `<default>` (uo, vo, tauuo, tauvo). FESOM
+  # writes vectors through XIOS in its rotated model frame: XIOS mode forces
+  # vec_autorotate=.false. and never calls io_r2g. The step reads the other
+  # component (vector_partner_*) and returns geographic east or north. Step
+  # list mirrors pycmor.core.pipeline.DefaultPipeline.STEPS -- keep in sync.
+  - name: vector_rotation_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Mass transport pipeline: load velocity → extract → multiply by rho_0*dz.
+  # rotate_vector_to_geographic turns umo/vmo's unod/vnod geographic first
+  # (no-op for wmo, which carries no vector_partner_* keys).
   - name: mass_transport_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mass_transport
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -334,8 +365,15 @@ rules:
     compound_name: ocean.tauuo.tavg-u-hxy-sea.mon.glb
     model_variable: tx_sur
     # NOTE: tx_sur is on elem grid (6.2M elements), not nod2 (3.1M nodes).
-    # vec_autorotate=.true. set in namelist.io
     # May still need elem→node interpolation pipeline step for consistency.
+    # FESOM writes it in the rotated model frame; rotated to geographic east
+    # at the element centroids together with ty_sur.
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: ty_sur\.fesom\.\d{4}\.nc
+    vector_partner_variable: ty_sur
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: tauvo
     grid_label: g132
@@ -346,6 +384,13 @@ rules:
     compound_name: ocean.tauvo.tavg-u-hxy-sea.mon.glb
     model_variable: ty_sur
     # NOTE: Same elem grid caveat as tauuo.
+    # Rotated-frame component; rotated to geographic north with tx_sur.
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: tx_sur\.fesom\.\d{4}\.nc
+    vector_partner_variable: tx_sur
+    pipelines:
+      - vector_rotation_pipeline
 
   # ============================================================
   # Monthly 3D variables (Omon) — DefaultPipeline
@@ -378,7 +423,14 @@ rules:
     model_variable: unod
     lazy_write: true
     # Using unod (nodal velocity, nod2 grid) instead of u (elem grid).
-    # vec_autorotate=.true. set in namelist.io
+    # FESOM writes it in the rotated model frame; rotated to geographic east
+    # with vnod.
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vnod\.fesom\.\d{4}\.nc
+    vector_partner_variable: vnod
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: vo
     inputs:
@@ -388,7 +440,13 @@ rules:
     model_variable: vnod
     lazy_write: true
     # Using vnod (nodal velocity, nod2 grid) instead of v (elem grid).
-    # vec_autorotate=.true. set in namelist.io
+    # Rotated-frame component; rotated to geographic north with unod.
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: unod\.fesom\.\d{4}\.nc
+    vector_partner_variable: unod
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: wo
     inputs:
@@ -542,7 +600,7 @@ rules:
 
   # ============================================================
   # Mass transport — mass_transport_pipeline (Boussinesq: u * rho_0 * dz)
-  # Uses unod/vnod (rotated with vec_autorotate=.true.)
+  # Uses unod/vnod, rotated from FESOM's model frame to geographic first
   # ============================================================
 
   - name: umo
@@ -554,6 +612,10 @@ rules:
     lazy_write: true
     reference_density: 1025.0
     transport_component: x
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vnod\.fesom\.\d{4}\.nc
+    vector_partner_variable: vnod
     pipelines:
       - mass_transport_pipeline
 
@@ -566,6 +628,10 @@ rules:
     lazy_write: true
     reference_density: 1025.0
     transport_component: y
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: unod\.fesom\.\d{4}\.nc
+    vector_partner_variable: unod
     pipelines:
       - mass_transport_pipeline
 

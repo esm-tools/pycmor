@@ -132,6 +132,31 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # DefaultPipeline plus rotate_vector_to_geographic, for the vector rules
+  # that would otherwise run on `<default>` (siu, siv). FESOM
+  # writes vectors through XIOS in its rotated model frame: XIOS mode forces
+  # vec_autorotate=.false. and never calls io_r2g. The step reads the other
+  # component (vector_partner_*) and returns geographic east or north. Step
+  # list mirrors pycmor.core.pipeline.DefaultPipeline.STEPS -- keep in sync.
+  - name: vector_rotation_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Tier-wide throttle: same HDF5-write-lock-wedge protection as the
   # other FESOM-ingesting seaice tiers. cli45 core_seaice_1 TIMEOUTed
@@ -191,7 +216,14 @@ rules:
         pattern: uice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siu.tavg-u-hxy-si.mon.glb
     model_variable: uice
-    # vec_autorotate=.true. set in namelist.io
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vice (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vice\.fesom\.\d{4}\.nc
+    vector_partner_variable: vice
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: siv
     inputs:
@@ -199,7 +231,14 @@ rules:
         pattern: vice\.fesom\.\d{4}\.nc
     compound_name: seaIce.siv.tavg-u-hxy-si.mon.glb
     model_variable: vice
-    # vec_autorotate=.true. set in namelist.io
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with uice (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: uice\.fesom\.\d{4}\.nc
+    vector_partner_variable: uice
+    pipelines:
+      - vector_rotation_pipeline
 
   # ============================================================
   # Monthly (SImon) — h_ice, h_snow, ist

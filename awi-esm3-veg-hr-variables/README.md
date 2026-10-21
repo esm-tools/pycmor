@@ -92,7 +92,7 @@ Each subdirectory contains:
 | `core_atm/` | Atmosphere | OpenIFS | 76 | 45 unique | Monthly/daily/sub-daily (3hr, 6hr, 1hr); surface, plev19, plev3, model levels |
 | `core_land/` | Land | OpenIFS/HTESSEL | 11 | 11 | XIOS-derived + pipeline-computed; 6 variables deferred to lrcs_land |
 | `core_ocean/` | Ocean | FESOM 2.6 | 25 | 25 | Monthly 2D/3D, daily, fx; includes mass transport and zostoga pipelines |
-| `core_seaice/` | Sea Ice | FESOM 2.6 | 9 | 8 unique | Monthly + daily siconc; velocity rotation via vec_autorotate |
+| `core_seaice/` | Sea Ice | FESOM 2.6 | 9 | 8 unique | Monthly + daily siconc; siu/siv rotated to geographic by rotate_vector_to_geographic |
 
 ### LRCS (additional priority variables)
 

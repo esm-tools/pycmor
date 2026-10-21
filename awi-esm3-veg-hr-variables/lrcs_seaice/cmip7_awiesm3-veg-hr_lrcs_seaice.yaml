@@ -299,6 +299,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_mass_transport
       - script://$PYCMOR_HOME/examples/custom_steps.py:nan_to_zero
       - pycmor.std_lib.timeaverage.timeavg
@@ -641,6 +642,33 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # DefaultPipeline plus rotate_vector_to_geographic, for the vector rules
+  # that would otherwise run on `<default>` (sistrxdtop, sistrydtop,
+  # sistrxubot, sistryubot). FESOM writes vectors through XIOS in its
+  # rotated model frame: XIOS mode forces vec_autorotate=.false. and never
+  # calls io_r2g. The step reads the other
+  # component (vector_partner_*) and returns geographic east or north. Step
+  # list mirrors pycmor.core.pipeline.DefaultPipeline.STEPS -- keep in sync.
+  - name: vector_rotation_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Tier-wide throttle: applies to ALL rules (pipelined or default-piped).
   # cli43 lrcs_seaice_3 still timed out after pipeline-level annotation
@@ -725,6 +753,14 @@ rules:
         pattern: atmice_x\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistrxdtop.tavg-u-hxy-si.mon.glb
     model_variable: atmice_x
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with atmice_y (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: atmice_y\.fesom\.\d{4}\.nc
+    vector_partner_variable: atmice_y
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: sistrydtop
     inputs:
@@ -732,6 +768,14 @@ rules:
         pattern: atmice_y\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistrydtop.tavg-u-hxy-si.mon.glb
     model_variable: atmice_y
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with atmice_x (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: atmice_x\.fesom\.\d{4}\.nc
+    vector_partner_variable: atmice_x
+    pipelines:
+      - vector_rotation_pipeline
 
   # --- Ocean stress on sea ice ---
 
@@ -741,6 +785,14 @@ rules:
         pattern: iceoce_x\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistrxubot.tavg-u-hxy-si.mon.glb
     model_variable: iceoce_x
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with iceoce_y (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: iceoce_y\.fesom\.\d{4}\.nc
+    vector_partner_variable: iceoce_y
+    pipelines:
+      - vector_rotation_pipeline
 
   - name: sistryubot
     inputs:
@@ -748,6 +800,14 @@ rules:
         pattern: iceoce_y\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistryubot.tavg-u-hxy-si.mon.glb
     model_variable: iceoce_y
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with iceoce_x (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: iceoce_x\.fesom\.\d{4}\.nc
+    vector_partner_variable: iceoce_x
+    pipelines:
+      - vector_rotation_pipeline
 
   # --- Conductive heat flux at ice base ---
 
@@ -905,6 +965,12 @@ rules:
     mice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
     mice_pattern: m_ice\.fesom\.\d{4}\.nc
     rho_ice: 910.0
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vice (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vice\.fesom\.\d{4}\.nc
+    vector_partner_variable: vice
     pipelines:
       - ice_mass_transport_pipeline
 
@@ -917,6 +983,12 @@ rules:
     mice_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
     mice_pattern: m_ice\.fesom\.\d{4}\.nc
     rho_ice: 910.0
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with uice (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: uice\.fesom\.\d{4}\.nc
+    vector_partner_variable: uice
     pipelines:
       - ice_mass_transport_pipeline
 

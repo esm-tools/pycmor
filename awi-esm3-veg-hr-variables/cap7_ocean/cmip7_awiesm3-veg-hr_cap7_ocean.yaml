@@ -140,6 +140,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:rotate_vector_to_geographic
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_heat_transport
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -273,6 +274,12 @@ rules:
     # out of staging — accept direct-to-Lustre write with E's timeout +
     # retry as the safety net. See PLAN_save_dataset_reliability.md §5.
     netcdf_tmpfs_staging: false
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vtemp (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vtemp\.fesom\.\d{4}\.nc
+    vector_partner_variable: vtemp
     pipelines:
       - heat_transport_pipeline
 
@@ -290,6 +297,12 @@ rules:
     hnode_pattern: hnode\.fesom\.\d{4}\.nc
     hnode_variable: hnode
     vertical_sum: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # east with vtemp (rotate_vector_to_geographic).
+    vector_component: x
+    vector_partner_path: *dp
+    vector_partner_pattern: vtemp\.fesom\.\d{4}\.nc
+    vector_partner_variable: vtemp
     pipelines:
       - heat_transport_pipeline
 
@@ -309,6 +322,12 @@ rules:
     lazy_write: true
     # Depth-resolved 3D output (~8 GB compressed); see hfx for rationale.
     netcdf_tmpfs_staging: false
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with utemp (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: utemp\.fesom\.\d{4}\.nc
+    vector_partner_variable: utemp
     pipelines:
       - heat_transport_pipeline
 
@@ -326,6 +345,12 @@ rules:
     hnode_pattern: hnode\.fesom\.\d{4}\.nc
     hnode_variable: hnode
     vertical_sum: true
+    # FESOM writes this in its rotated model frame; rotated to geographic
+    # north with utemp (rotate_vector_to_geographic).
+    vector_component: y
+    vector_partner_path: *dp
+    vector_partner_pattern: utemp\.fesom\.\d{4}\.nc
+    vector_partner_variable: utemp
     pipelines:
       - heat_transport_pipeline
 
