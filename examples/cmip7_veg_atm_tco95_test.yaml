@@ -1,0 +1,311 @@
+# CMIP7 VEG Atmosphere/Aerosol Variables — Test config with TCo95
+# Adapted from awi-esm3-veg-hr-variables/veg_atm/cmip7_awiesm3-veg-hr_veg_atm.yaml
+# Uses low-resolution TCo95 (~100km) experiment for quick testing.
+# 26 rules: IFS 3hr/6hr/daily/monthly + LPJ-GUESS fire emission (monthly)
+
+general:
+  name: "awiesm3-cmip7-veg-atm-tco95-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ba0989
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  - name: fire_emission_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_fire_emission
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/lpj_guess
+  source_id: AWI-ESM3-VEG-LR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo95 reduced Gaussian, interpolated to 1deg regular grid"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/veg_atm_tco95_test
+  year_start: 1900
+
+rules:
+  # ============================================================
+  # 3hr averaged radiation and turbulent fluxes
+  # ============================================================
+
+  - name: hfls_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_hfls_.*\.nc
+    compound_name: atmos.hfls.tavg-u-hxy-u.3hr.glb
+    model_variable: hfls
+
+  - name: hfss_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_hfss_.*\.nc
+    compound_name: atmos.hfss.tavg-u-hxy-u.3hr.glb
+    model_variable: hfss
+
+  - name: rlds_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_rlds_.*\.nc
+    compound_name: atmos.rlds.tavg-u-hxy-u.3hr.glb
+    model_variable: rlds
+
+  - name: rlus_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_rlus_.*\.nc
+    compound_name: atmos.rlus.tavg-u-hxy-u.3hr.glb
+    model_variable: rlus
+
+  - name: rsds_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_rsds_.*\.nc
+    compound_name: atmos.rsds.tavg-u-hxy-u.3hr.glb
+    model_variable: rsds
+
+  - name: rsus_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_rad_rsus_.*\.nc
+    compound_name: atmos.rsus.tavg-u-hxy-u.3hr.glb
+    model_variable: rsus
+
+  # ============================================================
+  # 3hr instantaneous surface
+  # ============================================================
+
+  - name: ps_3hrPt
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_sp_.*\.nc
+    compound_name: atmos.ps.tpt-u-hxy-u.3hr.glb
+    model_variable: sp
+
+  # ============================================================
+  # 3hr instantaneous plev6 (lower troposphere 950-700 hPa)
+  # DISABLED: we decided not to produce 3h_pl6 output in XIOS file_def
+  # (too large; see doc/awi_cap7_volume_estimate.txt). Re-enable both
+  # file_def_oifs_cmip7_spinup.xml.j2 and these rules together if needed.
+  # ============================================================
+
+  # - name: ta_3hrPt_plev6
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_pl6_ta_.*\.nc
+  #   compound_name: atmos.ta.tpt-p6-hxy-air.3hr.glb
+  #   model_variable: ta
+
+  # - name: ua_3hrPt_plev6
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_pl6_ua_.*\.nc
+  #   compound_name: atmos.ua.tpt-p6-hxy-air.3hr.glb
+  #   model_variable: ua
+
+  # - name: va_3hrPt_plev6
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_pl6_va_.*\.nc
+  #   compound_name: atmos.va.tpt-p6-hxy-air.3hr.glb
+  #   model_variable: va
+
+  # - name: wap_3hrPt_plev6
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_pl6_wap_.*\.nc
+  #   compound_name: atmos.wap.tpt-p6-hxy-air.3hr.glb
+  #   model_variable: wap
+
+  # - name: hus_3hrPt_plev6
+  #   inputs:
+  #     - path: *dp
+  #       pattern: atmos_3h_pl6_hus_.*\.nc
+  #   compound_name: atmos.hus.tpt-p6-hxy-air.3hr.glb
+  #   model_variable: hus
+
+  # ============================================================
+  # 3hr instantaneous boundary layer depth
+  # ============================================================
+
+  - name: bldep_3hrPt
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_bldep_bldep_.*\.nc
+    compound_name: atmos.bldep.tpt-u-hxy-u.3hr.glb
+    model_variable: bldep
+
+  # ============================================================
+  # 6hr averaged snowfall flux
+  # ============================================================
+
+  - name: prsn_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_prsn_prsn_.*\.nc
+    compound_name: atmos.prsn.tavg-u-hxy-u.6hr.glb
+    model_variable: prsn
+
+  # ============================================================
+  # Monthly net radiation (Emon)
+  # ============================================================
+
+  - name: rls_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_netrad_rls_.*\.nc
+    compound_name: atmos.rls.tavg-u-hxy-u.mon.glb
+    model_variable: rls
+
+  - name: rss_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_netrad_rss_.*\.nc
+    compound_name: atmos.rss.tavg-u-hxy-u.mon.glb
+    model_variable: rss
+
+  # ============================================================
+  # Monthly aerosol: Liquid Water Path (AERmon)
+  # ============================================================
+
+  - name: lwp_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_netrad_lwp_.*\.nc
+    compound_name: aerosol.lwp.tavg-u-hxy-u.mon.glb
+    model_variable: lwp
+
+  # ============================================================
+  # Daily snow diagnostics (Eday)
+  # ============================================================
+
+  - name: tsns_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_snow_tsns_.*\.nc
+    compound_name: atmos.ts.tavg-u-hxy-sn.day.glb
+    model_variable: tsns
+
+  - name: snmsl_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_snow_snmsl_.*\.nc
+    compound_name: atmos.snmsl.tavg-u-hxy-lnd.day.glb
+    model_variable: snmsl
+
+  # ============================================================
+  # LPJ-GUESS fire emission variables (AERmon)
+  # Source: fFireAll is kg C m-2 s-1 (verified from CMIPoutput.cpp)
+  # compute_fire_emission applies species-specific emission factors
+  # and sets units to "kg m-2 s-1"
+  # ============================================================
+
+  - name: emibbbc_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbbc.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: bc
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibbch4_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbch4.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: ch4
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibbco_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbco.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: co
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibbdms_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbdms.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: dms
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibboa_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibboa.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: oa
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibbso2_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbso2.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: so2
+    pipelines:
+      - fire_emission_pipeline
+
+  - name: emibbvoc_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/fFireAll_monthly.out"
+    compound_name: aerosol.emibbvoc.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    emission_species: nmvoc
+    pipelines:
+      - fire_emission_pipeline

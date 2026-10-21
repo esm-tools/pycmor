@@ -267,6 +267,31 @@ def test_cmip7_variant_label_format(sample_cmip7_rule):
     assert re.match(r"^r\d+i\d+p\d+f\d+$", variant_label)
 
 
+def test_cmip7_index_attributes_carry_their_letter(sample_cmip7_rule):
+    """CMIP7 defines the four indices with their letter (cmor-cvs.json:
+    realization_index ^r[[:digit:]]\\{1,\\}$, and likewise i, p, f). pycmor
+    wrote the bare number, as CMIP6 does, and every file failed wcrp ATTR004
+    once the checker started looking."""
+    rule = sample_cmip7_rule
+    rule_attrs = _get_rule_attrs(rule)
+
+    ga_factory = create_factory(GlobalAttributes)
+    GAClass = ga_factory.get("CMIP7")
+    ga = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs)
+
+    attrs = ga.global_attributes()
+    for name, letter in (
+        ("realization_index", "r"),
+        ("initialization_index", "i"),
+        ("physics_index", "p"),
+        ("forcing_index", "f"),
+    ):
+        assert re.fullmatch(rf"{letter}\d+", attrs[name]), (name, attrs[name])
+    assert attrs["variant_label"] == "".join(
+        attrs[k] for k in ("realization_index", "initialization_index", "physics_index", "forcing_index")
+    )
+
+
 def test_cmip7_attributes_are_strings(sample_cmip7_rule):
     """Test that all global attributes are strings (required for netCDF)."""
     rule = sample_cmip7_rule

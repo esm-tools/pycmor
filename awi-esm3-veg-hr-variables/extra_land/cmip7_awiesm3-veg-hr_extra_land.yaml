@@ -1,0 +1,300 @@
+# CMIP7 Extra Land Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_set2_extra_variables_land.csv
+#
+# 13 producible out of 19 total variables.
+# 6 blocked: 4 irrigation (no irrigation scheme), 1 river (no river routing),
+#            1 root zone moisture (no root-depth info from HTESSEL).
+
+general:
+  name: "awiesm3-cmip7-extra-land"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # areacellr (river grid == atmosphere grid): reuse pycmor std_lib FrozenPipeline
+  - name: areacella_pipeline
+    uses: pycmor.core.pipeline.AreacellaFxPipeline
+
+  # Southern hemisphere subset pipeline (orog 30S-90S, tas 1hr 30S-90S)
+  - name: southern_hemisphere_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:select_southern_hemisphere
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # LPJ-GUESS monthly loader (Jan..Dec format)
+  - name: lpjg_monthly_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Temporal differencing (dcw, dslw)
+  - name: temporal_diff_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_temporal_diff
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Soil wetness ratio (mrsow)
+  - name: mrsow_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mrsow
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/lpj_guess
+  # LPJ-GUESS reads plain-text .out files, so its rules have no netCDF
+  # input to recover cell bounds from and cli109 shipped 165 land files
+  # with none. Its 107132 points are exactly the land cells of the OIFS
+  # TCo319 grid (matched against this file the worst separation is 9e-7
+  # of a chord, and the mapping is 1:1), so the bounds come from there.
+  # Written under the old run root on purpose: --data-path repointing
+  # rewrites it along with every other path.
+  bounds_reference_file: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/oifs/atmos_mon_land_orog_*.nc
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g122
+  grid: "OpenIFS TCo319 reduced Gaussian (~25 km) — LPJ-GUESS on OIFS grid"
+  nominal_resolution: "25 km"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Part 1: Fixed fields (fx)
+  # ============================================================
+
+  # areacellr: same grid as atmosphere (no separate river model grid)
+  - name: areacellr
+    grid_label: g129
+    grid: "OpenIFS TCo319 regridded to a regular 0.278 x 0.281 degree latitude-longitude grid (640 x 1296)"
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_lsm_.*\.nc
+    compound_name: land.areacellr.ti-u-hxy-u.fx.glb
+    model_variable: lsm
+    pipelines:
+      - areacella_pipeline
+
+  # orog Southern Hemisphere subset (30S-90S)
+  - name: orog_south30
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_orog_.*\.nc
+    compound_name: land.orog.ti-u-hxy-u.fx.30S-90S
+    model_variable: orog
+    pipelines:
+      - southern_hemisphere_pipeline
+
+  # ============================================================
+  # Part 2: LPJ-GUESS PFT fractions (monthly, Jan..Dec format)
+  # ============================================================
+
+  # PFT fraction rules (c3PftFrac, c4PftFrac, cropFracC3, cropFracC4,
+  # pastureFracC3, pastureFracC4) are now provided by the *_mon rules below
+  # — they read the native LPJ-GUESS <var>_monthly.out files directly. The
+  # older composite/aliased rules in this section were removed to avoid
+  # duplicate-rule errors against the *_mon variants.
+
+  - name: lai_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/lai_monthly.out"
+    compound_name: land.lai.tavg-u-hxy-lnd.mon.glb
+    model_variable: lai
+    source_units: "m2 m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # ============================================================
+  # Part 4: IFS/HTESSEL daily hydrology
+  # ============================================================
+
+  # dcw: change in interception storage (skin reservoir = src field).
+  # compute_temporal_diff converts m -> kg/m2 and takes the time diff.
+  - name: dcw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_src_.*\.nc
+    compound_name: land.dcw.tavg-u-hxy-lnd.day.glb
+    model_variable: skin_reservoir
+    pipelines:
+      - temporal_diff_pipeline
+
+  # dslw: change in total soil moisture across all 4 HTESSEL layers
+  # (swvl1..swvl4). Loads four per-var files via load_mfdataset.
+  - name: dslw_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_swvl[1-4]_.*\.nc
+    compound_name: land.dslw.tavg-u-hxy-lnd.day.glb
+    model_variable: soil_moisture
+    pipelines:
+      - temporal_diff_pipeline
+
+  # mrsow: total soil wetness (ratio of actual to saturated). Reads the
+  # same swvl1..swvl4 layers as dslw_day.
+  - name: mrsow_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_land_swvl[1-4]_.*\.nc
+    compound_name: land.mrsow.tavg-u-hxy-lnd.day.glb
+    model_variable: mrsow
+    porosity: 0.472
+    pipelines:
+      - mrsow_pipeline
+
+  # ============================================================
+  # Part 5: Hourly IFS field with southern hemisphere subset
+  # ============================================================
+
+  # tas 1hr 30S-90S
+  - name: tas_1hr_south30
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_2t_.*\.nc
+    compound_name: atmos.tas.tavg-h2m-hxy-u.1hr.30S-90S
+    model_variable: 2t
+    pipelines:
+      - southern_hemisphere_pipeline
+
+  # ============================================================
+  # added by LASZLO - 29.04.2026
+  # LPJ-GUESS PFT fraction sub-types
+  # ============================================================
+
+  - name: c3PftFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/c3PftFrac_monthly.out"
+    compound_name: land.c3PftFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline
+  - name: c4PftFrac_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/c4PftFrac_monthly.out"
+    compound_name: land.c4PftFrac.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline
+  - name: cropFracC3_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cropFracC3_monthly.out"
+    compound_name: land.cropFracC3.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline
+  - name: cropFracC4_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/cropFracC4_monthly.out"
+    compound_name: land.cropFracC4.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline
+  - name: pastureFracC3_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/pastureFracC3_monthly.out"
+    compound_name: land.pastureFracC3.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline
+  - name: pastureFracC4_mon
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/pastureFracC4_monthly.out"
+    compound_name: land.pastureFracC4.tavg-u-hxy-u.mon.glb
+    model_variable: Total
+    source_units: '%'
+    pipelines:
+      - lpjg_monthly_pipeline

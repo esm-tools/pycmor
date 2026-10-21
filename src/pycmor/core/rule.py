@@ -287,16 +287,57 @@ class Rule:
 
     def global_attributes_set_on_rule(self):
         attrs = (
+            # DRS / identifiers
             "source_id",
             "grid_label",
             "cmor_variable",
             "variant_label",
             "experiment_id",
-            "activity_id",  # optional
-            "institution_id",  # optional
-            "model_component",  # optional
-            "further_info_url",  # optional
-            "compound_name",  # optional, used for CMIP7 table_id derivation
+            "activity_id",
+            "institution_id",
+            "institution",
+            "model_component",
+            "further_info_url",
+            "compound_name",
+            "branded_variable",
+            # Grid / resolution descriptors
+            "nominal_resolution",
+            "resolution",
+            "grid",
+            "description",
+            # License / provenance
+            "license",
+            "license_id",
+            "tracking_id_prefix",
+            "release_year",
+            "title",
+            "history",
+            # Parent experiment
+            "parent_experiment_id",
+            "parent_source_id",
+            "parent_variant_label",
+            "parent_activity_id",
+            "parent_time_units",
+            "branch_time_in_child",
+            "branch_time_in_parent",
+            "branch_method",
+            # Sub-experiment / experiment descriptors
+            "experiment",
+            "sub_experiment",
+            "sub_experiment_id",
+            "source",
+            "source_type",
+            "product",
+            # Spec / conventions
+            "Conventions",
+            "drs_specs",
+            "data_specs_version",
+            "mip",
+            "mip_era",
+            "realm",
+            "table_id",
+            "region",
+            "frequency",
         )
         # attribute `creation_date` is the time-stamp of inputs directory
         try:
@@ -310,7 +351,10 @@ class Rule:
             dir_timestamp = datetime.datetime.now()
         time_format = "%Y-%m-%dT%H:%M:%SZ"
         creation_date = dir_timestamp.strftime(time_format)
-        result = {attr: getattr(self, attr, None) for attr in attrs}
+        # Only include attrs that are actually set on the rule; leaving None
+        # values in the dict breaks downstream ``rule_dict.get(key, default)``
+        # fallbacks in global_attributes.py (the key is present but is None).
+        result = {attr: getattr(self, attr) for attr in attrs if getattr(self, attr, None) is not None}
         result["creation_date"] = creation_date
         return result
 

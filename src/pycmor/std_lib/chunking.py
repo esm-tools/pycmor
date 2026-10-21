@@ -399,7 +399,7 @@ def calculate_chunks_simple(
         scale_factor = (target_elements / total_elements) ** (1.0 / len(ds.dims))
 
         for dim in ds.dims:
-            chunks[dim] = max(1, int(ds.sizes[dim] * scale_factor))
+            chunks[dim] = max(1, min(ds.sizes[dim], int(ds.sizes[dim] * scale_factor)))
 
     logger.info(f"Simple chunking selected: {chunks}")
     logger.info(f"Estimated chunk size: {get_memory_size(ds, chunks)} bytes")
@@ -410,8 +410,11 @@ def calculate_chunks_simple(
 def get_encoding_with_chunks(
     ds: xr.Dataset,
     chunks: Dict[str, int] = None,
-    compression_level: int = 4,
+    compression_level: int = 1,
     enable_compression: bool = True,
+    compression_codec: str = "zlib",
+    quantize_mode: str = "BitGroom",
+    significant_digits: int = 5,
 ) -> Dict[str, Dict]:
     """
     Generate encoding dictionary with chunking and compression settings.
@@ -451,9 +454,64 @@ def get_encoding_with_chunks(
             var_encoding["chunksizes"] = var_chunks
 
         if enable_compression:
-            var_encoding["zlib"] = True
-            var_encoding["complevel"] = compression_level
+            if compression_codec == "zlib":
+                var_encoding["zlib"] = True
+                var_encoding["complevel"] = compression_level
+                var_encoding["shuffle"] = True
+            else:
+                # netCDF4-python accepts: zstd, blosc_lz, blosc_lz4, blosc_lz4hc,
+                # blosc_zlib, blosc_zstd, bzip2, szip. zstd/blosc require
+                # libnetcdf >= 4.9.0 and may need HDF5_PLUGIN_PATH set.
+                var_encoding["compression"] = compression_codec
+                var_encoding["complevel"] = compression_level
+                if compression_codec.startswith("blosc"):
+                    var_encoding["blosc_shuffle"] = 1
+                elif compression_codec == "zstd":
+                    var_encoding["shuffle"] = True
+
+        # Lossy bit-level quantization (libnetcdf >= 4.9). Only apply to
+        # float data variables; skip bounds/coord variables (CF requires
+        # exact values) and integer flag/index variables (bit-exact).
+        _var_name = str(var)
+        _is_bounds_var = (
+            _var_name.endswith(("_bnds", "_bounds"))
+            or _var_name.startswith("bounds_")
+        )
+        if (
+            quantize_mode
+            and significant_digits
+            and ds[var].dtype.kind == "f"
+            and not _is_bounds_var
+        ):
+            var_encoding["quantize_mode"] = quantize_mode
+            var_encoding["significant_digits"] = int(significant_digits)
+
+        # CF forbids _FillValue on bounds variables. Respect an explicit None
+        # already set upstream, and skip any *_bnds / *_bounds variable.
+        # Flag variables (with flag_values/flag_meanings) are integer, so 1e20
+        # cannot round-trip; use NC_FILL_INT instead. wcrp ATTR001 requires
+        # the attribute on every variable including flag variables.
+        _sentinel = object()
+        _pre = ds[var].encoding.get("_FillValue", _sentinel)
+        _is_bounds = str(var).endswith(("_bnds", "_bounds"))
+        _is_flag = ("flag_values" in ds[var].attrs) or ("flag_meanings" in ds[var].attrs)
+        if _pre is None or _is_bounds:
+            var_encoding["_FillValue"] = None
+        elif _is_flag:
+            var_encoding["_FillValue"] = np.int32(-2147483647)
+        else:
+            var_encoding["_FillValue"] = 1.0e20
 
         encoding[var] = var_encoding
+
+    # CF §2.5.1 / §7.1: coordinate variables (lat, lon, time, lev, plev, ...)
+    # and bounds aux variables (time_bnds, lat_bnds, ...) must not carry
+    # _FillValue. xarray's default CF encoder otherwise emits a NaN fill on
+    # every float coord, which trips cf §7.1 ("The Boundary variables
+    # 'time_bnds' should not have the attributes: ['_FillValue']"). Mirror
+    # the matching loop in _encoding_from_dask_chunks so both the
+    # dask-aligned and the trigger_compute-eager save paths suppress it.
+    for cname in ds.coords:
+        encoding.setdefault(str(cname), {})["_FillValue"] = None
 
     return encoding

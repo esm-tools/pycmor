@@ -64,6 +64,35 @@ def test_single_time_point_raises():
         time_bounds(ds, MockRule())
 
 
+def test_single_monthly_time_point_gets_month_bounds():
+    """A one-record monthly file (one-month run) gets (month_start, next_month_start)."""
+    ds = xr.Dataset(
+        {"temperature": (["time"], [25.0])},
+        coords={"time": pd.DatetimeIndex(["1850-01-16T12:00"])},
+    )
+    result = time_bounds(ds, MockRule(approx_interval=30.0))
+    bounds = result["time_bnds"].values
+    assert bounds.shape == (1, 2)
+    assert pd.Timestamp(bounds[0, 0]) == pd.Timestamp("1850-01-01")
+    assert pd.Timestamp(bounds[0, 1]) == pd.Timestamp("1850-02-01")
+    assert result["time"].attrs["bounds"] == "time_bnds"
+
+
+def test_single_monthly_tpt_point_keeps_its_stamp():
+    """A one-record tpt monthly file gets no month bounds and keeps its sample time."""
+    from types import SimpleNamespace
+
+    stamp = pd.Timestamp("1850-02-01")
+    ds = xr.Dataset({"sistressave": (["time"], [1.0])}, coords={"time": pd.DatetimeIndex([stamp])})
+    rule = MockRule(time_method="INSTANTANEOUS")
+    rule.data_request_variable = SimpleNamespace(
+        frequency="mon", cell_methods="area: mean where sea_ice (mask=siconc) time: point"
+    )
+    result = time_bounds(ds, rule)
+    assert "time_bnds" not in result.variables
+    assert pd.Timestamp(result["time"].values[0]) == stamp
+
+
 def test_dataarray_raises():
     """Passing a DataArray instead of Dataset raises ValueError."""
     times = pd.date_range("2000-01-01", periods=3, freq="D")

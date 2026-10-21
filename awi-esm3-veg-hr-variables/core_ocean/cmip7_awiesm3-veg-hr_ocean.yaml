@@ -1,0 +1,601 @@
+# CMIP7 Core Ocean Variables — AWI-ESM3-VEG-HR
+# Generated from cmip7_all_core_variables_ocean.csv
+#
+# Research notes:
+#   - FESOM2 uses POTENTIAL temperature (not conservative) → no bigthetao
+#   - MLD3 is the CMIP-compliant definition (sigma_t=0.03), not MLD1
+#   - uo/vo use unod/vnod (nodal, nod2 grid) instead of u/v (elem grid)
+#   - tauuo/tauvo still on elem grid — may need elem→node step
+
+general:
+  name: "awiesm3-cmip7-core-ocean"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: bb1469
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Vertical integration + post-multiply by a physical-constant prefactor.
+  # vertical_integrate emits the bare ∫(field*dz); scale_by_constant then
+  # applies the rho_0-family factor declared on each rule (scale_factor),
+  # overriding the units string to the CMIP target (scaled_units). Used by
+  # absscint (kg m-2 via rho_0*1e-3); kept symmetric with the lrcs_ocean
+  # tier's matching pipeline (phcint, scint, opottempmint, somint).
+  # Wie ocean_vertical_integration_pipeline, aber schichtweise statt ueber die
+  # ganze Saeule. Fuer die drei oplayer4-Variablen scint, phcint und absscint,
+  # die vier Integrale pro Zelle wollen und nicht eines. Siehe
+  # integrate_over_pressure_layers in custom_steps.py.
+  - name: ocean_oplayer4_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_pressure_layers
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: ocean_vertical_integration_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:vertical_integrate
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx pipeline for areacello: reuse pycmor std_lib FrozenPipeline
+  # (reads cell_area from mesh, emits as CMIP7 fx file)
+  - name: fx_extract_pipeline
+    uses: pycmor.core.pipeline.AreacelloFxPipeline
+
+  # Ofx pipeline: compute bathymetry from mesh depth_lev
+  - name: fx_deptho_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_deptho
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx pipeline: compute sea area fraction from mesh
+  - name: fx_sftof_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sftof
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx pipeline: compute static layer thickness from depth_bnds
+  - name: fx_thkcello_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_thkcello_fx
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx pipeline: basin mask pass-through
+  - name: basin_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_basin_mask
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ofx pipeline: compute static mass per area (rho_0 * thkcello)
+  - name: fx_masscello_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_masscello_fx
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Mass transport pipeline: load velocity → extract → multiply by rho_0*dz
+  - name: mass_transport_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mass_transport
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Scale pipeline: multiply variable by a constant (scale_factor on rule)
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # wo pipeline: load FESOM w (on layer interfaces, nz=57), average to
+  # cell-center midpoints (nz1=56) per the CMIP wo convention.
+  # ``average_w_interfaces_to_midpoints`` folds the surface BC into the
+  # first midpoint, removing the "uppermost layer looks clean, rest
+  # noisy" artefact that cli37 reviewers flagged.
+  - name: wo_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:average_w_interfaces_to_midpoints
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Zostoga pipeline: load temperature → extract → compute global thermosteric SL
+  - name: zostoga_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_zostoga
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_write_scheduler: synchronous
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  experiment_id: piControl
+  variant_label: r1i1p1f1
+  # Parent/branch metadata: piControl branches from piControl-spinup
+  # (CMIP7 experiment CV). The spinup ran 330 years on its own calendar
+  # starting 1350-01-01, so the branch at its end is 1680-01-01.
+  parent_time_units: "days since 1350-01-01"
+  branch_time_in_parent: 120522.0
+  grid_label: g130
+  mesh_path: &mp /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 DARS unstructured mesh (~10 km nominal, 3146761 nodes)"
+  nominal_resolution: "10 km"
+  output_directory: ./cmorized_output/awiesm3
+  # QC: in-pipeline CF + WCRP-CMIP7 compliance check on every saved file.
+  qc_enabled: true
+  qc_repack: true
+  qc_tests: ["cf", "wcrp_cmip7", "aicc"]
+  qc_checker_options: ["aicc:grid_config:/work/ab0246/a270092/software/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"]
+  qc_ignore_codes: ["VAR004"]
+
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  calendar: proleptic_gregorian
+rules:
+  # ============================================================
+  # Monthly 2D surface variables (Omon) — DefaultPipeline
+  # ============================================================
+
+  - name: tos
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.\d{4}\.nc
+    compound_name: ocean.tos.tavg-u-hxy-sea.mon.glb
+    model_variable: sst
+
+  - name: sos
+    inputs:
+      - path: *dp
+        pattern: sss\.fesom\.\d{4}\.nc
+    compound_name: ocean.sos.tavg-u-hxy-sea.mon.glb
+    model_variable: sss
+
+  - name: zos
+    inputs:
+      - path: *dp
+        pattern: ssh\.fesom\.\d{4}\.nc
+    compound_name: ocean.zos.tavg-u-hxy-sea.mon.glb
+    model_variable: ssh
+
+  # FESOM `fh` (heat_flux_in in ice_oce_coupling.F90:418) is the net
+  # heat flux at the ocean surface with sign convention positive=UP
+  # (positive when the ocean loses heat to the atmosphere — the density-
+  # flux equation `dens_flux = sw_alpha * heat_flux_in / vcpw + ...` at
+  # ice_oce_coupling.F90:654 confirms: positive heat_flux_in → positive
+  # density flux → cooling/densification). CMIP7 `hfds` is positive=DOWN
+  # (Net flux of heat entering the liquid water column through its upper
+  # surface). The two conventions are opposite, so flip the sign.
+  - name: hfds
+    inputs:
+      - path: *dp
+        pattern: fh\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfds.tavg-u-hxy-sea.mon.glb
+    model_variable: fh
+    scale_factor: -1.0
+    scaled_units: "W m-2"
+    pipelines:
+      - scale_pipeline
+
+  - name: mlotst
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tavg-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    scale_factor: -1.0  # FESOM MLD3 is negative depth; CMIP7 mlotst is positive-down
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+    # MLD3 = Griffies 2016 (sigma_t=0.03 kg/m3) = CMIP-compliant mlotst
+
+  - name: tauuo
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: tx_sur\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauuo.tavg-u-hxy-sea.mon.glb
+    model_variable: tx_sur
+    # NOTE: tx_sur is on elem grid (6.2M elements), not nod2 (3.1M nodes).
+    # vec_autorotate=.true. set in namelist.io
+    # May still need elem→node interpolation pipeline step for consistency.
+
+  - name: tauvo
+    grid_label: g132
+    grid: "FESOM 2.7 DARS unstructured mesh, element (triangle) centres (6229020 elements)"
+    inputs:
+      - path: *dp
+        pattern: ty_sur\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauvo.tavg-u-hxy-sea.mon.glb
+    model_variable: ty_sur
+    # NOTE: Same elem grid caveat as tauuo.
+
+  # ============================================================
+  # Monthly 3D variables (Omon) — DefaultPipeline
+  # ============================================================
+
+  - name: thetao
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.thetao.tavg-ol-hxy-sea.mon.glb
+    model_variable: temp
+    lazy_write: true
+
+  # bigthetao: SKIPPED — FESOM2 uses potential temperature, not conservative.
+  # Only thetao should be reported.
+
+  - name: so
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.so.tavg-ol-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+
+  - name: uo
+    inputs:
+      - path: *dp
+        pattern: unod\.fesom\.\d{4}\.nc
+    compound_name: ocean.uo.tavg-ol-hxy-sea.mon.glb
+    model_variable: unod
+    lazy_write: true
+    # Using unod (nodal velocity, nod2 grid) instead of u (elem grid).
+    # vec_autorotate=.true. set in namelist.io
+
+  - name: vo
+    inputs:
+      - path: *dp
+        pattern: vnod\.fesom\.\d{4}\.nc
+    compound_name: ocean.vo.tavg-ol-hxy-sea.mon.glb
+    model_variable: vnod
+    lazy_write: true
+    # Using vnod (nodal velocity, nod2 grid) instead of v (elem grid).
+    # vec_autorotate=.true. set in namelist.io
+
+  - name: wo
+    inputs:
+      - path: *dp
+        pattern: w\.fesom\.\d{4}\.nc
+    compound_name: ocean.wo.tavg-ol-hxy-sea.mon.glb
+    model_variable: w
+    lazy_write: true
+    # FESOM w is declared on (nl=57 interfaces, nod2D); CMIP wo is on
+    # cell-center midpoints (nz1=56). The wo_pipeline averages adjacent
+    # interfaces to midpoints, folding the w=0 surface BC into the first
+    # midpoint so the cli37 "uppermost layer clean, rest noisy" artefact
+    # is resolved.
+    pipelines:
+      - wo_pipeline
+
+  # ============================================================
+  # Depth-integrated variables — ocean_vertical_integration_pipeline
+  # ============================================================
+
+  # absscint = depth-integrated salt mass content (kg m-2), absolute salinity.
+  # vertical_integrate emits ∫(salt[psu] * dz); FESOM salt units are "1e-3"
+  # (psu = g/kg) so the factor needed to convert psu·m to kg/m² is rho_0 * 1e-3.
+  - name: absscint
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.absscint.tavg-op4-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    scaled_units: "kg m-2"
+    integration_attrs:
+      long_name: "Integral wrt depth of seawater absolute salinity expressed as salt mass content"
+      standard_name: "integral_wrt_depth_of_sea_water_absolute_salinity_expressed_as_salt_mass_content"
+      units: "1e-3 m"            # raw integrate of (psu * dz); scale brings to kg m-2
+    pipelines:
+      - ocean_oplayer4_pipeline
+
+  # ============================================================
+  # Daily variables (Oday) — DefaultPipeline
+  # ============================================================
+
+  - name: tos_day
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.\d{4}\.nc
+    compound_name: ocean.tos.tavg-u-hxy-sea.day.glb
+    model_variable: sst
+
+  - name: sos_day
+    inputs:
+      - path: *dp
+        pattern: sss\.fesom\.\d{4}\.nc
+    compound_name: ocean.sos.tavg-u-hxy-sea.day.glb
+    model_variable: sss
+
+  - name: zos_day
+    inputs:
+      - path: *dp
+        pattern: ssh\.fesom\.\d{4}\.nc
+    compound_name: ocean.zos.tavg-u-hxy-sea.day.glb
+    model_variable: ssh
+
+  # ============================================================
+  # Ofx mesh-derived variables — fx pipelines
+  # ============================================================
+
+  - name: areacello
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.areacello.ti-u-hxy-u.fx.glb
+    model_variable: cell_area
+    pipelines:
+      - fx_extract_pipeline
+
+  - name: deptho
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.deptho.ti-u-hxy-sea.fx.glb
+    model_variable: deptho
+    pipelines:
+      - fx_deptho_pipeline
+
+  - name: sftof
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.sftof.ti-u-hxy-u.fx.glb
+    model_variable: sftof
+    pipelines:
+      - fx_sftof_pipeline
+
+  - name: thkcello_fx
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.thkcello.ti-ol-hxy-sea.fx.glb
+    model_variable: thkcello
+    pipelines:
+      - fx_thkcello_pipeline
+
+  - name: masscello_fx
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: ocean.masscello.ti-ol-hxy-sea.fx.glb
+    model_variable: masscello
+    reference_density: 1025.0
+    pipelines:
+      - fx_masscello_pipeline
+
+  # basin (Ofx) — loaded from external mask on DARS mesh
+  - name: basin
+    inputs:
+      - path: *mp
+        pattern: basin_mask.nc
+    compound_name: ocean.basin.ti-u-hxy-u.fx.glb
+    model_variable: basin
+    basin_mask_file: /work/ab0246/a270092/input/fesom2/dars2/basin_mask.nc
+    pipelines:
+      - basin_pipeline
+
+  # hfgeou (Ofx) — NOT POSSIBLE: not in FESOM output or config
+
+  # ============================================================
+  # Time-varying cell thickness — DefaultPipeline
+  # ============================================================
+
+  - name: thkcello
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.thkcello.tavg-ol-hxy-sea.mon.glb
+    model_variable: hnode
+    lazy_write: true
+
+  - name: masscello
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.masscello.tavg-ol-hxy-sea.mon.glb
+    model_variable: hnode
+    lazy_write: true
+    scale_factor: 1025.0
+    scaled_units: "kg m-2"
+    pipelines:
+      - scale_pipeline
+
+  # ============================================================
+  # Mass transport — mass_transport_pipeline (Boussinesq: u * rho_0 * dz)
+  # Uses unod/vnod (rotated with vec_autorotate=.true.)
+  # ============================================================
+
+  - name: umo
+    inputs:
+      - path: *dp
+        pattern: unod\.fesom\.\d{4}\.nc
+    compound_name: ocean.umo.tavg-ol-hxy-sea.mon.glb
+    model_variable: unod
+    lazy_write: true
+    reference_density: 1025.0
+    transport_component: x
+    pipelines:
+      - mass_transport_pipeline
+
+  - name: vmo
+    inputs:
+      - path: *dp
+        pattern: vnod\.fesom\.\d{4}\.nc
+    compound_name: ocean.vmo.tavg-ol-hxy-sea.mon.glb
+    model_variable: vnod
+    lazy_write: true
+    reference_density: 1025.0
+    transport_component: y
+    pipelines:
+      - mass_transport_pipeline
+
+  - name: wmo
+    inputs:
+      - path: *dp
+        pattern: w\.fesom\.\d{4}\.nc
+    compound_name: ocean.wmo.tavg-ol-hxy-sea.mon.glb
+    model_variable: w
+    lazy_write: true
+    reference_density: 1025.0
+    transport_component: z
+    pipelines:
+      - mass_transport_pipeline
+
+  # ============================================================
+  # Global thermosteric sea level — zostoga_pipeline
+  # Computes steric height anomaly from temperature using gsw (TEOS-10)
+  # ============================================================
+
+  - name: zostoga
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.zostoga.tavg-u-hm-sea.mon.glb
+    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
+    model_variable: temp
+    salt_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    reference_density: 1025.0
+    pipelines:
+      - zostoga_pipeline
