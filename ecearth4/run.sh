@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Render <case>.yaml.in and run pycmor on it (cases: a9kk_g2, t0i9_g3).
 # Usage: run.sh plan|run <case>  (settings: ecearth4/settings.example)
-# Output to <samples root>/<exp>/pycmor-out, logs to <samples root>/logs/<exp>
-# (<exp> = case before "_"); OUT_DIR and LOG_DIR override.
+# Output to <samples root>/<exp>/pycmor-out, log to <samples root>/logs/<exp>
+# (<exp> = case before "_"); OUT_DIR and LOG_DIR override. The log holds the
+# rendered config, pycmor's log and a summary of each output file.
 # run on a compute or interactive node; env from env_mn5.sh.
 set -euo pipefail
 
@@ -50,19 +51,29 @@ if [ -z "$CASE" ] || [ ! -f "$TEMPLATE" ] || { [ "$MODE" != plan ] && [ "$MODE" 
 fi
 
 case $MODE in
-    plan) echo "# settings $SETTINGS"; echo "# out  $OUT"; echo "# logs $LOGS/${CASE}_$TS.yaml, ${CASE}_$TS.log"; render ;;
+    plan) echo "# settings $SETTINGS"; echo "# out  $OUT"; echo "# log  $LOGS/${CASE}_$TS.log"; render ;;
     run)
         mkdir -p "$OUT" "$LOGS" "$TMP"
-        render > "$LOGS/${CASE}_$TS.yaml"
-        # pycmor writes ./logs/pycmor-process_*.log: run in TMP, then move it.
+        CFG=$TMP/${CASE}.yaml
+        LOG=$LOGS/${CASE}_$TS.log
+        render > "$CFG"
+        # pycmor writes ./logs/pycmor-process_*.log: run in TMP, collect after.
         (cd "$TMP" && "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" \
-            pycmor process "$LOGS/${CASE}_$TS.yaml") || rc=$?
-        for f in "$TMP"/logs/pycmor-process_*.log; do
-            [ -e "$f" ] && mv "$f" "$LOGS/${CASE}_$TS.log"
-        done
+            pycmor process "$CFG") || rc=$?
+        NEW=$(find "$OUT" -name '*.nc' -newer "$CFG" | sort)
+        {
+            echo "##### case $CASE  pycmor $(git -C "$SRC" rev-parse --short HEAD)  rc ${rc:-0}"
+            echo "##### config"
+            cat "$CFG"
+            echo "##### pycmor"
+            cat "$TMP"/logs/pycmor-process_*.log 2>/dev/null
+            echo "##### outputs"
+            [ -n "$NEW" ] && "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" \
+                python "$SRC/ecearth4/nc_summary.py" $NEW
+        } > "$LOG"
         rm -rf "$TMP"
-        echo "log  $LOGS/${CASE}_$TS.log"
-        find "$OUT" -name '*.nc' -newer "$LOGS/${CASE}_$TS.yaml" | sort
+        echo "log  $LOG"
+        echo "$NEW"
         exit "${rc:-0}"
         ;;
 esac
