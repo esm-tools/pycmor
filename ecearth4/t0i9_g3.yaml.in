@@ -56,8 +56,9 @@ inherit:
 rules:
   - name: nbp
     inputs:
-      - path: "@SAMPLES@/t0i9"
-        pattern: nbp_monthly.out.gz
+      # EC-Earth4 run layout: output/<leg>/lpjg/; all legs found are read.
+      - path: "@ROOT@/t0i9/output"
+        pattern: "*/lpjg/nbp_monthly.out.gz"
     compound_name: land.nbp.tavg-u-hxy-lnd.mon.glb
     model_variable: nbp
     model_unit: "kg m-2 s-1"
