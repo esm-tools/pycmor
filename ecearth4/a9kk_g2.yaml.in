@@ -1,6 +1,7 @@
 # G2: pr mon from a9kk (EC-Earth4 OIFS, XIOS, reduced Gaussian).
 # Rendered by run.sh (case a9kk_g2); @...@ are filled from its environment.
-# Content paths explicit; identity as ecemor examples/a9kk-test.yaml.
+# Content paths explicit, never from cache or download; identity as ecemor
+# examples/a9kk-test.yaml.
 general:
   name: "ecearth4-a9kk-g2"
   cmor_version: "CMIP7"
