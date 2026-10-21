@@ -15,6 +15,9 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
     load_lpjguess_yearly_lut, load_lpjguess_monthly_lut,
     sum_lpjguess_monthly_files
 
+  Vector rotation (FESOM rotated frame -> geographic)
+    rotate_vector_to_geographic, _fesom_vector_r2g_coeffs, _spherical_centroids
+
   Generic scaling / arithmetic / selection
     scale_by_constant, fraction_to_percent, compute_square,
     compute_constant_field, compute_temporal_diff,
@@ -106,6 +109,256 @@ def load_gridfile(data, rule):
     logger.info(f"Loading grid file: {grid_file}")
     ds = xr.open_dataset(grid_file)
     return ds
+
+
+# ============================================================
+# Vector rotation: FESOM rotated model frame -> geographic
+# ============================================================
+#
+# FESOM integrates on a rotated grid (force_rotation=.true., Euler angles
+# alphaEuler/betaEuler/gammaEuler in namelist.config) and keeps every vector
+# in that frame. Its own unrotation (io_r2g) only runs on the netCDF output
+# path when vec_autorotate=.true.; in XIOS mode FESOM 2.7/2.8 force
+# vec_autorotate=.false. (io_meandata.F90), so u/v, unod/vnod, uice/vice,
+# tx_sur/ty_sur, atmice_x/y, iceoce_x/y, utemp/vtemp, usalt/vsalt all reach
+# disk as rotated-frame components. rotate_vector_to_geographic turns them
+# into geographic east/north.
+
+_FESOM_EULER_DEFAULT = (50.0, 15.0, -90.0)
+
+
+def _fesom_r2g_matrix(alpha, beta, gamma):
+    """FESOM's ``r2g_matrix`` (gen_modules_rotate_grid.F90,
+    set_mesh_transform_matrix). Angles in degrees. Maps geographic Cartesian
+    to rotated Cartesian; its transpose maps back."""
+    al, be, ga = np.deg2rad([alpha, beta, gamma])
+    m = np.empty((3, 3))
+    m[0, 0] = np.cos(ga) * np.cos(al) - np.sin(ga) * np.cos(be) * np.sin(al)
+    m[0, 1] = np.cos(ga) * np.sin(al) + np.sin(ga) * np.cos(be) * np.cos(al)
+    m[0, 2] = np.sin(ga) * np.sin(be)
+    m[1, 0] = -np.sin(ga) * np.cos(al) - np.cos(ga) * np.cos(be) * np.sin(al)
+    m[1, 1] = -np.sin(ga) * np.sin(al) + np.cos(ga) * np.cos(be) * np.cos(al)
+    m[1, 2] = np.cos(ga) * np.sin(be)
+    m[2, 0] = np.sin(be) * np.sin(al)
+    m[2, 1] = -np.sin(be) * np.cos(al)
+    m[2, 2] = np.cos(be)
+    return m
+
+
+def _fesom_vector_r2g_coeffs(glon, glat, angles=_FESOM_EULER_DEFAULT):
+    """Per-point 2x2 matrix of FESOM's ``vector_r2g`` (flag_coord=1).
+
+    ``glon``/``glat`` are the geographic positions in radians. Returns
+    ``(a11, a12, a21, a22)`` with
+
+        u_geo = a11 * u_rot + a12 * v_rot
+        v_geo = a21 * u_rot + a22 * v_rot
+
+    The matrix is orthonormal, so its transpose is the inverse (g2r).
+    """
+    m = _fesom_r2g_matrix(*angles)
+    glon = np.asarray(glon, dtype=np.float64)
+    glat = np.asarray(glat, dtype=np.float64)
+    # g2r: rotated coordinates of each point
+    xg, yg, zg = np.cos(glat) * np.cos(glon), np.cos(glat) * np.sin(glon), np.sin(glat)
+    xr = m[0, 0] * xg + m[0, 1] * yg + m[0, 2] * zg
+    yr = m[1, 0] * xg + m[1, 1] * yg + m[1, 2] * zg
+    zr = m[2, 0] * xg + m[2, 1] * yg + m[2, 2] * zg
+    rlon, rlat = np.arctan2(yr, xr), np.arcsin(np.clip(zr, -1.0, 1.0))
+
+    def _apply(tlon, tlat):
+        # rotated east/north components -> rotated Cartesian -> geographic
+        # Cartesian (transpose) -> geographic east/north, as vector_r2g.
+        txg = -tlat * np.sin(rlat) * np.cos(rlon) - tlon * np.sin(rlon)
+        tyg = -tlat * np.sin(rlat) * np.sin(rlon) + tlon * np.cos(rlon)
+        tzg = tlat * np.cos(rlat)
+        txr = m[0, 0] * txg + m[1, 0] * tyg + m[2, 0] * tzg
+        tyr = m[0, 1] * txg + m[1, 1] * tyg + m[2, 1] * tzg
+        tzr = m[0, 2] * txg + m[1, 2] * tyg + m[2, 2] * tzg
+        east = -np.sin(glon) * txr + np.cos(glon) * tyr
+        north = -np.sin(glat) * np.cos(glon) * txr - np.sin(glat) * np.sin(glon) * tyr + np.cos(glat) * tzr
+        return east, north
+
+    one, zero = np.ones_like(rlon), np.zeros_like(rlon)
+    a11, a21 = _apply(one, zero)
+    a12, a22 = _apply(zero, one)
+    return a11, a12, a21, a22
+
+
+def _spherical_centroids(lon_deg, lat_deg, tri):
+    """Centroids of the triangles ``tri`` (3, ntri; 0-based node indices),
+    as the normalised mean of the corners' unit vectors. Correct across the
+    dateline and at the poles, where averaging lon/lat is not. Radians."""
+    lon = np.deg2rad(np.asarray(lon_deg, dtype=np.float64))
+    lat = np.deg2rad(np.asarray(lat_deg, dtype=np.float64))
+    xyz = np.stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+    c = xyz[:, tri[0]] + xyz[:, tri[1]] + xyz[:, tri[2]]
+    c /= np.linalg.norm(c, axis=0)
+    return np.arctan2(c[1], c[0]), np.arcsin(np.clip(c[2], -1.0, 1.0))
+
+
+_MESH_POINTS_CACHE = {}
+
+
+def _fesom_mesh_points(grid_file):
+    """Geographic node positions and element centroids of a FESOM mesh.nc,
+    in radians: ``(node_lon, node_lat, elem_lon, elem_lat)``."""
+    if grid_file in _MESH_POINTS_CACHE:
+        return _MESH_POINTS_CACHE[grid_file]
+    mesh = xr.open_dataset(grid_file)
+    lon = mesh["lon"].values
+    lat = mesh["lat"].values
+    tri_raw = mesh["triag_nodes"].values if "triag_nodes" in mesh else None
+    mesh.close()
+    if tri_raw is None:
+        elon = elat = np.empty(0)
+    else:
+        tri = np.where(np.isfinite(tri_raw), tri_raw, 1).astype(np.int64)
+        if tri.shape[0] != 3 and tri.shape[1] == 3:
+            tri = tri.T
+        elon, elat = _spherical_centroids(lon, lat, tri - 1)
+    out = (np.deg2rad(lon.astype(np.float64)), np.deg2rad(lat.astype(np.float64)), elon, elat)
+    _MESH_POINTS_CACHE[grid_file] = out
+    return out
+
+
+def _vector_positions(data, rule):
+    """Where ``data``'s vectors live: ``(dims, lon, lat)`` with lon/lat in
+    radians shaped like ``dims``.
+
+    Mesh nodes when a dim has the mesh's node count, element centroids when
+    it has its triangle count (``vector_location: node|elem`` forces one),
+    and the field's own 1-D ``lat``/``lon`` axes on a regular grid (the gr
+    files, which XIOS interpolates from the rotated-frame components)."""
+    location = rule.get("vector_location")
+    grid_file = rule.get("grid_file")
+    if grid_file is not None and location != "regular":
+        nlon, nlat, elon, elat = _fesom_mesh_points(grid_file)
+        candidates = []
+        if location in (None, "node"):
+            candidates.append((nlon, nlat))
+        if location in (None, "elem"):
+            candidates.append((elon, elat))
+        for plon, plat in candidates:
+            dim = next((d for d in data.dims if data.sizes[d] == plon.size), None)
+            if dim is not None:
+                return (dim,), plon, plat
+    if location in (None, "regular"):
+        ydim = next((d for d in ("lat", "latitude") if d in data.dims), None)
+        xdim = next((d for d in ("lon", "longitude") if d in data.dims), None)
+        if ydim and xdim:
+            glat, glon = np.meshgrid(data[ydim].values, data[xdim].values, indexing="ij")
+            return (ydim, xdim), np.deg2rad(glon.astype(np.float64)), np.deg2rad(glat.astype(np.float64))
+    raise ValueError(
+        f"rotate_vector_to_geographic: cannot place the vectors of dims {dict(data.sizes)} "
+        f"on mesh {grid_file!r} (vector_location={location!r})"
+    )
+
+
+def _check_positions_match(data, dims, plon, plat, tol_km=50.0):
+    """Guard against rotating with the wrong mesh: compare the positions used
+    for the coefficients with the field's own 1-D lat/lon coordinates (FESOM
+    writes them on nodes and elements). Nodes agree to 1 m. FESOM's element
+    lat/lon are flat lon/lat means, which sit up to 2.6 km (DARS2) and 18 km
+    (CORE3) from the spherical centroids at the pole; a wrong mesh is off by
+    far more."""
+    if len(dims) != 1 or "lat" not in data.coords or "lon" not in data.coords:
+        return
+    if data["lat"].dims != dims or data["lon"].dims != dims:
+        return
+    idx = np.unique(np.linspace(0, plon.size - 1, num=min(plon.size, 2000)).astype(np.int64))
+    flat = np.deg2rad(np.asarray(data["lat"].values[idx], dtype=np.float64))
+    flon = np.deg2rad(np.asarray(data["lon"].values[idx], dtype=np.float64))
+    cosd = np.sin(flat) * np.sin(plat[idx]) + np.cos(flat) * np.cos(plat[idx]) * np.cos(flon - plon[idx])
+    dist_km = 6371.0 * np.arccos(np.clip(cosd, -1.0, 1.0))
+    if np.nanmax(dist_km) > tol_km:
+        raise ValueError(
+            f"rotate_vector_to_geographic: field coordinates are up to {np.nanmax(dist_km):.1f} km "
+            f"from the grid_file positions on dim {dims[0]!r}; wrong mesh?"
+        )
+
+
+def _rotate_pair(u, v, coeffs, inverse=False):
+    """Apply the per-point 2x2 rotation to the pair (u, v). ``inverse``
+    applies the transpose (geographic -> rotated)."""
+    a11, a12, a21, a22 = coeffs
+    if inverse:
+        a12, a21 = a21, a12
+    return a11 * u + a12 * v, a21 * u + a22 * v
+
+
+def rotate_vector_to_geographic(data, rule):
+    """Rotate one FESOM vector component from the rotated model frame to
+    geographic east (x) or north (y).
+
+    A no-op unless the rule sets ``vector_partner_pattern``, so it can sit in
+    pipelines shared with scalar rules. Place it right after ``get_variable``.
+
+    Rule attributes:
+      - vector_component: ``x`` if ``data`` is the x (lon) component, ``y``
+        if it is the y (lat) component. The same component is returned,
+        now geographic.
+      - vector_partner_path / vector_partner_pattern / vector_partner_variable:
+        the other component, loaded like any secondary input
+        (``_load_secondary_mf``). For ``unod`` this is ``vnod``.
+      - alpha_euler / beta_euler / gamma_euler: FESOM's rotation (degrees),
+        default 50 / 15 / -90 as in namelist.config of DARS2 and CORE3.
+      - grid_file: mesh.nc giving node positions and, via ``triag_nodes``,
+        element centroids.
+      - vector_location: optional ``node``, ``elem`` or ``regular``; by default
+        detected from the size of the horizontal dim.
+
+    Works for 2D and 3D fields (levels broadcast), keeps dims, coords, attrs,
+    name and dask laziness.
+    """
+    if not rule.get("vector_partner_pattern"):
+        return data
+    if isinstance(data, xr.Dataset):
+        raise TypeError("rotate_vector_to_geographic expects a DataArray; put it after get_variable")
+    component = str(rule.get("vector_component", "")).lower()
+    if component not in ("x", "y"):
+        raise ValueError(f"rotate_vector_to_geographic needs vector_component x or y, got {component!r}")
+    angles = (
+        float(rule.get("alpha_euler", _FESOM_EULER_DEFAULT[0])),
+        float(rule.get("beta_euler", _FESOM_EULER_DEFAULT[1])),
+        float(rule.get("gamma_euler", _FESOM_EULER_DEFAULT[2])),
+    )
+
+    partner = _load_secondary_mf(rule, "vector_partner_path", "vector_partner_pattern", "vector_partner_variable")
+    t_data, t_part = _find_time_dim(data), _find_time_dim(partner)
+    if t_data and t_part:
+        partner = _align_time_to(data, partner)
+        if partner.sizes[t_data] != data.sizes[t_data]:
+            raise ValueError(
+                f"rotate_vector_to_geographic: partner has {partner.sizes[t_data]} time steps, "
+                f"{data.name} has {data.sizes[t_data]}"
+            )
+    if set(partner.dims) != set(data.dims):
+        raise ValueError(f"rotate_vector_to_geographic: partner dims {partner.dims} != {data.dims}")
+    partner = partner.transpose(*data.dims)
+    if partner.shape != data.shape:
+        raise ValueError(f"rotate_vector_to_geographic: partner shape {partner.shape} != {data.shape}")
+
+    dims, plon, plat = _vector_positions(data, rule)
+    _check_positions_match(data, dims, plon, plat)
+    coeffs = _fesom_vector_r2g_coeffs(plon, plat, angles)
+    dtype = data.dtype if np.issubdtype(data.dtype, np.floating) else np.float64
+    a11, a12, a21, a22 = (xr.DataArray(c.astype(dtype), dims=dims) for c in coeffs)
+
+    # Partner wrapped in data's coords so xarray never aligns on them.
+    other = data.copy(data=partner.data)
+    if component == "x":
+        result = data * a11 + other * a12
+    else:
+        result = other * a21 + data * a22
+    result = result.transpose(*data.dims).astype(dtype, copy=False)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    logger.info(
+        f"rotate_vector_to_geographic: {data.name} ({component}) with partner "
+        f"{rule.get('vector_partner_pattern')} on {dims}, euler={angles}"
+    )
+    return result
 
 
 # ============================================================

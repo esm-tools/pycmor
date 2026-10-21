@@ -25,7 +25,7 @@ import argparse
 import os
 import random
 import sys
-from typing import List
+from typing import List, Optional
 
 import yaml
 
@@ -61,13 +61,23 @@ def shard_mode(
     shard_size: int,
     out_dir: str,
     seed: int = 42,
+    only_rules: Optional[List[str]] = None,
 ) -> List[str]:
     """Split source yaml into shards of ``shard_size`` rules each.
+
+    ``only_rules`` keeps just the rules with those names (names absent from
+    this tier are ignored, so one list can be passed to every tier); a tier
+    left with no rules writes no shards.
 
     Returns the list of written shard-yaml paths.
     """
     source = _load_source_yaml(source_path)
     rules = source["rules"]
+    if only_rules is not None:
+        keep = set(only_rules)
+        rules = [r for r in rules if r.get("name") in keep]
+        if not rules:
+            return []
     n_rules = len(rules)
     if shard_size < 1:
         raise SystemExit(f"shard_size must be >=1 (got {shard_size})")
@@ -123,6 +133,11 @@ def _parse_args(argv: List[str]) -> argparse.Namespace:
     s.add_argument("--shard-size", type=int, default=20, help="rules per shard (default: 20)")
     s.add_argument("--out-dir", required=True, help="output directory for shard yamls")
     s.add_argument("--seed", type=int, default=42, help="shuffle seed for reproducibility (default: 42)")
+    s.add_argument(
+        "--only-rules",
+        default=None,
+        help="comma-separated rule names to keep; names not in this tier are ignored",
+    )
 
     f = sub.add_parser("fixup", help="emit single yaml with only named rules")
     f.add_argument("--rule-names", required=True, help="comma-separated rule names to keep")
@@ -134,7 +149,8 @@ def _parse_args(argv: List[str]) -> argparse.Namespace:
 def main(argv: List[str]) -> int:
     args = _parse_args(argv)
     if args.mode == "shard":
-        written = shard_mode(args.source, args.shard_size, args.out_dir, args.seed)
+        only = [r.strip() for r in args.only_rules.split(",") if r.strip()] if args.only_rules else None
+        written = shard_mode(args.source, args.shard_size, args.out_dir, args.seed, only)
         for path in written:
             print(path)
         sys.stderr.write(f"# wrote {len(written)} shard yamls to {args.out_dir}\n")

@@ -26,6 +26,9 @@
 #                          directory name disagrees. See EXPERIMENTS there.
 #   TIER                   single tier name; if set, only that tier's
 #                          yaml is submitted (used for smoke tests)
+#   RULES                  comma-separated rule names; if set, every tier
+#                          is cut down to those rules and tiers left with
+#                          none are skipped (re-running a handful of rules)
 #   WALLTIME               default 01:00:00
 #   WITH_GR                yes/no (default no). When yes, also derive a
 #                          gr-grid variant of every FESOM-ingesting tier
@@ -269,6 +272,7 @@ for yaml in "$YAMLS_DIR"/*.yaml; do
   python3 "$HERE/shard_tier_yaml.py" "$yaml" \
       shard --shard-size "$tier_shard_size" \
       --seed "$SHUFFLE_SEED" \
+      ${RULES:+--only-rules "$RULES"} \
       --out-dir "$shards_dir" >/dev/null
   # find, not ls: with no shard yamls (veg_seaice_gr, whose only rule needs the
   # FESOM mesh) ls fails, and under pipefail that aborted the whole submission
