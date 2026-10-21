@@ -197,8 +197,18 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
     # the midpoint. Detect via approx_interval or rule.data_request_variable
     # .frequency and let the call fall through to _create_mean_bounds, where
     # the yearly branch builds them.
+    #
+    # A single monthly stamp is the same case: a run that has written only
+    # one month so far (e.g. a one-month test run) yields a one-record
+    # monthly file, which needs (month_start, next_month_start) bnds just
+    # like the twelve-record file of a full year. Detected from the rule's
+    # monthly frequency only; a full year never reaches this branch.
     if len(time_values) < 2 and time_method != "instantaneous":
-        if not (_looks_yearly(rule, approx_interval) or _looks_decadal(rule, approx_interval)):
+        if not (
+            _looks_yearly(rule, approx_interval)
+            or _looks_decadal(rule, approx_interval)
+            or _looks_monthly(rule, approx_interval)
+        ):
             logger.info(
                 f"  {len(time_values)} time point(s) with method='{time_method}'; "
                 "treating as fx-like, no bounds created"
@@ -207,7 +217,7 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
             return ds
         logger.info(
             f"  {len(time_values)} time point(s) with method='{time_method}'; "
-            "yearly or decadal frequency detected, building period-snapped bounds"
+            "yearly, decadal or monthly frequency detected, building period-snapped bounds"
         )
 
     # If the source already shipped time_bnds (e.g. FESOM daily files), don't
@@ -695,6 +705,9 @@ def _create_mean_bounds(time_values, approx_interval, rule=None):
         if _looks_yearly(rule, approx_interval):
             logger.info("  single-stamp yearly data, using year-start bounds")
             return _create_yearly_bounds(time_values)
+        if _looks_monthly(rule, approx_interval):
+            logger.info("  single-stamp monthly data, using month-start bounds")
+            return _create_monthly_bounds(time_values)
         raise ValueError("Cannot create mean time bounds: need at least 2 time points")
 
     # Several decadal stamps snap to calendar decades as well. The spacing
@@ -936,6 +949,37 @@ def _looks_decadal(rule, approx_interval):
     if drv is not None and getattr(drv, "frequency", None) == "dec":
         return True
     if rule is not None and getattr(rule, "frequency", None) == "dec":
+        return True
+    return False
+
+
+def _looks_monthly(rule, approx_interval):
+    """Heuristic: does this rule describe a monthly-mean variable?
+
+    Only consulted for single-stamp data, where the cadence cannot be read
+    from the stamps. Same signals as :func:`_looks_yearly`: an
+    ``approx_interval`` in the [28, 32] day band, or ``mon`` as the data
+    request or rule frequency.
+
+    Instantaneous (tpt, ``time: point``) rules are excluded. timeavg hands
+    them over with ``time_method="INSTANTANEOUS"``, which this module does not
+    recognise and treats as mean, so without the exclusion a one-record tpt
+    file would get month bounds and its sample moved to mid-month
+    (sistressave: 1850-02-01 became 1850-02-15).
+    """
+    drv = getattr(rule, "data_request_variable", None) if rule is not None else None
+    cm = (getattr(drv, "cell_methods", "") or "").lower() if drv is not None else ""
+    if "time: point" in cm:
+        return False
+    if approx_interval is not None:
+        try:
+            if 28 <= float(approx_interval) <= 32:
+                return True
+        except (TypeError, ValueError):
+            pass
+    if drv is not None and getattr(drv, "frequency", None) == "mon":
+        return True
+    if rule is not None and getattr(rule, "frequency", None) == "mon":
         return True
     return False
 
