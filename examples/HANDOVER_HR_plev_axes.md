@@ -19,7 +19,9 @@ FullPos does all vertical interpolation, and OpenIFS takes its pressure levels f
 
 In `cmip7/axis_def.xml`, `pressure_levels_3` and `pressure_levels_7h` are separate axes that only list their own values. They are not linked to `pressure_levels`, so XIOS gets a 19-level field for a 3- or 7-level axis and writes the first 3 or 7 levels under the new labels.
 
-All plev3 and plev7h levels are part of the 19 standard levels. So the fix is to make both axes index subsets of `pressure_levels`. FullPos, the 19-level output and every other stream stay exactly as they are.
+All plev3 and plev7h levels are part of the 19 standard levels. So the fix is to derive both axes from `pressure_levels` by a linear interpolation, which at these levels is an exact copy. FullPos, the 19-level output and every other stream stay exactly as they are.
+
+An index subset (`zoom_axis index=...`) does not work: XIOS 2.5 turns the index list into its min-max range and writes every level in between (seen in abrupt-4xCO2 2002: 7 instead of 3 and 13 instead of 7 levels).
 
 ## What to change
 
@@ -38,25 +40,20 @@ Replace these two lines:
     <axis id="pressure_levels_7h" long_name="vertical pressure levels plev7h" n_glo="7" value="(0,6)[100000.0 92500.0 85000.0 70000.0 50000.0 25000.0 10000.0]" />
 ```
 
-with:
+with (Nadine's version, in use since abrupt-4xCO2 2003):
 
 ```xml
-    <axis id="pressure_levels_3" long_name="vertical pressure levels plev3" axis_ref="pressure_levels" >
-      <zoom_axis index="(0,2)[2 5 8]" />
+    <axis id="pressure_levels_3" long_name="vertical pressure levels plev3" n_glo="3" value="(0,2)[85000.0 50000.0 25000.0]" >
+      <interpolate_axis type="polynomial" order="1" />
     </axis>
-    <axis id="pressure_levels_7h" long_name="vertical pressure levels plev7h" axis_ref="pressure_levels" >
-      <zoom_axis index="(0,6)[1 2 3 4 5 8 13]" />
+    <axis id="pressure_levels_7h" long_name="vertical pressure levels plev7h" n_glo="7" value="(0,6)[92500.0 85000.0 70000.0 60000.0 50000.0 25000.0 5000.0]" >
+      <interpolate_axis type="polynomial" order="1" />
     </axis>
 ```
 
-The indices count from 0 into the 19 levels of `pressure_levels`:
-
-- plev3 `[2 5 8]` = 850, 500, 250 hPa
-- plev7h `[1 2 3 4 5 8 13]` = 925, 850, 700, 600, 500, 250, 50 hPa
-
 plev7h thereby also gets the levels CMIP asks for. The old axis listed 1000 and 100 hPa, which are not in the CMIP plev7h.
 
-This is the same construction the file already uses for `pressure_levels_zoom` a few lines above. XIOS 2.5.3 in the HR build supports `zoom_axis index`.
+Checked on abrupt-4xCO2 2003: every plev3 and plev7h level matches `atmos_mon_pl_ta` at the same pressure to 0.03 K (January means).
 
 Leave `pressure_levels_6` alone. It has the same fault, but `atmos_3h_pl6` is switched off, and its levels (950, 900, 800, 750 hPa) are not among the 19, so it cannot be fixed this way.
 
