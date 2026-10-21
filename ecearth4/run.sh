@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Render <case>.yaml.in and run pycmor on it (cases: a9kk_g2, t0i9_g3).
+# Render <case>.yaml.in and run pycmor on it (cases: ecearth4/*.yaml.in).
 # Usage: run.sh plan|run <case>  (settings: ecearth4/settings.example)
 # Output to <samples root>/<exp>/pycmor-out, log to <samples root>/logs/<exp>
 # (<exp> = case before "_"); OUT_DIR and LOG_DIR override. The log holds the
