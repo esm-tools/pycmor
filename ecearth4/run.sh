@@ -36,7 +36,7 @@ export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
 
 render() {
     sed -e "s|@SRC@|$SRC|g" -e "s|@METADATA@|$METADATA|g" \
-        -e "s|@SAMPLES@|$SAMPLES|g" -e "s|@OUT@|$OUT|g" "$TEMPLATE"
+        -e "s|@SAMPLES@|$SAMPLES|g" -e "s|@ROOT@|$ROOT|g" -e "s|@OUT@|$OUT|g" "$TEMPLATE"
 }
 
 if [ ! -d "$SAMPLES" ]; then
