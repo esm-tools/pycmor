@@ -24,8 +24,12 @@ WORK=${PYCMOR_WORK:?set PYCMOR_WORK in $SETTINGS}
 PIXI=$WORK/bin/pixi
 DREQ_VENV=$WORK/dreq-venv
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
-# cmip7-cmor-common checkout, needed by ecearth4/steps.py.
+# cmip7-cmor-common (ecearth4/steps.py): public repo at a tag; a local
+# checkout in CMIP7_CMOR_COMMON overrides it (development).
+COMMON_URL=${COMMON_URL:-https://github.com/matDDTCmor/cmip7-cmor-common.git}
+COMMON_TAG=${COMMON_TAG:-v0.3.0}
 COMMON=${CMIP7_CMOR_COMMON:-}
+COMMON_SRC=${COMMON:-git+$COMMON_URL@$COMMON_TAG}
 COMMON_MIN=0.3.0
 
 # Locked env only: no ~/.local packages (pip --user) on top of it.
@@ -45,12 +49,14 @@ env        $SRC/.pixi/envs/default (pixi install --frozen)
 submodules $(git -C "$SRC" submodule status | awk '{printf "%s@%.8s ", $2, $1}')
 dreq       CMIP7-data-request-api $DREQ_API_VERSION in $DREQ_VENV
 metadata   $METADATA
-common     ${COMMON:-not set} $([ -n "$COMMON" ] && git -C "$COMMON" log -1 --format="(%h %s)" 2>/dev/null)
+common     $COMMON_SRC $([ -n "$COMMON" ] && git -C "$COMMON" log -1 --format="(%h %s)" 2>/dev/null)
 EOF
 }
 
 install() {
-    [ -d "$COMMON" ] || { echo "CMIP7_CMOR_COMMON not found: '$COMMON' (set it in $SETTINGS)" >&2; exit 1; }
+    if [ -n "$COMMON" ] && [ ! -d "$COMMON" ]; then
+        echo "CMIP7_CMOR_COMMON not found: '$COMMON' (unset it to use $COMMON_URL@$COMMON_TAG)" >&2; exit 1
+    fi
     curl -fsS -o /dev/null https://conda.anaconda.org/conda-forge/channeldata.json \
         || { echo "no internet: run on a login node with access" >&2; exit 1; }
     mkdir -p "$WORK/bin" "$(dirname "$METADATA")"
@@ -71,7 +77,7 @@ install() {
     fi
     # common deps (numpy, netCDF4) are in the lock: --no-deps keeps it intact.
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m ensurepip > /dev/null
-    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m pip install -q --no-deps "$COMMON"
+    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m pip install -q --no-deps --force-reinstall "$COMMON_SRC"
     if [ ! -s "$METADATA" ]; then
         tmp=$(mktemp -d)
         "$DREQ_VENV/bin/export_dreq_lists_json" -a "$DREQ_VERSION" "$tmp/experiments.json" -m "$METADATA"
@@ -87,11 +93,17 @@ check() {
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
         'import sys, numpy, xarray; [print(m.__name__, m.__version__, "ok" if m.__file__.startswith(sys.prefix) else "OUTSIDE ENV " + m.__file__) for m in (numpy, xarray)]'
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c '
-import sys
-from importlib.metadata import version
-v = version("cmip7-cmor-common")
+import json, sys
+from importlib.metadata import distribution
+d = distribution("cmip7-cmor-common")
+v = d.version
 ok = tuple(map(int, v.split(".")[:3])) >= tuple(map(int, sys.argv[1].split(".")))
-print("cmip7-cmor-common", v, "ok" if ok else "OLDER THAN " + sys.argv[1] + ": rerun install")
+u = json.loads(d.read_text("direct_url.json") or "{}")
+vcs = u.get("vcs_info", {})
+src = u.get("url", "?")
+if vcs:
+    src += "@" + vcs.get("requested_revision", "") + " " + vcs.get("commit_id", "")[:8]
+print("cmip7-cmor-common", v, "ok" if ok else "OLDER THAN " + sys.argv[1] + ": rerun install", "from", src)
 ' "$COMMON_MIN" 2>/dev/null || echo "cmip7-cmor-common not installed: rerun install"
     python3 - "$METADATA" <<'EOF'
 import hashlib, json, sys
