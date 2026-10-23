@@ -24,6 +24,8 @@ fi
 WORK=${PYCMOR_WORK:?set PYCMOR_WORK in $SETTINGS}
 ROOT=${ECE4_SAMPLES_ROOT:?set ECE4_SAMPLES_ROOT in $SETTINGS}
 SAMPLES=${ECE4_SAMPLES_DIR:-$ROOT/samples}
+# Full experiment inputs (cases using @SOURCE@): <root>/<exp>/source.
+SOURCE=${SOURCE_DIR:-$ROOT/$EXP/source}
 DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 TS=$(date +%Y%m%d_%H%M%S)
@@ -37,7 +39,7 @@ export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
 
 render() {
     sed -e "s|@SRC@|$SRC|g" -e "s|@METADATA@|$METADATA|g" \
-        -e "s|@SAMPLES@|$SAMPLES|g" -e "s|@ROOT@|$ROOT|g" -e "s|@OUT@|$OUT|g" "$TEMPLATE"
+        -e "s|@SAMPLES@|$SAMPLES|g" -e "s|@ROOT@|$ROOT|g" -e "s|@SOURCE@|$SOURCE|g" -e "s|@OUT@|$OUT|g" "$TEMPLATE"
 }
 
 if [ ! -d "$SAMPLES" ]; then
@@ -51,7 +53,7 @@ if [ -z "$CASE" ] || [ ! -f "$TEMPLATE" ] || { [ "$MODE" != plan ] && [ "$MODE" 
 fi
 
 case $MODE in
-    plan) echo "# settings $SETTINGS"; echo "# out  $OUT"; echo "# log  $LOGS/${CASE}_$TS.log"; render ;;
+    plan) echo "# settings $SETTINGS"; echo "# source $SOURCE"; echo "# out  $OUT"; echo "# log  $LOGS/${CASE}_$TS.log"; render ;;
     run)
         mkdir -p "$OUT" "$LOGS" "$TMP"
         CFG=$TMP/${CASE}.yaml
