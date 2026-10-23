@@ -1,0 +1,15 @@
+# Copy to <checkout parent>/ecearth4.env (next to the pycmor checkout, outside
+# the repo) and fill in. Read by env_mn5.sh and run.sh; plain NAME=value, no
+# quotes, no variables. A variable already set in the shell wins.
+#
+# Work dir: pixi, caches, DReq venv and metadata.json.
+PYCMOR_WORK=
+# Optional: local cmip7-cmor-common checkout (0.3.0 or later) instead of the
+# public repo at a tag (env_mn5.sh COMMON_URL, COMMON_TAG).
+CMIP7_CMOR_COMMON=
+# Optional: dir for rendered configs (default <PYCMOR_WORK>/runs); set it per
+# user when PYCMOR_WORK is a shared install.
+RUN_DIR=
+# ecearth4-output-samples root: samples/ inside; runs write <exp>/pycmor-out
+# and logs/<exp> under it.
+ECE4_SAMPLES_ROOT=
