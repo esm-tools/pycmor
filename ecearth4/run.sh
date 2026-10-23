@@ -31,7 +31,8 @@ METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 TS=$(date +%Y%m%d_%H%M%S)
 OUT=${OUT_DIR:-$ROOT/$EXP/pycmor-out}
 LOGS=${LOG_DIR:-$ROOT/logs/$EXP}
-TMP=$WORK/runs/tmp_$TS
+# Rendered configs: per user when PYCMOR_WORK is shared (read-only).
+TMP=${RUN_DIR:-$WORK/runs}/tmp_$TS
 PIXI=${PIXI:-$WORK/bin/pixi}
 # Locked env only (no ~/.local); caches as env_mn5.sh.
 export PYTHONNOUSERSITE=1

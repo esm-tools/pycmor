@@ -4,8 +4,12 @@
 #
 # Work dir: pixi, caches, DReq venv and metadata.json.
 PYCMOR_WORK=
-# cmip7-cmor-common checkout (0.3.0 or later).
+# Optional: local cmip7-cmor-common checkout (0.3.0 or later) instead of the
+# public repo at a tag (env_mn5.sh COMMON_URL, COMMON_TAG).
 CMIP7_CMOR_COMMON=
+# Optional: dir for rendered configs (default <PYCMOR_WORK>/runs); set it per
+# user when PYCMOR_WORK is a shared install.
+RUN_DIR=
 # ecearth4-output-samples root: samples/ inside; runs write <exp>/pycmor-out
 # and logs/<exp> under it.
 ECE4_SAMPLES_ROOT=
