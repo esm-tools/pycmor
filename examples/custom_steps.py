@@ -1671,14 +1671,12 @@ def extract_bottom(data, rule):
         bottom_idx = mesh["nlevels_nod2D"].values - 2  # 0-based, last valid midpoint
     elif "nlevels" in mesh:
         bottom_idx = mesh["nlevels"].values - 2
-    elif "depth_lev" in mesh and rule.get("depth_lev_counts_levels", False):
-        # CORE3 (LR): see _last_wet_level. Verified against the LR temp output.
-        bottom_idx = _last_wet_level(mesh["depth_lev"].values, rule)
     elif "depth_lev" in mesh:
-        # NB: on DARS2 depth_lev is already the last wet index (see
-        # _last_wet_level), so this picks the level two above the bottom.
-        # Kept as is so HR output does not change; flagged for review.
-        bottom_idx = mesh["depth_lev"].values.astype(int) - 2
+        # DARS2 (HR) and CORE3 (LR, depth_lev_counts_levels): see
+        # _last_wet_level. Both verified against the temp output: every node
+        # is finite through exactly this level. HR used depth_lev - 2 before
+        # (2026-10-26), 500 m above the bottom layer.
+        bottom_idx = _last_wet_level(mesh["depth_lev"].values, rule)
     else:
         mesh.close()
         raise ValueError("Mesh file must contain 'nlevels_nod2D', 'nlevels', or 'depth_lev'")
