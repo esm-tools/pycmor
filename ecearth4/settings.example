@@ -13,3 +13,6 @@ RUN_DIR=
 # ecearth4-output-samples root: samples/ inside; runs write <exp>/pycmor-out
 # and logs/<exp> under it.
 ECE4_SAMPLES_ROOT=
+# Optional: run output in the EC-Earth4 layout (<leg>/lpjg, ...) for cases using
+# it; default <ECE4_SAMPLES_ROOT>/<exp>/output.
+EXP_OUTPUT=
