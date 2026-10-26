@@ -287,6 +287,39 @@ def _rotate_pair(u, v, coeffs, inverse=False):
     return a11 * u + a12 * v, a21 * u + a22 * v
 
 
+def _fesom_vectors_need_rotation(path, pattern):
+    """Whether the FESOM files matching ``pattern`` hold vectors in the
+    rotated frame, read from the global attributes of the first one:
+
+      - native FESOM output writes ``FESOM_autorotate_back_to_geo``, 1 when
+        it rotated the vectors back to geographic (``vec_autorotate``);
+      - XIOS output carries no FESOM attributes, only ``description`` "Created
+        by xios". FESOM 2.7.7 forces ``vec_autorotate=.FALSE.`` under XIOS, so
+        all of it (the HR runs) is in the rotated frame.
+
+    Anything else is refused: the rule then has to say ``vector_rotation``.
+    """
+    regex = _re.compile(pattern)
+    files = sorted(f for f in _os.listdir(path) if regex.fullmatch(f))
+    if not files:
+        raise FileNotFoundError(f"No files matching regex {pattern!r} in {path}")
+    first = _os.path.join(path, files[0])
+    with xr.open_dataset(first, decode_times=False) as ds:
+        attrs = dict(ds.attrs)
+    if "FESOM_autorotate_back_to_geo" in attrs:
+        return (
+            int(attrs["FESOM_autorotate_back_to_geo"]) == 0,
+            f"FESOM_autorotate_back_to_geo={attrs['FESOM_autorotate_back_to_geo']}",
+        )
+    if str(attrs.get("description", "")).strip() == "Created by xios":
+        return True, "XIOS output without FESOM attributes"
+    raise ValueError(
+        f"rotate_vector_to_geographic: cannot tell the vector frame of {first} "
+        f"(no FESOM_autorotate_back_to_geo, description {attrs.get('description')!r}); "
+        "set vector_rotation: always or never in the rule"
+    )
+
+
 def rotate_vector_to_geographic(data, rule):
     """Rotate one FESOM vector component from the rotated model frame to
     geographic east (x) or north (y).
@@ -295,6 +328,9 @@ def rotate_vector_to_geographic(data, rule):
     pipelines shared with scalar rules. Place it right after ``get_variable``.
 
     Rule attributes:
+      - vector_rotation: ``auto`` (default) decides from the partner's files
+        (``_fesom_vectors_need_rotation``) and passes geographic input
+        through; ``always`` or ``never`` overrides that.
       - vector_component: ``x`` if ``data`` is the x (lon) component, ``y``
         if it is the y (lat) component. The same component is returned,
         now geographic.
@@ -312,6 +348,16 @@ def rotate_vector_to_geographic(data, rule):
     name and dask laziness.
     """
     if not rule.get("vector_partner_pattern"):
+        return data
+    mode = str(rule.get("vector_rotation", "auto")).lower()
+    if mode not in ("auto", "always", "never"):
+        raise ValueError(f"rotate_vector_to_geographic: vector_rotation must be auto, always or never, got {mode!r}")
+    if mode == "auto":
+        rotate, why = _fesom_vectors_need_rotation(rule.get("vector_partner_path"), rule.get("vector_partner_pattern"))
+    else:
+        rotate, why = mode == "always", f"vector_rotation={mode}"
+    if not rotate:
+        logger.info(f"rotate_vector_to_geographic: {data.name} already geographic ({why}), not rotated")
         return data
     if isinstance(data, xr.Dataset):
         raise TypeError("rotate_vector_to_geographic expects a DataArray; put it after get_variable")
@@ -356,7 +402,7 @@ def rotate_vector_to_geographic(data, rule):
     result.name = data.name
     logger.info(
         f"rotate_vector_to_geographic: {data.name} ({component}) with partner "
-        f"{rule.get('vector_partner_pattern')} on {dims}, euler={angles}"
+        f"{rule.get('vector_partner_pattern')} on {dims}, euler={angles} ({why})"
     )
     return result
 
@@ -1020,9 +1066,7 @@ def integrate_over_hemisphere(data, rule):
             vdim = next(d for d in nod_area.dims if d != "nod2")
             surface = nod_area.isel({vdim: 0}).fillna(0).values
         if surface.shape != cell_area.shape:
-            raise ValueError(
-                f"surface_area_file nod_area has {surface.shape} nodes, mesh cell_area {cell_area.shape}"
-            )
+            raise ValueError(f"surface_area_file nod_area has {surface.shape} nodes, mesh cell_area {cell_area.shape}")
         cell_area = xr.DataArray(surface, dims=cell_area.dims)
 
     # Get latitude for hemisphere selection

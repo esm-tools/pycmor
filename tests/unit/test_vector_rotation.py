@@ -183,7 +183,10 @@ def _write_mesh(path):
     return lon, lat, tri - 1
 
 
-def _write_component(path, name, hdim, n, nz, seed, lat=None, lon=None):
+_XIOS = {"description": "Created by xios", "title": "Created by xios"}
+
+
+def _write_component(path, name, hdim, n, nz, seed, lat=None, lon=None, gattrs=_XIOS):
     rng = np.random.default_rng(seed)
     time = xr.date_range("1852-01-01", periods=3, freq="MS", use_cftime=True)
     shape = (3, n) if nz is None else (3, n, nz)
@@ -193,7 +196,9 @@ def _write_component(path, name, hdim, n, nz, seed, lat=None, lon=None):
         coords["lat"] = ((hdim,), lat)
         coords["lon"] = ((hdim,), lon)
     da = xr.DataArray(rng.normal(size=shape), dims=dims, coords=coords, name=name, attrs={"units": "m/s"})
-    da.to_dataset().to_netcdf(path)
+    ds = da.to_dataset()
+    ds.attrs.update(gattrs)
+    ds.to_netcdf(path)
 
 
 def _open(path, name):
@@ -278,12 +283,14 @@ def test_regular_grid(tmp_path):
     time = xr.date_range("1852-01-01", periods=2, freq="MS", use_cftime=True)
     rng = np.random.default_rng(5)
     for name in ("unod", "vnod"):
-        xr.DataArray(
+        ds = xr.DataArray(
             rng.normal(size=(2, 3, lat.size, lon.size)),
             dims=("time", "nz", "lat", "lon"),
             coords={"time": time, "lat": lat, "lon": lon},
             name=name,
-        ).to_dataset().to_netcdf(tmp_path / f"{name}.fesom.gr.1852.nc")
+        ).to_dataset()
+        ds.attrs.update(_XIOS)
+        ds.to_netcdf(tmp_path / f"{name}.fesom.gr.1852.nc")
     u = _open(tmp_path / "unod.fesom.gr.1852.nc", "unod")
     v = _open(tmp_path / "vnod.fesom.gr.1852.nc", "vnod")
     rule = _Rule(
@@ -317,3 +324,45 @@ def test_euler_angles_from_rule(tmp_path):
     u = _open(tmp_path / "uice.fesom.1852.nc", "uice")
     rule = _rule(tmp_path, "x", "vice", mesh, alpha_euler=10.0, beta_euler=0.0, gamma_euler=5.0)
     np.testing.assert_allclose(cs.rotate_vector_to_geographic(u, rule).values, u.values, atol=1e-12)
+
+
+# ---------------------------------------------------------------- frame detection
+
+
+def _pair(tmp_path, gattrs):
+    mesh = tmp_path / "mesh.nc"
+    lon, lat, _ = _write_mesh(mesh)
+    for name, seed in (("uice", 1), ("vice", 2)):
+        _write_component(tmp_path / f"{name}.fesom.1852.nc", name, "nod2", lon.size, None, seed, lat, lon, gattrs)
+    return mesh, _open(tmp_path / "uice.fesom.1852.nc", "uice")
+
+
+@pytest.mark.parametrize(
+    "gattrs, rotated",
+    [
+        (_XIOS, True),  # FESOM 2.7.7 under XIOS: rotated frame
+        ({"FESOM_autorotate_back_to_geo": 0}, True),  # native, vec_autorotate off
+        ({"FESOM_autorotate_back_to_geo": 1}, False),  # native, already geographic
+    ],
+    ids=["xios", "native-rotated", "native-geographic"],
+)
+def test_auto_detects_frame(tmp_path, gattrs, rotated):
+    mesh, u = _pair(tmp_path, gattrs)
+    out = cs.rotate_vector_to_geographic(u, _rule(tmp_path, "x", "vice", mesh))
+    if rotated:
+        assert np.max(np.abs(out.values - u.values)) > 0.1
+    else:
+        assert out is u
+
+
+def test_auto_refuses_unknown_files(tmp_path):
+    mesh, u = _pair(tmp_path, {"description": "something else"})
+    with pytest.raises(ValueError, match="vector_rotation"):
+        cs.rotate_vector_to_geographic(u, _rule(tmp_path, "x", "vice", mesh))
+
+
+@pytest.mark.parametrize("mode, rotated", [("always", True), ("never", False)])
+def test_rule_overrides_detection(tmp_path, mode, rotated):
+    mesh, u = _pair(tmp_path, {"FESOM_autorotate_back_to_geo": 1})
+    out = cs.rotate_vector_to_geographic(u, _rule(tmp_path, "x", "vice", mesh, vector_rotation=mode))
+    assert (out is not u) == rotated
