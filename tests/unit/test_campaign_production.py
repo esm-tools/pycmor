@@ -176,11 +176,21 @@ def test_source_builds_skip_the_wheels(campaign, tmp_path, monkeypatch):
 
 def test_library_check_refuses_wheels(campaign, tmp_path, monkeypatch):
     expect = {"hdf5": "1.14.2", "hdf5_threadsafe": True, "netcdf": "4.9.3-development"}
-    good = {"hdf5": "1.14.2", "hdf5_netcdf4": "1.14.2", "hdf5_threadsafe": True, "netcdf": "4.9.3-development"}
+    good = {
+        "hdf5": "1.14.2",
+        "hdf5_netcdf4": "1.14.2",
+        "hdf5_threadsafe": True,
+        "netcdf": "4.9.3-development",
+        "tripyview_shapefiles": True,
+    }
     monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: json.dumps(good) + "\n")
     campaign._check_libs(tmp_path, expect)
     wheel = {**good, "hdf5_netcdf4": "1.14.6", "hdf5_threadsafe": False}
     monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: json.dumps(wheel) + "\n")
+    with pytest.raises(campaign.CampaignError, match="production expects"):
+        campaign._check_libs(tmp_path, expect)
+    no_data = {**good, "tripyview_shapefiles": False}
+    monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: json.dumps(no_data) + "\n")
     with pytest.raises(campaign.CampaignError, match="production expects"):
         campaign._check_libs(tmp_path, expect)
 

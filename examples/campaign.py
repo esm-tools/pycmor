@@ -274,13 +274,16 @@ def _normalized_requirements(lines):
 
 
 # Run inside the env after its activate hook: the HDF5 and netCDF-C that h5py
-# and netCDF4 actually loaded.
+# and netCDF4 actually loaded, and whether tripyview was installed with its
+# package data (found without importing it, which warms up numba).
 _LIBS_PROBE = """
-import ctypes, json, h5py, netCDF4
+import ctypes, importlib.util, json, os, h5py, netCDF4
 ts = ctypes.c_bool()
 ctypes.CDLL("libhdf5.so.310").H5is_library_threadsafe(ctypes.byref(ts))
+tpv = importlib.util.find_spec("tripyview").submodule_search_locations[0]
 print(json.dumps({"hdf5": h5py.version.hdf5_version, "hdf5_netcdf4": netCDF4.__hdf5libversion__,
-                  "hdf5_threadsafe": ts.value, "netcdf": netCDF4.__netcdf4libversion__}))
+                  "hdf5_threadsafe": ts.value, "netcdf": netCDF4.__netcdf4libversion__,
+                  "tripyview_shapefiles": os.path.isfile(os.path.join(tpv, "shapefiles/moc_basins/Atlantic_MOC.shp"))}))
 """
 
 
@@ -301,9 +304,10 @@ def _check_libs(prefix, expect):
         "hdf5_netcdf4": expect["hdf5"],
         "hdf5_threadsafe": expect["hdf5_threadsafe"],
         "netcdf": expect["netcdf"],
+        "tripyview_shapefiles": True,
     }
     if got != want:
-        raise CampaignError(f"{prefix}: h5py and netCDF4 load {got}, the production expects {want}")
+        raise CampaignError(f"{prefix} reports {got}, the production expects {want}")
 
 
 def _pip_install(prefix, pdir, builds):
