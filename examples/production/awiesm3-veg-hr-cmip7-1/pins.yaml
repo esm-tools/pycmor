@@ -11,8 +11,8 @@ cmip7_tables:
 # Controlled vocabularies, installed into the campaign's own ESGVOC_HOME and
 # never refreshed during the campaign. The versions cli124 ran with.
 esgvoc:
-  universe: v3.2.7
-  cmip7: v2.4.1
+  universe: 3.2.7
+  cmip7: 2.4.1
 
 # Data Request metadata (CMIP7_DReq_metadata in the tier yamls), exported with
 # export_dreq_lists_json at setup. The export is deterministic.
