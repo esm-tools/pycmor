@@ -5,8 +5,9 @@
 # pycmor itself is shadowed at runtime by PYTHONPATH=<campaign>/code/src; it is
 # installed here only for the pycmor entry point and its plugin registry.
 # h5py and netCDF4 are built from source (source_builds in pins.yaml); Cython
-# and pkgconfig are here for that build. libnetcdf==0.0.1 of the cli124 env is
-# left out: it is an empty placeholder on PyPI, installed there by mistake.
+# and pkgconfig are here for that build. libnetcdf==0.0.1 is an empty
+# placeholder on PyPI (metadata only, no code); it is here because tripyview
+# lists libnetcdf, meant as the conda package, among its pip requirements.
 accessible-pygments==0.0.5
 add_trailing_comma==4.0.0
 aiofiles==22.1.0
@@ -180,6 +181,7 @@ jupyterlab_server==2.28.0
 jupyterlab_widgets==1.1.11
 kiwisolver==1.5.0
 lark==1.3.1
+libnetcdf==0.0.1
 linkify-it-py==2.1.0
 llvmlite==0.46.0
 locket==1.0.0
