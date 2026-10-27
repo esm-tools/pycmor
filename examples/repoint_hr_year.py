@@ -281,6 +281,19 @@ def add_year_to_pattern(pat: str, year: str) -> str:
     return out
 
 
+def anchor_pattern(pat: str) -> str:
+    """End a regex pattern that ends in ``\\.nc`` with ``$``, keeping its quotes.
+
+    Globs (LPJ-GUESS ``*/run1/x.out``) and literal names (``mesh.nc``) are left
+    as they are.
+    """
+    quote = pat[0] if len(pat) >= 2 and pat[0] == pat[-1] and pat[0] in ('"', "'") else ""
+    inner = pat[1:-1] if quote else pat
+    if not inner.endswith(r"\.nc"):
+        return pat
+    return f"{quote}{inner}${quote}"
+
+
 def apply_placeholders(text: str, model: str, src_name: str) -> str:
     """Write the model's EMD placeholder values (MODELS[...]['placeholders'])."""
     placeholders = MODELS[model]["placeholders"]
@@ -327,10 +340,13 @@ def repoint_yaml(
         text,
     )
 
-    # Year filter on `pattern:` and `second_input_pattern:` lines
+    # Year filter on `pattern:` and `second_input_pattern:` lines, anchored at
+    # the end: pycmor's gather_inputs matches only the start of a filename,
+    # and runs keep siblings like temp.fesom.gr.1852.nc.damaged next to the
+    # file, which would otherwise be merged in.
     def _repl(m: re.Match) -> str:
         prefix, pat = m.group(1), m.group(2)
-        return f"{prefix}{add_year_to_pattern(pat, year)}"
+        return f"{prefix}{anchor_pattern(add_year_to_pattern(pat, year))}"
 
     text = re.sub(
         r"(^\s*(?:pattern|second_input_pattern|hnode_pattern):\s*)(\S+)",
