@@ -53,6 +53,9 @@ def _write_campaign(tmp_path, code_repo, **over):
         "code_ref": "main",
         "code_repo": str(code_repo),
         "experiment": "1pctCO2",
+        # The production profiles are tested in test_campaign_production.py.
+        "production": None,
+        "campaign_root": str(tmp_path),
     }
     cfg.update(over)
     path = cdir / "campaign.yaml"
@@ -138,7 +141,10 @@ def test_env_is_valid_shell(campaign, tmp_path, code_repo, monkeypatch):
     path = _write_campaign(tmp_path, code_repo, mail="a b@example.org")
     cfg = campaign.load(path)
     campaign.setup(cfg)
-    script = campaign.env(cfg) + '\nprintf "%s|%s|%s|%s" "$PYTHONPATH" "$MAIL_USER" "$JOB_TAG" "$PYCMOR_CLIMATOLOGY_STATE_DIR"'
+    script = (
+        campaign.env(cfg)
+        + '\nprintf "%s|%s|%s|%s" "$PYTHONPATH" "$MAIL_USER" "$JOB_TAG" "$PYCMOR_CLIMATOLOGY_STATE_DIR"'
+    )
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
     assert out == f"{cfg['_code']}/src|a b@example.org|1pctCO2|{cfg['_dir']}/climatologies"
 

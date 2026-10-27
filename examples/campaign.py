@@ -39,11 +39,28 @@ project as ``output_root`` so publishing is a rename, not a copy),
 ``account`` (ab0246), ``driver_attempts`` (3), ``first_year_attempts`` (1, for
 the first year of every launch), ``max_consecutive_fails`` (2),
 ``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout).
+
+Where campaigns run: ``campaign_root`` (campaign.yaml, then
+``$PYCMOR_CAMPAIGN_ROOT``, then ``/work/bb1469/$USER/cmor_campaigns``). Put
+each campaign in ``<campaign_root>/<name>/``; the production envs are built in
+``<campaign_root>/envs/``. Nothing here is the output, which goes to
+``output_root``.
+
+Production: ``production`` names a profile in ``examples/production/`` of the
+pinned code (default ``awiesm3-veg-hr-cmip7-1`` for HR, none for LR;
+``production: null`` keeps the shared ``conda_env``). Setup builds that
+profile's env once per campaign_root from its lock files and gives the
+campaign its own CMIP7 tables, CVs and Data Request at the pinned versions,
+and checksums the static inputs. ``verify`` checks all of it again before
+every year, so work elsewhere (LR, a pip install, a git pull, a CV refresh)
+cannot reach a running campaign.
 """
 
 import argparse
 import copy
 import datetime
+import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -82,6 +99,12 @@ DEFAULTS = {
     "conda_init": "/work/ab0246/a270092/software/miniforge3/etc/profile.d/conda.sh",
     "conda_env": "pycmor_py312",
 }
+DEFAULT_CAMPAIGN_ROOT = "/work/bb1469/${USER}/cmor_campaigns"
+# The production profile each model gets unless campaign.yaml names one.
+DEFAULT_PRODUCTION = {"hr": "awiesm3-veg-hr-cmip7-1"}
+PRODUCTION_FILES = ("conda-explicit.txt", "requirements.lock", "pins.yaml")
+# Written into a production env as the last step of a build that checked out.
+ENV_MARKER = "pycmor-production.json"
 
 
 class CampaignError(Exception):
@@ -140,11 +163,23 @@ def load(path):
         raise CampaignError(f"keep campaigns outside the template checkout {TEMPLATE_REPO}")
     cfg.setdefault("workroot", str(cdir / "work"))
     cfg.setdefault("code_repo", str(HERE.parent))
+    root = cfg.get("campaign_root") or os.environ.get("PYCMOR_CAMPAIGN_ROOT") or DEFAULT_CAMPAIGN_ROOT
+    cfg["campaign_root"] = os.path.expandvars(str(root))
+    if "$" in cfg["campaign_root"] or not cfg["campaign_root"].startswith("/"):
+        raise CampaignError(f"campaign_root {root!r} does not resolve to an absolute path")
+    cfg.setdefault("production", DEFAULT_PRODUCTION.get(cfg["model"]))
+    if cfg["production"] is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(cfg["production"])):
+        raise CampaignError(f"production {cfg['production']!r} is not a profile name")
     cfg["_file"] = str(path)
     cfg["_dir"] = str(cdir)
     cfg["_code"] = str(cdir / "code")
     cfg["_logs"] = str(cdir / "logs")
     cfg["_pin"] = str(cdir / "pinned.json")
+    if cfg["production"]:
+        cfg["_env"] = str(Path(cfg["campaign_root"]) / "envs" / cfg["production"])
+        cfg["_tables"] = str(cdir / "cmip7-cmor-tables")
+        cfg["_esgvoc"] = str(cdir / "esgvoc")
+        cfg["_dreq"] = str(cdir / "dreq")
     return cfg
 
 
@@ -174,7 +209,211 @@ def _pinned_view(cfg, sha):
     # verify.
     if cfg.get("model", "hr") != "hr":
         view["model"] = cfg["model"]
+    if cfg.get("production"):
+        view["production"] = cfg["production"]
     return view
+
+
+def _sha256(path, algo="sha256"):
+    h = hashlib.new(algo)
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 24), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _production(cfg):
+    """The production profile of the pinned code: its directory and pins."""
+    pdir = Path(cfg["_code"]) / "examples" / "production" / cfg["production"]
+    missing = [f for f in PRODUCTION_FILES if not (pdir / f).is_file()]
+    if missing:
+        raise CampaignError(f"production {cfg['production']!r}: {pdir} lacks {', '.join(missing)}")
+    pins = yaml.safe_load((pdir / "pins.yaml").read_text())
+    return pdir, pins
+
+
+def _env_want(cfg, pdir):
+    return {
+        "production": cfg["production"],
+        **{f: _sha256(pdir / f) for f in ("conda-explicit.txt", "requirements.lock")},
+    }
+
+
+def _run(cmd, env=None, what=None):
+    res = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if res.returncode != 0:
+        tail = "\n".join((res.stderr or res.stdout).strip().splitlines()[-15:])
+        raise CampaignError(f"{what or ' '.join(map(str, cmd))} failed:\n{tail}")
+    return res.stdout
+
+
+def _normalized_requirements(lines):
+    """pip requirement lines as a comparable set. Packages conda installed
+    (``name @ file://...`` in pip freeze) belong to conda-explicit.txt."""
+    out = set()
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, sep, rest = re.split(r"(==| @ )", line, maxsplit=1)
+        if rest.startswith("file://"):
+            continue
+        out.add(re.sub(r"[-_.]+", "-", name.strip().lower()) + sep + rest.strip())
+    return out
+
+
+def _ensure_env(cfg, pdir):
+    """Build the production env once per campaign_root, or check the one there.
+
+    conda envs cannot be moved after they are built (scripts carry their own
+    path), so the build happens in place and the marker file is written last:
+    a prefix without it is an interrupted build and is refused."""
+    prefix = Path(cfg["_env"])
+    want = _env_want(cfg, pdir)
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    with open(prefix.parent / f".{prefix.name}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        marker = prefix / ENV_MARKER
+        if marker.exists():
+            have = json.loads(marker.read_text())
+            if have != want:
+                raise CampaignError(
+                    f"{prefix} was built from other lock files than {pdir}. A profile's lock files must not "
+                    "change once envs exist; make a new profile instead."
+                )
+            return prefix
+        if prefix.exists():
+            raise CampaignError(f"{prefix} has no {ENV_MARKER}: an earlier build did not finish. Remove it and rerun.")
+        print(f"building production env {prefix} (about 15 minutes, once per campaign_root)", file=sys.stderr)
+        _run(
+            [
+                "bash",
+                "-c",
+                f"source {shlex.quote(cfg['conda_init'])} && conda create -y -q -p {shlex.quote(str(prefix))} "
+                f"--file {shlex.quote(str(pdir / 'conda-explicit.txt'))}",
+            ],
+            what="conda create",
+        )
+        py = str(prefix / "bin" / "python")
+        _run([py, "-m", "pip", "install", "-q", "--no-deps", "-r", str(pdir / "requirements.lock")], what="pip install")
+        _run([py, "-m", "pip", "check"], what="pip check")
+        got = _normalized_requirements(_run([py, "-m", "pip", "freeze"]).splitlines())
+        locked = _normalized_requirements((pdir / "requirements.lock").read_text().splitlines())
+        if got != locked:
+            extra, short = sorted(got - locked), sorted(locked - got)
+            raise CampaignError(f"{prefix} does not match the lock: extra {extra[:10]}, missing {short[:10]}")
+        marker.write_text(json.dumps(want, indent=1) + "\n")
+        subprocess.run(["chmod", "-R", "a-w", str(prefix)], check=True)
+    return prefix
+
+
+def _ensure_tables(cfg, pins):
+    tables = Path(cfg["_tables"])
+    if not tables.exists():
+        _git("clone", "--quiet", pins["cmip7_tables"]["repo"], str(tables))
+    if _git("rev-parse", "HEAD", cwd=tables) != pins["cmip7_tables"]["commit"]:
+        _git("checkout", "--quiet", "--detach", pins["cmip7_tables"]["commit"], cwd=tables)
+
+
+def _check_tables(cfg, pins):
+    tables = Path(cfg["_tables"])
+    head = _git("rev-parse", "HEAD", cwd=tables)
+    if head != pins["cmip7_tables"]["commit"]:
+        raise CampaignError(f"{tables} is at {head[:10]}, the production pins {pins['cmip7_tables']['commit'][:10]}")
+    if _git("status", "--porcelain", "--untracked-files=no", cwd=tables):
+        raise CampaignError(f"{tables} has local changes")
+
+
+def _esgvoc_env(cfg):
+    return {**os.environ, "ESGVOC_HOME": cfg["_esgvoc"]}
+
+
+def _ensure_esgvoc(cfg, pins):
+    """Install the pinned CV versions into the campaign's own ESGVOC_HOME."""
+    marker = Path(cfg["_esgvoc"]) / "pycmor-pinned.json"
+    want = pins["esgvoc"]
+    if marker.exists():
+        if json.loads(marker.read_text()) != want:
+            raise CampaignError(f"{cfg['_esgvoc']} holds other CV versions than the production pins")
+        return
+    Path(cfg["_esgvoc"]).mkdir(parents=True, exist_ok=True)
+    esgvoc = str(Path(cfg["_env"]) / "bin" / "esgvoc")
+    _run([esgvoc, "use", *(f"{p}@{v}" for p, v in want.items())], env=_esgvoc_env(cfg), what="esgvoc use")
+    marker.write_text(json.dumps(want, indent=1) + "\n")
+
+
+def _dreq_file(cfg, pins):
+    return Path(cfg["_dreq"]) / pins["dreq"]["version"] / "metadata.json"
+
+
+def _ensure_dreq(cfg, pins):
+    meta = _dreq_file(cfg, pins)
+    if not meta.exists():
+        meta.parent.mkdir(parents=True, exist_ok=True)
+        tool = str(Path(cfg["_env"]) / "bin" / "export_dreq_lists_json")
+        experiments = meta.parent / f"{pins['dreq']['version']}_experiments.json"
+        _run([tool, "-a", pins["dreq"]["version"], str(experiments), "-m", str(meta)], what="export_dreq_lists_json")
+    _check_dreq(cfg, pins)
+
+
+def _check_dreq(cfg, pins):
+    meta = _dreq_file(cfg, pins)
+    if not meta.exists() or _sha256(meta) != pins["dreq"]["metadata_sha256"]:
+        raise CampaignError(f"{meta} is missing or differs from the Data Request {pins['dreq']['version']} pinned")
+
+
+def _inputs_record(cfg):
+    return Path(cfg["_dir"]) / "provenance" / "inputs.json"
+
+
+def _ensure_inputs(cfg, pins):
+    """md5 every pinned static input, then remember its size and mtime."""
+    record = {}
+    for path, md5 in pins.get("inputs", {}).items():
+        if not Path(path).is_file():
+            raise CampaignError(f"input {path} is missing")
+        if _sha256(path, "md5") != md5:
+            raise CampaignError(f"input {path} differs from the file the production was validated with")
+        st = os.stat(path)
+        record[path] = [st.st_size, st.st_mtime_ns]
+    _inputs_record(cfg).parent.mkdir(exist_ok=True)
+    _inputs_record(cfg).write_text(json.dumps(record, indent=1) + "\n")
+
+
+def _check_inputs(cfg, pins):
+    rec = _inputs_record(cfg)
+    if not rec.exists():
+        raise CampaignError(f"{rec} missing; run setup")
+    record = json.loads(rec.read_text())
+    if set(record) != set(pins.get("inputs", {})):
+        raise CampaignError(f"{rec} covers other inputs than the production pins; run setup")
+    for path, (size, mtime) in record.items():
+        st = os.stat(path) if Path(path).exists() else None
+        if st is None or [st.st_size, st.st_mtime_ns] != [size, mtime]:
+            raise CampaignError(f"input {path} changed since setup")
+
+
+def setup_production(cfg):
+    """Everything outside the pinned code that a production campaign reads."""
+    pdir, pins = _production(cfg)
+    _ensure_env(cfg, pdir)
+    _ensure_tables(cfg, pins)
+    _check_tables(cfg, pins)
+    _ensure_esgvoc(cfg, pins)
+    _ensure_dreq(cfg, pins)
+    _ensure_inputs(cfg, pins)
+
+
+def verify_production(cfg):
+    pdir, pins = _production(cfg)
+    marker = Path(cfg["_env"]) / ENV_MARKER
+    if not marker.exists() or json.loads(marker.read_text()) != _env_want(cfg, pdir):
+        raise CampaignError(f"{cfg['_env']} is missing or not built from the pinned lock files; run setup")
+    _check_tables(cfg, pins)
+    if json.loads((Path(cfg["_esgvoc"]) / "pycmor-pinned.json").read_text()) != pins["esgvoc"]:
+        raise CampaignError(f"{cfg['_esgvoc']} holds other CV versions than the production pins")
+    _check_dreq(cfg, pins)
+    _check_inputs(cfg, pins)
 
 
 def setup(cfg, repin=False):
@@ -204,11 +443,17 @@ def setup(cfg, repin=False):
             fh.write(f"{stamp} {os.environ.get('USER', '?')} pinned {sha} ({cfg['code_ref']})\n")
     for d in (cfg["_logs"], cfg["workroot"], cfg["output_root"]):
         Path(d).mkdir(parents=True, exist_ok=True)
+    if not Path(cfg["_dir"]).is_relative_to(cfg["campaign_root"]):
+        print(f"note: {cfg['_dir']} is outside campaign_root {cfg['campaign_root']}", file=sys.stderr)
     prov = Path(cfg["_dir"]) / "provenance"
     prov.mkdir(exist_ok=True)
-    freeze = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True)
+    python = sys.executable
+    if cfg["production"]:
+        setup_production(cfg)
+        python = str(Path(cfg["_env"]) / "bin" / "python")
+    freeze = subprocess.run([python, "-m", "pip", "freeze"], capture_output=True, text=True)
     (prov / "pip_freeze.txt").write_text(freeze.stdout)
-    tables = os.environ.get("CMIP7_TABLES_PATH", "/work/ab0246/a270092/software/cmip7-cmor-tables/tables")
+    tables = _env_values(cfg)["CMIP7_TABLES_PATH"]
     tsha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tables, capture_output=True, text=True).stdout.strip()
     (prov / "cmip7_tables.txt").write_text(f"{tables} {tsha or 'unknown'}\n")
     verify(cfg)
@@ -233,7 +478,30 @@ def verify(cfg):
     if current != pin:
         changed = sorted(k for k in set(current) | set(pin) if pin.get(k) != current.get(k))
         raise CampaignError(f"campaign.yaml changed {', '.join(changed)} since it was pinned; rerun setup with --repin")
+    if cfg["production"]:
+        verify_production(cfg)
     return head
+
+
+def _env_values(cfg):
+    """Where the campaign's software and reference data come from."""
+    if not cfg["production"]:
+        return {
+            "PYCMOR_CONDA_ENV": cfg["conda_env"],
+            "CMIP7_TABLES_PATH": os.environ.get(
+                "CMIP7_TABLES_PATH", "/work/ab0246/a270092/software/cmip7-cmor-tables/tables"
+            ),
+        }
+    _, pins = _production(cfg)
+    return {
+        "PYCMOR_PRODUCTION": cfg["production"],
+        "PYCMOR_CONDA_ENV": cfg["_env"],
+        "CMIP7_TABLES_PATH": str(Path(cfg["_tables"]) / "tables"),
+        "ESGVOC_HOME": cfg["_esgvoc"],
+        # run_hr_shard.sh refreshes the CVs to @latest unless this is set
+        "PYCMOR_ESGVOC_PINNED": 1,
+        "PYCMOR_DREQ_METADATA": str(_dreq_file(cfg, pins)),
+    }
 
 
 def env(cfg):
@@ -265,7 +533,8 @@ def env(cfg):
         "FIRST_YEAR_ATTEMPTS": cfg["first_year_attempts"],
         "MAX_CONSECUTIVE_FAILS": cfg["max_consecutive_fails"],
         "PYCMOR_CONDA_INIT": cfg["conda_init"],
-        "PYCMOR_CONDA_ENV": cfg["conda_env"],
+        "PYCMOR_CAMPAIGN_ROOT": cfg["campaign_root"],
+        **_env_values(cfg),
     }
     return "\n".join(f"export {k}={shlex.quote(str(v))}" for k, v in values.items())
 
@@ -303,6 +572,18 @@ def _patch_inherit(text, overrides):
     return "".join(lines)
 
 
+def _rebind_dreq(text, name, version, path):
+    """Point CMIP7_DReq_metadata at the campaign's checked copy. The tier yaml
+    must already name the pinned version, so a yaml and its production cannot
+    disagree about which Data Request the output follows."""
+    pat = re.compile(r"^(\s*CMIP7_DReq_metadata:\s*)(\S+)\s*$", re.M)
+    values = [m.group(2).strip("\"'") for m in pat.finditer(text)]
+    wrong = [v for v in values if f"/{version}/" not in v]
+    if wrong:
+        raise CampaignError(f"{name}: CMIP7_DReq_metadata {wrong[0]} is not Data Request {version}")
+    return pat.sub(lambda m: f"{m.group(1)}{_scalar(path)}", text)
+
+
 def apply(cfg, yamls_dir):
     """Bind every generated tier yaml in ``yamls_dir`` to this campaign: point
     in-repo paths at the pinned code and add the campaign's extra inherit
@@ -318,9 +599,15 @@ def apply(cfg, yamls_dir):
     files = sorted(Path(yamls_dir).glob("*.yaml"))
     if not files:
         raise CampaignError(f"no yamls in {yamls_dir}")
+    dreq = None
+    if cfg["production"]:
+        _, pins = _production(cfg)
+        dreq = (pins["dreq"]["version"], str(_dreq_file(cfg, pins)))
     for f in files:
         original = f.read_text()
         rebound = original.replace(TEMPLATE_REPO + "/", code + "/")
+        if dreq:
+            rebound = _rebind_dreq(rebound, f.name, *dreq)
         patched = _patch_inherit(rebound, overrides)
         expected = yaml.safe_load(rebound)
         expected.setdefault("inherit", {})

@@ -1,0 +1,44 @@
+# Everything outside the Python env that the awiesm3-veg-hr-cmip7-1 production
+# reads. campaign.py setup installs or checks each item and verify checks it
+# again before every year, so a change elsewhere (LR work, a git pull, a CV
+# refresh) cannot reach a running HR campaign.
+
+# CMIP7 CMOR tables, read by the aicc checker (CMIP7_TABLES_PATH).
+cmip7_tables:
+  repo: https://github.com/WCRP-CMIP/cmip7-cmor-tables.git
+  commit: ae3a8037b7077864f8155db882216f217eda5407
+
+# Controlled vocabularies, installed into the campaign's own ESGVOC_HOME and
+# never refreshed during the campaign. The versions cli124 ran with.
+esgvoc:
+  universe: v3.2.7
+  cmip7: v2.4.1
+
+# Data Request metadata (CMIP7_DReq_metadata in the tier yamls), exported with
+# export_dreq_lists_json at setup. The export is deterministic.
+dreq:
+  version: v1.2.2.5
+  metadata_sha256: eccf9f9296488581939310a37c60849501f77c9c9dd27faf8585b2345c18b9e3
+
+# Static inputs named in the tier yamls (mesh, basin mask, tripyview mesh
+# files, GHG forcing). md5 at setup, size and mtime before every year.
+inputs:
+  /work/ab0246/a270092/input/fesom2/dars2/mesh.nc: 3be712f0a2eccb4ace85936338846d06
+  /work/ab0246/a270092/input/fesom2/dars2/basin_mask.nc: 5bd6e5930883c7d8def62edb78a1f2d2
+  /work/ab0246/a270092/input/fesom2/dars2/fesom.mesh.diag.nc: 0933960b6ec333af93c42c80dc505541
+  /work/ab0246/a270092/input/fesom2/dars2/pickle_mesh_py3_fesom2: 38738a62a868593c258ae2a9aca06895
+  /work/ab0246/a270092/input/fesom2/dars2/aux3d.out: eb4d40642ce524eaa33108a39505fbf1
+  /work/ab0246/a270092/input/fesom2/dars2/edgenum.out: 0d99bf5275332c910d48eea1bfdac94c
+  /work/ab0246/a270092/input/fesom2/dars2/edges.out: 78fb3ee43fb9e1210722042e376701e0
+  /work/ab0246/a270092/input/fesom2/dars2/edge_tri.out: 4c6f28a54de2498d37a1020b58b5b738
+  /work/ab0246/a270092/input/fesom2/dars2/elem2d.out: 302d3a395ffeb2914e7a9baa8f901da0
+  /work/ab0246/a270092/input/fesom2/dars2/elvls.out: 371aeaa9c9d8519c366c6b420880ce7f
+  /work/ab0246/a270092/input/fesom2/dars2/elvls_raw.out: 8186d321199eeaf20d670408b26e1afa
+  /work/ab0246/a270092/input/fesom2/dars2/nlvls.out: 1d46cb4c018e1fbb60d83aa9877f050f
+  /work/ab0246/a270092/input/fesom2/dars2/nod2d.out: 0c389ebb141ece2d81f37e5431e413ad
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/cfc11eq_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: ef8041a0ecfbafc3448b596e88854e45
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/cfc11_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: 73dbdab4e59e179b28c5de1dddd5d078
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/cfc12_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: b587e0d36499dfe48a38c318e255c9bf
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: f40936b687f0e4bcdd3b45df7ab15946
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/co2_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: 4d999f45b0b5102b2a71364c4ef73ae9
+  /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc: ce04a49c0abf43cfe3d2dc87f8105997

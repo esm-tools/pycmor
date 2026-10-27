@@ -89,8 +89,15 @@ conda activate "$PYCMOR_CONDA_ENV"
 # idempotent and roughly a second when already current. Soft-fail so a
 # briefly-down registry doesn't abort the run. The HIGH finding
 # reappearing is itself the signal that the refresh didn't take.
-esgvoc use universe@latest 2>/dev/null || echo "esgvoc universe refresh failed (continuing with current cache)"
-esgvoc use cmip7@latest 2>/dev/null || echo "esgvoc cmip7 refresh failed (continuing with current cache)"
+#
+# A production campaign (campaign.py, PYCMOR_ESGVOC_PINNED=1) brings its own
+# ESGVOC_HOME at pinned versions instead: the CVs must not move during it.
+if [ "${PYCMOR_ESGVOC_PINNED:-0}" = 1 ]; then
+  echo "esgvoc: pinned CVs in ${ESGVOC_HOME:?PYCMOR_ESGVOC_PINNED needs ESGVOC_HOME}, no refresh"
+else
+  esgvoc use universe@latest 2>/dev/null || echo "esgvoc universe refresh failed (continuing with current cache)"
+  esgvoc use cmip7@latest 2>/dev/null || echo "esgvoc cmip7 refresh failed (continuing with current cache)"
+fi
 
 # Repo root. Deriving this from the script's own path does NOT work under
 # sbatch: SLURM copies the batch script to /var/spool/slurmd/job*/slurm_script
