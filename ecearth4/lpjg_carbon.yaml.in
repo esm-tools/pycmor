@@ -1,0 +1,88 @@
+# LPJ-GUESS carbon budget variables, monthly, for any EC-Earth4 run:
+# run.sh run lpjg_carbon <exp>; input <exp output>/<leg>/lpjg/<var>_monthly.out
+# (or .out.gz), all legs found. Rendered by run.sh; @...@ from its environment.
+# Values passed through as written by LPJG, in the units of the target: no
+# sign flip, no clipping. Land points on the regular grid, ocean missing; for
+# fco2antt and fco2nat (defined over the whole grid) this is the land part.
+general:
+  name: "ecearth4-@EXP@-lpjg-carbon"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "@METADATA@"
+  CV_Dir: "@SRC@/CMIP7-CVs"
+  CMIP_Tables_Dir: "@SRC@/src/pycmor/data/cmip7"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: false
+  parallel: false
+  dask_cluster: "local"
+  # Small local cluster; the default takes the whole node (cores and memory).
+  dask_n_workers: 1
+  dask_threads_per_worker: 4
+  dask_memory_limit: "16GB"
+
+pipelines:
+  - name: ecearth4_lpjg
+    steps:
+      - script://@SRC@/ecearth4/steps.py:load_lpjg
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.files.save_dataset
+
+inherit:
+  source_id: EC-Earth4
+  institution_id: EC-Earth-Consortium
+  activity_id: CMIP
+  experiment_id: historical
+  variant_label: r1i1p1f1
+  parent_experiment_id: piControl
+  parent_activity_id: CMIP
+  parent_time_units: "days since 1850-01-01"
+  branch_time_in_parent: 0.0
+  grid_label: g114
+  grid: "regular Gaussian N128 from LPJ-GUESS land points on the TL255 reduced Gaussian grid"
+  nominal_resolution: "100 km"
+  qc_enabled: false
+  output_directory: "@OUT@"
+
+rules:
+  - name: cLand
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/cLand_monthly.out*"
+    compound_name: land.cLand.tavg-u-hxy-lnd.mon.glb
+    model_variable: cLand
+    model_unit: "kg m-2"
+    pipelines: [ecearth4_lpjg]
+  - name: netAtmosLandCO2Flux
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/netAtmosLandCO2Flux_monthly.out*"
+    compound_name: land.netAtmosLandCO2Flux.tavg-u-hxy-lnd.mon.glb
+    model_variable: netAtmosLandCO2Flux
+    model_unit: "kg m-2 s-1"
+    pipelines: [ecearth4_lpjg]
+  - name: fco2antt
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/fco2antt_monthly.out*"
+    compound_name: atmos.fco2antt.tavg-u-hxy-u.mon.glb
+    model_variable: fco2antt
+    model_unit: "kg m-2 s-1"
+    pipelines: [ecearth4_lpjg]
+  - name: fco2nat
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/fco2nat_monthly.out*"
+    compound_name: atmos.fco2nat.tavg-u-hxy-u.mon.glb
+    model_variable: fco2nat
+    model_unit: "kg m-2 s-1"
+    pipelines: [ecearth4_lpjg]
