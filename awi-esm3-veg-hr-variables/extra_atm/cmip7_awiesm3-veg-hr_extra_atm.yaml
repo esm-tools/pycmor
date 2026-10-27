@@ -9,7 +9,7 @@ general:
   name: "awiesm3-cmip7-extra-atm"
   cmor_version: "CMIP7"
   mip: "CMIP"
-  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.5/metadata.json"
 
 pycmor:
   enable_output_subdirs: true
@@ -110,46 +110,6 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
-  # hurs + southern hemisphere subset
-  - name: hurs_south_pipeline
-    steps:
-      - pycmor.core.gather_inputs.load_mfdataset
-      - pycmor.std_lib.generic.get_variable
-      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_hurs
-      - script://$PYCMOR_HOME/examples/custom_steps.py:select_southern_hemisphere
-      - pycmor.std_lib.timeaverage.timeavg
-      - pycmor.std_lib.set_time_bounds
-      - pycmor.std_lib.units.handle_unit_conversion
-      - pycmor.std_lib.attributes.set_global
-      - pycmor.std_lib.attributes.set_variable
-      - pycmor.std_lib.attributes.set_coordinates
-      - pycmor.std_lib.dimensions.map_dimensions
-      - pycmor.core.caching.manual_checkpoint
-      - pycmor.std_lib.generic.trigger_compute
-      - pycmor.std_lib.generic.show_data
-      - pycmor.std_lib.files.save_dataset
-      - pycmor.std_lib.qc.run_compliance_checker
-
-  # sfcWind + southern hemisphere subset
-  - name: sfcwind_south_pipeline
-    steps:
-      - pycmor.core.gather_inputs.load_mfdataset
-      - pycmor.std_lib.generic.get_variable
-      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfcwind
-      - script://$PYCMOR_HOME/examples/custom_steps.py:select_southern_hemisphere
-      - pycmor.std_lib.timeaverage.timeavg
-      - pycmor.std_lib.set_time_bounds
-      - pycmor.std_lib.units.handle_unit_conversion
-      - pycmor.std_lib.attributes.set_global
-      - pycmor.std_lib.attributes.set_variable
-      - pycmor.std_lib.attributes.set_coordinates
-      - pycmor.std_lib.dimensions.map_dimensions
-      - pycmor.core.caching.manual_checkpoint
-      - pycmor.std_lib.generic.trigger_compute
-      - pycmor.std_lib.generic.show_data
-      - pycmor.std_lib.files.save_dataset
-      - pycmor.std_lib.qc.run_compliance_checker
-
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -239,82 +199,9 @@ rules:
     pipelines:
       - southern_hemisphere_pipeline
 
-  - name: hurs_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_sfc_2t_.*\.nc
-    compound_name: atmos.hurs.tavg-h2m-hxy-u.1hr.30S-90S
-    model_variable: 2t
-    second_input_path: *dp
-    second_input_pattern: atmos_1h_sfc_2d_.*\.nc
-    second_variable: 2d
-    pipelines:
-      - hurs_south_pipeline
-
-  - name: pr_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_pr_pr_.*\.nc
-    compound_name: atmos.pr.tavg-u-hxy-u.1hr.30S-90S
-    model_variable: pr
-    pipelines:
-      - southern_hemisphere_pipeline
-
-  # PRODUCTION GAP — intentionally skipped (see variable_coverage.md):
-  #
-  # CMIP7 ``atmos.ps.tpt-u-hxy-u.1hr.30S-90S`` is a HIGH-priority extra
-  # variable but cannot be honestly produced from the AWI-ESM3-VEG-HR
-  # piControl source data. The CMIP7 ``time: point`` declaration is
-  # there to preserve sub-hourly Southern-Ocean pressure-wave
-  # variability (storms, gravity waves) that gets smoothed away by
-  # any averaging window. OIFS XIOS only emits ``atmos_1h_sfc_sp``
-  # (operation="average", time_centered at HH:30); there is no
-  # ``atmos_1h_pt_sp`` instant source. Sampling the average and
-  # mislabeling it as ``tpt`` would ship the wrong data type — the
-  # variability the variable is meant to capture isn't in the source.
-  # Production runs are already underway, so adding the XIOS field
-  # would require a model restart from an earlier checkpoint.
-  # The unbranded ps_1hr (cap7_atm) was switched to ``tavg``
-  # since CMIP7 has both forms at .glb; the south30 region only has
-  # the ``tpt`` form, so there is no escape branding here.
-  #- name: ps_1hr_south30
-  #  inputs:
-  #    - path: *dp
-  #      pattern: atmos_1h_sfc_sp_.*\.nc
-  #  compound_name: atmos.ps.tpt-u-hxy-u.1hr.30S-90S
-  #  model_variable: sp
-  #  pipelines:
-  #    - southern_hemisphere_pipeline
-
-  - name: rlds_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_sfc_rlds_.*\.nc
-    compound_name: atmos.rlds.tavg-u-hxy-u.1hr.30S-90S
-    model_variable: rlds
-    pipelines:
-      - southern_hemisphere_pipeline
-
-  - name: rsds_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_sfc_rsds_.*\.nc
-    compound_name: atmos.rsds.tavg-u-hxy-u.1hr.30S-90S
-    model_variable: rsds
-    pipelines:
-      - southern_hemisphere_pipeline
-
-  - name: sfcWind_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_sfc_10u_.*\.nc
-    compound_name: atmos.sfcWind.tavg-h10m-hxy-u.1hr.30S-90S
-    model_variable: 10u
-    second_input_path: *dp
-    second_input_pattern: atmos_1h_sfc_10v_.*\.nc
-    second_variable: 10v
-    pipelines:
-      - sfcwind_south_pipeline
+  # hurs, pr, ps, rlds, rsds and sfcWind at 1hr.30S-90S are not requested
+  # since DReq v1.2.2.5: biodiv_microclim_hourly was asked for south of 30S
+  # by mistake (CMIP7_DReq_Content#21). The global 1hr fields above cover them.
 
   # ============================================================
   # Part 3: 3hr fields

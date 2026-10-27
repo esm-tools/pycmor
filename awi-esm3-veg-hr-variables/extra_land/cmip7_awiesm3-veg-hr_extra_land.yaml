@@ -9,7 +9,7 @@ general:
   name: "awiesm3-cmip7-extra-land"
   cmor_version: "CMIP7"
   mip: "CMIP"
-  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.5/metadata.json"
 
 pycmor:
   enable_output_subdirs: true
@@ -33,24 +33,6 @@ pipelines:
   # areacellr (river grid == atmosphere grid): reuse pycmor std_lib FrozenPipeline
   - name: areacella_pipeline
     uses: pycmor.core.pipeline.AreacellaFxPipeline
-
-  # Southern hemisphere subset pipeline (orog 30S-90S, tas 1hr 30S-90S)
-  - name: southern_hemisphere_pipeline
-    steps:
-      - pycmor.core.gather_inputs.load_mfdataset
-      - pycmor.std_lib.generic.get_variable
-      - script://$PYCMOR_HOME/examples/custom_steps.py:select_southern_hemisphere
-      - pycmor.std_lib.timeaverage.timeavg
-      - pycmor.std_lib.set_time_bounds
-      - pycmor.std_lib.attributes.set_global
-      - pycmor.std_lib.attributes.set_variable
-      - pycmor.std_lib.attributes.set_coordinates
-      - pycmor.std_lib.dimensions.map_dimensions
-      - pycmor.core.caching.manual_checkpoint
-      - pycmor.std_lib.generic.trigger_compute
-      - pycmor.std_lib.generic.show_data
-      - pycmor.std_lib.files.save_dataset
-      - pycmor.std_lib.qc.run_compliance_checker
 
   # LPJ-GUESS monthly loader (Jan..Dec format)
   - name: lpjg_monthly_pipeline
@@ -157,16 +139,6 @@ rules:
     pipelines:
       - areacella_pipeline
 
-  # orog Southern Hemisphere subset (30S-90S)
-  - name: orog_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_land_orog_.*\.nc
-    compound_name: land.orog.ti-u-hxy-u.fx.30S-90S
-    model_variable: orog
-    pipelines:
-      - southern_hemisphere_pipeline
-
   # ============================================================
   # Part 2: LPJ-GUESS PFT fractions (monthly, Jan..Dec format)
   # ============================================================
@@ -225,19 +197,8 @@ rules:
     pipelines:
       - mrsow_pipeline
 
-  # ============================================================
-  # Part 5: Hourly IFS field with southern hemisphere subset
-  # ============================================================
-
-  # tas 1hr 30S-90S
-  - name: tas_1hr_south30
-    inputs:
-      - path: *dp
-        pattern: atmos_1h_sfc_2t_.*\.nc
-    compound_name: atmos.tas.tavg-h2m-hxy-u.1hr.30S-90S
-    model_variable: 2t
-    pipelines:
-      - southern_hemisphere_pipeline
+  # tas 1hr.30S-90S and orog fx.30S-90S are not requested since DReq v1.2.2.5
+  # (CMIP7_DReq_Content#21); tas 1hr.glb and orog fx.glb cover them.
 
   # ============================================================
   # added by LASZLO - 29.04.2026

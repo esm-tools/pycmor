@@ -9,7 +9,7 @@ general:
   name: "awiesm3-cmip7-core-land"
   cmor_version: "CMIP7"
   mip: "CMIP"
-  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.5/metadata.json"
 
 pycmor:
   enable_output_subdirs: true
