@@ -313,6 +313,9 @@ echo "=== node $(hostname), $(nproc) cores allocated, $(free -g | awk '/^Mem:/{p
 # layout every shard of the year writes into it, so another shard's files
 # would vouch for a wedged one.
 WEDGE_TIMEOUT_SEC="${WEDGE_TIMEOUT_SEC:-5400}"
+# Every Python process of the shard dumps its stacks on SIGUSR1 (see
+# examples/shard_debug/), so a cancelled shard shows where it was stuck.
+export PYTHONPATH="$PYCMOR_HOME/examples/shard_debug${PYTHONPATH:+:$PYTHONPATH}"
 WEDGE_POLL_SEC="${WEDGE_POLL_SEC:-60}"
 if [ "$WEDGE_TIMEOUT_SEC" -gt 0 ] && [ -n "${SLURM_JOB_ID:-}" ]; then
   # Derive the log path from where sbatch was invoked rather than hardcoding
@@ -345,6 +348,10 @@ if [ "$WEDGE_TIMEOUT_SEC" -gt 0 ] && [ -n "${SLURM_JOB_ID:-}" ]; then
         age=$((now - last_progress))
         if [ "$age" -ge "$WEDGE_TIMEOUT_SEC" ]; then
           echo "[WATCHDOG] no progress for ${age}s >= ${WEDGE_TIMEOUT_SEC}s (only stalled heartbeats in the log, no staging writes); scancel ${WEDGE_TARGET_JOB}" >&2
+          # Where it hangs: the Python stacks of the shard and its Dask
+          # workers go into this log before the job is cancelled.
+          bash "$PYCMOR_HOME/examples/shard_debug/dump_stacks.sh" "$$" || true
+          sleep 15
           scancel "$WEDGE_TARGET_JOB" || true
           break
         fi
