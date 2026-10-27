@@ -1,10 +1,11 @@
-# Campaign file for the AWI-ESM3-veg-HR 1pctCO2 run. Copy it into its own
-# directory as campaign.yaml, fill in output_root (and workroot, ideally in
-# the same project so publishing is a rename), then:
+# Campaign file for the AWI-ESM3-veg-HR 1pctCO2 run. Copy it to
+# <campaign_root>/1pctCO2/campaign.yaml (campaign_root defaults to
+# /work/bb1469/$USER/cmor_campaigns), fill in output_root, then:
 #
-#   examples/start_campaign.sh /path/to/1pctCO2/campaign.yaml
+#   examples/start_campaign.sh /work/bb1469/$USER/cmor_campaigns/1pctCO2/campaign.yaml
 #
-# See examples/campaign.py for every key.
+# Every key is explained in doc/production_campaigns.rst. HR campaigns run on
+# the production profile awiesm3-veg-hr-cmip7-1 unless production: says otherwise.
 name: 1pctCO2
 run_root: /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-1pctCO2_1949
 first_year: 1850

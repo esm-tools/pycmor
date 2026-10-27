@@ -65,6 +65,24 @@ def test_production_is_pinned(campaign, tmp_path):
     assert "production" not in campaign._pinned_view(campaign.load(_campaign_file(tmp_path, production=None)), "x")
 
 
+def test_regridded_output_is_a_pinned_campaign_key(campaign, tmp_path, monkeypatch):
+    plain = campaign.load(_campaign_file(tmp_path, production=None))
+    assert plain["with_gr"] is False and "with_gr" not in campaign._pinned_view(plain, "x")
+    gr = campaign.load(_campaign_file(tmp_path, production=None, with_gr=True))
+    assert campaign._pinned_view(gr, "x")["with_gr"] is True
+    with pytest.raises(campaign.CampaignError, match="with_gr"):
+        campaign.load(_campaign_file(tmp_path, with_gr="yes"))
+    # Knobs left in the shell must not reach the jobs.
+    monkeypatch.setenv("WITH_GR", "no")
+    monkeypatch.setenv("TIER", "core_atm")
+    monkeypatch.setenv("RULES", "tas")
+    gr["_pin"] = str(tmp_path / "pin.json")
+    Path(gr["_pin"]).write_text(json.dumps({"code_commit": "abc"}))
+    script = campaign.env(gr) + '\nprintf "%s|%s|%s" "$WITH_GR" "$TIER" "$RULES"'
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
+    assert out == "yes||"
+
+
 def test_missing_profile_is_refused(campaign, tmp_path):
     cfg = campaign.load(_campaign_file(tmp_path, production="no-such-profile"))
     with pytest.raises(campaign.CampaignError, match="lacks"):

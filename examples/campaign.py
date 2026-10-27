@@ -38,7 +38,8 @@ Optional: ``workroot`` (default ``<campaign>/work``; put it in the same
 project as ``output_root`` so publishing is a rename, not a copy),
 ``account`` (ab0246), ``driver_attempts`` (3), ``first_year_attempts`` (1, for
 the first year of every launch), ``max_consecutive_fails`` (2),
-``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout).
+``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout),
+``with_gr`` (false; true also writes the regridded FESOM output, g131).
 
 Where campaigns run: ``campaign_root`` (campaign.yaml, then
 ``$PYCMOR_CAMPAIGN_ROOT``, then ``/work/bb1469/$USER/cmor_campaigns``). Put
@@ -167,6 +168,9 @@ def load(path):
     cfg["campaign_root"] = os.path.expandvars(str(root))
     if "$" in cfg["campaign_root"] or not cfg["campaign_root"].startswith("/"):
         raise CampaignError(f"campaign_root {root!r} does not resolve to an absolute path")
+    cfg.setdefault("with_gr", False)
+    if not isinstance(cfg["with_gr"], bool):
+        raise CampaignError(f"with_gr must be true or false, not {cfg['with_gr']!r}")
     cfg.setdefault("production", DEFAULT_PRODUCTION.get(cfg["model"]))
     if cfg["production"] is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(cfg["production"])):
         raise CampaignError(f"production {cfg['production']!r} is not a profile name")
@@ -211,6 +215,8 @@ def _pinned_view(cfg, sha):
         view["model"] = cfg["model"]
     if cfg.get("production"):
         view["production"] = cfg["production"]
+    if cfg.get("with_gr"):
+        view["with_gr"] = True
     return view
 
 
@@ -534,6 +540,13 @@ def env(cfg):
         "MAX_CONSECUTIVE_FAILS": cfg["max_consecutive_fails"],
         "PYCMOR_CONDA_INIT": cfg["conda_init"],
         "PYCMOR_CAMPAIGN_ROOT": cfg["campaign_root"],
+        # Knobs of submit_hr_year_shards.sh that change what a year contains.
+        # Set here so a value left in the shell that starts the campaign
+        # cannot reach its jobs through --export=ALL. The driver sets TIER
+        # itself when it resubmits a tier.
+        "WITH_GR": "yes" if cfg["with_gr"] else "no",
+        "TIER": "",
+        "RULES": "",
         **_env_values(cfg),
     }
     return "\n".join(f"export {k}={shlex.quote(str(v))}" for k, v in values.items())

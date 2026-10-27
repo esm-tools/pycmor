@@ -2,6 +2,8 @@
 
 A short guide for a colleague running their first cmorization pass on their own model output.
 
+This is for testing and development. Production runs, one experiment year by year into the ESGF tree, are done as campaigns: see `doc/production_campaigns.rst`. A campaign brings its own pinned environment, tables, CVs and Data Request, so none of the shared setup below applies to it.
+
 ## 1. Environment
 
 ```bash
@@ -9,7 +11,7 @@ source /work/ab0246/a270092/software/miniforge3/etc/profile.d/conda.sh
 conda activate pycmor_py312
 ```
 
-That points at Jan's shared miniforge install. To build your own env instead, clone `/work/ab0246/a270092/software/pycmor` and run `pixi install`, then `pixi shell -e dev`.
+That points at Jan's shared miniforge install. It is a development environment and changes whenever someone installs into it; never use it for production. To build your own env instead, clone `/work/ab0246/a270092/software/pycmor` and run `pixi install`, then `pixi shell -e dev`.
 
 ## 2. Rules
 
@@ -130,6 +132,7 @@ where `<N>` is the shard index within that tier (from the submit log), and the t
 
 ## Where to look for help
 
+- `doc/production_campaigns.rst` explains production campaigns: which file holds what, and how to change it.
 - `CLAUDE.md` at the repo root has the project overview and dev conventions.
 - `examples/` has real working configs (e.g. `submit_hr_year_shards.sh`, `run_hr_shard.sh`).
 - `doc/` has the full Sphinx docs (or read on ReadTheDocs at pycmor.readthedocs.io).
