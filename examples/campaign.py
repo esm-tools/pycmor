@@ -103,7 +103,7 @@ DEFAULTS = {
 DEFAULT_CAMPAIGN_ROOT = "/work/bb1469/${USER}/cmor_campaigns"
 # The production profile each model gets unless campaign.yaml names one.
 DEFAULT_PRODUCTION = {"hr": "awiesm3-veg-hr-cmip7-1"}
-PRODUCTION_FILES = ("conda-explicit.txt", "requirements.lock", "pins.yaml")
+PRODUCTION_FILES = ("conda-explicit.txt", "requirements.lock", "activate.sh", "pins.yaml")
 # Written into a production env as the last step of a build that checked out.
 ENV_MARKER = "pycmor-production.json"
 
@@ -238,10 +238,11 @@ def _production(cfg):
     return pdir, pins
 
 
-def _env_want(cfg, pdir):
+def _env_want(cfg, pdir, pins):
     return {
         "production": cfg["production"],
-        **{f: _sha256(pdir / f) for f in ("conda-explicit.txt", "requirements.lock")},
+        **{f: _sha256(pdir / f) for f in ("conda-explicit.txt", "requirements.lock", "activate.sh")},
+        "source_builds": pins.get("source_builds"),
     }
 
 
@@ -251,6 +252,10 @@ def _run(cmd, env=None, what=None):
         tail = "\n".join((res.stderr or res.stdout).strip().splitlines()[-15:])
         raise CampaignError(f"{what or ' '.join(map(str, cmd))} failed:\n{tail}")
     return res.stdout
+
+
+def _req_name(name):
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
 
 
 def _normalized_requirements(lines):
@@ -264,18 +269,84 @@ def _normalized_requirements(lines):
         name, sep, rest = re.split(r"(==| @ )", line, maxsplit=1)
         if rest.startswith("file://"):
             continue
-        out.add(re.sub(r"[-_.]+", "-", name.strip().lower()) + sep + rest.strip())
+        out.add(_req_name(name) + sep + rest.strip())
     return out
 
 
-def _ensure_env(cfg, pdir):
+# Run inside the env after its activate hook: the HDF5 and netCDF-C that h5py
+# and netCDF4 actually loaded.
+_LIBS_PROBE = """
+import ctypes, json, h5py, netCDF4
+ts = ctypes.c_bool()
+ctypes.CDLL("libhdf5.so.310").H5is_library_threadsafe(ctypes.byref(ts))
+print(json.dumps({"hdf5": h5py.version.hdf5_version, "hdf5_netcdf4": netCDF4.__hdf5libversion__,
+                  "hdf5_threadsafe": ts.value, "netcdf": netCDF4.__netcdf4libversion__}))
+"""
+
+
+def _check_libs(prefix, expect):
+    hook = prefix / "etc" / "conda" / "activate.d" / "pycmor-production.sh"
+    out = _run(
+        [
+            "bash",
+            "-c",
+            f"source {shlex.quote(str(hook))} && {shlex.quote(str(prefix / 'bin' / 'python'))} -c \"$0\"",
+            _LIBS_PROBE,
+        ],
+        what="library check",
+    )
+    got = json.loads(out.strip().splitlines()[-1])
+    want = {
+        "hdf5": expect["hdf5"],
+        "hdf5_netcdf4": expect["hdf5"],
+        "hdf5_threadsafe": expect["hdf5_threadsafe"],
+        "netcdf": expect["netcdf"],
+    }
+    if got != want:
+        raise CampaignError(f"{prefix}: h5py and netCDF4 load {got}, the production expects {want}")
+
+
+def _pip_install(prefix, pdir, builds):
+    """The lock from wheels, except the packages built from source."""
+    py = str(prefix / "bin" / "python")
+    source = {_req_name(p) for p in builds.get("packages", [])}
+    binary, from_source = [], []
+    for line in (pdir / "requirements.lock").read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            name = re.split(r"(==| @ )", line, maxsplit=1)[0]
+            (from_source if _req_name(name) in source else binary).append(line.strip())
+    wheels = prefix / "pycmor-wheels.txt"
+    wheels.write_text("\n".join(binary) + "\n")
+    _run([py, "-m", "pip", "install", "-q", "--no-deps", "-r", str(wheels)], what="pip install")
+    wheels.unlink()
+    if from_source:
+        _run(
+            [
+                py,
+                "-m",
+                "pip",
+                "install",
+                "-q",
+                "--no-deps",
+                "--no-build-isolation",
+                "--no-cache-dir",
+                "--no-binary",
+                ",".join(builds["packages"]),
+                *from_source,
+            ],
+            env={**os.environ, **{k: str(v) for k, v in builds.get("env", {}).items()}},
+            what=f"building {', '.join(builds['packages'])}",
+        )
+
+
+def _ensure_env(cfg, pdir, pins):
     """Build the production env once per campaign_root, or check the one there.
 
     conda envs cannot be moved after they are built (scripts carry their own
     path), so the build happens in place and the marker file is written last:
     a prefix without it is an interrupted build and is refused."""
     prefix = Path(cfg["_env"])
-    want = _env_want(cfg, pdir)
+    want = _env_want(cfg, pdir, pins)
     prefix.parent.mkdir(parents=True, exist_ok=True)
     with open(prefix.parent / f".{prefix.name}.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -301,13 +372,19 @@ def _ensure_env(cfg, pdir):
             what="conda create",
         )
         py = str(prefix / "bin" / "python")
-        _run([py, "-m", "pip", "install", "-q", "--no-deps", "-r", str(pdir / "requirements.lock")], what="pip install")
+        builds = pins.get("source_builds") or {}
+        _pip_install(prefix, pdir, builds)
+        hooks = prefix / "etc" / "conda" / "activate.d"
+        hooks.mkdir(parents=True, exist_ok=True)
+        (hooks / "pycmor-production.sh").write_text((pdir / "activate.sh").read_text())
         _run([py, "-m", "pip", "check"], what="pip check")
         got = _normalized_requirements(_run([py, "-m", "pip", "freeze"]).splitlines())
         locked = _normalized_requirements((pdir / "requirements.lock").read_text().splitlines())
         if got != locked:
             extra, short = sorted(got - locked), sorted(locked - got)
             raise CampaignError(f"{prefix} does not match the lock: extra {extra[:10]}, missing {short[:10]}")
+        if builds.get("expect"):
+            _check_libs(prefix, builds["expect"])
         marker.write_text(json.dumps(want, indent=1) + "\n")
         subprocess.run(["chmod", "-R", "a-w", str(prefix)], check=True)
     return prefix
@@ -402,7 +479,7 @@ def _check_inputs(cfg, pins):
 def setup_production(cfg):
     """Everything outside the pinned code that a production campaign reads."""
     pdir, pins = _production(cfg)
-    _ensure_env(cfg, pdir)
+    _ensure_env(cfg, pdir, pins)
     _ensure_tables(cfg, pins)
     _check_tables(cfg, pins)
     _ensure_esgvoc(cfg, pins)
@@ -413,7 +490,7 @@ def setup_production(cfg):
 def verify_production(cfg):
     pdir, pins = _production(cfg)
     marker = Path(cfg["_env"]) / ENV_MARKER
-    if not marker.exists() or json.loads(marker.read_text()) != _env_want(cfg, pdir):
+    if not marker.exists() or json.loads(marker.read_text()) != _env_want(cfg, pdir, pins):
         raise CampaignError(f"{cfg['_env']} is missing or not built from the pinned lock files; run setup")
     _check_tables(cfg, pins)
     if json.loads((Path(cfg["_esgvoc"]) / "pycmor-pinned.json").read_text()) != pins["esgvoc"]:

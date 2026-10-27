@@ -20,9 +20,38 @@ dreq:
   version: v1.2.2.5
   metadata_sha256: eccf9f9296488581939310a37c60849501f77c9c9dd27faf8585b2345c18b9e3
 
-# Static inputs named in the tier yamls (mesh, basin mask, tripyview mesh
-# files, GHG forcing). md5 at setup, size and mtime before every year.
+# Built from source instead of the PyPI wheels, as in the env that cmorized
+# the validated year. The wheels bundle an HDF5 that is not thread-safe, and
+# shards crash as soon as a filter plugin of another HDF5 gets loaded.
+# setup refuses the env unless it reports the libraries under expect.
+source_builds:
+  packages: [h5py, netCDF4]
+  env:
+    CC: /sw/spack-levante/gcc-11.2.0-bcn7mb/bin/gcc
+    HDF5_DIR: /sw/spack-levante/hdf5-1.14.2-gxhi2f
+    NETCDF4_DIR: /sw/spack-levante/netcdf-c-main-bdxvs5
+    LDFLAGS: -Wl,-rpath,/sw/spack-levante/hdf5-1.14.2-gxhi2f/lib -Wl,-rpath,/sw/spack-levante/netcdf-c-main-bdxvs5/lib
+  expect:
+    hdf5: 1.14.2
+    hdf5_threadsafe: true
+    netcdf: 4.9.3-development
+
+# Static inputs: the files named in the tier yamls (mesh, basin mask,
+# tripyview mesh files, GHG forcing) and the system libraries of
+# source_builds and activate.sh. md5 at setup, size and mtime before every year.
 inputs:
+  /sw/spack-levante/hdf5-1.14.2-gxhi2f/lib/libhdf5.so.310.2.0: 66be7853723ef6075443ffe0fb614e5c
+  /sw/spack-levante/hdf5-1.14.2-gxhi2f/lib/libhdf5_hl.so.310.0.2: af9babecd9c40cb809e57403512a4d2c
+  /sw/spack-levante/netcdf-c-main-bdxvs5/lib/libnetcdf.so.19.2.2: 90e03ab7b6963dbbe875a2152a3eab1f
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5blosc.so.0.0.0: e39e35a106c7367f1d37ccb7d8818e2c
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5bzip2.so.0.0.0: 314ebb6b037e1b06095e02af0eb67004
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5deflate.so.0.0.0: a8fb1e3179745ceea9d875813c077bc9
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5fletcher32.so.0.0.0: b1c35dddb609f34f3e2c86d02eaec0ac
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5shuffle.so.0.0.0: 1c7984723664895764701a41b6694c84
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5szip.so.0.0.0: 41b80b66fc5cfaad5e45e19bacbfd003
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nch5zstd.so.0.0.0: 23e371139024e12c6d362fe4c00baa36
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nczhdf5filters.so.0.0.0: 3342529f4fc5a3d7264a6ad4d6e205a5
+  /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nczstdfilters.so.0.0.0: 3bf993c537b5ded08829c39b0b0f7565
   /work/ab0246/a270092/input/fesom2/dars2/mesh.nc: 3be712f0a2eccb4ace85936338846d06
   /work/ab0246/a270092/input/fesom2/dars2/basin_mask.nc: 5bd6e5930883c7d8def62edb78a1f2d2
   /work/ab0246/a270092/input/fesom2/dars2/fesom.mesh.diag.nc: 0933960b6ec333af93c42c80dc505541

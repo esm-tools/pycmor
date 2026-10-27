@@ -138,7 +138,7 @@ were made with, and every manifest records the commit that produced it.
 Production profiles
 ===================
 
-A profile is a directory ``examples/production/<profile>/`` with three files:
+A profile is a directory ``examples/production/<profile>/`` with four files:
 
 ``conda-explicit.txt``
    The conda packages (Python and a few base packages) with exact builds and md5.
@@ -147,13 +147,24 @@ A profile is a directory ``examples/production/<profile>/`` with three files:
    Every pip package, as ``name==version`` or ``name @ git+<url>@<commit>``. This
    includes tripyview, compliance-checker and the QC plugins.
 
+``activate.sh``
+   The env's conda activate hook: system library paths, ``HDF5_PLUGIN_PATH``,
+   blosc threads and the Prefect timeouts. Shards get these from the env, not
+   from the modules or the ``~/.prefect`` profile of whoever runs the campaign.
+
 ``pins.yaml``
    The CMIP7 tables commit, the esgvoc versions, the Data Request version with
-   the sha256 of its metadata, and the md5 of every static input the tier yamls
-   read (mesh, basin mask, tripyview mesh files, GHG forcing).
+   the sha256 of its metadata, the packages built from source
+   (``source_builds``), and the md5 of every static input: the files the tier
+   yamls read (mesh, basin mask, tripyview mesh files, GHG forcing) and the
+   system libraries the source builds link.
 
-``setup`` builds ``<campaign_root>/envs/<profile>`` from the lock files and
-accepts it only if ``pip freeze`` then equals the lock. It then clones the
+``setup`` builds ``<campaign_root>/envs/<profile>`` from the lock files. h5py
+and netCDF4 are compiled against DKRZ's thread-safe HDF5 and libnetcdf, not
+taken from PyPI: the wheels bundle an HDF5 that is not thread-safe, and a shard
+crashes once a filter plugin of another HDF5 gets loaded. The env is accepted
+only if ``pip freeze`` equals the lock and both packages load the expected
+libraries. It then clones the
 tables, installs the CVs into the campaign's own ``ESGVOC_HOME``, exports the
 Data Request metadata and checks its hash, and checks the input files. The
 tier yamls are pointed at the campaign's Data Request copy, and the shards do

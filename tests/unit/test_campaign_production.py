@@ -127,19 +127,62 @@ def test_env_marker_guards_reuse_and_half_builds(campaign, tmp_path, monkeypatch
     for name in campaign.PRODUCTION_FILES:
         (pdir / name).write_text(name)
     cfg = {"production": "p1", "_env": str(tmp_path / "envs" / "p1"), "conda_init": "/dev/null"}
+    pins = {"source_builds": {"packages": ["h5py"], "env": {"HDF5_DIR": "/sw/hdf5"}}}
     calls = []
     monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: calls.append(cmd) or "")
     # A prefix without the marker is an interrupted build.
     Path(cfg["_env"]).mkdir(parents=True)
     with pytest.raises(campaign.CampaignError, match="did not finish"):
-        campaign._ensure_env(cfg, pdir)
+        campaign._ensure_env(cfg, pdir, pins)
     # A finished env is reused without building anything.
-    (Path(cfg["_env"]) / campaign.ENV_MARKER).write_text(json.dumps(campaign._env_want(cfg, pdir)))
-    assert campaign._ensure_env(cfg, pdir) == Path(cfg["_env"]) and calls == []
-    # Changing a lock file under an existing env is refused.
-    (pdir / "requirements.lock").write_text("dask==1\n")
-    with pytest.raises(campaign.CampaignError, match="other lock files"):
-        campaign._ensure_env(cfg, pdir)
+    (Path(cfg["_env"]) / campaign.ENV_MARKER).write_text(json.dumps(campaign._env_want(cfg, pdir, pins)))
+    assert campaign._ensure_env(cfg, pdir, pins) == Path(cfg["_env"]) and calls == []
+    # Changing a lock file, the hook or the source builds under an existing env is refused.
+    for change in (
+        lambda: (pdir / "requirements.lock").write_text("dask==1\n"),
+        lambda: (pdir / "activate.sh").write_text("export X=1\n"),
+        lambda: pins["source_builds"]["env"].update(HDF5_DIR="/sw/other"),
+    ):
+        (Path(cfg["_env"]) / campaign.ENV_MARKER).write_text(json.dumps(campaign._env_want(cfg, pdir, pins)))
+        change()
+        with pytest.raises(campaign.CampaignError, match="other lock files"):
+            campaign._ensure_env(cfg, pdir, pins)
+
+
+def test_source_builds_skip_the_wheels(campaign, tmp_path, monkeypatch):
+    pdir = tmp_path / "profile"
+    pdir.mkdir()
+    (pdir / "requirements.lock").write_text("# c\ndask==1\nh5py==3.16.0\nnetCDF4==1.7.4\n")
+    prefix = tmp_path / "env"
+    prefix.mkdir()
+    calls = []
+
+    def run(cmd, env=None, what=None):
+        if "-r" in cmd:
+            calls.append(("wheels", Path(cmd[cmd.index("-r") + 1]).read_text().split()))
+        else:
+            calls.append(("source", cmd[cmd.index("--no-binary") + 1 :], env["HDF5_DIR"]))
+        return ""
+
+    monkeypatch.setattr(campaign, "_run", run)
+    builds = {"packages": ["h5py", "netCDF4"], "env": {"HDF5_DIR": "/sw/hdf5"}}
+    campaign._pip_install(prefix, pdir, builds)
+    assert calls == [
+        ("wheels", ["dask==1"]),
+        ("source", ["h5py,netCDF4", "h5py==3.16.0", "netCDF4==1.7.4"], "/sw/hdf5"),
+    ]
+    assert not (prefix / "pycmor-wheels.txt").exists()
+
+
+def test_library_check_refuses_wheels(campaign, tmp_path, monkeypatch):
+    expect = {"hdf5": "1.14.2", "hdf5_threadsafe": True, "netcdf": "4.9.3-development"}
+    good = {"hdf5": "1.14.2", "hdf5_netcdf4": "1.14.2", "hdf5_threadsafe": True, "netcdf": "4.9.3-development"}
+    monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: json.dumps(good) + "\n")
+    campaign._check_libs(tmp_path, expect)
+    wheel = {**good, "hdf5_netcdf4": "1.14.6", "hdf5_threadsafe": False}
+    monkeypatch.setattr(campaign, "_run", lambda cmd, **kw: json.dumps(wheel) + "\n")
+    with pytest.raises(campaign.CampaignError, match="production expects"):
+        campaign._check_libs(tmp_path, expect)
 
 
 def _git(*args, cwd):
@@ -186,6 +229,25 @@ def test_real_profile_is_complete_and_installable_as_written(campaign):
         assert "==" in ln or ("@ git+" in ln and len(ln.rsplit("@", 1)[1]) == 40), f"not pinned exactly: {ln}"
     explicit = (PROFILE / "conda-explicit.txt").read_text()
     assert "@EXPLICIT" in explicit and all("#" in ln for ln in explicit.splitlines() if ln.startswith("https"))
+
+
+def test_real_profile_owns_its_system_libraries(campaign):
+    pins = yaml.safe_load((PROFILE / "pins.yaml").read_text())
+    builds = pins["source_builds"]
+    lock = {campaign._req_name(ln.split("==")[0]) for ln in (PROFILE / "requirements.lock").read_text().splitlines()}
+    assert {campaign._req_name(p) for p in builds["packages"]} <= lock
+    assert {"cython", "pkgconfig"} <= lock, "build requirements of --no-build-isolation"
+    assert builds["expect"]["hdf5_threadsafe"] is True
+    hook = (PROFILE / "activate.sh").read_text()
+    # The plugin path must not inherit whatever the user's modules put there.
+    plugin = [ln for ln in hook.splitlines() if ln.startswith("export HDF5_PLUGIN_PATH=")]
+    assert len(plugin) == 1 and "$HDF5_PLUGIN_PATH" not in plugin[0]
+    assert "PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS" in hook
+    # Every system directory the build and the hook use has its libraries pinned.
+    dirs = {builds["env"]["HDF5_DIR"], builds["env"]["NETCDF4_DIR"]}
+    assert all(d in hook for d in dirs)
+    for d in dirs:
+        assert any(p.startswith(d + "/") for p in pins["inputs"]), d
 
 
 def test_hr_tier_yamls_name_the_pinned_data_request():
