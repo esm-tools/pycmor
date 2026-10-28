@@ -1,5 +1,7 @@
 """apply_ocean_mask: g131 fields lose the 0 XIOS writes over land."""
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 import xarray as xr
@@ -55,6 +57,8 @@ def test_no_mask_file_leaves_data_alone():
     da = _field(("lat", "lon"), (2, 3))
     assert files.apply_ocean_mask(da, _Rule(ocean_mask_file="")) is da
     assert files.apply_ocean_mask(da, _Rule()) is da
+    # stub rules (MagicMock) answer every get() with a mock, not a path
+    assert files.apply_ocean_mask(da, MagicMock()) is da
 
 
 def test_other_grid_is_an_error(mask_file):

@@ -3383,7 +3383,9 @@ def apply_ocean_mask(da, rule):
     it along another grid would look plausible.
     """
     path = rule.get("ocean_mask_file") if hasattr(rule, "get") else None
-    if not path:
+    # str or Path only: a MagicMock rule (tests) answers get() with a mock,
+    # which also passes as os.PathLike.
+    if not isinstance(path, (str, Path)) or not path:
         return da
     mask = _ocean_mask(path)
     variables = [da] if isinstance(da, xr.DataArray) else [da[v] for v in da.data_vars]
