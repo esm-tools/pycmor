@@ -65,3 +65,40 @@ def test_other_grid_is_an_error(mask_file):
     da = xr.DataArray(np.ones((4, 5), dtype="f4"), dims=("lat", "lon"), name="tos")
     with pytest.raises(ValueError, match="tos"):
         files.apply_ocean_mask(da, _Rule(ocean_mask_file=mask_file))
+
+
+def test_field_with_its_own_land_mask_keeps_its_coastal_values(mask_file):
+    # thetao or runoff: fill over land from XIOS, values in a cell the 2D footprint calls land
+    da = _field(("time", "lev", "lat", "lon"), (1, 3, 2, 3))
+    da[:, :, 0, 0] = np.nan
+    out = files.apply_ocean_mask(da, _Rule(ocean_mask_file=mask_file))
+    assert out is da and out.values[0, 0, 1, 1] == 1.0
+
+
+def test_a_few_missing_land_cells_are_no_land_mask(tmp_path):
+    # a derived field with NaN in one land cell of four still has 0 or garbage in the others
+    path = tmp_path / "gr_fx.nc"
+    sftof = np.array([[0.0, 0.0, 100.0], [0.0, 0.0, 100.0], [100.0, 100.0, 100.0]])
+    xr.Dataset({"sftof": (("lat", "lon"), sftof)}).to_netcdf(path)
+    files._OCEAN_MASKS.clear()
+    da = xr.DataArray(np.ones((1, 3, 3), dtype="f4"), dims=("time", "lat", "lon"), name="pso")
+    da[0, 0, 0] = np.nan
+    out = files.apply_ocean_mask(da, _Rule(ocean_mask_file=str(path)))
+    assert np.isnan(out.values[0, :2, :2]).all() and (out.values[0, 2] == 1).all()
+
+
+def test_nan_to_zero_over_ocean_takes_the_ocean_from_the_mask_file(mask_file):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
+    import custom_steps as cs
+
+    # sst without fill would call every cell ocean; the mask file knows the land
+    da = _field(("time", "lat", "lon"), (1, 2, 3))
+    da[:] = np.nan
+    da[0, 1, 1] = 5.0
+    out = cs.nan_to_zero_over_ocean(da, _Rule(name="friver", ocean_mask_file=mask_file))
+    out = out.transpose("time", "lat", "lon")
+    assert np.isnan(out.values[0, 0, 0]) and out.values[0, 1, 1] == 5.0
+    assert (out.values[0, [0, 1, 1], [1, 2, 0]] == 0).all()

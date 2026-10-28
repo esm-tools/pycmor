@@ -3361,13 +3361,34 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
 _OCEAN_MASKS = {}
 
 
-def _ocean_mask(path):
+def load_ocean_mask(path):
+    """Ocean (True) / land of the gr fx file at ``path``, dims ``(lat, lon)``."""
     # By dimension name, without coordinates: the data's lat/lon values come
     # from another file and need not compare equal to the last bit.
     if path not in _OCEAN_MASKS:
         with xr.open_dataset(path) as ds:
             _OCEAN_MASKS[path] = xr.DataArray((ds["sftof"] > 0).values, dims=("lat", "lon"))
     return _OCEAN_MASKS[path]
+
+
+def ocean_mask_file(rule):
+    """``rule.ocean_mask_file`` if it is set to a path, else None."""
+    path = rule.get("ocean_mask_file") if hasattr(rule, "get") else None
+    # str or Path only: a MagicMock rule (tests) answers get() with a mock,
+    # which also passes as os.PathLike.
+    if not isinstance(path, (str, Path)) or not path:
+        return None
+    return path
+
+
+def _has_own_land_mask(var, land):
+    # Missing over at least half of the land in the first time step. Fields
+    # XIOS wrote with fill (3D, runoff) qualify; fields it wrote with 0 over
+    # land, and fields derived from those, have no missing value there.
+    first = var.isel({d: 0 for d in var.dims if d not in ("lat", "lon") and "time" in d})
+    other = [d for d in first.dims if d not in ("lat", "lon")]
+    gone = first.isnull().all(other) if other else first.isnull()
+    return int(gone.where(land, False).sum()) >= 0.5 * int(land.sum())
 
 
 def apply_ocean_mask(da, rule):
@@ -3377,17 +3398,22 @@ def apply_ocean_mask(da, rule):
     writes 0 into land cells, and the FESOM runs that produce our gr files
     have no such attribute: cli127 shipped tos, sos, zos and siconc with 0
     over every continent. The mask file is the static fx file of
-    examples/make_gr_fx.py; ocean is where its ``sftof`` is positive.
+    examples/make_gr_fx.py; ocean is where its ``sftof`` is positive, which
+    is the footprint of XIOS's 2D interpolation.
+
+    A variable that already has its own land mask is left alone. XIOS
+    writes 3D fields and runoff with fill over land, and their footprint
+    reaches some coastal cells beyond the 2D one: 370 columns of thetao and
+    1.4 % of the river runoff in the dars2 runs. Masking those would delete
+    real values.
     Variables without both ``lat`` and ``lon`` are left alone; one whose
     ``lat``/``lon`` differ in size from the mask is an error, since masking
     it along another grid would look plausible.
     """
-    path = rule.get("ocean_mask_file") if hasattr(rule, "get") else None
-    # str or Path only: a MagicMock rule (tests) answers get() with a mock,
-    # which also passes as os.PathLike.
-    if not isinstance(path, (str, Path)) or not path:
+    path = ocean_mask_file(rule)
+    if path is None:
         return da
-    mask = _ocean_mask(path)
+    mask = load_ocean_mask(path)
     variables = [da] if isinstance(da, xr.DataArray) else [da[v] for v in da.data_vars]
     masked = {}
     for var in variables:
@@ -3397,6 +3423,8 @@ def apply_ocean_mask(da, rule):
             raise ValueError(
                 f"apply_ocean_mask: {var.name} has dims {dict(var.sizes)}, the mask in {path} {dict(mask.sizes)}"
             )
+        if _has_own_land_mask(var, ~mask):
+            continue
         out = var.where(mask).transpose(*var.dims)
         out.attrs, out.encoding = var.attrs, var.encoding
         masked[var.name] = out

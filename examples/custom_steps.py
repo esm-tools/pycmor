@@ -7187,14 +7187,26 @@ def nan_to_zero_over_ocean(data, rule):
       - ocean_ref_pattern: regex matching the reference filenames
         (e.g. ``sst\\.fesom\\.gr\\.1851\\.nc``)
       - ocean_ref_variable: variable name (e.g. 'sst')
+      - ocean_mask_file: gr fx file; when set, its ocean replaces the
+        reference (see below)
     """
     import xarray as xr  # noqa: WPS433
 
     name = rule.get("name", "?") if hasattr(rule, "get") else "?"
 
-    ref = _load_secondary_mf(rule, "ocean_ref_path", "ocean_ref_pattern", "ocean_ref_variable")
-    # The cached loader hands back a shared object; never mutate it.
-    ref = ref.copy(deep=False)
+    from pycmor.std_lib.files import load_ocean_mask, ocean_mask_file
+
+    # Runs without detect_missing_value write sst with 0 over land, so the
+    # reference sees ocean everywhere (100 % in the dars2 piControl). The gr
+    # fx file then holds the same footprint: its sftof is 0 on exactly the
+    # 82431 cells sst is fill on in a run with fill.
+    mask_path = ocean_mask_file(rule)
+    if mask_path is not None:
+        ref = load_ocean_mask(mask_path).where(lambda m: m)
+    else:
+        ref = _load_secondary_mf(rule, "ocean_ref_path", "ocean_ref_pattern", "ocean_ref_variable")
+        # The cached loader hands back a shared object; never mutate it.
+        ref = ref.copy(deep=False)
 
     time_dims = ("time", "time_counter")
     for tdim in time_dims:
