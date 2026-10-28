@@ -314,3 +314,48 @@ def test_campaign_model_is_validated_exported_and_pinned(campaign, tmp_path, cod
     # Switching an LR campaign to HR afterwards changes what it produces.
     with pytest.raises(campaign.CampaignError, match="model"):
         campaign.verify(campaign.load(_write_campaign(tmp_path, code_repo)))
+
+
+SQUEUE = """\
+28504340 pycmor-cli127-y1852
+28504368 pycmor-hr-cli127-core_atm-y1852-sh
+28504368 pycmor-hr-cli127-core_atm-y1852-sh
+28505007 pycmor-hr-cli127-lrcs_seaice-y1852-sh
+28504100 pycmor-cli12-y1852
+28504101 pycmor-hr-cli12-core_atm-y1852-sh
+28504102 pycmor-hr-cli127-2-core_atm-y1852-sh
+28504103 pycmor-cli127-2-y1852
+28504104 sigcheck-shard
+"""
+
+
+def _fake_slurm(monkeypatch, campaign, calls):
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=SQUEUE if cmd[0] == "squeue" else "")
+
+    monkeypatch.setattr(campaign.subprocess, "run", run)
+
+
+def test_queued_lists_the_chain_and_its_shards_only(campaign, monkeypatch):
+    calls = []
+    _fake_slurm(monkeypatch, campaign, calls)
+    assert campaign.queued({"name": "cli127"}) == [
+        ("28504340", "pycmor-cli127-y1852"),
+        ("28504368", "pycmor-hr-cli127-core_atm-y1852-sh"),
+        ("28505007", "pycmor-hr-cli127-lrcs_seaice-y1852-sh"),
+    ]
+
+
+def test_stop_cancels_by_job_id(campaign, monkeypatch):
+    calls = []
+    _fake_slurm(monkeypatch, campaign, calls)
+    campaign.stop({"name": "cli127-2"})
+    assert calls[-1] == ["scancel", "28504102", "28504103"]
+
+
+def test_stop_with_nothing_queued_calls_no_scancel(campaign, monkeypatch):
+    calls = []
+    _fake_slurm(monkeypatch, campaign, calls)
+    assert campaign.stop({"name": "1pctCO2"}) == []
+    assert [c[0] for c in calls] == ["squeue"]

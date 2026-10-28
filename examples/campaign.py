@@ -15,6 +15,8 @@ Subcommands
     campaign.py env    <campaign.yaml>             shell exports for the chain
     campaign.py verify <campaign.yaml>             exit 1 if code or campaign moved
     campaign.py apply  <campaign.yaml> <yamls_dir> bind generated tier yamls
+    campaign.py queued <campaign.yaml>             the campaign's jobs in the queue
+    campaign.py stop   <campaign.yaml>             cancel the chain and its shards
 
 Example ``campaign.yaml``::
 
@@ -36,7 +38,7 @@ no profile covers; it may not repeat a key the profile already sets.
 
 Optional: ``workroot`` (default ``<campaign>/work``; put it in the same
 project as ``output_root`` so publishing is a rename, not a copy),
-``account`` (ab0246), ``driver_attempts`` (3), ``first_year_attempts`` (1, for
+``account`` (ab0246), ``driver_attempts`` (3), ``first_year_attempts`` (2, for
 the first year of every launch), ``max_consecutive_fails`` (2),
 ``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout),
 ``with_gr`` (false; true also writes the regridded FESOM output, g131).
@@ -95,7 +97,7 @@ PINNED_FIELDS = ("run_root", "output_root", "drs_version", "experiment", "inheri
 DEFAULTS = {
     "account": "ab0246",
     "driver_attempts": 3,
-    "first_year_attempts": 1,
+    "first_year_attempts": 2,
     "max_consecutive_fails": 2,
     "conda_init": "/work/ab0246/a270092/software/miniforge3/etc/profile.d/conda.sh",
     "conda_env": "pycmor_py312",
@@ -734,13 +736,51 @@ def apply(cfg, yamls_dir):
     return len(files)
 
 
+def _job_name_pattern(name):
+    # The chain is pycmor-<name>-y<YEAR> (run_year_chain.sbatch), the shard
+    # arrays pycmor-<model>-<name>-<tier>-y<YEAR>-sh (submit_hr_year_shards.sh).
+    # Tiers have no "-", so campaign "x" never matches the shards of "x-2".
+    tag = re.escape(name)
+    return re.compile(rf"^pycmor-({tag}-y\d+|[a-z0-9]+-{tag}-[a-z0-9_]+-y\d+-sh)$")
+
+
+def queued(cfg):
+    """The campaign's jobs still in the queue, as sorted (job id, name) pairs:
+    its chain job and its shard arrays, an array counted once."""
+    res = subprocess.run(
+        # %F is the array's base id, which scancel takes for the whole array.
+        ["squeue", "-h", "-u", os.environ["USER"], "-o", "%F %j"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    pat = _job_name_pattern(cfg["name"])
+    jobs = set()
+    for line in res.stdout.splitlines():
+        jid, _, jobname = line.strip().partition(" ")
+        if pat.match(jobname):
+            jobs.add((jid, jobname))
+    return sorted(jobs)
+
+
+def stop(cfg):
+    """Cancel the campaign's chain and its shards. A plain scancel of the chain
+    job cannot do this: SLURM kills the job at once and the driver in it never
+    gets a signal, so its shard arrays kept running and a restart ran them a
+    second time (cli126)."""
+    jobs = queued(cfg)
+    if jobs:
+        subprocess.run(["scancel", *[jid for jid, _ in jobs]], check=True)
+    return jobs
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("setup")
     p.add_argument("campaign")
     p.add_argument("--repin", action="store_true", help="accept a changed code_ref or campaign values")
-    for name in ("env", "verify"):
+    for name in ("env", "verify", "queued", "stop"):
         sub.add_parser(name).add_argument("campaign")
     p = sub.add_parser("apply")
     p.add_argument("campaign")
@@ -757,6 +797,15 @@ def main(argv=None):
             print(f"campaign {cfg['name']}: code {verify(cfg)[:10]} matches the pin")
         elif args.cmd == "apply":
             print(f"campaign {cfg['name']}: bound {apply(cfg, args.yamls_dir)} tier yaml(s)")
+        elif args.cmd == "queued":
+            for jid, jobname in queued(cfg):
+                print(jid, jobname)
+        elif args.cmd == "stop":
+            jobs = stop(cfg)
+            for jid, jobname in jobs:
+                print(f"cancelled {jid} {jobname}")
+            if not jobs:
+                print(f"campaign {cfg['name']}: nothing in the queue")
     except CampaignError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

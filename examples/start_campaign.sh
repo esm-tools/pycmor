@@ -20,6 +20,16 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${PYCMOR_CONDA_INIT:-/work/ab0246/a270092/software/miniforge3/etc/profile.d/conda.sh}"
 conda activate "${PYCMOR_CONDA_ENV:-pycmor_py312}"
 
+# A second chain next to a running one, or next to shards a cancelled chain
+# left behind, cmorizes the same year twice into the same work directory.
+busy=$(python3 "$HERE/campaign.py" queued "$CAMPAIGN")
+if [ -n "$busy" ]; then
+  echo "ERROR: this campaign still has jobs in the queue:"
+  echo "$busy"
+  echo "Wait for them, or stop them with: python3 $HERE/campaign.py stop $CAMPAIGN"
+  exit 1
+fi
+
 python3 "$HERE/campaign.py" setup "$CAMPAIGN"
 eval "$(python3 "$HERE/campaign.py" env "$CAMPAIGN")"
 START="${2:-$FIRST_YEAR}"

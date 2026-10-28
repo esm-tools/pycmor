@@ -34,9 +34,11 @@
 # TIME_LIMIT is listed separately because FAIL does not cover a timeout, and
 # a timed-out driver would otherwise end the chain silently.
 #
-# The first year of every launch gets first_year_attempts (default 1) and a
+# The first year of every launch gets first_year_attempts (default 2) and a
 # failure there stops the chain: it is the check that the setup is sound
-# before the campaign spends node hours on the rest. After that, a failed
+# before the campaign spends node hours on the rest. A broken setup fails
+# every tier, which the driver does not retry, so the second attempt only
+# reruns the tiers that came up short. After that, a failed
 # year does not stop the chain, because later years only need model output.
 # But after max_consecutive_fails failed years in a row (default 2) it halts,
 # since that pattern means something systematic.

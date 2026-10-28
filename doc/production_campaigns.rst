@@ -122,7 +122,7 @@ campaign.yaml
      - SLURM account, default ``ab0246``
      - no
    * - ``driver_attempts``, ``first_year_attempts``, ``max_consecutive_fails``
-     - retry policy, defaults 3, 1 and 2 (see below)
+     - retry policy, defaults 3, 2 and 2 (see below)
      - no
 
 Experiment metadata (``experiment_id``, parent experiment, branch times,
@@ -192,12 +192,21 @@ manifests to see whether every rule wrote its output.
 * Some tiers short: only those are resubmitted, up to ``driver_attempts``.
 * Every tier short on the first attempt: a shared cause (code, input, disk).
   The year gives up at once.
-* The first year of every start gets ``first_year_attempts`` (1), and the
-  chain stops if it fails: a broken setup costs one year of node hours.
+* The first year of every start gets ``first_year_attempts`` (2), and the
+  chain stops if it still fails. A broken setup fails every tier and is not
+  retried, so it costs one year of node hours. The second attempt only reruns
+  the tiers that came up short, e.g. a shard the watchdog cancelled.
 * ``max_consecutive_fails`` failed years in a row halt the chain.
 
 Each shard runs under a watchdog that cancels it after 90 minutes without
 progress. A rare hang of this kind is cured by the retry.
+
+To stop a campaign, run ``campaign.py stop <campaign.yaml>``. It cancels the
+chain job and the shard arrays it submitted. A plain ``scancel`` of the chain
+job, like its walltime, leaves the shards running, because SLURM kills the job
+before the driver in it can react. ``start_campaign.sh`` refuses to start while
+any job of the campaign is still in the queue, so a year is never cmorized
+twice at the same time.
 
 Watching:
 
@@ -254,7 +263,7 @@ Files of the tool
    Start or restart a campaign.
 
 ``examples/campaign.py``
-   ``setup [--repin]``, ``env``, ``verify``, ``apply``; the defaults.
+   ``setup [--repin]``, ``env``, ``verify``, ``apply``, ``queued``, ``stop``; the defaults.
 
 ``examples/run_year_chain.sbatch``
    The yearly chain job.
