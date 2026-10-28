@@ -37,6 +37,9 @@ Rule attributes consumed (all optional):
   on each file before checking. Clears the wcrp_cmip7 FILE004a
   "missing consolidated internal metadata" finding.
 - ``qc_repack_binary`` (str, default ``"cmip7repack"``) — override path.
+- ``qc_nccopy_binary`` (str, optional) — nccopy for the one rewrite a
+  repacked file gets when pyfive cannot parse it. Default: the nccopy next
+  to ``$HDF5_PLUGIN_PATH``, else PATH.
 - ``qc_ignore_codes`` (list[str], default ``[]``) — finding codes to
   mute. Matched against the leading ``[CODE]`` token in the finding's
   ``name`` field, or against the parenthesised section number for cf
@@ -228,7 +231,77 @@ def _clean_cmip7repack_orphans(files: list[Path]) -> None:
                 logger.warning(f"qc: could not remove cmip7repack orphan {orphan.name}: {exc}")
 
 
-def _run_cmip7repack(binary: str, files: list[Path]) -> None:
+def _repack_one(binary: str, fp: Path) -> bool:
+    cmd = [binary, "-o", str(fp)]
+    logger.info(f"qc: running {' '.join(cmd)}")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        logger.warning(
+            f"qc: cmip7repack rc={proc.returncode} on {fp.name}\n"
+            f"  stderr: {(proc.stderr or proc.stdout or '').strip()}"
+        )
+    return proc.returncode == 0
+
+
+def _pyfive_overrun(fp: Path) -> bool:
+    """True if pyfive cannot parse ``fp`` because of the Attribute Info overrun.
+
+    pyfive (1.1.2 to at least 1.3.0) unpacks the Attribute Info message at its
+    full 28 bytes whatever its flags say. A message without the optional
+    fields is 18 bytes, so one that ends within 10 bytes of its header chunk
+    reads past the chunk and raises. FILE004 and the official
+    ``check_cmip7_packing`` read the file with pyfive and then reject it
+    (cli127 y1852: difvho, difvso, rsdoabsorb yr g131). Anything else pyfive
+    raises is left to the checker to report.
+    """
+    try:
+        import pyfive
+    except ImportError:
+        return False
+    try:
+        with pyfive.File(str(fp)) as f:
+            f.consolidated_metadata
+    except Exception as exc:
+        return "unpack_from requires a buffer" in str(exc)
+    return False
+
+
+def _nccopy_binary(override: str | None = None) -> str | None:
+    """``qc_nccopy_binary``, else the nccopy of the netCDF-C whose plugins the
+    environment loads (``HDF5_PLUGIN_PATH``, set by the production profile),
+    else the first one on PATH."""
+    if override:
+        return override
+    for plugins in filter(None, os.environ.get("HDF5_PLUGIN_PATH", "").split(":")):
+        candidate = Path(plugins).parent / "bin" / "nccopy"
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which("nccopy")
+
+
+def _rewrite_header(binary: str, nccopy: str | None, fp: Path) -> None:
+    """Rewrite ``fp`` with nccopy, which lays out the object headers anew, and
+    repack it again. Replaces ``fp`` only if pyfive then parses the copy; the
+    data and attributes are unchanged either way."""
+    if not nccopy:
+        logger.warning(f"qc: {fp.name} trips the pyfive Attribute Info overrun and no nccopy was found")
+        return
+    tmp = fp.with_name(fp.name + "_nccopy")
+    try:
+        proc = subprocess.run([nccopy, str(fp), str(tmp)], capture_output=True, text=True)
+        if proc.returncode != 0:
+            logger.warning(f"qc: nccopy rc={proc.returncode} on {fp.name}: {(proc.stderr or '').strip()}")
+            return
+        if _repack_one(binary, tmp) and not _pyfive_overrun(tmp):
+            os.replace(tmp, fp)
+            logger.info(f"qc: rewrote {fp.name} with nccopy; pyfive parses it now")
+        else:
+            logger.warning(f"qc: {fp.name} still trips the pyfive Attribute Info overrun after nccopy")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _run_cmip7repack(binary: str, files: list[Path], nccopy: str | None = None) -> None:
     """In-place ``cmip7repack -o`` over each file. Best-effort: per-file
     failures are logged but do not raise, so a single bad file doesn't
     block the rest of the QC pass.
@@ -237,17 +310,14 @@ def _run_cmip7repack(binary: str, files: list[Path]) -> None:
     invocation so a job that times out mid-repack doesn't leave 30 GB
     of corrupted zombies on /scratch (cli72 observed pfull/cl_day
     daily files at 137 levels — each repack takes well over an hour,
-    and 3-hour SLURM walltimes kill them mid-rename)."""
+    and 3-hour SLURM walltimes kill them mid-rename).
+
+    A file that pyfive cannot parse afterwards is rewritten once with
+    nccopy (``_rewrite_header``)."""
     _clean_cmip7repack_orphans(files)
     for fp in files:
-        cmd = [binary, "-o", str(fp)]
-        logger.info(f"qc: running {' '.join(cmd)}")
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            logger.warning(
-                f"qc: cmip7repack rc={proc.returncode} on {fp.name}\n"
-                f"  stderr: {(proc.stderr or proc.stdout or '').strip()}"
-            )
+        if _repack_one(binary, fp) and _pyfive_overrun(fp):
+            _rewrite_header(binary, _nccopy_binary(nccopy), fp)
     _clean_cmip7repack_orphans(files)
 
 
@@ -321,7 +391,7 @@ def run_compliance_checker(data, rule):
     if getattr(rule, "qc_repack", False):
         repack_binary = getattr(rule, "qc_repack_binary", None) or "cmip7repack"
         if shutil.which(repack_binary):
-            _run_cmip7repack(repack_binary, files)
+            _run_cmip7repack(repack_binary, files, getattr(rule, "qc_nccopy_binary", None))
         else:
             logger.warning(f"qc: {repack_binary} not on PATH — skipping repack")
 
