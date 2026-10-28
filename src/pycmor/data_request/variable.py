@@ -437,6 +437,9 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     _cmip7_compound_name: Optional[str] = None
     _branding_label: Optional[str] = None
     _region: Optional[str] = None
+    # Space-separated, as in the data request (basin, siline)
+    _flag_values: Optional[str] = None
+    _flag_meanings: Optional[str] = None
 
     # CMIP6 backward compatibility
     _cmip6_table: Optional[str] = None
@@ -483,6 +486,8 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             _cmip7_compound_name=compound_name or data.get("cmip7_compound_name"),
             _branding_label=data.get("branding_label"),
             _region=data.get("region"),
+            _flag_values=data.get("flag_values") or None,
+            _flag_meanings=data.get("flag_meanings") or None,
             # CMIP6 backward compatibility
             _cmip6_table=data.get("cmip6_table"),
             _cmip6_compound_name=data.get("cmip6_compound_name"),
@@ -534,6 +539,7 @@ class CMIP7DataRequestVariable(DataRequestVariable):
             "cell_measures": self.cell_measures,
             "comment": self.comment,
         }
+
         # Drop None values and CMIP7 sentinel placeholders like "::MODEL" that
         # indicate the field is model-specific and not defined by the data request.
         def _is_sentinel(v):
@@ -546,10 +552,9 @@ class CMIP7DataRequestVariable(DataRequestVariable):
         # cell_measures; the other empty-string fields stay dropped so an
         # accidental blank standard_name/long_name doesn't get written.
         return {
-            k: v for k, v in attrs.items()
-            if v is not None
-            and (v != "" or k == "cell_measures")
-            and not _is_sentinel(v)
+            k: v
+            for k, v in attrs.items()
+            if v is not None and (v != "" or k == "cell_measures") and not _is_sentinel(v)
         }
 
     @property
@@ -559,6 +564,14 @@ class CMIP7DataRequestVariable(DataRequestVariable):
     @property
     def cell_methods(self) -> str:
         return self._cell_methods
+
+    @property
+    def flag_values(self) -> Optional[str]:
+        return self._flag_values
+
+    @property
+    def flag_meanings(self) -> Optional[str]:
+        return self._flag_meanings
 
     @property
     def comment(self) -> str:

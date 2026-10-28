@@ -136,6 +136,7 @@ pipelines:
     steps:
       - script://$PYCMOR_HOME/examples/custom_steps.py:load_basin_mask
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:remap_flags_to_data_request
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
       - pycmor.std_lib.attributes.set_variable

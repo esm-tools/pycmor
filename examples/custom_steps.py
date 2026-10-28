@@ -92,6 +92,44 @@ def load_basin_mask(data, rule):
     return ds
 
 
+def remap_flags_to_data_request(data, rule):
+    """
+    Recode a flag variable to the flag_values the data request assigns to
+    each flag meaning, and write the data request's full flag set.
+
+    The FESOM basin mask numbers its basins 1, 2, 3, 10, 11 (atlantic,
+    pacific, indian, southern, arctic). The table fixes 0..10 with other
+    meanings (2 = atlantic, 3 = pacific, ...), so a reader decoding with
+    the table's codes got the wrong basin (cli127). The mapping goes by
+    meaning, so a meaning the data request does not know is an error.
+    """
+    da = data[rule.model_variable] if isinstance(data, xr.Dataset) else data
+    drv = rule.data_request_variable
+    if not drv.flag_values or not drv.flag_meanings:
+        raise ValueError(f"{rule.cmor_variable}: the data request has no flag_values/flag_meanings")
+    want = dict(zip(drv.flag_meanings.split(), (int(v) for v in drv.flag_values.split())))
+    have = dict(zip(da.attrs["flag_meanings"].split(), np.atleast_1d(da.attrs["flag_values"]).tolist()))
+    unknown = sorted(set(have) - set(want))
+    if unknown:
+        raise ValueError(f"{rule.cmor_variable}: flag meanings {unknown} are not in the data request")
+    old = da.values
+    present = set(np.unique(old[old != da.attrs.get("_FillValue", -2147483647)]).tolist()) - set(have.values())
+    if present:
+        raise ValueError(f"{rule.cmor_variable}: values {sorted(present)} have no flag meaning")
+    new = old.copy()
+    for meaning, code in have.items():
+        new[old == code] = want[meaning]
+    logger.info(f"{rule.cmor_variable}: flag codes {', '.join(f'{m} {have[m]}->{want[m]}' for m in have)}")
+    out = da.copy(data=new)
+    out.attrs["flag_values"] = np.array(list(want.values()), dtype=new.dtype)
+    out.attrs["flag_meanings"] = " ".join(want)
+    if isinstance(data, xr.Dataset):
+        data = data.copy()
+        data[rule.model_variable] = out
+        return data
+    return out
+
+
 def load_gridfile(data, rule):
     """
     Load a single grid/mesh file as an xarray Dataset.
