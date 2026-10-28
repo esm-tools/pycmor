@@ -89,10 +89,17 @@ def _rule_files(rule) -> list[Path]:
     # qc strip + cchecker race against the glb rule's concurrent
     # cmip7repack on the glb file and the sidecar records stale
     # pre-strip findings (cli72 §2.3 _QuantizeBitGroom* on rlds_1hr_glb).
+    # The grid label goes in too: a native rule (g130) and its regridded
+    # twin (g131) run in different shards at the same time, and each one
+    # repacking the other's file in place truncated it (cli126 y1852: mlotst
+    # g130 with 0 time steps, zos day g130 with an HDF error).
     compound = getattr(rule, "compound_name", "") or ""
     if compound.count(".") >= 4:
         parts = compound.split(".")
         prefix = f"{cmor_var}_{parts[2]}_{parts[3]}_{parts[4]}_"
+        grid = getattr(rule, "grid_label", None)
+        if grid:
+            prefix += f"{grid}_"
     else:
         prefix = f"{cmor_var}_"
     matches: list[Path] = []
