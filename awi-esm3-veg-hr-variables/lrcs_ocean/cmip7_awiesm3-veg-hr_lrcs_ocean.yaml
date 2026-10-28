@@ -966,6 +966,10 @@ rules:
         pattern: mesh.nc
     compound_name: ocean.volcello.ti-ol-hxy-sea.fx.glb
     model_variable: volcello
+    # g131 twin, see generate_gr_yaml.py and make_gr_fx.py
+    gr_variant:
+      grid_file: /work/ab0246/a270092/input/fesom2/dars2/gr_fx_dars2_r720x360.nc
+      model_variable: volcello
     lazy_write: true
     pipelines:
       - volcello_fx_pipeline

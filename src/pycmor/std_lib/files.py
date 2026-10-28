@@ -3358,6 +3358,51 @@ def _calculate_netcdf_chunks(ds: xr.Dataset, rule) -> dict:
         return {}
 
 
+_OCEAN_MASKS = {}
+
+
+def _ocean_mask(path):
+    # By dimension name, without coordinates: the data's lat/lon values come
+    # from another file and need not compare equal to the last bit.
+    if path not in _OCEAN_MASKS:
+        with xr.open_dataset(path) as ds:
+            _OCEAN_MASKS[path] = xr.DataArray((ds["sftof"] > 0).values, dims=("lat", "lon"))
+    return _OCEAN_MASKS[path]
+
+
+def apply_ocean_mask(da, rule):
+    """Set every cell outside the ocean of ``rule.ocean_mask_file`` to missing.
+
+    For regridded ocean output (g131). XIOS without ``detect_missing_value``
+    writes 0 into land cells, and the FESOM runs that produce our gr files
+    have no such attribute: cli127 shipped tos, sos, zos and siconc with 0
+    over every continent. The mask file is the static fx file of
+    examples/make_gr_fx.py; ocean is where its ``sftof`` is positive.
+    Variables without both ``lat`` and ``lon`` are left alone; one whose
+    ``lat``/``lon`` differ in size from the mask is an error, since masking
+    it along another grid would look plausible.
+    """
+    path = rule.get("ocean_mask_file") if hasattr(rule, "get") else None
+    if not path:
+        return da
+    mask = _ocean_mask(path)
+    variables = [da] if isinstance(da, xr.DataArray) else [da[v] for v in da.data_vars]
+    masked = {}
+    for var in variables:
+        if not np.issubdtype(var.dtype, np.floating) or not {"lat", "lon"} <= set(var.dims):
+            continue  # bounds, scalars
+        if var.sizes["lat"] != mask.sizes["lat"] or var.sizes["lon"] != mask.sizes["lon"]:
+            raise ValueError(
+                f"apply_ocean_mask: {var.name} has dims {dict(var.sizes)}, the mask in {path} {dict(mask.sizes)}"
+            )
+        out = var.where(mask).transpose(*var.dims)
+        out.attrs, out.encoding = var.attrs, var.encoding
+        masked[var.name] = out
+    if isinstance(da, xr.DataArray):
+        return masked.get(da.name, da)
+    return da.assign(masked)
+
+
 def save_dataset(da: xr.DataArray, rule):
     """
     Save dataset to one or more files.
@@ -3399,6 +3444,8 @@ def save_dataset(da: xr.DataArray, rule):
         max_retries = int(os.environ.get("PYCMOR_SAVE_MAX_RETRIES", "2"))
     except (TypeError, ValueError):
         max_retries = 2
+
+    da = apply_ocean_mask(da, rule)
 
     # Watchdog: track growth of the bytes this save is producing. Works for
     # both single-file and multi-file (split-by-timespan) save paths.

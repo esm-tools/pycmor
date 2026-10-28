@@ -15,6 +15,9 @@ Filtering (rule level):
   Dropped — rules with no inputs (mesh-derived fx), rules whose primary
             input is OIFS/atm-side, etc. They have no gr equivalent
             under this naming scheme.
+  Added  — a g131 twin of every mesh-derived fx rule that carries
+            ``gr_variant: {grid_file, model_variable}``; it reads that
+            variable from the static file examples/make_gr_fx.py wrote.
 
 Pattern rewrites (string level, applied recursively to every str value):
   `\\.fesom\\.\\d{4}\\.nc`  →  `\\.fesom\\.gr\\.\\d{4}\\.nc`
@@ -30,12 +33,42 @@ Inherit overrides:
 Usage:
     generate_gr_yaml.py <input.yaml> <output.yaml>
 """
+import copy
 import functools
 import os
 import re
 import sys
 import yaml
 from pathlib import Path
+
+# The regridded fields name areacello and volcello in cell_measures, and the
+# native fx rules that write them read the mesh, so they are dropped below.
+# Rules that say where their g131 counterpart lives (``gr_variant``) get a
+# twin reading it from the static file of examples/make_gr_fx.py; without
+# it the g131 output pointed at cell measures that did not exist (cli127).
+#
+# The same file is the land mask of every g131 rule (``ocean_mask_file``,
+# applied by save_dataset): XIOS without detect_missing_value writes 0 into
+# land cells, and cli127 shipped tos, sos, zos and siconc that way. The fx
+# twins are already defined on land (areacello everywhere, sftof 0) and
+# leave it off.
+GR_FX_FILE = "/work/ab0246/a270092/input/fesom2/dars2/gr_fx_dars2_r720x360.nc"
+GR_FX_PIPELINE = {
+    "name": "gr_fx_pipeline",
+    "steps": [
+        "script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile",
+        "pycmor.std_lib.generic.get_variable",
+        "pycmor.std_lib.set_time_bounds",
+        "pycmor.std_lib.attributes.set_global",
+        "pycmor.std_lib.attributes.set_variable",
+        "pycmor.std_lib.attributes.set_coordinates",
+        "pycmor.std_lib.dimensions.map_dimensions",
+        "pycmor.std_lib.generic.trigger_compute",
+        "pycmor.std_lib.generic.show_data",
+        "pycmor.std_lib.files.save_dataset",
+        "pycmor.std_lib.qc.run_compliance_checker",
+    ],
+}
 
 NATIVE_PAT = r"\.fesom\.\d{4}\.nc"
 GR_PAT = r"\.fesom\.gr\.\d{4}\.nc"
@@ -120,6 +153,25 @@ FESOM_MESH_PIPELINE_NAME_SUBSTRINGS = (
     # (297708764688000,) from a broken broadcast on gr.
     "sisnhc_from_msnow",
 )
+
+
+def gr_fx_rules(rules):
+    """The g131 twins of the rules that carry ``gr_variant``."""
+    out = []
+    for rule in rules:
+        variant = rule.get("gr_variant")
+        if not variant:
+            continue
+        twin = copy.deepcopy(rule)
+        del twin["gr_variant"]
+        grid_file = Path(variant["grid_file"])
+        twin["inputs"] = [{"path": str(grid_file.parent), "pattern": re.escape(grid_file.name)}]
+        twin["grid_file"] = str(grid_file)
+        twin["model_variable"] = variant["model_variable"]
+        twin["pipelines"] = [GR_FX_PIPELINE["name"]]
+        twin["ocean_mask_file"] = ""
+        out.append(twin)
+    return out
 
 
 def is_fesom_primary(rule):
@@ -251,11 +303,7 @@ def main():
     d = yaml.safe_load(Path(src).read_text())
 
     pipelines = d.get("pipelines", []) or []
-    mesh_pls = {
-        p["name"]
-        for p in pipelines
-        if "name" in p and pipeline_needs_fesom_mesh(p)
-    }
+    mesh_pls = {p["name"] for p in pipelines if "name" in p and pipeline_needs_fesom_mesh(p)}
 
     rules = d.get("rules", []) or []
     after_fesom = [r for r in rules if is_fesom_primary(r)]
@@ -281,7 +329,12 @@ def main():
                     file=sys.stderr,
                 )
 
-    d["rules"] = after_files
+    fx_twins = gr_fx_rules(rules)
+    if fx_twins and not any(p.get("name") == GR_FX_PIPELINE["name"] for p in pipelines):
+        pipelines.append(copy.deepcopy(GR_FX_PIPELINE))
+        d["pipelines"] = pipelines
+
+    d["rules"] = after_files + fx_twins
     n_mesh_dropped = len(after_fesom) - len(after_mesh)
     n_missing_dropped = len(after_mesh) - len(after_files)
     kept = after_files
@@ -292,10 +345,9 @@ def main():
     # offsets lat[0]=-89.75, lon[0]=0.25 — matches the FESOM regrid exactly.
     # Verified 2026-06-16 against EMD_RESPONSE_cmip7_grid_label_cv.md.
     inh["grid_label"] = "g131"
-    inh["grid"] = (
-        "regular 0.5° lat/lon (XIOS interpolation from FESOM DARS, 720x360 cells)"
-    )
+    inh["grid"] = "regular 0.5° lat/lon (XIOS interpolation from FESOM DARS, 720x360 cells)"
     inh["nominal_resolution"] = "50 km"
+    inh["ocean_mask_file"] = GR_FX_FILE
 
     gen = d.setdefault("general", {})
     base_name = gen.get("name", "")
@@ -317,7 +369,8 @@ def main():
         f"({n_mesh_dropped} fesom-mesh-only, "
         f"{n_missing_dropped} no-gr-input dropped, "
         f"{n_steps_swapped} native-only steps swapped, "
-        f"{n_refs} ocean refs injected)",
+        f"{n_refs} ocean refs injected, "
+        f"{len(fx_twins)} fx twins added)",
         file=sys.stderr,
     )
 

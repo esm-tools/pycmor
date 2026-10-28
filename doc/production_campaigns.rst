@@ -110,7 +110,9 @@ campaign.yaml
      - yes
    * - ``with_gr``
      - ``true`` also cmorizes the regridded FESOM output (XIOS 0.5°, grid g131)
-       next to the native one; default ``false``
+       next to the native one; default ``false``. Its fx fields (areacello,
+       sftof, deptho, volcello) and its land mask come from a static file made
+       once per mesh by ``examples/make_gr_fx.py``
      - yes
    * - ``campaign_root``
      - see above

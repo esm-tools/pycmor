@@ -54,6 +54,7 @@ inputs:
   /sw/spack-levante/netcdf-c-main-bdxvs5/plugins/lib__nczstdfilters.so.0.0.0: 3bf993c537b5ded08829c39b0b0f7565
   /work/ab0246/a270092/input/fesom2/dars2/mesh.nc: 3be712f0a2eccb4ace85936338846d06
   /work/ab0246/a270092/input/fesom2/dars2/basin_mask.nc: 5bd6e5930883c7d8def62edb78a1f2d2
+  /work/ab0246/a270092/input/fesom2/dars2/gr_fx_dars2_r720x360.nc: 97fa3796e66689087376d6458de48615
   /work/ab0246/a270092/input/fesom2/dars2/fesom.mesh.diag.nc: 0933960b6ec333af93c42c80dc505541
   /work/ab0246/a270092/input/fesom2/dars2/pickle_mesh_py3_fesom2: 38738a62a868593c258ae2a9aca06895
   /work/ab0246/a270092/input/fesom2/dars2/aux3d.out: eb4d40642ce524eaa33108a39505fbf1
