@@ -26,7 +26,7 @@ from xarray import DataArray, Dataset
 
 from ..core.logging import logger
 from ..core.rule import Rule
-from ..core.xarray_locks import patch_combined_lock
+from ..core.xarray_locks import harden_combined_lock, install_lock_guard, patch_combined_lock
 from .bounds import add_vertical_bounds as _add_vertical_bounds
 from .coordinate_attributes import set_coordinate_attributes as _set_coordinate_attributes
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
@@ -42,6 +42,8 @@ from .units import handle_unit_conversion
 from .variable_attributes import set_variable_attrs
 
 patch_combined_lock()
+harden_combined_lock()
+install_lock_guard()
 
 __all__ = [
     "convert_units",
