@@ -550,6 +550,7 @@ inherit:
   source_id: __LR_SOURCE_ID__
   institution_id: AWI
   institution: "Alfred Wegener Institute for Polar and Marine Research"
+  contact: cmip7@awi.de
   experiment_id: piControl
   variant_label: r1i1p1f1
   # Parent/branch metadata: piControl branches from piControl-spinup

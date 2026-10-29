@@ -144,6 +144,8 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         # rather than emit spec-stale metadata:
         #   branch_method, comment, contact, further_info_url, grid,
         #   source_type, sub_experiment, sub_experiment_id, table_id
+        # ``contact`` comes back via _OPTIONAL_FROM_RULE when the recipe
+        # sets it.
         # Also dropped: ``source`` — required in CMIP6, now optional in
         # CMIP7. Our previous value was ``"<source_id> <realm>"`` which
         # duplicated source_id without adding information. Users who want
@@ -167,6 +169,10 @@ class CMIP7GlobalAttributes(GlobalAttributes):
         "parent_time_units",
         "parent_variant_label",
     )
+
+    #: Attributes CMIP7 no longer defines but does not forbid (Global
+    #: Attributes v1.1, Appendix 2). Written only when the recipe sets them.
+    _OPTIONAL_FROM_RULE = ("contact",)
 
     def global_attributes(self) -> dict:
         """Generate all required global attributes for CMIP7"""
@@ -192,6 +198,10 @@ class CMIP7GlobalAttributes(GlobalAttributes):
                     )
                     continue
             d[key] = value
+        for key in self._OPTIONAL_FROM_RULE:
+            value = self.rule_dict.get(key)
+            if value:
+                d[key] = value
         return d
 
     def subdir_path(self) -> str:

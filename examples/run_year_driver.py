@@ -141,6 +141,11 @@ def publish(workdir, output_root):
     re-run year replaces its earlier output. Rename where possible; across
     project quotas Lustre refuses that, and the file is copied to a staging
     name first so the target never shows a half-written file.
+
+    An ``output_root`` that already ends in ``<mip_era>/<activity_id>/
+    <institution_id>``, like the DKRZ ESGF buffer
+    ``/work/ik1017/ESGF_Buff/CMIP7/CMIP/AWI``, gets the tree below those
+    levels, without the ``drs_specs`` level (MIP-DRS7) in front.
     """
     src_root = Path(workdir) / "cmorized"
     dest_root = Path(output_root)
@@ -149,6 +154,8 @@ def publish(workdir, output_root):
         rel = src.relative_to(src_root)
         if rel.parts[0] == "_manifests":
             continue
+        if len(rel.parts) > 4 and dest_root.parts[-3:] == rel.parts[1:4]:
+            rel = Path(*rel.parts[4:])
         dest = dest_root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         if dest.exists():

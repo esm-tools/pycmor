@@ -255,6 +255,16 @@ def test_publish_moves_a_finished_year_into_the_shared_tree(driver, tmp_path):
     assert not list(out.rglob("*.json"))
 
 
+def test_publish_into_a_buffer_laid_out_from_the_institution_down(driver, tmp_path):
+    """The DKRZ ESGF buffer is <root>/CMIP7/CMIP/AWI/<source_id>/..., no MIP-DRS7 level."""
+    wd = _year_with_output(tmp_path)
+    out = tmp_path / "ESGF_Buff" / "CMIP7" / "CMIP" / "AWI"
+
+    assert driver.publish(wd, out) == (2, 0)
+    assert (out / "M" / "1pctCO2" / "r1i1p1f1" / "glb" / "mon" / "tas" / "tas_1850.nc").read_text() == "tas"
+    assert not (out / "MIP-DRS7").exists()
+
+
 def test_publish_copies_when_rename_crosses_project_quotas(driver, tmp_path, monkeypatch):
     import errno
     import os

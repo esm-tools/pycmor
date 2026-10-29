@@ -339,3 +339,16 @@ def test_cmip7_global_attributes_with_data_request(sample_cmip7_rule):
         assert attrs["variable_id"] == "tas"
     except Exception:
         pytest.skip("Could not load CMIP7 data request")
+
+
+def test_cmip7_contact_only_when_the_recipe_sets_it(sample_cmip7_rule):
+    """contact is no CMIP7 attribute, but it is written when the recipe sets it."""
+    rule = sample_cmip7_rule
+    GAClass = create_factory(GlobalAttributes).get("CMIP7")
+
+    attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, _get_rule_attrs(rule)).global_attributes()
+    assert "contact" not in attrs
+
+    rule_attrs = {**_get_rule_attrs(rule), "contact": "cmip7@awi.de"}
+    attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs).global_attributes()
+    assert attrs["contact"] == "cmip7@awi.de"

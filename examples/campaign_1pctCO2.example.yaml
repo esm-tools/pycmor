@@ -10,8 +10,9 @@ name: 1pctCO2
 run_root: /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-1pctCO2_1949
 first_year: 1850
 last_year: 1999
-output_root: /work/<esgf-project>/CMIP7          # complete years are moved here
-# workroot: /work/<esgf-project>/pycmor_work/1pctCO2
+output_root: /work/ik1017/ESGF_Buff/CMIP7/CMIP/AWI   # DKRZ ESGF buffer; files go below it from source_id down
+workroot: /work/bb1469/<you>/pycmor_work/1pctCO2     # in-flight years; a rename away from the buffer
+with_gr: true
 drs_version: v20261001
 mail: jan.streffing@awi.de
 code_ref: feat/cmip7-awiesm3-veg-hr               # pinned to a commit at first start
