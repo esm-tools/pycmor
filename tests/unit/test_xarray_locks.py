@@ -1,6 +1,7 @@
 """xarray's netCDF locks must not stay held for nobody (see pycmor.core.xarray_locks)."""
 
 import threading
+import time
 
 import numpy as np
 import pytest
@@ -163,3 +164,72 @@ def test_a_lock_whose_thread_died_is_leaked(monkeypatch):
     t.join(5)
     assert lock.leaked() is not None
     assert xarray_locks._check([lock]) == 1
+
+
+def test_a_lock_leaked_by_its_owner_while_it_waits_again_is_released(monkeypatch):
+    monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
+    lock = xarray_locks.TrackedLock("TEST_LOCK")
+
+    def take():
+        lock.acquire()
+
+    def leak_then_wait():
+        take()
+        take()  # same call site: blocks on the lock it leaked
+
+    t = threading.Thread(target=leak_then_wait, daemon=True)
+    t.start()
+    deadline = time.monotonic() + 5
+    while lock._takes < 1 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    time.sleep(0.2)
+    assert xarray_locks._check([lock]) == 1
+    t.join(5)
+    assert lock._takes == 2
+
+
+def test_a_hold_with_no_owner_on_record_is_released_on_the_second_check(monkeypatch):
+    monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
+    monkeypatch.setattr(xarray_locks.TrackedLock, "_record", lambda self, frame: 1 / 0)
+    lock = xarray_locks.TrackedLock("TEST_LOCK")
+    assert lock.acquire()
+    assert lock._owner is None
+    assert xarray_locks._check([lock]) == 0
+    assert xarray_locks._check([lock]) == 1
+    assert not lock.locked()
+
+
+def test_a_new_take_resets_the_unknown_count(monkeypatch):
+    monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
+    monkeypatch.setattr(xarray_locks.TrackedLock, "_record", lambda self, frame: 1 / 0)
+    lock = xarray_locks.TrackedLock("TEST_LOCK")
+    lock.acquire()
+    assert xarray_locks._check([lock]) == 0
+    lock.release()
+    lock.acquire()
+    assert xarray_locks._check([lock]) == 0
+    assert lock.locked()
+
+
+def test_a_long_live_hold_is_reported_once_and_left_alone(monkeypatch):
+    monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
+    monkeypatch.setattr(xarray_locks, "REPORT_AFTER_SEC", 0)
+    reports = []
+    monkeypatch.setattr(xarray_locks, "_report_long_hold", lambda lock, owner, seconds: reports.append(owner))
+    lock = xarray_locks.TrackedLock("TEST_LOCK")
+    held, go = threading.Event(), threading.Event()
+
+    def hold():
+        with lock:
+            held.set()
+            go.wait(5)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    assert held.wait(5)
+    assert xarray_locks._check([lock]) == 0
+    assert xarray_locks._check([lock]) == 0
+    assert len(reports) == 1 and reports[0] is not None
+    assert lock.locked()
+    go.set()
+    t.join(5)
