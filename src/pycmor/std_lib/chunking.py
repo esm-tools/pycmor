@@ -473,9 +473,12 @@ def get_encoding_with_chunks(
         # float data variables; skip bounds/coord variables (CF requires
         # exact values) and integer flag/index variables (bit-exact).
         _var_name = str(var)
+        # vertices_latitude / vertices_longitude are the CMOR names of
+        # unstructured cell bounds. BitGroom on them turned the polar
+        # corners of g122 from -90 into -90.00024 (COORD006).
         _is_bounds_var = (
             _var_name.endswith(("_bnds", "_bounds"))
-            or _var_name.startswith("bounds_")
+            or _var_name.startswith(("bounds_", "vertices_"))
         )
         if (
             quantize_mode
@@ -493,7 +496,7 @@ def get_encoding_with_chunks(
         # the attribute on every variable including flag variables.
         _sentinel = object()
         _pre = ds[var].encoding.get("_FillValue", _sentinel)
-        _is_bounds = str(var).endswith(("_bnds", "_bounds"))
+        _is_bounds = _is_bounds_var
         _is_flag = ("flag_values" in ds[var].attrs) or ("flag_meanings" in ds[var].attrs)
         if _pre is None or _is_bounds:
             var_encoding["_FillValue"] = None
