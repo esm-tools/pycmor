@@ -312,6 +312,7 @@ class Rule:
             "activity_id",
             "institution_id",
             "institution",
+            "contact",
             "model_component",
             "further_info_url",
             "compound_name",

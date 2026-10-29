@@ -349,6 +349,7 @@ def test_cmip7_contact_only_when_the_recipe_sets_it(sample_cmip7_rule):
     attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, _get_rule_attrs(rule)).global_attributes()
     assert "contact" not in attrs
 
-    rule_attrs = {**_get_rule_attrs(rule), "contact": "cmip7@awi.de"}
+    rule.contact = "cmip7@awi.de"
+    rule_attrs = {**_get_rule_attrs(rule), "contact": rule.global_attributes_set_on_rule()["contact"]}
     attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs).global_attributes()
     assert attrs["contact"] == "cmip7@awi.de"
