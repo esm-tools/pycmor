@@ -3969,6 +3969,31 @@ def slice_to_rule_year_range(data, rule):
     return result
 
 
+_LPJG_PERIOD_DIR = _re.compile(r"(\d{4})\d{4}-(\d{4})\d{4}")
+
+
+def _lpjguess_files_for_years(files, rule):
+    """Keep the .out files whose period directory overlaps rule.year_start..year_end.
+
+    A file at {period}/run1/ holds the years of {period} and no others. Reading
+    every period and filtering afterwards made each rule's memory and time grow
+    with the length of the run, whatever year was asked for: landCoverFrac_mon
+    peaked at 1.3 times the size of all its files together, and the 149th period
+    of piControl took cap7_land_shard_04 over the node's memory (cli130).
+    A file outside any period directory is kept. No-op when neither bound is set.
+    """
+    lo = getattr(rule, "year_start", None)
+    hi = getattr(rule, "year_end", None)
+    if lo is None and hi is None:
+        return files
+    kept = []
+    for f in files:
+        period = next(filter(None, map(_LPJG_PERIOD_DIR.fullmatch, pathlib.Path(f).parts)), None)
+        if period is None or ((lo is None or int(period[2]) >= int(lo)) and (hi is None or int(period[1]) <= int(hi))):
+            kept.append(f)
+    return kept
+
+
 def _lpjguess_time_epoch(base_path):
     """Derive a CMIP time epoch from the LPJ-GUESS outdata layout.
 
@@ -4196,7 +4221,7 @@ def load_lpjguess_monthly(data, rule):
     pattern_str = input_collection.pattern_str
 
     # Glob for all matching files across period subdirectories
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS .out files from {base_path}")
@@ -4409,7 +4434,7 @@ def load_lpjguess_yearly(data, rule):
     base_path = input_collection.path
     pattern_str = input_collection.pattern_str
 
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS yearly .out files from {base_path}")
@@ -4562,7 +4587,7 @@ def load_lpjguess_yearly_lut(data, rule):
     base_path = input_collection.path
     pattern_str = input_collection.pattern_str
 
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS yearly Lut .out files from {base_path}")
@@ -4642,7 +4667,7 @@ def load_lpjguess_monthly_lut(data, rule):
     base_path = input_collection.path
     pattern_str = input_collection.pattern_str
 
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS monthly Lut .out files from {base_path}")
@@ -4846,7 +4871,7 @@ def sum_lpjguess_monthly_files(data, rule):
         if not filename:
             continue
         file_pattern = _os.path.join(lpjg_path, prefix, filename)
-        files = sorted(_glob.glob(file_pattern))
+        files = _lpjguess_files_for_years(sorted(_glob.glob(file_pattern)), rule)
         if not files:
             logger.warning(f"No files matching {file_pattern}, skipping")
             continue
@@ -6891,7 +6916,7 @@ def load_lpjguess_monthly_depth(data, rule):
     base_path = input_collection.path
     pattern_str = input_collection.pattern_str
 
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS depth files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS monthly depth .out files")
@@ -7011,7 +7036,7 @@ def load_lpjguess_monthly_pool(data, rule):
     base_path = input_collection.path
     pattern_str = input_collection.pattern_str
 
-    files = sorted(base_path.glob(pattern_str))
+    files = _lpjguess_files_for_years(sorted(base_path.glob(pattern_str)), rule)
     if not files:
         raise FileNotFoundError(f"No LPJ-GUESS pool files found matching {base_path}/{pattern_str}")
     logger.info(f"Loading {len(files)} LPJ-GUESS monthly pool .out files")
