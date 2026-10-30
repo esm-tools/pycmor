@@ -1,0 +1,250 @@
+tier: core_ocean
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: areacello
+  compound_name: ocean.areacello.ti-u-hxy-u.fx.glb
+  model_variable: cell_area
+  lr_mesh_variable: cell_area
+  lr_units: m2
+  grid_label: gn
+  grid: 'Practice grid: core3_grid'
+  pipelines:
+  - lr_fx
+  lr_grid_key: core3
+  lr_group: fx_areacello
+- name: tos
+  compound_name: ocean.tos.tavg-u-hxy-sea.mon.glb
+  model_variable: sst
+  expected_units: degC
+  lr_scale: 1
+  lr_units: degC
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: sst\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: sos
+  compound_name: ocean.sos.tavg-u-hxy-sea.mon.glb
+  model_variable: sss
+  expected_units: 1e-3
+  lr_scale: 1
+  lr_units: '0.001'
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: sss\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: zos
+  compound_name: ocean.zos.tavg-u-hxy-sea.mon.glb
+  model_variable: ssh
+  expected_units: m
+  lr_scale: 1
+  lr_units: m
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: ssh\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: thetao
+  compound_name: ocean.thetao.tavg-ol-hxy-sea.mon.glb
+  model_variable: temp
+  expected_units: degC
+  lr_scale: 1
+  lr_units: degC
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_exact_ocean_depth: true
+  lr_input:
+    component: fesom
+    pattern: temp\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: so
+  compound_name: ocean.so.tavg-ol-hxy-sea.mon.glb
+  model_variable: salt
+  expected_units: 1e-3
+  lr_scale: 1
+  lr_units: '0.001'
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_exact_ocean_depth: true
+  lr_input:
+    component: fesom
+    pattern: salt\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: mlotst
+  compound_name: ocean.mlotst.tavg-u-hxy-sea.mon.glb
+  model_variable: MLD3
+  expected_units: m
+  lr_scale: -1
+  lr_units: m
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: MLD3\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: uo
+  compound_name: ocean.uo.tavg-ol-hxy-sea.mon.glb
+  model_variable: unod
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_exact_ocean_depth: true
+  lr_input:
+    component: fesom
+    pattern: unod\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: vo
+  compound_name: ocean.vo.tavg-ol-hxy-sea.mon.glb
+  model_variable: vnod
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_exact_ocean_depth: true
+  lr_input:
+    component: fesom
+    pattern: vnod\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: hfds
+  compound_name: ocean.hfds.tavg-u-hxy-sea.mon.glb
+  model_variable: fh
+  expected_units: W m-2
+  lr_scale: -1
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_input:
+    component: fesom
+    pattern: fh\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+- name: wo
+  compound_name: ocean.wo.tavg-ol-hxy-sea.mon.glb
+  model_variable: w
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_interface_midpoints: true
+  lr_exact_ocean_depth: true
+  lr_input:
+    component: fesom
+    pattern: w\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: ocean
+not_enabled:
+- name: tauuo
+  compound_name: ocean.tauuo.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tauvo
+  compound_name: ocean.tauvo.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: absscint
+  compound_name: ocean.absscint.tavg-op4-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tos_day
+  compound_name: ocean.tos.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sos_day
+  compound_name: ocean.sos.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: zos_day
+  compound_name: ocean.zos.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: deptho
+  compound_name: ocean.deptho.ti-u-hxy-sea.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sftof
+  compound_name: ocean.sftof.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: thkcello_fx
+  compound_name: ocean.thkcello.ti-ol-hxy-sea.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: masscello_fx
+  compound_name: ocean.masscello.ti-ol-hxy-sea.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: basin
+  compound_name: ocean.basin.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: thkcello
+  compound_name: ocean.thkcello.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: masscello
+  compound_name: ocean.masscello.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: umo
+  compound_name: ocean.umo.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vmo
+  compound_name: ocean.vmo.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: wmo
+  compound_name: ocean.wmo.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: zostoga
+  compound_name: ocean.zostoga.tavg-u-hm-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

@@ -19,7 +19,7 @@ rules:
         pattern: temp2_echam_mon_.*nc
 
     # CMIP7 compound name (provides: frequency, realm, table_id automatically)
-    compound_name: atmos.tas.tavg-h2m-hxy-u.mon.GLB
+    compound_name: atmos.tas.tavg-h2m-hxy-u.mon.glb
 
     # Model variable mapping
     model_variable: temp2
@@ -45,7 +45,7 @@ rules:
         pattern: sst_fesom_mon_.*nc
 
     # CMIP7 compound name
-    compound_name: ocean.tos.tavg-u-hxy-u.mon.GLB
+    compound_name: ocean.tos.tavg-u-hxy-u.mon.glb
 
     # Model variable mapping
     model_variable: sst

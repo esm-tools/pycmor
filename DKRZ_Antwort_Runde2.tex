@@ -1,0 +1,236 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,urlcolor=blue!60!black,linkcolor=black]{hyperref}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\ok}{\textcolor{green!45!black}{\textbf{erledigt}}}
+\newcommand{\offen}{\textcolor{orange!75!black}{\textbf{offen}}}
+\newcommand{\upstream}{\textcolor{blue!60!black}{\textbf{upstream}}}
+
+\title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
+\large Antwort auf deinen Koordinaten-Check von \code{cli112}}
+\author{Jan Streffing, AWI}
+\date{13. August 2026}
+
+\begin{document}
+% babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt:
+% operation="instant" wurde als operation=ïnstant" gesetzt. Die Shorthands
+% werden erst bei \begin{document} scharfgeschaltet, also muss das hierhin.
+\shorthandoff{"}
+\maketitle
+
+\section{Kurzfassung}
+
+Danke f\"ur den Koordinaten-Check. Wir haben alle deine Punkte auf den 540 Dateien
+von \code{cli112} nachgestellt, jeder einzelne reproduziert. Sieben von acht sind
+behoben, einer ist offen und hat eine Frage an dich dran.
+
+Ein Unterschied zum letzten Mal: die Zahlen unten sind der Befund auf
+\code{cli112}, nicht das Ergebnis danach. Der Lauf, der die Korrekturen zeigt,
+l\"auft gerade. Wir schicken die Gegenprobe nach, statt sie hier schon zu
+behaupten.
+
+\begin{center}
+\begin{tabular}{llr l}
+\toprule
+& \textbf{Befund} & \textbf{Dateien} & \textbf{Stand} \\
+\midrule
+1 & unstrukturiert, ganz ohne \code{lat}/\code{lon}      & 16  & \ok \\
+2 & \code{lev}-Dimension ohne \code{lev}-Variable        & 2   & \ok \\
+3 & horizontal vor vertikal                              & 25  & \ok \\
+4 & Dimension hei\ss t \code{plev19} / \code{plev3}      & 17  & \ok \\
+5 & \code{lat\_bnds} \"uber \code{nvertex}               & 447 & \ok \\
+6 & \code{coordinates} listet Koordinatenvariablen       & 490 & \ok \\
+7 & \code{typetree*} alle mit Wert \code{trees}          & 4 Regeln & \ok \\
+8 & \code{tclm} ohne \code{climatology\_bnds}            & 1   & \offen \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Die einzelnen Punkte}
+
+\subsection*{1. Unstrukturierte Dateien ganz ohne \code{lat}/\code{lon}}
+\ok\ 16 Dateien hatten nur einen nackten Zellindex und keine geographische
+Koordinate: \code{rlds}, \code{rlus}, \code{rsds}, \code{rsus}, \code{sbl},
+\code{sifllattop}, \code{siflsenstop}, \code{volcello} und \code{deptho} auf dem
+Knotengitter, \code{hfx} und \code{hfy} auf dem Elementgitter.
+
+Die Ursache ist unspektakul\"ar und daf\"ur lehrreich: die meisten FESOM-Streams
+bringen \code{lat}/\code{lon} von XIOS schon mit, deshalb steht in keinem unserer
+Rezepte ein expliziter Gitter-Schritt. Bei den paar Streams, die sie nicht
+mitbringen, f\"allt das entsprechend still hinten runter.
+
+Wir holen sie jetzt aus dem Mesh, auf das ohnehin jede FESOM-Regel zeigt. Knoten
+direkt, Elemente aus der \code{triag\_nodes}-Konnektivit\"at: die drei Eckknoten
+sind die Zellecken, ihr Mittel der Schwerpunkt. Gemittelt wird \"uber
+Einheitsvektoren, sonst landet ein Dreieck auf der Datumsgrenze bei
+L\"ange 0 statt 180. Gegengepr\"uft: alle 6229020 Schwerpunkte liegen im
+Breitenbereich ihres eigenen Dreiecks.
+
+\subsection*{2. \code{lev}-Dimension ohne \code{lev}-Variable}
+\ok\ Betroffen waren \code{masscello} und \code{thkcello}, und da steckte mehr
+dahinter als eine fehlende Koordinate. Beide kamen als reines Profil
+\code{(lev)} heraus, ohne jede horizontale Dimension, obwohl ihre Branding
+\code{ti-ol-hxy-sea} ein horizontales Feld verlangt. Die zeitabh\"angigen
+Geschwister derselben Variablen haben \code{(time, nod2, lev)}.
+
+Beim Nachsehen ist \code{volcello} als \code{fx} gleich mit aufgefallen, das du
+nicht gemeldet hattest: es lag als \code{volcello(ncells, nz1)} vor.
+\code{nz1} ist ein FESOM-interner Name, eine Level-Koordinate gab es auch dort
+nicht. Alle drei liegen jetzt als \code{(lev, ncells)} vor.
+
+Zwei Sachen sind dabei mit herausgefallen, die wir sonst nicht gefunden h\"atten:
+
+\begin{itemize}
+\item Unser Mesh deklariert 57 Level, aber die letzten Eintr\"age sind Datenm\"ull.
+      \code{depth} endet auf 5825, 6125, \emph{3160}, \code{depth\_bnds} auf 6000,
+      6250, \emph{70}. Echt sind 56 Schichten, was FESOM selbst auch so schreibt.
+      Deshalb waren die \code{fx}-Dateien eine Ebene l\"anger als die
+      Monatsdateien, die sie beschreiben sollen. Wir schneiden jetzt auf den
+      monoton steigenden Anfang zu, statt der deklarierten L\"ange zu glauben.
+\item Die S\"aulen endeten nicht am Meeresboden. Das tun sie jetzt, und die
+      Abbruchbedingung ist gemessen statt geraten: ein Knoten mit
+      \code{depth\_lev = 3} hat im Modellstrom 4 nasse Ebenen, also ist Ebene $k$
+      nass f\"ur $k \le$ \code{depth\_lev}. Stimmt bei allen Stichproben, nasser
+      Anteil 64{,}1\,\%, Dicken 5 bis 350\,m wie im Modellstrom.
+\end{itemize}
+
+\subsection*{3. Horizontal vor vertikal}
+\ok\ Hier hattest du recht und wir hatten den Block zuerst falsch eingeordnet.
+Wir hatten ihn f\"ur ein Artefakt des Checkers gehalten, weil er die
+unstrukturierte Zelldimension als horizontale Achse vom Typ A r\"at. Das stimmt
+auch f\"ur einen Teil, aber eben nur f\"ur einen: 25 Dateien haben die
+Reihenfolge wirklich verkehrt herum, \code{difvso(time, nod2, lev)},
+\code{hfx(time, elem, lev)} und so weiter. FESOM schreibt die Vertikale hinten,
+und daran hat nach dem Dimension-Mapping niemand mehr gedreht.
+
+Wir sortieren die Vertikale jetzt vor die erste horizontale Dimension. Bewusst
+nur das: CF stellt auch die \"ubrigen Dimensionen gern nach links, aber die
+Dateien laufen dort durch, und wir wollten nicht Ausgabe umr\"uhren, zu der es
+keinen Befund gibt.
+
+\subsection*{4. \code{plev19} und \code{plev3} als Dimensionsname}
+\ok\ In \code{CMIP7\_coordinate.json} haben \code{plev3}, \code{plev19} und
+\code{plev39} alle den \code{out\_name} \code{plev}. Die Zahl ist eine Stufe des
+Data Request und geh\"ort in die L\"ange der Dimension, nicht in ihren Namen.
+Sonst \"andert sich der Dimensionsname mit der angeforderten Stufe. Betraf 17
+Dateien \"uber \code{hur}, \code{hus}, \code{ta}, \code{ua} und \code{va}.
+
+\subsection*{5. Zellgrenzen: \code{vertices\_latitude} statt \code{lat\_bnds}}
+\ok\ Und der Befund war schlimmer, als er in deiner Liste aussieht, weil unsere
+Ausgabe nicht einmal in sich konsistent war. Je nachdem, ob die Grenzen aus dem
+XIOS-Strom oder aus dem Mesh kamen, hie\ss\ die Vertex-Dimension anders:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+\textbf{Vertex-Dimension} & \textbf{Dateien} \\
+\midrule
+\code{nvertex}  & 330 \\
+\code{vertices} & 117 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Jetzt einheitlich \code{vertices\_latitude(<Zellen>, vertices)} und
+\code{vertices\_longitude}, wie CMOR. Nur f\"ur echte Hilfskoordinaten, also
+unstrukturierte Gitter; auf regul\"aren Gittern bleibt \code{lat\_bnds(lat, bnds)}
+stehen, das ist dort richtig.
+
+\subsection*{6. \code{coordinates} listet Koordinatenvariablen}
+\ok\ Wir hatten das Attribut aus allen Dimensionen und Koordinaten der Variablen
+zusammengebaut, statt nur aus den Hilfskoordinaten. CF \S5 will dort das, was
+\"uber die Dimensionsnamen nicht auffindbar ist. So sah das aus:
+
+\begin{center}
+\begin{tabular}{rl}
+\toprule
+\textbf{Dateien} & \textbf{\code{coordinates}} \\
+\midrule
+199 & \code{time lat lon} \\
+115 & \code{time lon lat} \\
+ 40 & \code{time} \\
+ 30 & \code{time lev lat lon} \\
+ 27 & \code{time lon lat type} \\
+ 23 & \code{time lat lon height} \\
+ 19 & \code{time lon lat sector} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\code{lat} und \code{lon} geh\"oren auf dem unstrukturierten Gitter da hin, auf
+dem regul\"aren nicht, und \code{time} und \code{lev} in keinem Fall.
+\code{type}, \code{sector} und \code{height} sind Skalare und bleiben. Wo nach
+dem Aufr\"aumen nichts \"ubrig bleibt, f\"allt das Attribut ganz weg.
+
+\subsection*{7. \code{typetree*}}
+\ok\ Und hier w\"are ein Blick von deiner Seite n\"utzlich. Unsere Kopie von
+\code{CMIP7\_coordinate.json} tr\"agt bei allen vier Bl\"atter-Varianten den Wert
+\code{trees}:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Variable} & \textbf{geschrieben} & \textbf{richtig w\"are} \\
+\midrule
+\code{treeFrac}       & \code{trees} & \code{trees} \\
+\code{treeFracBdlDcd} & \code{trees} & \code{broadleaf\_deciduous\_trees} \\
+\code{treeFracBdlEvg} & \code{trees} & \code{broadleaf\_evergreen\_trees} \\
+\code{treeFracNdlDcd} & \code{trees} & \code{needleleaf\_deciduous\_trees} \\
+\code{treeFracNdlEvg} & \code{trees} & \code{needleleaf\_evergreen\_trees} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Damit sind die vier Variablen auf der Platte nicht auseinanderzuhalten, obwohl
+die Blattform der ganze Punkt an ihnen ist. Die CF-Area-Type-Tabelle f\"uhrt die
+spezifischen Begriffe seit langem, und alle anderen Eintr\"age in derselben
+Tabelle sind bei uns korrekt spezifisch, etwa \code{cropFracC3} mit
+\code{crops\_of\_c3\_plant\_functional\_types}.
+
+CMIP6 hatte an derselben Stelle ebenfalls \"uberall \code{trees}. Unsere Kopie
+tr\"agt \code{table\_date 2026-07-09}. Wir setzen die vier Werte lokal, mit
+einer Notiz, das wieder rauszunehmen, sobald es upstream steht. Falls die
+ver\"offentlichte Tabelle das noch so f\"uhrt, w\"are das vermutlich f\"ur mehr
+Gruppen als uns relevant.
+
+\subsection*{8. \code{tclm} ohne \code{climatology\_bnds}}
+\offen\ Du hast recht, die Datei schreibt \code{time\_bnds}. Wir m\"ochten das
+aber nicht einfach umbenennen, weil dann etwas Falsches sauber aussieht.
+
+Betroffen ist genau eine Regel, \code{atmos.pfull.tclm-al-hxy-u.mon.glb}. Die
+Pipeline dahinter bildet gar keine Klimatologie, sie mittelt ein Jahr monatsweise
+und schreibt das unter dem \code{tclm}-Label. Nur die CF-Attribute
+nachzur\"usten, w\"urde eine mislabelte Datei durch den Checker bringen. Richtig
+ist, \"uber die Jahre zu mitteln, und das steht bei uns f\"ur den
+Produktionslauf an.
+
+Die Frage an dich: ist \code{tclm} bei monatlicher Frequenz so gemeint, dass die
+Klimatologie \"uber den gesamten publizierten Zeitraum geht? Dann h\"angt die
+Datei am Ende des Laufs und nicht an einem einzelnen Jahr, und der
+Dateiname-Zeitraum m\"usste den ganzen Bereich abdecken.
+
+\section{Noch offen von letztem Mal}
+
+Danke f\"ur die Einordnung zu \code{grid\_label} bei Dateien ohne horizontales
+Gitter. Wir registrieren f\"ur die zonalen und Becken-Variablen ein eigenes
+Output-Grid, statt sie unter dem Gitter mitlaufen zu lassen, aus dem sie
+gerechnet wurden.
+
+Zur \code{vegtype}-Achse: sie deckt jetzt alle 44 PFT-Spalten ab, verteilt auf
+elf Kategorien aus der CF-Area-Type-Tabelle. Moose und Flechten laufen unter
+\code{vegetation} mit, weil es f\"ur sie keinen eigenen CF-Begriff gibt. Einen
+neuen zu beantragen, halten wir nicht f\"ur unsere Aufgabe, und still wegfallen
+lassen wollten wir sie erst recht nicht. Nicht zuordenbare Spalten l\"osen jetzt
+einen Fehler aus, statt zu verschwinden; es gibt aktuell keine mehr.
+
+\end{document}

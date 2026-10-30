@@ -52,7 +52,18 @@ def is_datetime_type(arr: np.ndarray) -> bool:
     >>> print(is_datetime_type(int_arr))
     False
     """
-    return isinstance(arr.item(0), tuple(cftime._cftime.DATE_TYPES.values())) or np.issubdtype(arr.dtype, np.datetime64)
+    if np.issubdtype(arr.dtype, np.datetime64):
+        return True
+    data = arr.data if hasattr(arr, "data") else arr
+    if hasattr(data, "compute"):
+        try:
+            sample = np.asarray(data[:1])
+        except Exception:
+            sample = np.asarray(data.compute()[:1])
+        first = sample.item(0) if sample.size else None
+    else:
+        first = arr.item(0)
+    return isinstance(first, tuple(cftime._cftime.DATE_TYPES.values()))
 
 
 def get_time_label(ds):

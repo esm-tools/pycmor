@@ -1,0 +1,127 @@
+tier: extra_land
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: lai_mon
+  compound_name: land.lai.tavg-u-hxy-lnd.mon.glb
+  model_variable: lai
+  source_units: m2 m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: lai_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: c3PftFrac_mon
+  compound_name: land.c3PftFrac.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: c3PftFrac_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: c4PftFrac_mon
+  compound_name: land.c4PftFrac.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: c4PftFrac_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: cropFracC3_mon
+  compound_name: land.cropFracC3.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: cropFracC3_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: cropFracC4_mon
+  compound_name: land.cropFracC4.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: cropFracC4_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: pastureFracC3_mon
+  compound_name: land.pastureFracC3.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: pastureFracC3_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: pastureFracC4_mon
+  compound_name: land.pastureFracC4.tavg-u-hxy-u.mon.glb
+  model_variable: Total
+  source_units: '%'
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: pastureFracC4_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+not_enabled:
+- name: areacellr
+  compound_name: land.areacellr.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: orog_south30
+  compound_name: land.orog.ti-u-hxy-u.fx.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: dcw_day
+  compound_name: land.dcw.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: dslw_day
+  compound_name: land.dslw.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrsow_day
+  compound_name: land.mrsow.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tas_1hr_south30
+  compound_name: atmos.tas.tavg-h2m-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
