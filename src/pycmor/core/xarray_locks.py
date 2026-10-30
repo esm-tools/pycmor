@@ -17,7 +17,8 @@ in. ``CombinedLock.__exit__`` releases NETCDFC_LOCK before HDF5_LOCK, so a
 collection in between takes NETCDFC_LOCK, fails on HDF5_LOCK, and every later
 netCDF open or close in the process waits forever.
 
-xarray 2026.09.0 fixes it (pydata/xarray#11622).
+xarray 2026.09.0 fixes it (pydata/xarray#11622). Only this part of that pull
+request was backported at first, not its lock order, see below.
 
 All or nothing
 --------------
@@ -47,7 +48,10 @@ ever. The hash is the object's address, so this is settled at import: 3 of 400
 process starts had the orders reversed, about the rate shards wedged at, and
 the first read that meets a write ends such a shard, which is why they stopped
 on their first saves and why a retry, a new process, always got through.
-:func:`_in_order` gives every combination one order.
+:func:`_in_order` gives every combination one order: per-file locks, then
+NETCDFC_LOCK, then HDF5_LOCK. pydata/xarray#11622 found the same bug and fixed
+it in 2026.09.0 by sorting on ``id()``, which pickled copies of a lock break;
+#11645 replaced that with this same hierarchy after that release.
 
 The watchdog's stack dumps show every save thread waiting in
 ``CombinedLock.__enter__`` and nobody inside netCDF, which was first read as a
@@ -70,6 +74,14 @@ id: a frame that returned frees its address, and the owner's next call to the
 same function gets it back. A hold with no owner on record is released once two
 checks have seen it. Any hold longer than ``REPORT_AFTER_SEC`` is reported with
 the owner thread's current stack and left alone: a deadlock looks like that.
+
+Stand down
+----------
+pydata/xarray#11629 and #11645, merged after 2026.09.0, make both locks
+reentrant and order them upstream, and hold them across nested calls. A
+:class:`TrackedLock` is not reentrant, so swapping it in there would hang the
+first such call. :func:`upstream_has_lock_order` turns the patches here off
+for any xarray that has them.
 """
 
 import sys
@@ -166,12 +178,20 @@ def patch_combined_lock():
     return True
 
 
+def upstream_has_lock_order():
+    """Whether this xarray has reentrant netCDF locks and orders them itself (#11629, #11645)."""
+    return hasattr(_locks, "_ReentrantLock")
+
+
 def harden_combined_lock():
     """Make ``CombinedLock`` take all its locks or none, and always release all of them."""
+    if upstream_has_lock_order():
+        return False
     _locks.CombinedLock.acquire = _acquire
     _locks.CombinedLock.__enter__ = _enter
     _locks.CombinedLock.__exit__ = _exit
     _locks.CombinedLock.release = _release
+    return True
 
 
 def _is_plumbing(frame):
@@ -345,6 +365,9 @@ def install_lock_guard(every=CHECK_EVERY_SEC):
     """Track NETCDFC_LOCK and HDF5_LOCK, and release them when they leak. Idempotent."""
     global _installed
     if _installed is not None:
+        return _installed
+    if upstream_has_lock_order():
+        _installed = []
         return _installed
     tracked = []
     for name in ("NETCDFC_LOCK", "HDF5_LOCK"):

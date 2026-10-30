@@ -1,4 +1,7 @@
-"""Reproduce the netCDF lock leak behind the wedged shards, with and without pycmor's fix.
+"""Reproduce a netCDF lock leak, with and without pycmor's fix.
+
+This is not what wedged the shards, that was a lock-order deadlock, see
+repro_lock_order.py. It is a real leak that the same CombinedLock allows.
 
 With a dask Client active, xarray guards an output file with a CombinedLock of
 NETCDFC_LOCK, HDF5_LOCK and a ``distributed.Lock`` for the file, in set order.

@@ -107,6 +107,7 @@ def test_enter_takes_all_locks_or_none(combined):
     assert not any(part.locked() for part in combined.locks)
 
 
+@pytest.mark.skipif(xarray_locks.upstream_has_lock_order(), reason="this xarray orders its own locks")
 def test_netcdf_locks_are_tracked():
     assert isinstance(locks.NETCDFC_LOCK.lock, xarray_locks.TrackedLock)
     assert isinstance(locks.HDF5_LOCK.lock, xarray_locks.TrackedLock)
@@ -264,3 +265,14 @@ def test_every_combination_takes_the_locks_in_the_same_order(swap):
     taken.clear()
     assert lock.acquire()
     assert taken == ["a file", locks.NETCDFC_LOCK.token, locks.HDF5_LOCK.token]
+
+
+def test_the_patches_stand_down_on_an_xarray_with_reentrant_locks(monkeypatch):
+    monkeypatch.setattr(locks, "_ReentrantLock", object, raising=False)
+    monkeypatch.setattr(xarray_locks, "_installed", None)
+    enter = CombinedLock.__enter__
+    netcdfc = locks.NETCDFC_LOCK.lock
+    assert xarray_locks.harden_combined_lock() is False
+    assert xarray_locks.install_lock_guard() == []
+    assert CombinedLock.__enter__ is enter
+    assert locks.NETCDFC_LOCK.lock is netcdfc

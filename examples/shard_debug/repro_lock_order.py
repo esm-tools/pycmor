@@ -16,6 +16,7 @@ so it depends neither on that luck nor on a thread switch in a tiny window.
 """
 
 import argparse
+import faulthandler
 import sys
 import tempfile
 import threading
@@ -30,7 +31,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--without-fix", action="store_true", help="do not import pycmor")
     ap.add_argument("--rounds", type=int, default=40)
-    ap.add_argument("--timeout", type=float, default=120)
+    ap.add_argument("--stall", type=float, default=30, help="seconds without progress that count as a deadlock")
     args = ap.parse_args()
     if not args.without_fix:
         import pycmor.std_lib  # noqa: F401  (orders CombinedLock)
@@ -53,22 +54,37 @@ def main():
     locks.SerializableLock.__enter__ = enter_then_pause
 
     finished = threading.Event()
+    reads, writes = [0], [0]
 
     def reader():
         for _ in range(args.rounds):
             with xr.open_dataset(src) as ds:
                 ds["a"].values
+            reads[0] += 1
         finished.set()
 
     def writer():
         while not finished.is_set():
             with write:
-                pass
+                writes[0] += 1
+            time.sleep(0.002)  # locks are not fair: without this the writer starves the reader
 
     for fn in (reader, writer):
         threading.Thread(target=fn, daemon=True).start()
-    ok = finished.wait(args.timeout)
-    print("all rounds finished" if ok else f"DEADLOCK: no finish in {args.timeout:.0f}s")
+
+    # A deadlock is both threads stopping, not a slow finish.
+    last, since = None, time.monotonic()
+    while not finished.wait(1):
+        now = (reads[0], writes[0])
+        if now != last:
+            last, since = now, time.monotonic()
+        elif time.monotonic() - since > args.stall:
+            break
+    ok = finished.is_set()
+    print("all rounds finished" if ok else f"DEADLOCK: no progress for {args.stall:.0f}s")
+    print(f"reads={reads[0]}/{args.rounds} writes={writes[0]}")
+    if not ok:
+        faulthandler.dump_traceback(all_threads=True)
     print(f"NETCDFC_LOCK held={locks.NETCDFC_LOCK.locked()} HDF5_LOCK held={locks.HDF5_LOCK.locked()}", flush=True)
     sys.exit(0 if ok else 1)
 
