@@ -1,4 +1,4 @@
-"""xarray's netCDF locks: a backported fix, and a guard against leaked locks.
+"""xarray's netCDF locks: one lock order, a backported fix, and a guard against leaked locks.
 
 Every netCDF open, read and close in a process goes through two plain
 ``threading.Lock`` objects, ``NETCDFC_LOCK`` and ``HDF5_LOCK``. A shard runs
@@ -17,10 +17,7 @@ in. ``CombinedLock.__exit__`` releases NETCDFC_LOCK before HDF5_LOCK, so a
 collection in between takes NETCDFC_LOCK, fails on HDF5_LOCK, and every later
 netCDF open or close in the process waits forever.
 
-That is the shard hang of cli126 y1852 lrcs_land_shard_00, where the
-watchdog's stack dump showed all six save threads waiting in
-``CombinedLock.__enter__`` with no thread holding the lock. xarray 2026.09.0
-fixes it (pydata/xarray#11622).
+xarray 2026.09.0 fixes it (pydata/xarray#11622).
 
 All or nothing
 --------------
@@ -28,38 +25,51 @@ All or nothing
 when a later one raises; ``release`` and ``__exit__`` stop at the first lock
 that raises. Writing a file while a dask Client is active puts a
 ``distributed.Lock`` for the file into the combination, next to NETCDFC_LOCK
-and HDF5_LOCK, in set order, so per file at random. That lock talks to the
-scheduler and can raise. One way, reproduced with
-``examples/shard_debug/repro_lock_leak.py``: the garbage collector frees an
-unclosed output file on the Client's event-loop thread, where
-``distributed.Lock.acquire`` returns an unawaited coroutine instead of taking
-the lock, so ``release`` raises "Released too often". When the distributed
-lock comes first, NETCDFC_LOCK and HDF5_LOCK are never released.
+and HDF5_LOCK. That lock talks to the scheduler and can raise. One way,
+reproduced with ``examples/shard_debug/repro_lock_leak.py``: the garbage
+collector frees an unclosed output file on the Client's event-loop thread,
+where ``distributed.Lock.acquire`` returns an unawaited coroutine instead of
+taking the lock, so ``release`` raises "Released too often". When the
+distributed lock comes first, NETCDFC_LOCK and HDF5_LOCK are never released.
 :func:`harden_combined_lock` makes entering take all locks or none, and
 releasing release every lock before it re-raises.
 
+One order
+---------
+This is what wedged the shards. ``CombinedLock`` keeps its locks in set order.
+Reads go through ``NETCDF4_PYTHON_LOCK``, ``set([NETCDFC_LOCK, HDF5_LOCK])``;
+writes through a combination built from that lock's own tuple plus a lock for
+the file. When the two locks fall into the same slot of the set's table, who
+gets the slot depends on which is inserted first, and the second build inserts
+them in the opposite order. A reader then takes HDF5_LOCK and waits for
+NETCDFC_LOCK while a writer holds NETCDFC_LOCK and waits for HDF5_LOCK, for
+ever. The hash is the object's address, so this is settled at import: 3 of 400
+process starts had the orders reversed, about the rate shards wedged at, and
+the first read that meets a write ends such a shard, which is why they stopped
+on their first saves and why a retry, a new process, always got through.
+:func:`_in_order` gives every combination one order.
+
+The watchdog's stack dumps show every save thread waiting in
+``CombinedLock.__enter__`` and nobody inside netCDF, which was first read as a
+leaked lock (the cli126 and cli129 hangs, then 1pctCO2 y1850 cap7_atm_shard_00).
+Replaying cli130 extra_land_shard_00 caught it on the 21st run: the long
+hold report named a live reader holding one lock and a live writer the other.
+``examples/shard_debug/repro_lock_order.py`` reproduces it on demand.
+
 Leak guard
 ----------
-The backport did not end the hangs: cli129 y1852 cap7_land_shard_02 and
-1pctCO2 y1850 cap7_atm_shard_00 wedged with the same signature on code that
-has it, so there is at least one more path that leaves a lock held.
-
 ``install_lock_guard`` swaps the ``threading.Lock`` inside both locks for a
-:class:`TrackedLock`, which remembers the thread and the frame that took it. A
-lock is leaked when it is still held but that frame is no longer on the
-owner's stack (or the owner thread is gone): the ``with`` block it guarded has
-ended, so nobody is inside netCDF on its behalf. The guard thread then logs
-the stack it was taken from, which names the leak, and releases it, so the
-shard carries on instead of waiting for the watchdog.
+:class:`TrackedLock`, which remembers the thread and the frame that took it,
+and a guard thread watches them, in case anything does leave one held.
 
-cli130 y1852 core_ocean_shard_00 and extra_land_shard_00 still wedged with
-the guard alive and silent. It compared frames by id, and an owner that leaks
-the lock and calls the same function again gets the freed frame's address
-back, so the guard found the leaking frame "still" on its stack while the
-owner waited on its own lock. The record now keeps the frame itself. The guard
-also releases a hold with no owner on record once two checks have seen it, and
-reports any hold longer than ``REPORT_AFTER_SEC`` together with the owner
-thread's current stack, without releasing it.
+A lock is leaked when it is still held but that frame is no longer on the
+owner's stack (or the owner thread is gone): the ``with`` block it guarded has
+ended, so nobody is inside netCDF on its behalf. The guard logs the stack it
+was taken from and releases it. The record keeps the frame itself and not its
+id: a frame that returned frees its address, and the owner's next call to the
+same function gets it back. A hold with no owner on record is released once two
+checks have seen it. Any hold longer than ``REPORT_AFTER_SEC`` is reported with
+the owner thread's current stack and left alone: a deadlock looks like that.
 """
 
 import sys
@@ -97,10 +107,20 @@ def _release_all(locks, release=lambda lock: lock.release()):
         raise error
 
 
+def _in_order(locks):
+    """Return ``locks`` in the one order every CombinedLock takes them.
+
+    Per-file locks come first, so nobody waits for a file or the scheduler
+    while holding the locks the whole process needs.
+    """
+    rank = {_locks.NETCDFC_LOCK.token: 1, _locks.HDF5_LOCK.token: 2}
+    return sorted(locks, key=lambda lock: rank.get(getattr(lock, "token", None), 0))
+
+
 def _acquire(self, blocking=True):
     acquired = []
     try:
-        for lock in self.locks:
+        for lock in _in_order(self.locks):
             if not _locks.acquire(lock, blocking=blocking):
                 break
             acquired.append(lock)
@@ -116,7 +136,7 @@ def _acquire(self, blocking=True):
 def _enter(self):
     entered = []
     try:
-        for lock in self.locks:
+        for lock in _in_order(self.locks):
             lock.__enter__()
             entered.append(lock)
     except BaseException:

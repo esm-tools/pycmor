@@ -233,3 +233,34 @@ def test_a_long_live_hold_is_reported_once_and_left_alone(monkeypatch):
     assert lock.locked()
     go.set()
     t.join(5)
+
+
+class _NamedLock:
+    def __init__(self, token, taken):
+        self.token, self.taken = token, taken
+
+    def acquire(self, blocking=True):
+        return self.__enter__() or True
+
+    def __enter__(self):
+        self.taken.append(self.token)
+
+    def __exit__(self, *args):
+        pass
+
+    def release(self):
+        pass
+
+
+@pytest.mark.parametrize("swap", [False, True])
+def test_every_combination_takes_the_locks_in_the_same_order(swap):
+    taken = []
+    held = [_NamedLock(t, taken) for t in (locks.NETCDFC_LOCK.token, locks.HDF5_LOCK.token, "a file")]
+    lock = CombinedLock(held)
+    lock.locks = tuple(held[::-1]) if swap else tuple(held)
+    with lock:
+        pass
+    assert taken == ["a file", locks.NETCDFC_LOCK.token, locks.HDF5_LOCK.token]
+    taken.clear()
+    assert lock.acquire()
+    assert taken == ["a file", locks.NETCDFC_LOCK.token, locks.HDF5_LOCK.token]
