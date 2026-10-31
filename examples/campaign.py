@@ -41,7 +41,9 @@ project as ``output_root`` so publishing is a rename, not a copy),
 ``account`` (ab0246), ``driver_attempts`` (3), ``first_year_attempts`` (2, for
 the first year of every launch), ``max_consecutive_fails`` (2),
 ``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout),
-``with_gr`` (false; true also writes the regridded FESOM output, g131).
+``with_gr`` (false; true also writes the regridded FESOM output, g131),
+``overlap`` (false; true runs two years at once, see run_year_chain.sbatch; it
+changes when years run, not what they write, so it is not pinned).
 
 Where campaigns run: ``campaign_root`` (campaign.yaml, then
 ``$PYCMOR_CAMPAIGN_ROOT``, then ``/work/bb1469/$USER/cmor_campaigns``). Put
@@ -173,6 +175,9 @@ def load(path):
     cfg.setdefault("with_gr", False)
     if not isinstance(cfg["with_gr"], bool):
         raise CampaignError(f"with_gr must be true or false, not {cfg['with_gr']!r}")
+    cfg.setdefault("overlap", False)
+    if not isinstance(cfg["overlap"], bool):
+        raise CampaignError(f"overlap must be true or false, not {cfg['overlap']!r}")
     cfg.setdefault("production", DEFAULT_PRODUCTION.get(cfg["model"]))
     if cfg["production"] is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(cfg["production"])):
         raise CampaignError(f"production {cfg['production']!r} is not a profile name")
@@ -628,6 +633,7 @@ def env(cfg):
         # cannot reach its jobs through --export=ALL. The driver sets TIER
         # itself when it resubmits a tier.
         "WITH_GR": "yes" if cfg["with_gr"] else "no",
+        "OVERLAP": "yes" if cfg["overlap"] else "no",
         "TIER": "",
         "RULES": "",
         **_env_values(cfg),

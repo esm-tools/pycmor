@@ -126,6 +126,9 @@ campaign.yaml
    * - ``driver_attempts``, ``first_year_attempts``, ``max_consecutive_fails``
      - retry policy, defaults 3, 2 and 2 (see below)
      - no
+   * - ``overlap``
+     - run two years at once, default ``false`` (see below)
+     - no
 
 Experiment metadata (``experiment_id``, parent experiment, branch times,
 forcing year) is never written in ``campaign.yaml``. It comes from the named
@@ -199,6 +202,21 @@ manifests to see whether every rule wrote its output.
   retried, so it costs one year of node hours. The second attempt only reruns
   the tiers that came up short, e.g. a shard the watchdog cancelled.
 * ``max_consecutive_fails`` failed years in a row halt the chain.
+
+A year only fills the job limit (``MaxJobs`` 20) for a short while, then waits
+hours for a few long shards. With ``overlap: true`` the next year starts in that
+gap: each job submits the next year when it starts, held until the job before it
+ends, so two years run at once. On the 1pctCO2 job mix that takes a year from
+3.75 to about 2.5 hours. Decadal rules are unaffected, the closing year reads its
+ten years of model output itself. What does keep its order:
+
+* A year waits for the previous year's ``cap7_atm``, which folds ``pfull`` into
+  the running climatology, before it submits. Only the last snapshot of that
+  file survives, so the years have to enter in order.
+* A year publishes only after the previous year has ended.
+* The first year of a start still runs alone.
+* A failed year is counted from the ``YYYY.FAILED`` markers, so a halt can come
+  one year later than without overlap.
 
 Each shard runs under a watchdog that cancels it after 90 minutes without
 progress. A rare hang of this kind is cured by the retry.

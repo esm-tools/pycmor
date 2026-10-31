@@ -73,6 +73,7 @@ def _write_campaign(tmp_path, code_repo, **over):
         ({"inherit": {"branch_time_in_parent": 1.0}}, "owns"),
         ({"inherit": {"experiment_id": "piControl"}}, "owns"),
         ({"output_root": "relative/out"}, "absolute"),
+        ({"overlap": "yes"}, "overlap must be true or false"),
     ],
 )
 def test_load_rejects_bad_campaigns(campaign, tmp_path, code_repo, over, msg):

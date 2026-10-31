@@ -52,6 +52,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SUBMIT = HERE / "submit_hr_year_shards.sh"
 DEFAULT_EMAIL = os.environ.get("NOTIFY_EMAIL", "jan.streffing@awi.de")
+# Tiers that add to a running accumulator. The climatology a year writes is a
+# snapshot of the years folded in so far, and only the last one published
+# survives, so with years overlapping these tiers still have to run in order.
+ORDERED_TIERS = {"cap7_atm"}
 
 
 def log(msg):
@@ -243,6 +247,30 @@ def wait_for(job_ids, poll=120):
         time.sleep(poll)
 
 
+def job_gone(job_id):
+    """True when a job has left the queue. A failing squeue says nothing either way."""
+    res = subprocess.run(["squeue", "-h", "-j", job_id, "-o", "%i"], capture_output=True, text=True)
+    if res.stdout.strip():
+        return False
+    return res.returncode == 0 or "Invalid job id" in res.stderr
+
+
+def accumulators_folded(workdir):
+    """True when every shard of the ordered tiers has finished with all its rules."""
+    shards = [stem for stem, tier in expected_shards(workdir).items() if tier in ORDERED_TIERS]
+    manifests = read_manifests(workdir)
+    return bool(shards) and all(s in manifests and not manifests[s].get("incomplete") for s in shards)
+
+
+def wait_until(done, what, poll=120):
+    if done():
+        return
+    log(f"waiting for {what}")
+    while not done():
+        time.sleep(poll)
+    log(f"done waiting for {what}")
+
+
 def notify(email, subject, body):
     """Send mail, preferring the local MTA and falling back to SMTP."""
     log(f"notifying {email}: {subject}")
@@ -268,6 +296,10 @@ def notify(email, subject, body):
 def finish(args, workdir, how):
     note = f"{how} at {time.strftime('%Y-%m-%dT%H:%M:%S')}"
     if args.publish_to:
+        # In year order: fx fields come out of every year under the same name,
+        # and two years copying one across quotas would share a staging file.
+        if args.after_job:
+            wait_until(lambda: job_gone(args.after_job), f"job {args.after_job} before publishing", args.poll)
         moved, replaced = publish(workdir, args.publish_to)
         note += f"; published {moved} file(s) to {args.publish_to} ({replaced} replaced)"
         log(f"published {moved} file(s) to {args.publish_to} ({replaced} replaced)")
@@ -294,6 +326,16 @@ def main():
         default=None,
         help="output root to move the year's files into once it is complete (campaign mode)",
     )
+    ap.add_argument(
+        "--previous-workdir",
+        default=None,
+        help="the year before, when it may still be running: wait for its ORDERED_TIERS before submitting",
+    )
+    ap.add_argument(
+        "--after-job",
+        default=None,
+        help="chain job of the year before: stop waiting for it when it ends, and publish only after it",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -317,6 +359,11 @@ def main():
         if not bad_tiers:
             log("manifests already show this year complete; not resubmitting")
             return finish(args, workdir, "already complete on restart")
+
+    if args.previous_workdir and not args.dry_run:
+        before = Path(args.previous_workdir)
+        over = (lambda: job_gone(args.after_job)) if args.after_job else (lambda: True)
+        wait_until(lambda: over() or accumulators_folded(before), f"{sorted(ORDERED_TIERS)} of {before}", args.poll)
 
     problems = []
     bad_tiers = set()

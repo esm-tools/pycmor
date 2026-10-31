@@ -43,6 +43,18 @@
 # But after max_consecutive_fails failed years in a row (default 2) it halts,
 # since that pattern means something systematic.
 #
+# Overlap: with overlap: true in the campaign file, two years run at once, which
+# fills the slots a year leaves empty while its last long shards finish (MaxJobs
+# is 20; a year uses about half of them). Each job then submits the next year
+# when it starts instead of when it ends, held by a dependency on the job before
+# it, so a year starts when the one before last ends. A pending job takes no
+# slot. The first year of a launch still runs alone, as the check above. The
+# failure count cannot be handed on any more, because the next job exists before
+# this year has a result, so each job counts the .FAILED markers behind it; a
+# halt can come one year later than without overlap. run_year_driver.py keeps the
+# order where it matters: it waits for the previous year's accumulator tier
+# before submitting, and for the previous year to end before publishing.
+#
 # Usage (what start_campaign.sh runs):
 #   sbatch --chdir=<campaign>/logs --job-name=pycmor-<name>-y<YEAR> \
 #     --export=ALL,CHAIN_START=1 <campaign>/code/examples/run_year_chain.sbatch \
@@ -54,7 +66,9 @@ CAMPAIGN="$(readlink -f "${1:?usage: run_year_chain.sbatch <campaign.yaml> <year
 YEAR="${2:?usage: run_year_chain.sbatch <campaign.yaml> <year>}"
 CODE="$(dirname "$CAMPAIGN")/code"
 CHAIN_START="${CHAIN_START:-0}"
+CHAIN_FIRST="${CHAIN_FIRST:-$YEAR}"
 CONSECUTIVE_FAILS="${CONSECUTIVE_FAILS:-0}"
+PREV_JOB="${PREV_JOB:-}"
 
 # shellcheck disable=SC1090
 source "${PYCMOR_CONDA_INIT:-/work/ab0246/a270092/software/miniforge3/etc/profile.d/conda.sh}"
@@ -76,9 +90,58 @@ WORKDIR="$WORKROOT/y$YEAR"
 echo "=== campaign $JOB_TAG  year $YEAR of $LAST_YEAR  code $PYCMOR_CODE_COMMIT  DRS $PYCMOR_DRS_VERSION ==="
 echo "=== workdir=$WORKDIR  output=$OUTPUT_ROOT  attempts=$attempts  consecutive_fails_so_far=$CONSECUTIVE_FAILS ==="
 
+NEXT=$((YEAR + 1))
+
+# Submit the next year, after job $1 if that is still in the queue.
+submit_next() {
+  local dep=()
+  if [ -n "$1" ] && [ -n "$(squeue -h -j "$1" -o %i 2>/dev/null)" ]; then
+    dep=(--dependency="afterany:$1")
+  fi
+  next_jid=$(sbatch --parsable --chdir="$LOGS_DIR" --account="$ACCOUNT" "${dep[@]}" \
+    --job-name="pycmor-$JOB_TAG-y$NEXT" --mail-user="$MAIL_USER" \
+    --export=ALL,CONSECUTIVE_FAILS="$CONSECUTIVE_FAILS",CHAIN_START=0,CHAIN_FIRST="$CHAIN_FIRST",PREV_JOB="${SLURM_JOB_ID:-}" \
+    "$CODE/examples/run_year_chain.sbatch" "$CAMPAIGN" "$NEXT") \
+    && echo "=== submitted year $NEXT as job $next_jid ===" \
+    || { echo "=== ERROR: could not submit year $NEXT; chain stops here ==="; return 1; }
+}
+
+# Failed years in a row right behind this one, within this launch.
+failed_years_behind() {
+  local y=$((YEAR - 1)) n=0
+  while [ "$y" -ge "$CHAIN_FIRST" ] && [ -e "$WORKROOT/y$y/$y.FAILED" ]; do
+    n=$((n + 1))
+    y=$((y - 1))
+  done
+  echo "$n"
+}
+
+overlapping=no
+if [ "${OVERLAP:-no}" = yes ] && [ "$CHAIN_START" != 1 ]; then
+  overlapping=yes
+fi
+
+submit_rc=0
+order_args=()
+if [ "$overlapping" = yes ]; then
+  CONSECUTIVE_FAILS=$(failed_years_behind)
+  if [ "$CONSECUTIVE_FAILS" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
+    echo "=== HALTING CHAIN: $CONSECUTIVE_FAILS consecutive failed years (limit $MAX_CONSECUTIVE_FAILS)."
+    echo "    Fix the cause, then start_campaign.sh again (done years are skipped). ==="
+    exit 0
+  fi
+  if [ "$NEXT" -le "$LAST_YEAR" ]; then
+    submit_next "$PREV_JOB" || submit_rc=3
+  fi
+  order_args=(--previous-workdir "$WORKROOT/y$((YEAR - 1))")
+  if [ -n "$PREV_JOB" ]; then
+    order_args+=(--after-job "$PREV_JOB")
+  fi
+fi
+
 rc=0
 python3 "$CODE/examples/run_year_driver.py" "$RUN_ROOT" "$YEAR" "$WORKDIR" \
-  --attempts "$attempts" --email "" --publish-to "$OUTPUT_ROOT" || rc=$?
+  --attempts "$attempts" --email "" --publish-to "$OUTPUT_ROOT" "${order_args[@]}" || rc=$?
 
 if [ "$rc" -eq 0 ]; then
   CONSECUTIVE_FAILS=0
@@ -87,8 +150,10 @@ else
   echo "=== year $YEAR incomplete; see $WORKDIR/$YEAR.FAILED ==="
 fi
 
-NEXT=$((YEAR + 1))
-if [ "$NEXT" -gt "$LAST_YEAR" ]; then
+if [ "$overlapping" = yes ]; then
+  # The next year is already on its way and decides for itself whether to run.
+  rc=$((rc != 0 ? rc : submit_rc))
+elif [ "$NEXT" -gt "$LAST_YEAR" ]; then
   echo "=== chain finished at $YEAR ==="
 elif [ "$rc" -ne 0 ] && [ "$CHAIN_START" = "1" ]; then
   echo "=== HALTING CHAIN: the first year of this launch failed. Fix the cause, then"
@@ -97,12 +162,7 @@ elif [ "$CONSECUTIVE_FAILS" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
   echo "=== HALTING CHAIN: $CONSECUTIVE_FAILS consecutive failed years (limit $MAX_CONSECUTIVE_FAILS)."
   echo "    Fix the cause, then start_campaign.sh again (done years are skipped). ==="
 else
-  next_jid=$(sbatch --parsable --chdir="$LOGS_DIR" --account="$ACCOUNT" \
-    --job-name="pycmor-$JOB_TAG-y$NEXT" --mail-user="$MAIL_USER" \
-    --export=ALL,CONSECUTIVE_FAILS="$CONSECUTIVE_FAILS",CHAIN_START=0 \
-    "$CODE/examples/run_year_chain.sbatch" "$CAMPAIGN" "$NEXT") \
-    && echo "=== submitted year $NEXT as job $next_jid ===" \
-    || { echo "=== ERROR: could not submit year $NEXT; chain stops here ==="; rc=3; }
+  submit_next "" || rc=3
 fi
 
 # Non-zero only when this year gave up (or the chain could not continue),

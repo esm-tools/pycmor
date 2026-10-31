@@ -597,3 +597,56 @@ def test_driver_keeps_one_drs_version_across_attempts(driver, tmp_path, monkeypa
 
     driver.main()
     assert len(seen) == 3 and len(set(seen)) == 1, seen
+
+
+def test_accumulators_are_folded_only_when_their_tier_is_complete(driver, tmp_path):
+    shards = ["cap7_atm_shard_00", "cap7_atm_shard_01", "core_atm_shard_00"]
+    assert driver.accumulators_folded(_workdir(tmp_path / "a", shards, {"cap7_atm_shard_00": []})) is False
+    bad = {"cap7_atm_shard_00": [], "cap7_atm_shard_01": ["pfull_mon"]}
+    assert driver.accumulators_folded(_workdir(tmp_path / "b", shards, bad)) is False
+    good = {"cap7_atm_shard_00": [], "cap7_atm_shard_01": []}
+    assert driver.accumulators_folded(_workdir(tmp_path / "c", shards, good)) is True
+
+
+def test_a_year_not_yet_sharded_has_not_folded_anything(driver, tmp_path):
+    assert driver.accumulators_folded(_workdir(tmp_path, [], {})) is False
+
+
+@pytest.mark.parametrize(
+    "stdout, rc, stderr, gone",
+    [
+        ("123\n", 0, "", False),
+        ("", 0, "", True),
+        ("", 1, "slurm_load_jobs error: Invalid job id specified", True),
+        ("", 1, "slurm_load_jobs error: Unable to contact slurm controller", False),
+    ],
+)
+def test_job_gone_does_not_take_a_failing_squeue_for_gone(driver, monkeypatch, stdout, rc, stderr, gone):
+    res = SimpleNamespace(stdout=stdout, returncode=rc, stderr=stderr)
+    monkeypatch.setattr(driver.subprocess, "run", lambda *a, **k: res)
+    assert driver.job_gone("123") is gone
+
+
+def _run_main(driver, monkeypatch, wd, *extra):
+    calls = []
+    monkeypatch.setattr(driver, "wait_for", lambda *a, **k: None)
+    monkeypatch.setattr(driver, "assess", lambda w: (set(), []))
+    monkeypatch.setattr(driver, "expected_shards", lambda w: {})
+    monkeypatch.setattr(driver, "publish", lambda *a: calls.append("publish") or (0, 0))
+    monkeypatch.setattr(driver, "submit", lambda *a, **k: calls.append("submit") or ["1"])
+    monkeypatch.setattr(
+        driver, "wait_until", lambda done, what, poll=120: calls.append(what.split()[0] if "job" in what else "fold")
+    )
+    args = ["run_year_driver.py", "/run", "1852", str(wd), "--email", "", "--publish-to", "/out", *extra]
+    monkeypatch.setattr("sys.argv", args)
+    assert driver.main() == 0
+    return calls
+
+
+def test_a_year_folds_after_the_last_and_publishes_after_it(driver, tmp_path, monkeypatch):
+    calls = _run_main(driver, monkeypatch, tmp_path, "--previous-workdir", "/y1851", "--after-job", "7")
+    assert calls == ["fold", "submit", "job", "publish"]
+
+
+def test_without_overlap_nothing_waits(driver, tmp_path, monkeypatch):
+    assert _run_main(driver, monkeypatch, tmp_path) == ["submit", "publish"]
