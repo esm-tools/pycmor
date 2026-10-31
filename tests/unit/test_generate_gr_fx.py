@@ -70,6 +70,41 @@ def test_fx_rule_with_gr_variant_gets_a_twin(tmp_path, monkeypatch):
     ]
 
 
+def test_a_rule_naming_its_native_grid_does_not_keep_it_on_gr(tmp_path, monkeypatch):
+    """tauuo and tauvo said g132 themselves, so their regridded output replaced the native file."""
+    gen = _generator()
+    data = tmp_path / "fesom"
+    data.mkdir()
+    (data / "tx_sur.fesom.gr.1850.nc").write_text("")
+    tier = f"""
+inherit:
+  grid_label: g130
+pipelines:
+  - name: vector_rotation_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+rules:
+  - name: tauuo
+    grid_label: g132
+    grid: FESOM element centres
+    inputs:
+      - path: {data}
+        pattern: tx_sur\\.fesom\\.1850\\.nc
+    compound_name: ocean.tauuo.tavg-u-hxy-sea.mon.glb
+    model_variable: tx_sur
+    pipelines: [vector_rotation_pipeline]
+"""
+    src, dst = tmp_path / "tier.yaml", tmp_path / "tier_gr.yaml"
+    src.write_text(tier)
+    monkeypatch.setattr("sys.argv", ["generate_gr_yaml.py", str(src), str(dst)])
+    gen.main()
+    out = yaml.safe_load(dst.read_text())
+    rule = out["rules"][0]
+    assert rule["name"] == "tauuo"
+    assert "grid_label" not in rule and "grid" not in rule
+    assert out["inherit"]["grid_label"] == "g131"
+
+
 def test_hr_fx_rules_carry_gr_variants():
     names, files = set(), set()
     for tier in ("core_ocean/cmip7_awiesm3-veg-hr_ocean.yaml", "lrcs_ocean/cmip7_awiesm3-veg-hr_lrcs_ocean.yaml"):

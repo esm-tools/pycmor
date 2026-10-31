@@ -319,6 +319,12 @@ def main():
     n_steps_swapped, swapped_pls = swap_native_only_steps(pipelines)
     n_refs = 0
     for r in after_files:
+        # A rule naming its own native grid would beat the g131 in inherit: the
+        # tauuo, tauvo and difmxylo g132 rules wrote regridded data to the native
+        # file's path, so the last tier to finish decided what was published,
+        # and g131 was never written.
+        r.pop("grid_label", None)
+        r.pop("grid", None)
         if set(r.get("pipelines") or []) & swapped_pls:
             if inject_ocean_ref(r):
                 n_refs += 1
