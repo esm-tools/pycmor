@@ -2936,9 +2936,11 @@ def accumulate_monthly_climatology(data, rule):
     # in the last. Those bounds cannot be attached here, because xarray refuses
     # a coordinate whose ``bnds`` dimension the array does not have, and unlike
     # the pdepth case they are not a fixed property of the axis: they move with
-    # every year folded in. Only the two years travel, on the time coordinate,
-    # and files.py:_ensure_climatology_bounds builds the twelve pairs on write.
+    # every year folded in. Only the two years travel, on the rule, as they do
+    # for decadal_gate: attributes of the time coordinate did not reach the write.
+    # files.py builds the twelve pairs, the time stamps and the file name from them.
     first, last = min(counted), max(counted)
+    rule.climatology_years = (first, last)
     months = [int(m) for m in result["month"].values]
     result = result.rename({"month": "time"})
     result = result.assign_coords(time=("time", np.array([np.datetime64(f"{first:04d}-{m:02d}-01") for m in months])))
@@ -2946,7 +2948,6 @@ def accumulate_monthly_climatology(data, rule):
         "standard_name": "time",
         "long_name": "Monthly Climatology",
         "axis": "T",
-        "climatology_years": f"{first} {last}",
     }
     logger.info(f"climatology: {len(counted)} years, {first}-{last}, months {months[0]}..{months[-1]}")
     return result

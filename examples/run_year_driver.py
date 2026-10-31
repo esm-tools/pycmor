@@ -56,6 +56,8 @@ DEFAULT_EMAIL = os.environ.get("NOTIFY_EMAIL", "jan.streffing@awi.de")
 # snapshot of the years folded in so far, and only the last one published
 # survives, so with years overlapping these tiers still have to run in order.
 ORDERED_TIERS = {"cap7_atm"}
+# A running climatology is one file whose name spans the years folded in so far.
+RUNNING_CLIMATOLOGY = re.compile(r"(.*_tclm-[^_]+_.*)_\d{6}-\d{6}\.nc")
 
 
 def log(msg):
@@ -135,6 +137,23 @@ def looks_systematic(workdir, bad_tiers):
     return len(tiers) > 1 and bad_tiers >= tiers
 
 
+def drop_older_climatologies(dest):
+    """Remove the snapshots a published running climatology replaces.
+
+    Other files keep their name from year to year or are a new year. This one
+    gets a new name each year, so publishing would leave every older one next
+    to it.
+    """
+    match = RUNNING_CLIMATOLOGY.fullmatch(dest.name)
+    removed = 0
+    if match:
+        for old in dest.parent.glob(f"{match[1]}_*.nc"):
+            if old != dest and RUNNING_CLIMATOLOGY.fullmatch(old.name):
+                old.unlink()
+                removed += 1
+    return removed
+
+
 def publish(workdir, output_root):
     """Move a completed year's netCDF files into the campaign's output tree.
 
@@ -174,6 +193,7 @@ def publish(workdir, output_root):
             os.replace(staging, dest)
             src.unlink()
         moved += 1
+        replaced += drop_older_climatologies(dest)
     return moved, replaced
 
 

@@ -1073,6 +1073,12 @@ def _climatology_axis(rule):
     return None
 
 
+def _climatology_years(rule):
+    """(first, last) year of a running climatology, left on the rule by its accumulator."""
+    years = getattr(rule, "climatology_years", None)
+    return years if isinstance(years, tuple) else None
+
+
 def _ensure_climatology_bounds(ds, rule=None):
     """Turn a climatology's time axis into the CF §7.4 form.
 
@@ -1082,42 +1088,45 @@ def _ensure_climatology_bounds(ds, rule=None):
     marks that with ``time:climatology`` naming a ``climatology_bnds`` variable,
     and explicitly *without* an ordinary ``bounds``.
 
-    The producing step leaves the two years on the time coordinate as
+    The producing step leaves the two years on the rule as
     ``climatology_years``, because the bounds move with every year folded into
     the running accumulator and so cannot be a fixed table. Everything else is
-    derived here.
+    derived here, and the file name in ``_filename_time_range``. wcrp_cmip7
+    reads all three against each other: TIME001 wants time at the middle of each
+    climatology interval, TIME003 wants the name to span the intervals. They used
+    to travel on the time coordinate, where they did not survive the pipeline, so
+    1pctCO2 labelled a multi-year mean as the twelve months of its first year.
 
     cli114 wrote ``time_bnds`` on this variable, which the DKRZ coordinate check
     flagged: a climatology whose bounds say "January 1851" claims to be one
     month of one year.
 
-    Without ``climatology_years`` the rule's time axis decides. cli117 still
-    wrote ordinary bounds on three files: pfull tclm, whose years went missing
-    between the accumulator and the write, and tas tmaxavg/tminavg on
-    ``time4``, which never had them. aicc AICC004 rejects both. There the
-    bounds ``set_time_bounds`` built already span the right months, so they
-    only change role.
+    Without ``climatology_years`` the rule's time axis decides. tas
+    tmaxavg/tminavg on ``time4`` have no years of their own, and cli117 wrote
+    ordinary bounds on them, which aicc AICC004 rejects. There the bounds
+    ``set_time_bounds`` built already span the right months, so they only
+    change role.
     """
     if not isinstance(ds, xr.Dataset):
         return ds
     time_label = get_time_label(ds)
     if not time_label or time_label not in ds.variables:
         return ds
-    years = ds[time_label].attrs.pop("climatology_years", None)
-    if not years:
+    years = _climatology_years(rule)
+    if years is None:
         return _climatology_from_time_bounds(ds, time_label, rule)
-    try:
-        first, last = (int(y) for y in str(years).split())
-    except ValueError:
-        logger.warning(f"climatology: cannot read climatology_years={years!r}, leaving the time axis alone")
+    if "climatology_bnds" in ds.variables:
         return ds
+    first, last = years
 
     months = pd.DatetimeIndex(np.asarray(ds[time_label].values)).month
-    starts = [np.datetime64(f"{first:04d}-{m:02d}-01") for m in months]
-    ends = [
-        np.datetime64(f"{last + 1:04d}-01-01") if m == 12 else np.datetime64(f"{last:04d}-{m + 1:02d}-01")
-        for m in months
-    ]
+    starts = np.array([f"{first:04d}-{m:02d}-01" for m in months], dtype="datetime64[s]")
+    ends = np.array(
+        [f"{last + 1:04d}-01-01" if m == 12 else f"{last:04d}-{m + 1:02d}-01" for m in months], dtype="datetime64[s]"
+    )
+    attrs, encoding = dict(ds[time_label].attrs), dict(ds[time_label].encoding)
+    ds = ds.assign_coords({time_label: (time_label, starts + (ends - starts) // 2, attrs)})
+    ds[time_label].encoding.update(encoding)
     ds["climatology_bnds"] = xr.DataArray(np.stack([starts, ends], axis=-1), dims=(time_label, "bnds"), attrs={})
     ds[time_label].attrs["climatology"] = "climatology_bnds"
     # An ordinary bounds variable would contradict it, so drop both the
@@ -2756,6 +2765,10 @@ def _filename_time_range(ds, rule) -> str:
     time_label = get_time_label(ds)
     if is_scalar(ds[time_label]):
         return ""
+    # A running climatology covers its years, which the stamps alone do not show.
+    years = _climatology_years(rule)
+    if years is not None:
+        return f"{years[0]:04d}01-{years[1]:04d}12"
     # Filename token is built from the ``time`` coordinate values (not
     # from ``time_bnds``) per CMIP7 Appendix 1 and CMOR practice. Earlier
     # revs derived it from bnds edges: bnds[-1, 1] slid one period past
@@ -2912,6 +2925,8 @@ def create_filepath(ds, rule):
         region = _sanitize_component(parts[4])
         freq_tok = _sanitize_component(frequency_str)
         head = f"{out_dir}/{name}_{branding_suffix}_{freq_tok}_{region}_{grid}_{source_id}_{experiment_id}_{label}"
+        # -clim is CMIP6: wcrp_cmip7 FILE001 and TIME003 both reject it.
+        clim_suffix = ""
     else:
         # CMIP6 DRS filename (no institution prefix):
         # <variable_id>_<table_id>_<source_id>_<experiment_id>_<variant_label>_<grid_label>[_<time_range>].nc
