@@ -63,6 +63,8 @@ dependencies = [
     "pendulum>=3.0.0",
     "pint-xarray>=0.4,<0.6.0",
     "prefect[dask]>=3.0.3",
+    # Python 3.10 stops at Prefect 3.8, which needs FastAPI to still accept min_items.
+    "fastapi<0.151; python_version < '3.11'",
     "pyyaml>=6.0.2",
     "questionary>=2.0.1",
     "randomname>=0.2.1",
