@@ -456,10 +456,7 @@ def load_mfdataset(data, rule_spec):
     if inline_array:
         open_kwargs["inline_array"] = True
 
-    logger.info(
-        f"Loading {len(all_files)} files using {engine} backend "
-        f"(inline_array={inline_array}) on xarray..."
-    )
+    logger.info(f"Loading {len(all_files)} files using {engine} backend " f"(inline_array={inline_array}) on xarray...")
     for f in all_files:
         logger.info(f"  * {f}")
     _check_compatible_schemas(all_files, rule_spec)
@@ -480,8 +477,7 @@ def load_mfdataset(data, rule_spec):
     if time_dimname and time_dimname in mf_ds.dims and "time" not in mf_ds.dims:
         mf_ds = mf_ds.rename({time_dimname: "time"})
         # Companion bnds variable
-        for bnds_old, bnds_new in ((f"{time_dimname}_bounds", "time_bounds"),
-                                   (f"{time_dimname}_bnds", "time_bnds")):
+        for bnds_old, bnds_new in ((f"{time_dimname}_bounds", "time_bounds"), (f"{time_dimname}_bnds", "time_bnds")):
             if bnds_old in mf_ds.variables and bnds_new not in mf_ds.variables:
                 mf_ds = mf_ds.rename({bnds_old: bnds_new})
 
@@ -501,14 +497,13 @@ def load_mfdataset(data, rule_spec):
         and "time" in mf_ds.coords
     ):
         import pandas as _pd  # local: gather_inputs.py runs once per rule
+
         time_vals = mf_ds["time"].values
         try:
             years = _pd.Series(time_vals).dt.year.to_numpy()
         except (AttributeError, TypeError):
             # cftime objects don't go through pandas .dt
-            years = np.fromiter(
-                (t.year for t in time_vals), dtype=np.int64, count=len(time_vals)
-            )
+            years = np.fromiter((t.year for t in time_vals), dtype=np.int64, count=len(time_vals))
         mask = (years >= int(year_start)) & (years <= int(year_end))
         if not mask.all():
             n_dropped = int((~mask).sum())

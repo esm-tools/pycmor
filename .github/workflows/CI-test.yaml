@@ -16,7 +16,9 @@ on:
         type: boolean
         default: false
 jobs:
-  # Setup job for linting and formatting checks
+  # Setup job for linting and formatting checks. What counts as pycmor itself
+  # and what as AWI-ESM3 campaign configuration is set in .flake8, pyproject.toml
+  # and .yamllint.yaml, so that local runs agree with CI.
   lint_and_format:
     name: Lint and Format Check
     runs-on: ubuntu-latest
@@ -35,17 +37,17 @@ jobs:
       - name: Lint with flake8 (syntax errors only)
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=CMIP7-CVs,CMIP7_DReq_Software,cmip6-cmor-tables
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Run full flake8 check
         run: |
           # stop at any error
-          flake8 . --show-source --statistics --exclude=CMIP7-CVs,CMIP7_DReq_Software,cmip6-cmor-tables
+          flake8 . --show-source --statistics
       - name: Run isort
         run: |
-          isort --check . --skip CMIP7-CVs --skip CMIP7_DReq_Software --skip cmip6-cmor-tables
+          isort --check .
       - name: Run black
         run: |
-          black --check . --exclude='(CMIP7-CVs|CMIP7_DReq_Software|cmip6-cmor-tables)'
+          black --check .
       - name: Run yamllint
         run: |
           yamllint .
@@ -440,7 +442,7 @@ jobs:
         run: mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
-          pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+          pytest -vvv -s --cov=src/pycmor tests/unit
           python -m coverage xml -o coverage-unit-3.9.xml
       - name: Upload coverage reports
         if: always()
@@ -484,7 +486,7 @@ jobs:
         run: mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
-          pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+          pytest -vvv -s --cov=src/pycmor tests/unit
           python -m coverage xml -o coverage-unit-3.10.xml
       - name: Upload coverage reports
         if: always()
@@ -528,7 +530,7 @@ jobs:
         run: mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
-          pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+          pytest -vvv -s --cov=src/pycmor tests/unit
           python -m coverage xml -o coverage-unit-3.11.xml
       - name: Upload coverage reports
         if: always()
@@ -572,7 +574,7 @@ jobs:
         run: mkdir -p ~/.cache/pycmor/test_data
       - name: Test with pytest (Unit) and generate coverage
         run: |
-          pytest -vvv -s --cov=src/pycmor tests/unit/**.py
+          pytest -vvv -s --cov=src/pycmor tests/unit
           python -m coverage xml -o coverage-unit-3.12.xml
       - name: Upload coverage reports
         if: always()

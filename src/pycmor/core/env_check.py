@@ -66,9 +66,7 @@ def _probe_codecs() -> set[str]:
             with netCDF4.Dataset(p, "w") as ds:
                 ds.createDimension("x", 16)
                 ds.createDimension("y", 16)
-                v = ds.createVariable(
-                    "v", "f4", ("x", "y"), compression=codec, complevel=1
-                )
+                v = ds.createVariable("v", "f4", ("x", "y"), compression=codec, complevel=1)
                 v[:] = arr
             working.add(codec)
         except Exception:
@@ -90,8 +88,8 @@ def run_env_check(verbose: bool = True) -> dict:
     """
     summary: dict = {"ok": True}
     try:
-        import netCDF4
         import h5py
+        import netCDF4
     except ImportError as e:
         logger.error(f"env_check: netCDF4/h5py import failed: {e}")
         summary.update(ok=False, error=str(e))

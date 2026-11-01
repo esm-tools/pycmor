@@ -5,6 +5,7 @@ This module is CLI-agnostic — no ``click`` import. Errors are raised as
 boundary. :func:`apply_overrides` always returns a new cfg dict; do not rely
 on object identity.
 """
+
 from __future__ import annotations
 
 import dataclasses

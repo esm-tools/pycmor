@@ -8,7 +8,7 @@ with CMIP6 table-based lookups.
 Key Concepts:
 -------------
 - CMIP7 Compound Name: realm.variable.branding.frequency.region
-  Example: atmos.clt.tavg-u-hxy-u.mon.GLB
+  Example: atmos.clt.tavg-u-hxy-u.mon.glb
 
 - CMIP6 Backward Compatibility: cmip6_table + cmip6_compound_name
   Example: Amon.clt
@@ -24,7 +24,7 @@ Usage:
 True
 >>>
 >>> # Get metadata by CMIP7 compound name
->>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
+>>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.glb')
 >>> metadata is not None
 True
 >>> metadata['standard_name']  # doctest: +ELLIPSIS
@@ -84,7 +84,7 @@ class CMIP7Interface:
     >>> logger.disable("pycmor")
     >>> interface = CMIP7Interface()
     >>> interface.load_metadata('v1.2.2.5')
-    >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
+    >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.glb')
     >>> print(metadata['standard_name'])
     air_temperature
     """
@@ -249,7 +249,7 @@ class CMIP7Interface:
         ----------
         cmip7_compound_name : str
             CMIP7 compound name in format: realm.variable.branding.frequency.region
-            Example: 'atmos.tas.tavg-h2m-hxy-u.mon.GLB'
+            Example: 'atmos.tas.tavg-h2m-hxy-u.mon.glb'
 
         Returns
         -------
@@ -539,7 +539,7 @@ def get_cmip7_interface(version: str = "v1.2.2.5", metadata_file: Optional[Union
     --------
     >>> logger.disable("pycmor")
     >>> interface = get_cmip7_interface()
-    >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.GLB')
+    >>> metadata = interface.get_variable_metadata('atmos.tas.tavg-h2m-hxy-u.mon.glb')
     >>> print(metadata['standard_name'])
     air_temperature
     """

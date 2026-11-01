@@ -10,10 +10,10 @@ Covers:
 - Successful retry path: first attempt times out, second succeeds.
 - Exhausted retries: all attempts time out, ``SaveTimeout`` propagates.
 """
-import os
+
 import threading
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -68,9 +68,9 @@ def test_heartbeat_times_out_sets_flag_but_does_not_raise(tmp_path):
 
     with _Heartbeat(
         "stall_test",
-        interval=0.05,           # poll every 50 ms
+        interval=0.05,  # poll every 50 ms
         watch_path=str(stalled),
-        timeout_minutes=0.002,   # 0.12 s — well within test runtime
+        timeout_minutes=0.002,  # 0.12 s — well within test runtime
     ) as hb:
         time.sleep(0.4)
     # Watcher fired, flag set, but exiting the with-block did NOT raise.

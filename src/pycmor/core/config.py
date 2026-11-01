@@ -270,7 +270,7 @@ class PycmorConfig:
         dask_memory_limit = Option(
             default=None,
             doc="Per-worker memory limit (string like '12GB') for LocalCluster. "
-                "LocalCluster otherwise reads node-total RAM via psutil, which is unsafe under a cgroup cap.",
+            "LocalCluster otherwise reads node-total RAM via psutil, which is unsafe under a cgroup cap.",
         )
         dask_cluster_scaling_fixed_jobs = Option(
             default=5,
@@ -708,7 +708,7 @@ def config_injector(config_manager=None, type_to_prefix_map=None):
     >>>
     >>> # Call without providing attrs_missing_value - it gets injected from config
     >>> result = process_data(my_data)  # Uses config value
-    >>> result == 1e+30  # Default from config
+    >>> result == 1e+20  # Default from config
     True
     >>> # Or override it
     >>> result = process_data(my_data, attrs_missing_value=999)

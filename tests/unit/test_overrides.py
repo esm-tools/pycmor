@@ -216,7 +216,7 @@ def test_r2_skip_input_year_filter_in_load_secondary_mf(tmp_path):
     """_load_secondary_mf must respect skip_input_year_filter."""
     import sys
 
-    custom_steps_path = pathlib.Path("/work/ab0246/a270092/software/pycmor/examples")
+    custom_steps_path = pathlib.Path(__file__).resolve().parents[2] / "examples"
     if str(custom_steps_path) not in sys.path:
         sys.path.insert(0, str(custom_steps_path))
 

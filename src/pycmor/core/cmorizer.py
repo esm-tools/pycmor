@@ -29,7 +29,6 @@ except ImportError:
     CMIP7_API_AVAILABLE = False
 from ..std_lib.global_attributes import GlobalAttributes
 from ..std_lib.timeaverage import _frequency_from_approx_interval
-from .skip import RuleSkipped
 from .aux_files import attach_files_to_rule
 from .cluster import CLUSTER_ADAPT_SUPPORT, CLUSTER_MAPPINGS, CLUSTER_SCALE_SUPPORT, DaskContext, set_dashboard_link
 from .config import PycmorConfig, PycmorConfigManager
@@ -41,6 +40,7 @@ from .pipeline import Pipeline
 
 # ResourceLocator classes imported locally in methods to avoid circular imports
 from .rule import Rule
+from .skip import RuleSkipped
 from .utils import wait_for_workers
 from .validate import GENERAL_VALIDATOR, PIPELINES_VALIDATOR, RULES_SCHEMA, RuleSectionValidator
 

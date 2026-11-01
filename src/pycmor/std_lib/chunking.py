@@ -476,16 +476,8 @@ def get_encoding_with_chunks(
         # vertices_latitude / vertices_longitude are the CMOR names of
         # unstructured cell bounds. BitGroom on them turned the polar
         # corners of g122 from -90 into -90.00024 (COORD006).
-        _is_bounds_var = (
-            _var_name.endswith(("_bnds", "_bounds"))
-            or _var_name.startswith(("bounds_", "vertices_"))
-        )
-        if (
-            quantize_mode
-            and significant_digits
-            and ds[var].dtype.kind == "f"
-            and not _is_bounds_var
-        ):
+        _is_bounds_var = _var_name.endswith(("_bnds", "_bounds")) or _var_name.startswith(("bounds_", "vertices_"))
+        if quantize_mode and significant_digits and ds[var].dtype.kind == "f" and not _is_bounds_var:
             var_encoding["quantize_mode"] = quantize_mode
             var_encoding["significant_digits"] = int(significant_digits)
 

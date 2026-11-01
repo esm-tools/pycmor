@@ -35,6 +35,16 @@ import xarray as xr
 from ..core.logging import logger
 
 
+def _days_in_year(time, start):
+    """Length of the year that begins at ``start``, in the calendar of ``time``.
+
+    ``.dt.days_in_year`` needs xarray 2024.10, and Python 3.9 stops at xarray 2024.7.
+    """
+    if hasattr(time.dt, "days_in_year"):
+        return time.dt.days_in_year.values[0]
+    return (start.replace(year=start.year + 1) - start).days
+
+
 def _get_time_method(frequency: str) -> str:
     """
     Determine the time method based on the frequency string from CMIP6 table for
@@ -355,14 +365,19 @@ def _timeavg_impl(da: xr.DataArray, rule):
                 f"is_unique={t_unique} first={t_first} last={t_last}"
             )
         else:
-            logger.info(f"timeavg [{cmor_var}] entry: no 'time' coord (frequency={getattr(rule.data_request_variable, 'frequency', '?')})")
+            frequency = getattr(rule.data_request_variable, "frequency", "?")
+            logger.info(f"timeavg [{cmor_var}] entry: no 'time' coord (frequency={frequency})")
     except Exception as _exc:
         logger.warning(f"timeavg instrumentation failed: {_exc}")
 
     drv = rule.data_request_variable
-    if drv.frequency == "fx" or getattr(drv, 'table_header', None) is None or getattr(drv.table_header, 'approx_interval', None) is None:
+    if (
+        drv.frequency == "fx"
+        or getattr(drv, "table_header", None) is None
+        or getattr(drv.table_header, "approx_interval", None) is None
+    ):
         logger.info(f"Variable with frequency={drv.frequency!r} has no approx_interval — skipping time averaging")
-        rule.frequency_str = getattr(drv, 'frequency', 'fx') or "fx"
+        rule.frequency_str = getattr(drv, "frequency", "fx") or "fx"
         rule.time_method = "FIXED"
         return da
     approx_interval = drv.table_header.approx_interval
@@ -450,9 +465,7 @@ def _timeavg_impl(da: xr.DataArray, rule):
         offset_presets = {"first": 0, "start": 0, "last": 1, "end": 1, "mid": 0.5}
         _off = offset_presets.get(offset, 0.5) if isinstance(offset, str) else float(offset)
         if _off:
-            ds = ds.assign_coords(
-                time=ds.time + pd.to_timedelta(float(approx_interval) * _off, unit="D")
-            )
+            ds = ds.assign_coords(time=ds.time + pd.to_timedelta(float(approx_interval) * _off, unit="D"))
     elif time_method == "MEAN":
         ds = da.resample(time=frequency_str).mean(**_resample_kw)
         # CMIP spec: time coordinate of MEAN-averaged data sits at the midpoint
@@ -501,7 +514,7 @@ def _timeavg_impl(da: xr.DataArray, rule):
                         timestamps.append(timestamp)
                 elif "YS" in frequency_str:
                     for timestamp, grp in da.resample(time=frequency_str):
-                        ndays = grp.time.dt.days_in_year.values[0] * magnitude
+                        ndays = _days_in_year(grp.time, timestamp) * magnitude
                         new_offset = pd.to_timedelta(f"{ndays}d") * offset - correction
                         timestamp = timestamp + new_offset
                         timestamps.append(timestamp)

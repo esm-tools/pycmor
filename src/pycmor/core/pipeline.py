@@ -11,10 +11,10 @@ import randomname
 from prefect.cache_policies import INPUTS, NO_CACHE, TASK_SOURCE
 from prefect.tasks import Task
 
-from .skip import RuleSkipped
 from .caching import generate_cache_key  # noqa: F401
 from .cluster import DaskContext
 from .logging import add_to_report_log, logger
+from .skip import RuleSkipped
 from .utils import get_callable, get_callable_by_name
 
 

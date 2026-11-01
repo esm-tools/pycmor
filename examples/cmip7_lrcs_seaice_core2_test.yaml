@@ -1050,10 +1050,6 @@ rules:
   # Sea ice concentration on atmosphere grid: ci [1] → siconca [%]
 
 
-
-
-
-
   - name: sivol_north_day
     inputs:
       - path: *dp

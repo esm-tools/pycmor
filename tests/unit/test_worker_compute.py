@@ -12,8 +12,9 @@ compute off the driver process onto LocalCluster workers.
 
 Same logic in ``_save_mfdataset_worker_or_sync`` (multi-file save).
 """
+
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -38,6 +39,7 @@ def _eager_dataset():
 def _dask_dataset():
     """Tiny dask-backed Dataset using dask.array. Doesn't need a Client."""
     import dask.array as da_
+
     return xr.Dataset(
         {"foo": (("time",), da_.arange(10, chunks=5, dtype=np.float64))},
         coords={"time": np.arange(10)},
@@ -139,8 +141,12 @@ def test_save_mfdataset_helper_eager_input(tmp_path):
     paths = [str(tmp_path / f"eager_{i}.nc") for i in range(2)]
     with patch("dask.distributed.get_client", side_effect=AssertionError("must not call")):
         files._save_mfdataset_worker_or_sync(
-            datasets, paths, enc=None, extra_kwargs={},
-            is_dask=False, scheduler="synchronous",
+            datasets,
+            paths,
+            enc=None,
+            extra_kwargs={},
+            is_dask=False,
+            scheduler="synchronous",
         )
     assert all(os.path.exists(p) for p in paths)
 
@@ -156,8 +162,12 @@ def test_save_mfdataset_helper_uses_client(tmp_path):
 
     with patch("dask.distributed.get_client", return_value=fake_client):
         files._save_mfdataset_worker_or_sync(
-            datasets, paths, enc=None, extra_kwargs={},
-            is_dask=True, scheduler="synchronous",
+            datasets,
+            paths,
+            enc=None,
+            extra_kwargs={},
+            is_dask=True,
+            scheduler="synchronous",
         )
     assert all(os.path.exists(p) for p in paths)
     fake_client.compute.assert_called_once()
@@ -173,8 +183,12 @@ def test_save_mfdataset_helper_falls_back(tmp_path):
 
     with patch("dask.distributed.get_client", return_value=fake_client):
         files._save_mfdataset_worker_or_sync(
-            datasets, paths, enc=None, extra_kwargs={},
-            is_dask=True, scheduler="synchronous",
+            datasets,
+            paths,
+            enc=None,
+            extra_kwargs={},
+            is_dask=True,
+            scheduler="synchronous",
         )
     assert all(os.path.exists(p) for p in paths)
 

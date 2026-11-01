@@ -99,11 +99,10 @@ def compute_areacella(data, rule):
     if lat is None or lon is None:
         raise ValueError("Cannot find lat/lon coordinates in input data")
 
-    unstructured = (lat.ndim == 1 and lon.ndim == 1 and lat.dims == lon.dims)
+    unstructured = lat.ndim == 1 and lon.ndim == 1 and lat.dims == lon.dims
 
     if unstructured:
         # Use bounds_lat / bounds_lon (or equivalent) for per-cell area.
-        ds_src = data if isinstance(data, xr.Dataset) else data._coords.get("__parent__", None)
         # Try common bound-variable names on the source Dataset/DataArray.
         candidates_lat = [lat.attrs.get("bounds"), "bounds_lat", "lat_bnds", "lat_bounds"]
         candidates_lon = [lon.attrs.get("bounds"), "bounds_lon", "lon_bnds", "lon_bounds"]
@@ -125,13 +124,13 @@ def compute_areacella(data, rule):
                 break
         if lat_bnds is None or lon_bnds is None:
             raise ValueError(
-                "Unstructured grid detected but lat/lon bounds not found "
-                "(expected e.g. 'bounds_lat', 'bounds_lon')"
+                "Unstructured grid detected but lat/lon bounds not found " "(expected e.g. 'bounds_lat', 'bounds_lon')"
             )
 
         # open_mfdataset may broadcast bounds along the time dim; drop anything
         # that isn't the cell dim or the nvertex/vertices dim.
         cell_dim_name = lat.dims[0]
+
         def _reduce_to_cell_nvertex(bnds):
             for d in list(bnds.dims):
                 if d == cell_dim_name:
@@ -140,6 +139,7 @@ def compute_areacella(data, rule):
                     continue
                 bnds = bnds.isel({d: 0})
             return bnds
+
         lat_bnds = _reduce_to_cell_nvertex(lat_bnds)
         lon_bnds = _reduce_to_cell_nvertex(lon_bnds)
 

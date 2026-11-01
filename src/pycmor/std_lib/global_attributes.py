@@ -8,7 +8,6 @@ import xarray as xr
 
 from ..core.factory import MetaFactory
 
-
 _DRS_VERSION_RE = re.compile(r"^v\d{8}$")
 
 
@@ -1269,10 +1268,7 @@ def set_global_attributes(ds, rule):
     # Filter out None values -- xarray accepts them in memory but
     # netCDF serialization rejects non-string/non-numeric attributes.
     # Also sanitize non-ASCII dashes in string values.
-    global_attrs = {
-        k: _sanitize_attr_value(v)
-        for k, v in global_attrs.items() if v is not None
-    }
+    global_attrs = {k: _sanitize_attr_value(v) for k, v in global_attrs.items() if v is not None}
     ds.attrs.update(global_attrs)
     return ds
 

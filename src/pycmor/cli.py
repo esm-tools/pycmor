@@ -53,9 +53,7 @@ def _patch_click_loguru_unique_logfiles(cl_instance):
                 else:
                     log_level = cl_instance._stderr_log_level
                 _loguru_logger.remove()
-                _loguru_logger.add(
-                    sys.stderr, level=log_level, format=cl_instance.stderr_format_func
-                )
+                _loguru_logger.add(sys.stderr, level=log_level, format=cl_instance.stderr_format_func)
                 if logfile and state.logfile:
                     if log_dir_parent is not None:
                         cl_instance._log_dir_parent = log_dir_parent
@@ -70,9 +68,7 @@ def _patch_click_loguru_unique_logfiles(cl_instance):
                         logfile_prefix = f"{cl_instance._name}"
                     log_dir_path.mkdir(parents=True, exist_ok=True)
                     unique_tag = f"{os.getpid()}_{secrets.token_hex(4)}"
-                    state.logfile_path = (
-                        log_dir_path / f"{logfile_prefix}_{unique_tag}.log"
-                    )
+                    state.logfile_path = log_dir_path / f"{logfile_prefix}_{unique_tag}.log"
                     state.logfile_handler_id = _loguru_logger.add(
                         str(state.logfile_path), level=cl_instance._file_log_level
                     )
@@ -85,6 +81,7 @@ def _patch_click_loguru_unique_logfiles(cl_instance):
         return decorator
 
     cl_instance.init_logger = init_logger
+
 
 MAX_FRAMES = int(os.environ.get("PYCMOR_ERROR_MAX_FRAMES", os.environ.get("PYMOR_ERROR_MAX_FRAMES", 3)))
 """

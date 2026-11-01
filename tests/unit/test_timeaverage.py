@@ -1,12 +1,15 @@
 """Tests for time averaging functionality."""
 
+from types import SimpleNamespace
+
+import cftime
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
 import pycmor.std_lib.timeaverage
-from pycmor.std_lib.timeaverage import timeavg
+from pycmor.std_lib.timeaverage import _days_in_year, timeavg
 
 
 @pytest.fixture
@@ -236,3 +239,26 @@ def test__frequency_from_approx_interval_millisecond():
 def test__invalid_interval():
     with pytest.raises(ValueError):
         pycmor.std_lib.timeaverage._frequency_from_approx_interval("not_a_number")
+
+
+@pytest.mark.parametrize(
+    "start, expected",
+    [
+        (pd.Timestamp("2000-01-01"), 366),
+        (pd.Timestamp("2001-01-01"), 365),
+        (cftime.DatetimeNoLeap(2000, 1, 1), 365),
+        (cftime.Datetime360Day(2000, 1, 1), 360),
+    ],
+)
+def test__days_in_year_without_the_xarray_accessor(start, expected):
+    """The fallback for xarray older than 2024.10, as on Python 3.9."""
+    assert _days_in_year(SimpleNamespace(dt=object()), start) == expected
+
+
+@pytest.mark.parametrize("calendar", ["standard", "noleap", "360_day"])
+def test__days_in_year_fallback_agrees_with_xarray(calendar):
+    start = xr.date_range("2000-01-01", periods=1, calendar=calendar, use_cftime=calendar != "standard")[0]
+    time = xr.DataArray([start], dims="time", name="time")
+    if not hasattr(time.dt, "days_in_year"):
+        pytest.skip("xarray without dt.days_in_year")
+    assert _days_in_year(SimpleNamespace(dt=object()), start) == _days_in_year(time, start)

@@ -8,15 +8,15 @@ Covers:
 - ``_atomic_to_netcdf`` three-stage write correctness, fallback,
   and failure cleanup.
 """
+
 import os
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import numpy as np
 import pytest
 import xarray as xr
 
 from pycmor.std_lib import files
-
 
 # ---------------- _is_tmpfs ----------------
 
@@ -61,10 +61,7 @@ def test_is_tmpfs_no_proc_mounts():
 
 def test_is_tmpfs_picks_longest_prefix():
     """If /tmp/sub is its own tmpfs but /tmp is ext4, /tmp/sub/x → tmpfs."""
-    mounts = (
-        "/dev/sda1 /tmp ext4 rw 0 0\n"
-        "tmpfs /tmp/sub tmpfs rw 0 0\n"
-    )
+    mounts = "/dev/sda1 /tmp ext4 rw 0 0\n" "tmpfs /tmp/sub tmpfs rw 0 0\n"
     with patch("builtins.open", mock_open(read_data=mounts)):
         assert files._is_tmpfs("/tmp/sub/file.nc") is True
         assert files._is_tmpfs("/tmp/other.nc") is False
@@ -86,10 +83,10 @@ class _MockRule:
 @pytest.mark.parametrize(
     "flag, expected",
     [
-        (None, True),       # no flag → allowed
-        (True, True),       # explicit true
-        (False, False),     # explicit false
-        ("false", False),   # string false
+        (None, True),  # no flag → allowed
+        (True, True),  # explicit true
+        (False, False),  # explicit false
+        ("false", False),  # string false
         ("no", False),
         ("off", False),
         ("0", False),
@@ -239,13 +236,10 @@ def test_atomic_to_netcdf_no_partial_final_on_stage2_failure(monkeypatch, tmp_pa
     monkeypatch.setenv("PYCMOR_TMPFS_DIR", str(tmp_path))
     monkeypatch.setenv("PYCMOR_TMPFS_STAGING", "on")
 
-    import shutil as _shutil
-    real_copy2 = _shutil.copy2
-
     def boom_copy(*args, **kwargs):
         raise OSError("disk full")
 
-    with patch("pycmor.std_lib.files.shutil.copy2", side_effect=boom_copy) if False else patch("shutil.copy2", side_effect=boom_copy):
+    with patch("shutil.copy2", side_effect=boom_copy):
         with pytest.raises(OSError, match="disk full"):
             files._atomic_to_netcdf(ds, str(final), mode="w", format="NETCDF4")
     assert not final.exists()
