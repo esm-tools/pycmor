@@ -21,7 +21,8 @@ jobs:
   # and .yamllint.yaml, so that local runs agree with CI.
   lint_and_format:
     name: Lint and Format Check
-    runs-on: ubuntu-latest
+    # setup-python has no Python 3.9 for Ubuntu 26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1161,7 +1162,8 @@ jobs:
   coverage:
     name: Generate Coverage Report
     needs: [test-meta-3-9, test-meta-3-10, test-meta-3-11, test-meta-3-12, test-unit-3-9, test-unit-3-10, test-unit-3-11, test-unit-3-12, test-integration-matrix-3-9, test-integration-matrix-3-10, test-integration-matrix-3-11, test-integration-matrix-3-12, test-doctest-3-9, test-doctest-3-10, test-doctest-3-11, test-doctest-3-12]
-    runs-on: ubuntu-latest
+    # setup-python has no Python 3.9 for Ubuntu 26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.9
