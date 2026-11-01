@@ -109,6 +109,10 @@ class CMIP7DataRequest(DataRequest):
     def from_directory(cls, directory: str) -> "CMIP7DataRequest":
         """Creates the CMIP7 data request from a directory"""
         directory = pathlib.Path(directory)
+        # The packaged directory also holds the grids, coordinates and formula terms.
+        all_var_info = directory / "all_var_info.json"
+        if all_var_info.is_file():
+            return cls.from_json_file(all_var_info)
         for file in directory.iterdir():
             # We assume that the directory contains only 1 JSON file, the "all_vars_info" file
             if file.is_file() and file.suffix == ".json":
