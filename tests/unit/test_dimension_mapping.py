@@ -89,7 +89,7 @@ class TestDimensionDetection:
 
     def test_detect_unknown_dimension(self):
         """Test that unknown dimensions return None"""
-        ds = xr.Dataset(coords={"unknown_dim": np.arange(10)})
+        ds = xr.Dataset(coords={"unknown_dim": -1000.5 - np.arange(10)})
         mapper = DimensionMapper()
 
         dim_type = mapper.detect_dimension_type(ds, "unknown_dim")

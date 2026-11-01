@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pycmor.std_lib.time_bounds import time_bounds
+from pycmor.std_lib.time_bounds import _create_mean_bounds, time_bounds
 
 
 class MockRule:
@@ -40,7 +40,7 @@ def test_time_bounds_creation():
 
 
 def test_existing_time_bounds_preserved():
-    """Existing time bounds are not modified."""
+    """Existing time bounds are kept, and time moves to their midpoint (wcrp TIME001)."""
     times = pd.date_range("2000-01-01", periods=3, freq="D")
     time_bnds = pd.date_range("2000-01-01", periods=4, freq="D")
     time_bnds = np.array([time_bnds[:-1], time_bnds[1:]]).T
@@ -51,17 +51,19 @@ def test_existing_time_bounds_preserved():
     ds["time"].attrs["bounds"] = "time_bnds"
 
     result = time_bounds(ds, MockRule())
-    xr.testing.assert_identical(result, ds)
+    np.testing.assert_array_equal(result["time_bnds"].values, time_bnds)
+    np.testing.assert_array_equal(result["time"].values, (times + pd.Timedelta(hours=12)).to_numpy())
 
 
-def test_single_time_point_raises():
-    """Single time point with mean method raises ValueError."""
+def test_single_time_point_is_treated_as_fx_like():
+    """One stamp with no known period gets no bounds: there is no interval to build them from."""
     ds = xr.Dataset(
         {"temperature": (["time"], [25.0])},
         coords={"time": pd.date_range("2000-01-01", periods=1)},
     )
+    assert "time_bnds" not in time_bounds(ds, MockRule()).variables
     with pytest.raises(ValueError, match="at least 2 time points"):
-        time_bounds(ds, MockRule())
+        _create_mean_bounds(ds["time"].values, None)
 
 
 def test_single_monthly_time_point_gets_month_bounds():
@@ -137,15 +139,17 @@ def test_monthly_with_approx_interval():
 
 
 def test_instantaneous_time_method():
-    """Instantaneous time method produces zero-width bounds."""
+    """Instantaneous data keeps its stamps, at the start of period bounds."""
     times = pd.date_range("2000-01-01", periods=5, freq="D")
     ds = xr.Dataset({"temperature": (["time"], np.random.rand(5))}, coords={"time": times})
 
     result = time_bounds(ds, MockRule(time_method="instantaneous"))
 
     bounds = result.coords["time_bnds"].values
-    for i in range(5):
-        assert bounds[i, 0] == bounds[i, 1]
+    np.testing.assert_array_equal(result["time"].values, times.to_numpy())
+    for i in range(4):
+        assert bounds[i, 0] == times[i].to_numpy()
+        assert bounds[i, 1] == times[i + 1].to_numpy()
 
 
 def test_climatology_skipped():

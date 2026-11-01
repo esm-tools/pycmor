@@ -161,7 +161,11 @@ def test_save_dataset(mocker):
 
     rule = Mock()
     rule.ga = ga_mock
+    rule.compound_name = ""
+    rule.get = lambda key, default=None: default
+    rule.netcdf_quantize_mode = None
     rule.data_request_variable = data_request_variable
+    rule.data_request_variable.dimensions = ()
     rule._pycmor_cfg = mock_cfg  # Use the mock object
     rule.cmor_variable = "fgco2"
     rule.data_request_variable.table_header.table_id = "Omon"

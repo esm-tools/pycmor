@@ -75,7 +75,8 @@ def time_bounds(ds: xr.Dataset, rule: Rule) -> xr.Dataset:
 
     Time bounds are set according to the following logic:
 
-    - For instantaneous time method: bounds equal the time values (delta = 0)
+    - For instantaneous time method: bounds span the period and time sits at its start;
+      axes with must_have_bounds="no" drop them again
     - For mean time method: bounds span the averaging interval (delta > 0)
     - For climatology: no bounds are created
     - Uses approx_interval from rule to determine appropriate bounds

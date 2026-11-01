@@ -101,23 +101,21 @@ def test_cli_year_start_wins_over_per_rule_value():
 # ---------------------------------------------------------------------------
 def test_cli_surfaces_override_error_as_usage_error():
     """CliRunner integration: --old-data-path without --data-path → exit 2."""
-    from pycmor.cli import process
+    from pycmor.cli import cli
 
     with tempfile.TemporaryDirectory() as tmp:
         cfg_path = pathlib.Path(tmp) / "tiny.yaml"
-        cfg_path.write_text(
-            yaml.safe_dump({"rules": [{"name": "r1", "compound_name": "x"}]})
-        )
+        cfg_path.write_text(yaml.safe_dump({"rules": [{"name": "r1", "compound_name": "x"}]}))
 
         runner = CliRunner()
         result = runner.invoke(
-            process,
-            [str(cfg_path), "--old-data-path", "/old"],
+            cli,
+            ["process", str(cfg_path), "--old-data-path", "/old"],
             standalone_mode=False,
         )
-        assert isinstance(result.exception, UsageError), (
-            f"expected UsageError, got {type(result.exception).__name__}: {result.exception}"
-        )
+        assert isinstance(
+            result.exception, UsageError
+        ), f"expected UsageError, got {type(result.exception).__name__}: {result.exception}"
         assert "--old-data-path" in str(result.exception)
 
 
@@ -168,9 +166,7 @@ def test_apply_overrides_substitutes_data_path_throughout_cfg():
         "rules": [
             {
                 "name": "r1",
-                "inputs": [
-                    {"path": "/work/runtime/Test_01/outdata/oifs", "pattern": "x"}
-                ],
+                "inputs": [{"path": "/work/runtime/Test_01/outdata/oifs", "pattern": "x"}],
                 "second_input_file": "/work/runtime/Test_01/outdata/foo.nc",
             },
         ],
@@ -182,27 +178,16 @@ def test_apply_overrides_substitutes_data_path_throughout_cfg():
     out = apply_overrides(cfg, ov)
 
     assert out["inherit"]["data_path"] == "/scratch/runtime/Run_99/outdata/fesom"
-    assert (
-        out["rules"][0]["inputs"][0]["path"]
-        == "/scratch/runtime/Run_99/outdata/oifs"
-    )
-    assert (
-        out["rules"][0]["second_input_file"]
-        == "/scratch/runtime/Run_99/outdata/foo.nc"
-    )
+    assert out["rules"][0]["inputs"][0]["path"] == "/scratch/runtime/Run_99/outdata/oifs"
+    assert out["rules"][0]["second_input_file"] == "/scratch/runtime/Run_99/outdata/foo.nc"
     # Source cfg untouched.
-    assert (
-        cfg["rules"][0]["inputs"][0]["path"]
-        == "/work/runtime/Test_01/outdata/oifs"
-    )
+    assert cfg["rules"][0]["inputs"][0]["path"] == "/work/runtime/Test_01/outdata/oifs"
 
 
 def test_memory_override_writes_to_jobqueue_slurm():
     """--memory writes to jobqueue.slurm.memory; existing keys preserved."""
     cfg = {
-        "jobqueue": {
-            "slurm": {"name": "pycmor-worker", "queue": "compute", "memory": "256GB"}
-        },
+        "jobqueue": {"slurm": {"name": "pycmor-worker", "queue": "compute", "memory": "256GB"}},
         "rules": [{"name": "r1"}],
     }
     out = apply_overrides(cfg, CliOverrides(memory="512GB"))
@@ -231,9 +216,7 @@ def test_r2_skip_input_year_filter_in_load_secondary_mf(tmp_path):
     """_load_secondary_mf must respect skip_input_year_filter."""
     import sys
 
-    custom_steps_path = pathlib.Path(
-        "/work/ab0246/a270092/software/pycmor/examples"
-    )
+    custom_steps_path = pathlib.Path("/work/ab0246/a270092/software/pycmor/examples")
     if str(custom_steps_path) not in sys.path:
         sys.path.insert(0, str(custom_steps_path))
 
@@ -266,14 +249,8 @@ def test_r2_skip_input_year_filter_in_load_secondary_mf(tmp_path):
 
     files = [str(centennial_file)]
     skip = rule.get("skip_input_year_filter", False)
-    if (
-        rule.get("year_start") is not None
-        and rule.get("year_end") is not None
-        and not skip
-    ):
-        files = filter_files_by_year_range(
-            files, rule["year_start"], rule["year_end"]
-        )
+    if rule.get("year_start") is not None and rule.get("year_end") is not None and not skip:
+        files = filter_files_by_year_range(files, rule["year_start"], rule["year_end"])
     # With skip=True, file remains.
     assert files == [str(centennial_file)]
 
@@ -282,14 +259,8 @@ def test_r2_skip_input_year_filter_in_load_secondary_mf(tmp_path):
     rule_no_skip["skip_input_year_filter"] = False
     skip = rule_no_skip.get("skip_input_year_filter", False)
     files2 = [str(centennial_file)]
-    if (
-        rule_no_skip.get("year_start") is not None
-        and rule_no_skip.get("year_end") is not None
-        and not skip
-    ):
-        files2 = filter_files_by_year_range(
-            files2, rule_no_skip["year_start"], rule_no_skip["year_end"]
-        )
+    if rule_no_skip.get("year_start") is not None and rule_no_skip.get("year_end") is not None and not skip:
+        files2 = filter_files_by_year_range(files2, rule_no_skip["year_start"], rule_no_skip["year_end"])
     assert files2 == []
 
 
@@ -305,8 +276,7 @@ def test_r2_skip_input_year_filter_primary_path():
 
     src = inspect.getsource(gather_inputs.load_mfdataset)
     assert "skip_input_year_filter" in src, (
-        "load_mfdataset must gate _filter_files_by_year_range on "
-        "skip_input_year_filter (R2 second-call-site fix)"
+        "load_mfdataset must gate _filter_files_by_year_range on " "skip_input_year_filter (R2 second-call-site fix)"
     )
 
 
@@ -318,9 +288,7 @@ def test_apply_overrides_auto_detects_old_run_root_from_inherit_data_path():
         "rules": [
             {
                 "name": "r1",
-                "inputs": [
-                    {"path": "/work/runtime/Test_01/outdata/oifs", "pattern": "x"}
-                ],
+                "inputs": [{"path": "/work/runtime/Test_01/outdata/oifs", "pattern": "x"}],
             },
         ],
     }
@@ -328,7 +296,4 @@ def test_apply_overrides_auto_detects_old_run_root_from_inherit_data_path():
     out = apply_overrides(cfg, ov)
 
     assert out["inherit"]["data_path"] == "/scratch/runtime/Run_99/outdata/fesom"
-    assert (
-        out["rules"][0]["inputs"][0]["path"]
-        == "/scratch/runtime/Run_99/outdata/oifs"
-    )
+    assert out["rules"][0]["inputs"][0]["path"] == "/scratch/runtime/Run_99/outdata/oifs"
