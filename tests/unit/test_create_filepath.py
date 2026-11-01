@@ -24,6 +24,7 @@ class TestCreateFilepath:
         """Set up common test fixtures."""
         # Create a basic mock rule with all required attributes
         self.rule = Mock()
+        self.rule.compound_name = ""  # CMIP6 path; a Mock here would look like neither
         self.rule.cmor_variable = "tas"
         self.rule.variant_label = "r1i1p1f1"
         self.rule.source_id = "AWI-CM-1-1-MR"
@@ -80,8 +81,7 @@ class TestCreateFilepath:
 
         # According to CMIP6 spec:
         # <variable_id>_<table_id>_<source_id>_<experiment_id>_<member_id>_<grid_label>[_<time_range>].nc
-        # Note: Current implementation uses institution-source_id format, not just source_id
-        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
         assert filepath == expected_pattern
 
         # Check that parent directory was created
@@ -92,7 +92,7 @@ class TestCreateFilepath:
         ds = self.create_test_dataset(has_time=False)
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_scalar_time(self):
@@ -106,7 +106,7 @@ class TestCreateFilepath:
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_daily_frequency(self):
@@ -120,7 +120,7 @@ class TestCreateFilepath:
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_day_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_20000101-20000131.nc"
+        expected_pattern = f"{self.temp_dir}/tas_day_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_20000101-20000131.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_hourly_frequency(self):
@@ -135,7 +135,7 @@ class TestCreateFilepath:
         filepath = create_filepath(ds, self.rule)
 
         expected_pattern = (
-            f"{self.temp_dir}/tas_6hrLev_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001010000-200001011800.nc"
+            f"{self.temp_dir}/tas_6hrLev_AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001010000-200001011800.nc"
         )
         assert filepath == expected_pattern
 
@@ -150,7 +150,7 @@ class TestCreateFilepath:
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Ayr_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_2000-2003.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Ayr_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_2000-2003.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_fx_frequency(self):
@@ -161,28 +161,28 @@ class TestCreateFilepath:
         ds = self.create_test_dataset(has_time=False)
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_fx_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
+        expected_pattern = f"{self.temp_dir}/tas_fx_AWI-CM-1-1-MR_historical_r1i1p1f1_gn.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_custom_institution(self):
-        """Test filepath generation with custom institution."""
+        """The institution is not part of a CMIP6 file name."""
         self.rule.institution = "CUSTOM-INST"
 
         ds = self.create_test_dataset()
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Amon_CUSTOM-INST-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_default_institution(self):
-        """Test filepath generation with default institution when not specified."""
+        """A rule without an institution gets the same file name."""
         # Remove institution attribute to test default
         delattr(self.rule, "institution")
 
         ds = self.create_test_dataset()
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
         assert filepath == expected_pattern
 
     def test_filepath_with_subdirectories_enabled(self):
@@ -199,7 +199,7 @@ class TestCreateFilepath:
 
         expected_pattern = (
             f"{self.temp_dir}/CMIP6/historical/AWI/AWI-CM-1-1-MR/r1i1p1f1/Amon/tas/gn/v20200101/"
-            "tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
+            "tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
         )
         assert filepath == expected_pattern
 
@@ -221,7 +221,7 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/{cmor_var}_Amon_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001-200012.nc"
+                f"{self.temp_dir}/{cmor_var}_Amon_AWI-CM-1-1-MR_historical_" f"r1i1p1f1_gn_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
@@ -234,7 +234,7 @@ class TestCreateFilepath:
             ds = self.create_test_dataset()
             filepath = create_filepath(ds, self.rule)
 
-            expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_{experiment}_r1i1p1f1_gn_200001-200012.nc"
+            expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_{experiment}_r1i1p1f1_gn_200001-200012.nc"
             assert filepath == expected_pattern
 
     def test_filepath_with_different_grid_labels(self):
@@ -247,7 +247,7 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_" f"r1i1p1f1_{grid_label}_200001-200012.nc"
+                f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_" f"r1i1p1f1_{grid_label}_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
@@ -261,7 +261,7 @@ class TestCreateFilepath:
             filepath = create_filepath(ds, self.rule)
 
             expected_pattern = (
-                f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_" f"{variant_label}_gn_200001-200012.nc"
+                f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_" f"{variant_label}_gn_200001-200012.nc"
             )
             assert filepath == expected_pattern
 
@@ -273,7 +273,7 @@ class TestCreateFilepath:
 
         filepath = create_filepath(ds, self.rule)
 
-        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
+        expected_pattern = f"{self.temp_dir}/tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012.nc"
         assert filepath == expected_pattern
 
     def test_filepath_directory_creation(self):
@@ -319,7 +319,7 @@ class TestCreateFilepath:
         # <variable_id>_<table_id>_<source_id>_<experiment_id>_<member_id>_<grid_label>[_<time_range>].nc
         assert components[0] == "tas"  # variable_id
         assert components[1] == "Amon"  # table_id
-        assert components[2] == "AWI-AWI-CM-1-1-MR"  # source_id (current implementation uses institution-source_id)
+        assert components[2] == "AWI-CM-1-1-MR"  # source_id
         assert components[3] == "historical"  # experiment_id
         assert components[4] == "r1i1p1f1"  # member_id (variant_label when sub_experiment_id="none")
         assert components[5] == "gn"  # grid_label
@@ -533,7 +533,7 @@ class TestCreateFilepath:
 
         # Note: Current implementation doesn't handle climatology suffix
         # This test documents what should happen according to CMIP6 spec
-        # Expected format would be: tas_Amon_AWI-AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012-clim.nc
+        # Expected format would be: tas_Amon_AWI-CM-1-1-MR_historical_r1i1p1f1_gn_200001-200012-clim.nc
 
         # Now verify that climatology suffix is properly implemented
         assert filename.endswith(
