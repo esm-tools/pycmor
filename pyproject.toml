@@ -147,6 +147,12 @@ cmip7 = [
     "CMIP7-data-request-api",
 ]
 
+# remap_conservative in examples/custom_steps.py; needs the cdo binary on
+# PATH (e.g. conda-forge cdo, not pip-installable).
+cdo = [
+    "pycdo>=0.2.1",
+]
+
 [project.urls]
 Homepage = "https://github.com/esm-tools/pycmor"
 Repository = "https://github.com/esm-tools/pycmor"

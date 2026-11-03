@@ -52,8 +52,9 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
     compute_fire_emission, compute_mrtws, compute_snd,
     compute_mrsow, compute_sftgif, compute_mrsofc, compute_rootd
 
-  OIFS reduced Gaussian / daily statistics (EC-Earth4)
-    reduced_to_regular, daily_statistic_time, _reduced_gaussian_index
+  Reduced Gaussian grid (EC-Earth4: OIFS, LPJ-GUESS)
+    reduced_to_regular, daily_statistic_time, remap_conservative,
+    _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
 """
 
 import glob as _glob
@@ -7501,16 +7502,12 @@ def add_hybrid_sigma_coordinate(data, rule):
 
 
 # ============================================================
-# OIFS reduced Gaussian grid and daily statistics (EC-Earth4)
+# Reduced Gaussian grid (EC-Earth4: OIFS output, LPJ-GUESS on it)
 # ============================================================
 
 
-def _reduced_gaussian_index(lat, lon):
-    """Rows of a reduced Gaussian grid (north to south) and linear weights to regular.
-
-    Returns (rlat, rlon, i0, i1, w): regular latitudes and longitudes, and per
-    regular point the two neighbouring cells along the row and the weight of i1.
-    """
+def _reduced_gaussian_rows(lat, lon):
+    """Row starts, row lengths and row latitudes of a reduced Gaussian grid, north to south."""
     lat = np.asarray(lat, dtype="f8")
     lon = np.asarray(lon, dtype="f8")
     brk = np.flatnonzero(np.abs(np.diff(lat)) > 1e-6) + 1
@@ -7521,12 +7518,23 @@ def _reduced_gaussian_index(lat, lon):
         raise ValueError("reduced Gaussian: latitude rows are not contiguous")
     if not np.all(np.diff(rlat) < 0):
         raise ValueError("reduced Gaussian: latitude rows are not north to south")
+    for s, n in zip(starts, counts):
+        if not np.allclose(np.mod(lon[s : s + n], 360.0), np.arange(n) * 360.0 / n, atol=1e-4):
+            raise ValueError(f"reduced Gaussian: row at lat {lat[s]:.4f}, longitudes not uniform from 0")
+    return starts, counts, rlat
+
+
+def _reduced_gaussian_index(lat, lon):
+    """Linear weights from a reduced Gaussian grid to the regular grid with the same rows.
+
+    Returns (rlat, rlon, i0, i1, w): regular latitudes and longitudes, and per
+    regular point the two neighbouring cells along the row and the weight of i1.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
     nlon = int(counts.max())
     rlon = np.arange(nlon) * 360.0 / nlon
     i0, i1, w = [], [], []
     for s, n in zip(starts, counts):
-        if not np.allclose(np.mod(lon[s : s + n], 360.0), np.arange(n) * 360.0 / n, atol=1e-4):
-            raise ValueError(f"reduced Gaussian: row at lat {lat[s]:.4f}, longitudes not uniform from 0")
         x = rlon * n / 360.0
         j = np.floor(x).astype(int)
         i0.append(s + j % n)
@@ -7594,3 +7602,92 @@ def daily_statistic_time(data, rule):
         return data
     # pd.Timedelta works with cftime and datetime64
     return data.assign_coords({dim: t - pd.Timedelta(hours=12)})
+
+
+def _reduced_gaussian_bounds(lat, lon):
+    """Cell corners (cell, 4) of a reduced Gaussian grid, as ece2cmor3 builds them for LPJ-GUESS.
+
+    Longitude: centre plus or minus half the row spacing. Latitude: midpoint
+    between rows, 90 and -90 at the first and last row.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
+    edges = np.concatenate([[90.0], (rlat[:-1] + rlat[1:]) / 2.0, [-90.0]])
+    row = np.repeat(np.arange(counts.size), counts)
+    half = np.repeat(180.0 / counts, counts)
+    lon = np.asarray(lon, dtype="f8")
+    north, south = edges[row], edges[row + 1]
+    lon_b = np.stack([lon - half, lon + half, lon + half, lon - half], axis=-1)
+    lat_b = np.stack([north, north, south, south], axis=-1)
+    return lat_b, lon_b
+
+
+def remap_conservative(data, rule):
+    """Cell field on a reduced Gaussian grid (..., cell) to a regular grid with CDO remapcon.
+
+    Cells may be a subset of the grid (LPJ-GUESS land points): they are put on
+    the full grid of rule option bounds_reference_file, missing elsewhere.
+    Rule options: remap_target (CDO grid, default F128: regular N128, 512x256), remap_fill (value
+    for missing cells before remapping; default none). Needs pycdo and cdo.
+    """
+    import tempfile
+
+    from pycdo import cdo
+
+    from pycmor.std_lib.files import _match_cells
+
+    cell = data["lat"].dims[0]
+    data = data.transpose(..., cell)
+    ref = rule.get("bounds_reference_file")
+    if ref:
+        files = sorted(_glob.glob(str(ref)))
+        if not files:
+            raise FileNotFoundError(f"bounds_reference_file matches nothing: {ref}")
+        with xr.open_dataset(files[0], decode_times=False) as src:
+            full = xr.Dataset(coords={"lat": src["lat"].load(), "lon": src["lon"].load()})
+    else:
+        full = xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]})
+    full_lat = np.asarray(full["lat"].values, dtype="f8").ravel()
+    full_lon = np.asarray(full["lon"].values, dtype="f8").ravel()
+    take = _match_cells(xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]}), full)
+    if take is None or np.unique(take).size != take.size:
+        raise ValueError(f"{data.sizes[cell]} cells are not a subset of the {full_lat.size}-cell reference grid")
+
+    lead = data.shape[:-1]
+    values = np.full((int(np.prod(lead)), full_lat.size), np.nan)
+    values[:, take] = np.asarray(data.values, dtype="f8").reshape(-1, data.sizes[cell])
+    fill = rule.get("remap_fill")
+    if fill is not None:
+        values = np.where(np.isnan(values), float(fill), values)
+    lat_b, lon_b = _reduced_gaussian_bounds(full_lat, full_lon)
+
+    src = xr.Dataset(
+        {"v": (("time", "cell"), values, {"coordinates": "lat lon"})},
+        coords={
+            "time": ("time", np.arange(values.shape[0], dtype="f8"), {"units": "days since 2000-01-01"}),
+            "lat": ("cell", full_lat, {"units": "degrees_north", "bounds": "lat_bnds"}),
+            "lon": ("cell", full_lon, {"units": "degrees_east", "bounds": "lon_bnds"}),
+            "lat_bnds": (("cell", "nv"), lat_b),
+            "lon_bnds": (("cell", "nv"), lon_b),
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        src_path, out_path = f"{tmp}/src.nc", f"{tmp}/out.nc"
+        src.to_netcdf(src_path, encoding={"v": {"_FillValue": 1.0e20}})
+        cdo(src_path).remapcon(rule.get("remap_target", "F128")).execute(output=out_path)
+        with xr.open_dataset(out_path, decode_times=False) as res:
+            res = res.load()
+    res = res.sortby("lat", ascending=False)
+    rlat, rlon = res["lat"].values, res["lon"].values
+    out = xr.DataArray(
+        res["v"].values.reshape(lead + (rlat.size, rlon.size)).astype(data.dtype),
+        dims=data.dims[:-1] + ("lat", "lon"),
+        coords={k: v for k, v in data.coords.items() if cell not in v.dims},
+        attrs=data.attrs,
+        name=data.name,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    return out

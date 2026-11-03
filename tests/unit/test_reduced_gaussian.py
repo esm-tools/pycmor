@@ -94,3 +94,44 @@ def test_daily_statistic_off_or_not_midnight_is_noop():
     assert cs.daily_statistic_time(da, _Rule()) is da
     da = _daily(12)
     assert cs.daily_statistic_time(da, _Rule(daily_statistic=True)) is da
+
+
+def test_bounds_like_ece2cmor3():
+    da = _reduced()
+    lat_b, lon_b = cs._reduced_gaussian_bounds(da["lat"].values, da["lon"].values)
+    assert lat_b.shape == lon_b.shape == (24, 4)
+    np.testing.assert_allclose(lat_b[0], [90, 90, 40, 40])  # first row: north edge at the pole
+    np.testing.assert_allclose(lat_b[4], [40, 40, 0, 0])  # midpoints between rows
+    np.testing.assert_allclose(lat_b[-1], [-40, -40, -90, -90])
+    np.testing.assert_allclose(lon_b[0], [-45, 45, 45, -45])  # 4-cell row: 90 deg wide
+    np.testing.assert_allclose(lon_b[4], [-22.5, 22.5, 22.5, -22.5])
+
+
+def _needs_cdo():
+    import shutil
+
+    pytest.importorskip("pycdo")
+    if shutil.which("cdo") is None:
+        pytest.skip("cdo not on PATH")
+
+
+def test_remap_constant_subset_with_fill(tmp_path):
+    _needs_cdo()
+    full = _reduced(np.full(24, 7.0), ntime=1)
+    full.to_dataset().to_netcdf(tmp_path / "ref.nc")
+    land = full.isel(cell=[4, 5, 6, 7, 8, 9])
+    out = cs.remap_conservative(
+        land, _Rule(bounds_reference_file=str(tmp_path / "ref.nc"), remap_fill=7.0, remap_target="r8x4")
+    )
+    assert out.dims == ("time", "lat", "lon") and out.shape == (1, 4, 8)
+    assert bool(np.all(out["lat"].diff("lat") < 0))
+    np.testing.assert_allclose(out.values, 7.0, rtol=1e-6)
+
+
+def test_remap_not_a_subset_rejected(tmp_path):
+    _needs_cdo()
+    full = _reduced(ntime=1)
+    full.to_dataset().to_netcdf(tmp_path / "ref.nc")
+    other = full.isel(cell=[4, 5]).assign_coords(lat=("cell", [10.0, 10.0]))
+    with pytest.raises(ValueError):
+        cs.remap_conservative(other, _Rule(bounds_reference_file=str(tmp_path / "ref.nc"), remap_target="r8x4"))
