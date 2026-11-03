@@ -87,3 +87,11 @@ rules:
     model_variable: Total
     source_units: "kg m-2 s-1"
     pipelines: [ecearth4_lpjg]
+  - name: nbp
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/nbp_monthly.out*"
+    compound_name: land.nbp.tavg-u-hxy-lnd.mon.glb
+    model_variable: Total
+    source_units: "kg m-2 s-1"
+    pipelines: [ecearth4_lpjg]
