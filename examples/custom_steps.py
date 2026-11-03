@@ -51,6 +51,9 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
   Land / LPJ-GUESS
     compute_fire_emission, compute_mrtws, compute_snd,
     compute_mrsow, compute_sftgif, compute_mrsofc, compute_rootd
+
+  OIFS reduced Gaussian / daily statistics (EC-Earth4)
+    reduced_to_regular, daily_statistic_time, _reduced_gaussian_index
 """
 
 import glob as _glob
@@ -7495,3 +7498,99 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
 
     return ds[da_name] if was_dataarray and da_name in ds else ds
+
+
+# ============================================================
+# OIFS reduced Gaussian grid and daily statistics (EC-Earth4)
+# ============================================================
+
+
+def _reduced_gaussian_index(lat, lon):
+    """Rows of a reduced Gaussian grid (north to south) and linear weights to regular.
+
+    Returns (rlat, rlon, i0, i1, w): regular latitudes and longitudes, and per
+    regular point the two neighbouring cells along the row and the weight of i1.
+    """
+    lat = np.asarray(lat, dtype="f8")
+    lon = np.asarray(lon, dtype="f8")
+    brk = np.flatnonzero(np.abs(np.diff(lat)) > 1e-6) + 1
+    starts = np.concatenate([[0], brk])
+    counts = np.diff(np.concatenate([starts, [lat.size]]))
+    rlat = lat[starts]
+    if np.unique(np.round(rlat, 6)).size != rlat.size:
+        raise ValueError("reduced Gaussian: latitude rows are not contiguous")
+    if not np.all(np.diff(rlat) < 0):
+        raise ValueError("reduced Gaussian: latitude rows are not north to south")
+    nlon = int(counts.max())
+    rlon = np.arange(nlon) * 360.0 / nlon
+    i0, i1, w = [], [], []
+    for s, n in zip(starts, counts):
+        if not np.allclose(np.mod(lon[s : s + n], 360.0), np.arange(n) * 360.0 / n, atol=1e-4):
+            raise ValueError(f"reduced Gaussian: row at lat {lat[s]:.4f}, longitudes not uniform from 0")
+        x = rlon * n / 360.0
+        j = np.floor(x).astype(int)
+        i0.append(s + j % n)
+        i1.append(s + (j + 1) % n)
+        w.append(x - j)
+    return rlat, rlon, np.concatenate(i0), np.concatenate(i1), np.concatenate(w)
+
+
+def reduced_to_regular(data, rule):
+    """OIFS reduced Gaussian (..., cell) to regular (..., lat, lon).
+
+    Linear along rows; rule option regrid_nearest: true takes the nearest cell
+    instead (keeps land/sea edges). No-op without a cell dimension.
+    """
+    if "cell" not in data.dims:
+        return data
+    rlat, rlon, i0, i1, w = _reduced_gaussian_index(data["lat"].values, data["lon"].values)
+    shape = (rlat.size, rlon.size)
+    if rule.get("regrid_nearest", False):
+        near = np.where(w < 0.5, i0, i1)
+
+        def _to_regular(x):
+            return x[..., near].reshape(x.shape[:-1] + shape)
+
+    else:
+
+        def _to_regular(x):
+            a, b = x[..., i0], x[..., i1]
+            # w == 0: exact point, ignore the neighbour
+            return np.where(w == 0.0, a, a + w * (b - a)).reshape(x.shape[:-1] + shape)
+
+    out = xr.apply_ufunc(
+        _to_regular,
+        data.drop_vars(["lat", "lon"]),
+        input_core_dims=[["cell"]],
+        output_core_dims=[["lat", "lon"]],
+        dask="parallelized",
+        output_dtypes=[data.dtype],
+        dask_gufunc_kwargs={"output_sizes": {"lat": shape[0], "lon": shape[1]}},
+        keep_attrs=True,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    out.name = data.name
+    return out
+
+
+def daily_statistic_time(data, rule):
+    """Daily statistic stamped at 00:00 of the next day: move stamps back 12 h.
+
+    The model writes daily max/min once a day at the end of the day; the
+    stamp moves into the day it describes. Only with rule option
+    daily_statistic: true and when all stamps are at 00:00.
+    """
+    import pandas as pd
+
+    if not rule.get("daily_statistic", False):
+        return data
+    dim = next(d for d in data.dims if d.startswith("time"))
+    t = data[dim]
+    if not bool((t.dt.hour == 0).all()):
+        return data
+    # pd.Timedelta works with cftime and datetime64
+    return data.assign_coords({dim: t - pd.Timedelta(hours=12)})
