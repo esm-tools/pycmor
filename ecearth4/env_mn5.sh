@@ -28,7 +28,7 @@ PIXI=$WORK/bin/pixi
 DREQ_VENV=$WORK/dreq-venv
 export PIXI_HOME=$WORK/pixi-global
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
-# cmip7-cmor-common (ecearth4/steps.py): public repo at a tag; a local
+# cmip7-cmor-common, for steps that use it: public repo at a tag; a local
 # checkout in CMIP7_CMOR_COMMON overrides it (development).
 COMMON_URL=${COMMON_URL:-https://github.com/matDDTCmor/cmip7-cmor-common.git}
 COMMON_TAG=${COMMON_TAG:-v0.3.0}
