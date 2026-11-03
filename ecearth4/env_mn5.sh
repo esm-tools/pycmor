@@ -9,6 +9,9 @@ PIXI_VERSION=${PIXI_VERSION:-0.81.0}
 PIXI_SHA256=${PIXI_SHA256:-7aa3ec39aecceff9062fa2ed4d42cbaa0bdc25ddea727d048e061cf188d434f6}
 DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 DREQ_API_VERSION=${DREQ_API_VERSION:-1.5.1}
+# remap_conservative: pycdo in the env, cdo from conda-forge (pixi global).
+PYCDO_VERSION=${PYCDO_VERSION:-0.2.1}
+CDO_VERSION=${CDO_VERSION:-2.6.5}
 
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # Settings: <checkout parent>/ecearth4.env (outside the repo), or the file in
@@ -23,6 +26,7 @@ fi
 WORK=${PYCMOR_WORK:?set PYCMOR_WORK in $SETTINGS}
 PIXI=$WORK/bin/pixi
 DREQ_VENV=$WORK/dreq-venv
+export PIXI_HOME=$WORK/pixi-global
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 # cmip7-cmor-common (ecearth4/steps.py): public repo at a tag; a local
 # checkout in CMIP7_CMOR_COMMON overrides it (development).
@@ -50,6 +54,8 @@ submodules $(git -C "$SRC" submodule status | awk '{printf "%s@%.8s ", $2, $1}')
 dreq       CMIP7-data-request-api $DREQ_API_VERSION in $DREQ_VENV
 metadata   $METADATA
 common     $COMMON_SRC $([ -n "$COMMON" ] && git -C "$COMMON" log -1 --format="(%h %s)" 2>/dev/null)
+pycdo      $PYCDO_VERSION in the env
+cdo        $CDO_VERSION -> $PIXI_HOME/bin/cdo (pixi global, conda-forge)
 EOF
 }
 
@@ -78,6 +84,8 @@ install() {
     # common deps (numpy, netCDF4) are in the lock: --no-deps keeps it intact.
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m ensurepip > /dev/null
     "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m pip install -q --no-deps --force-reinstall "$COMMON_SRC"
+    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -m pip install -q --no-deps "pycdo==$PYCDO_VERSION"
+    "$PIXI" global install "cdo==$CDO_VERSION"
     if [ ! -s "$METADATA" ]; then
         tmp=$(mktemp -d)
         "$DREQ_VENV/bin/export_dreq_lists_json" -a "$DREQ_VERSION" "$tmp/experiments.json" -m "$METADATA"
@@ -105,6 +113,9 @@ if vcs:
     src += "@" + vcs.get("requested_revision", "") + " " + vcs.get("commit_id", "")[:8]
 print("cmip7-cmor-common", v, "ok" if ok else "OLDER THAN " + sys.argv[1] + ": rerun install", "from", src)
 ' "$COMMON_MIN" 2>/dev/null || echo "cmip7-cmor-common not installed: rerun install"
+    "$PIXI" run --frozen --manifest-path "$SRC/pyproject.toml" python -c \
+        'from importlib.metadata import version; print("pycdo", version("pycdo"))' 2>/dev/null || echo "pycdo not installed: rerun install"
+    "$PIXI_HOME/bin/cdo" -V 2>&1 | sed -n 1p || echo "cdo not installed: rerun install"
     python3 - "$METADATA" <<'EOF'
 import hashlib, json, sys
 p = sys.argv[1]
