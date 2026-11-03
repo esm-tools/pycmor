@@ -121,7 +121,7 @@ def test_remap_constant_subset_with_fill(tmp_path):
     full.to_dataset().to_netcdf(tmp_path / "ref.nc")
     land = full.isel(cell=[4, 5, 6, 7, 8, 9])
     out = cs.remap_conservative(
-        land, _Rule(bounds_reference_file=str(tmp_path / "ref.nc"), remap_fill=7.0, remap_target="r8x4")
+        land, _Rule(remap_source_grid=str(tmp_path / "ref.nc"), remap_fill=7.0, remap_target="r8x4")
     )
     assert out.dims == ("time", "lat", "lon") and out.shape == (1, 4, 8)
     assert bool(np.all(out["lat"].diff("lat") < 0))
@@ -134,4 +134,18 @@ def test_remap_not_a_subset_rejected(tmp_path):
     full.to_dataset().to_netcdf(tmp_path / "ref.nc")
     other = full.isel(cell=[4, 5]).assign_coords(lat=("cell", [10.0, 10.0]))
     with pytest.raises(ValueError):
-        cs.remap_conservative(other, _Rule(bounds_reference_file=str(tmp_path / "ref.nc"), remap_target="r8x4"))
+        cs.remap_conservative(other, _Rule(remap_source_grid=str(tmp_path / "ref.nc"), remap_target="r8x4"))
+
+
+def test_remap_dataset_keeps_time_encoding(tmp_path):
+    _needs_cdo()
+    full = _reduced(np.full(24, 3.0), ntime=2)
+    full.to_dataset().to_netcdf(tmp_path / "ref.nc")
+    ds = full.isel(cell=[4, 5, 6]).assign_coords(time=[0.0, 31.0]).to_dataset()
+    ds["time"].encoding["units"] = "days since 1850-01-01"
+    out = cs.remap_conservative(
+        ds, _Rule(remap_source_grid=str(tmp_path / "ref.nc"), remap_fill=3.0, remap_target="r8x4")
+    )
+    assert isinstance(out, xr.Dataset) and out["tas"].dims == ("time", "lat", "lon")
+    assert out["time"].encoding["units"] == "days since 1850-01-01"
+    np.testing.assert_allclose(out["tas"].values, 3.0, rtol=1e-6)

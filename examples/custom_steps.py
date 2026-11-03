@@ -54,7 +54,7 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
 
   Reduced Gaussian grid (EC-Earth4: OIFS, LPJ-GUESS)
     reduced_to_regular, daily_statistic_time, remap_conservative,
-    _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
+    _remap_conservative_da, _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
 """
 
 import glob as _glob
@@ -7624,11 +7624,27 @@ def _reduced_gaussian_bounds(lat, lon):
 def remap_conservative(data, rule):
     """Cell field on a reduced Gaussian grid (..., cell) to a regular grid with CDO remapcon.
 
-    Cells may be a subset of the grid (LPJ-GUESS land points): they are put on
-    the full grid of rule option bounds_reference_file, missing elsewhere.
-    Rule options: remap_target (CDO grid, default F128: regular N128, 512x256), remap_fill (value
-    for missing cells before remapping; default none). Needs pycdo and cdo.
+    Takes a DataArray or a Dataset (each variable with the cell dimension).
+    Cells may be a subset of the grid (LPJ-GUESS land points): they are put
+    on the full grid of the file in rule option remap_source_grid, missing
+    elsewhere. Rule options: remap_target (CDO grid, default F128: regular
+    N128, 512x256), remap_fill (value for missing cells before remapping;
+    default none). Needs pycdo and cdo.
     """
+    if isinstance(data, xr.Dataset):
+        cell = data["lat"].dims[0]
+        out = xr.Dataset(
+            {n: _remap_conservative_da(v, rule) if cell in v.dims else v for n, v in data.data_vars.items()},
+            attrs=data.attrs,
+        )
+        for k in out.coords:
+            if k in data.coords and k not in ("lat", "lon"):
+                out[k].encoding = dict(data[k].encoding)
+        return out
+    return _remap_conservative_da(data, rule)
+
+
+def _remap_conservative_da(data, rule):
     import tempfile
 
     from pycdo import cdo
@@ -7637,11 +7653,11 @@ def remap_conservative(data, rule):
 
     cell = data["lat"].dims[0]
     data = data.transpose(..., cell)
-    ref = rule.get("bounds_reference_file")
+    ref = rule.get("remap_source_grid")
     if ref:
         files = sorted(_glob.glob(str(ref)))
         if not files:
-            raise FileNotFoundError(f"bounds_reference_file matches nothing: {ref}")
+            raise FileNotFoundError(f"remap_source_grid matches nothing: {ref}")
         with xr.open_dataset(files[0], decode_times=False) as src:
             full = xr.Dataset(coords={"lat": src["lat"].load(), "lon": src["lon"].load()})
     else:
@@ -7690,4 +7706,7 @@ def remap_conservative(data, rule):
         lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
     )
     out.attrs.pop("coordinates", None)
+    for k in out.coords:
+        if k in data.coords and k not in ("lat", "lon"):
+            out[k].encoding = dict(data[k].encoding)
     return out
