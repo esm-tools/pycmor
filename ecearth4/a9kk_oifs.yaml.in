@@ -27,7 +27,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
-      - script://@SRC@/ecearth4/steps.py:reduced_to_regular
+      - script://@SRC@/examples/custom_steps.py:reduced_to_regular
       - pycmor.std_lib.add_vertical_bounds
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
@@ -42,8 +42,8 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
-      - script://@SRC@/ecearth4/steps.py:reduced_to_regular
-      - script://@SRC@/ecearth4/steps.py:daily_statistic_time
+      - script://@SRC@/examples/custom_steps.py:reduced_to_regular
+      - script://@SRC@/examples/custom_steps.py:daily_statistic_time
       - pycmor.std_lib.add_vertical_bounds
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
