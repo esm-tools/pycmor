@@ -4312,7 +4312,7 @@ def load_lpjguess_monthly(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4523,7 +4523,7 @@ def load_lpjguess_yearly(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4676,7 +4676,7 @@ def load_lpjguess_yearly_lut(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4756,7 +4756,7 @@ def load_lpjguess_monthly_lut(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
