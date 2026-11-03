@@ -149,3 +149,12 @@ def test_remap_dataset_keeps_time_encoding(tmp_path):
     assert isinstance(out, xr.Dataset) and out["tas"].dims == ("time", "lat", "lon")
     assert out["time"].encoding["units"] == "days since 1850-01-01"
     np.testing.assert_allclose(out["tas"].values, 3.0, rtol=1e-6)
+
+
+def test_remap_default_target_same_latitudes(tmp_path):
+    _needs_cdo()
+    full = _reduced(np.full(24, 2.0), ntime=1)
+    full.to_dataset().to_netcdf(tmp_path / "ref.nc")
+    out = cs.remap_conservative(full, _Rule(remap_source_grid=str(tmp_path / "ref.nc")))
+    assert out.shape == (1, 4, 8)  # F2: 4 latitude rows, as the source
+    np.testing.assert_allclose(out.values, 2.0, rtol=1e-6)

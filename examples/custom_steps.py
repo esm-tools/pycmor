@@ -7798,8 +7798,8 @@ def remap_conservative(data, rule):
     Takes a DataArray or a Dataset (each variable with the cell dimension).
     Cells may be a subset of the grid (LPJ-GUESS land points): they are put
     on the full grid of the file in rule option remap_source_grid, missing
-    elsewhere. Rule options: remap_target (CDO grid, default F128: regular
-    N128, 512x256), remap_fill (value for missing cells before remapping:
+    elsewhere. Rule options: remap_target (CDO grid; default the regular
+    Gaussian grid with the same latitudes, F<N>: F128 for TL255), remap_fill (value for missing cells before remapping:
     0 for grid-cell means; none keeps means over the valid area, missing
     elsewhere). Needs pycdo and cdo.
     """
@@ -7847,6 +7847,7 @@ def _remap_conservative_da(data, rule):
     if fill is not None:
         values = np.where(np.isnan(values), float(fill), values)
     lat_b, lon_b = _reduced_gaussian_bounds(full_lat, full_lon)
+    target = rule.get("remap_target") or f"F{np.unique(lat_b[:, 0]).size // 2}"
 
     src = xr.Dataset(
         {"v": (("time", "cell"), values, {"coordinates": "lat lon"})},
@@ -7861,7 +7862,7 @@ def _remap_conservative_da(data, rule):
     with tempfile.TemporaryDirectory() as tmp:
         src_path, out_path = f"{tmp}/src.nc", f"{tmp}/out.nc"
         src.to_netcdf(src_path, encoding={"v": {"_FillValue": 1.0e20}})
-        cdo(src_path).remapcon(rule.get("remap_target", "F128")).execute(output=out_path)
+        cdo(src_path).remapcon(target).execute(output=out_path)
         with xr.open_dataset(out_path, decode_times=False) as res:
             res = res.load()
     res = res.sortby("lat", ascending=False)
