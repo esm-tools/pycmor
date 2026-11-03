@@ -1,9 +1,9 @@
 # LPJ-GUESS land cover fractions, yearly, for any EC-Earth4 run:
 # run.sh run lpjg_yearly <exp>; input <exp output>/<leg>/lpjg/<var>_yearly.out
 # (or .out.gz), all legs found. Rendered by run.sh; @...@ from its environment.
-# LPJ-GUESS loader from examples/custom_steps.py, no clipping. Land points go
-# on the TL255 grid of the run's OIFS files, missing set to 0, then
-# conservative remap to the regular N128 grid (as ece2cmor3 does for LPJG).
+# LPJ-GUESS loader from examples/custom_steps.py. Land points go on the TL255
+# grid of the run's OIFS files, 0 over ocean (fractions of the whole grid
+# cell), then conservative remap to the regular N128 grid.
 general:
   name: "ecearth4-@EXP@-lpjg-yearly"
   cmor_version: "CMIP7"

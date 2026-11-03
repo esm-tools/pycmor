@@ -7605,7 +7605,7 @@ def daily_statistic_time(data, rule):
 
 
 def _reduced_gaussian_bounds(lat, lon):
-    """Cell corners (cell, 4) of a reduced Gaussian grid, as ece2cmor3 builds them for LPJ-GUESS.
+    """Cell corners (cell, 4) of a reduced Gaussian grid.
 
     Longitude: centre plus or minus half the row spacing. Latitude: midpoint
     between rows, 90 and -90 at the first and last row.
@@ -7628,8 +7628,9 @@ def remap_conservative(data, rule):
     Cells may be a subset of the grid (LPJ-GUESS land points): they are put
     on the full grid of the file in rule option remap_source_grid, missing
     elsewhere. Rule options: remap_target (CDO grid, default F128: regular
-    N128, 512x256), remap_fill (value for missing cells before remapping;
-    default none). Needs pycdo and cdo.
+    N128, 512x256), remap_fill (value for missing cells before remapping:
+    0 for grid-cell means; none keeps means over the valid area, missing
+    elsewhere). Needs pycdo and cdo.
     """
     if isinstance(data, xr.Dataset):
         cell = data["lat"].dims[0]

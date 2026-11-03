@@ -2,8 +2,9 @@
 # run.sh run lpjg_carbon <exp>; input <exp output>/<leg>/lpjg/<var>_monthly.out
 # (or .out.gz), all legs found. Rendered by run.sh; @...@ from its environment.
 # LPJ-GUESS loader from examples/custom_steps.py, no clipping. Land points go
-# on the TL255 grid of the run's OIFS files, missing set to 0, then
-# conservative remap to the regular N128 grid (as ece2cmor3 does for LPJG).
+# on the TL255 grid of the run's OIFS files, then conservative remap to the
+# regular N128 grid. Land means (-lnd) stay means over land, missing over
+# ocean; grid-cell means (-u) get 0 over ocean (remap_fill).
 general:
   name: "ecearth4-@EXP@-lpjg-carbon"
   cmor_version: "CMIP7"
@@ -51,7 +52,6 @@ inherit:
   nominal_resolution: "100 km"
   qc_enabled: false
   remap_source_grid: "@OUTPUT@/*/oifs/*_1m_*.nc"
-  remap_fill: 0.0
   output_directory: "@OUT@"
 
 rules:
@@ -78,6 +78,7 @@ rules:
     compound_name: atmos.fco2antt.tavg-u-hxy-u.mon.glb
     model_variable: Total
     source_units: "kg m-2 s-1"
+    remap_fill: 0.0
     pipelines: [ecearth4_lpjg]
   - name: fco2nat
     inputs:
@@ -86,6 +87,7 @@ rules:
     compound_name: atmos.fco2nat.tavg-u-hxy-u.mon.glb
     model_variable: Total
     source_units: "kg m-2 s-1"
+    remap_fill: 0.0
     pipelines: [ecearth4_lpjg]
   - name: nbp
     inputs:

@@ -96,7 +96,7 @@ def test_daily_statistic_off_or_not_midnight_is_noop():
     assert cs.daily_statistic_time(da, _Rule(daily_statistic=True)) is da
 
 
-def test_bounds_like_ece2cmor3():
+def test_bounds_rows_and_poles():
     da = _reduced()
     lat_b, lon_b = cs._reduced_gaussian_bounds(da["lat"].values, da["lon"].values)
     assert lat_b.shape == lon_b.shape == (24, 4)
