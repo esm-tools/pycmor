@@ -30,6 +30,8 @@ SOURCE=${SOURCE_DIR:-$ROOT/$EXP/source}
 OUTPUT=${EXP_OUTPUT:-$ROOT/$EXP/output}
 DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
+# cdo for remap_conservative (env_mn5.sh install).
+export PATH=$WORK/pixi-global/bin:$PATH
 TS=$(date +%Y%m%d_%H%M%S)
 OUT=${OUT_DIR:-$ROOT/$EXP/pycmor-out}
 LOGS=${LOG_DIR:-$ROOT/logs/$EXP}
