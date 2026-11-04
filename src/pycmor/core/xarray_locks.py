@@ -71,9 +71,11 @@ owner's stack (or the owner thread is gone): the ``with`` block it guarded has
 ended, so nobody is inside netCDF on its behalf. The guard logs the stack it
 was taken from and releases it. The record keeps the frame itself and not its
 id: a frame that returned frees its address, and the owner's next call to the
-same function gets it back. A hold with no owner on record is released once two
-checks have seen it. Any hold longer than ``REPORT_AFTER_SEC`` is reported with
-the owner thread's current stack and left alone: a deadlock looks like that.
+same function gets it back. A hold with no owner on record is never released:
+nothing shows that its holder is gone, and releasing a live holder's lock makes
+its own release fail with ``release unlocked lock`` (1pctCO2, extra_atm 1864).
+Any hold longer than ``REPORT_AFTER_SEC`` is reported with the owner thread's
+current stack, if known, and left alone: a deadlock looks like that.
 
 Stand down
 ----------
@@ -213,7 +215,6 @@ class TrackedLock:
         self._owner = None
         self._takes = 0  # counts every take, so the guard can tell one hold from the next
         self._taken_at = None
-        self._unknown = None  # the take the guard last found held with no owner on record
         self._reported = None  # the take the guard last reported as held long
 
     def acquire(self, blocking=True, timeout=-1):
@@ -225,7 +226,7 @@ class TrackedLock:
         try:
             self._owner = self._record(sys._getframe(1))
         except Exception:
-            pass  # the guard releases a hold with no owner on record
+            pass  # the guard leaves a hold with no owner on record alone, and reports it if long
         return True
 
     def _record(self, frame):
@@ -329,7 +330,11 @@ def _say(report, *args):
 
 
 def _check(tracked):
-    """Release and report every leaked lock, report long holds; return how many were released."""
+    """Release and report every leaked lock, report long holds; return how many were released.
+
+    Leaked means the recorded owner's frame is no longer on its stack. A hold with no owner
+    on record is never released.
+    """
     released = 0
     for lock in tracked:
         held = lock.held()
@@ -337,12 +342,8 @@ def _check(tracked):
             continue
         take, seconds = held
         owner = lock._owner
-        if owner is None:
-            # Two checks in a row rule out catching a holder between clearing its record and releasing.
-            unknown, lock._unknown = lock._unknown == take, take
-            leaked = unknown and seconds >= LEAK_AFTER_SEC
-        else:
-            leaked = lock.leaked() is not None
+        # With no owner on record there is no evidence the holder is gone, so only report it.
+        leaked = owner is not None and lock.leaked() is not None
         if leaked and lock.force_release(take):
             released += 1
             _say(_report, lock, owner, seconds)

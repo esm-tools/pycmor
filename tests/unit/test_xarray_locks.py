@@ -189,27 +189,57 @@ def test_a_lock_leaked_by_its_owner_while_it_waits_again_is_released(monkeypatch
     assert lock._takes == 2
 
 
-def test_a_hold_with_no_owner_on_record_is_released_on_the_second_check(monkeypatch):
+def test_a_hold_with_no_owner_on_record_is_never_released(monkeypatch):
     monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
     monkeypatch.setattr(xarray_locks.TrackedLock, "_record", lambda self, frame: 1 / 0)
     lock = xarray_locks.TrackedLock("TEST_LOCK")
     assert lock.acquire()
     assert lock._owner is None
-    assert xarray_locks._check([lock]) == 0
-    assert xarray_locks._check([lock]) == 1
-    assert not lock.locked()
+    for _ in range(3):
+        assert xarray_locks._check([lock]) == 0
+    assert lock.locked()
+    lock.release()  # the holder's own release still works
 
 
-def test_a_new_take_resets_the_unknown_count(monkeypatch):
+def test_a_live_holder_with_no_record_can_release_after_the_guard_looked(monkeypatch):
+    """1pctCO2 extra_atm 1864: the guard released a live holder's lock, whose own release then raised."""
     monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
     monkeypatch.setattr(xarray_locks.TrackedLock, "_record", lambda self, frame: 1 / 0)
     lock = xarray_locks.TrackedLock("TEST_LOCK")
+    held, checked, errors = threading.Event(), threading.Event(), []
+
+    def hold():
+        try:
+            with lock:
+                held.set()
+                checked.wait(5)
+        except RuntimeError as exc:
+            errors.append(exc)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    assert held.wait(5)
+    xarray_locks._check([lock])
+    xarray_locks._check([lock])
+    checked.set()
+    t.join(5)
+    assert errors == []
+    assert not lock.locked()
+
+
+def test_a_long_hold_with_no_owner_on_record_is_reported_once(monkeypatch):
+    monkeypatch.setattr(xarray_locks, "LEAK_AFTER_SEC", 0)
+    monkeypatch.setattr(xarray_locks, "REPORT_AFTER_SEC", 0)
+    monkeypatch.setattr(xarray_locks.TrackedLock, "_record", lambda self, frame: 1 / 0)
+    reports = []
+    monkeypatch.setattr(xarray_locks, "_report_long_hold", lambda lock, owner, seconds: reports.append(owner))
+    lock = xarray_locks.TrackedLock("TEST_LOCK")
     lock.acquire()
     assert xarray_locks._check([lock]) == 0
-    lock.release()
-    lock.acquire()
     assert xarray_locks._check([lock]) == 0
+    assert reports == [None]
     assert lock.locked()
+    lock.release()
 
 
 def test_a_long_live_hold_is_reported_once_and_left_alone(monkeypatch):
