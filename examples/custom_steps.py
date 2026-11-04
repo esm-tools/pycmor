@@ -1156,6 +1156,60 @@ def integrate_over_hemisphere(data, rule):
     return result
 
 
+def global_mean(data, rule):
+    """Area-weighted global mean of a 2D field over the cells where it is finite.
+
+    result = sum(data * cell_area) / sum(cell_area), both sums over the
+    finite cells of each time step.
+
+    For the global-mean scalars of surface fields (``tos`` and ``sos`` at
+    ``tavg-u-hm-sea``). FESOM's ldiag_cmor writes ``thetaoga`` and ``soga``,
+    but those are volume means of the whole ocean: reading them for
+    tos/sos published about 3.6 degC instead of about 17.8 degC for HR
+    1pctCO2, and 34.72 instead of 34.27 for salinity.
+
+    Rule attributes:
+      - grid_file: mesh file with ``cell_area`` (or ``cluster_area``)
+      - surface_area_file: optional fesom.mesh.diag.nc, as for
+            integrate_over_hemisphere. Its top-level ``nod_area`` is the
+            open-ocean part of each node, which matters at the edge of
+            ice-shelf cavities (LR CORE3). Cavity nodes themselves are NaN
+            in surface fields and drop out either way.
+    """
+    grid_file = rule.get("grid_file")
+    if grid_file is None:
+        raise ValueError("Rule must specify 'grid_file' for global_mean")
+    with xr.open_dataset(grid_file) as mesh:
+        if "cell_area" in mesh:
+            cell_area = mesh["cell_area"].values
+        elif "cluster_area" in mesh:
+            cell_area = mesh["cluster_area"].values
+        else:
+            raise ValueError("Mesh must contain 'cell_area' or 'cluster_area'")
+    surface_area_file = rule.get("surface_area_file", None)
+    if surface_area_file:
+        with xr.open_dataset(surface_area_file) as diag:
+            nod_area = diag["nod_area"]
+            vdim = next(d for d in nod_area.dims if d != "nod2")
+            surface = nod_area.isel({vdim: 0}).fillna(0).values
+        if surface.shape != cell_area.shape:
+            raise ValueError(f"surface_area_file nod_area has {surface.shape} nodes, mesh cell_area {cell_area.shape}")
+        cell_area = surface
+
+    horizontal_dim = next((d for d in ("nod2", "ncells", "node") if d in data.dims), None)
+    if horizontal_dim is None:
+        raise ValueError(f"Cannot identify horizontal dim. Available: {list(data.dims)}")
+    if data.sizes[horizontal_dim] != cell_area.size:
+        raise ValueError(f"{data.name} has {data.sizes[horizontal_dim]} cells, {grid_file} has {cell_area.size}")
+
+    weight = xr.DataArray(cell_area.astype(np.float64), dims=[horizontal_dim])
+    valid = data.notnull()
+    result = (data.where(valid, 0) * weight).sum(dim=horizontal_dim) / (valid * weight).sum(dim=horizontal_dim)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    return result
+
+
 def compute_ice_volume_per_area(data, rule):
     """Sea-ice volume per unit area from daily thickness and concentration.
 

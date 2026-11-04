@@ -106,6 +106,9 @@ FESOM_MESH_STEP_SUBSTRINGS = (
     # Hemispheric integration expects nod2 horizontal dim
     # (function: integrate_over_hemisphere)
     "integrate_over_hemisphere",
+    # Global mean weighted by the FESOM cell_area (tos/sos at hm). The
+    # native rule already covers g010, so a gr twin would only duplicate it.
+    "custom_steps.py:global_mean",
     # Steric SSH from FESOM column
     "compute_zostoga",
     # FESOM w on layer interfaces → midpoints

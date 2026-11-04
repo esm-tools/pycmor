@@ -115,6 +115,25 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Area-weighted global mean of a surface field (tos, sos at hm)
+  - name: global_mean_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:global_mean
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Extract bottom-of-column from 3D field (tob, sob)
   - name: bottom_extract_pipeline
     steps:
@@ -602,23 +621,31 @@ rules:
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
 
-  # tos_ga — global average sea surface temperature (thetaoga from ldiag_cmor)
+  # tos_ga / sos_ga: global-mean SST and SSS, the area-weighted mean of
+  # sst/sss. They read ldiag_cmor's thetaoga/soga until 2026-11-04, which are
+  # volume means of the whole ocean (3.6 degC instead of 17.8 for HR 1pctCO2).
+  # nod_area[0] weights the open-ocean part of the cavity-edge nodes.
   - name: tos_ga
     inputs:
       - path: *dp
-        pattern: thetaoga\.fesom\.\d{4}\.nc
+        pattern: sst\.fesom\.\d{4}\.nc
     compound_name: ocean.tos.tavg-u-hm-sea.mon.glb
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
-    model_variable: thetaoga
+    model_variable: sst
+    surface_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    pipelines:
+      - global_mean_pipeline
 
-  # sos_ga — global average sea surface salinity (soga from ldiag_cmor)
   - name: sos_ga
     inputs:
       - path: *dp
-        pattern: soga\.fesom\.\d{4}\.nc
+        pattern: sss\.fesom\.\d{4}\.nc
     compound_name: ocean.sos.tavg-u-hm-sea.mon.glb
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
-    model_variable: soga
+    model_variable: sss
+    surface_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    pipelines:
+      - global_mean_pipeline
 
   # thetao_ga — global average potential temperature (per level, from ldiag_cmor)
   # NOTE: ldiag_cmor outputs thetaoga as a scalar, not per-level.
