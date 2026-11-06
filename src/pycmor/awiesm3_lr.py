@@ -1,11 +1,13 @@
-"""AWI-ESM3 LR monthly pipeline steps (TCO95L91 / CORE3, without REcoM).
+"""AWI-ESM3 LR native-output pipeline steps (TCO95L91 / CORE3).
 
-These opt-in steps accept archived monthly means, not subdaily accumulations.
+These opt-in steps accept archived monthly or explicitly selected daily means,
+not subdaily accumulations.
 All source files and shared meshes are read-only. Scaling and mesh choices
 must be supplied explicitly by an audited experiment recipe.
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 import cftime
 import numpy as np
@@ -28,6 +30,15 @@ def load_monthly(data, rule):
     if not paths:
         raise ValueError("Campaign monthly reader requires explicit lr_source_files")
     ds = xr.open_mfdataset(paths, combine="by_coords", join="exact")
+    return _select_years(ds[rule.model_variable], rule)
+
+
+def load_daily(data, rule):
+    """Read native daily fields lazily, including very large 3-D REcoM files."""
+    paths = rule.get("lr_source_files")
+    if not paths:
+        raise ValueError("Campaign daily reader requires explicit lr_source_files")
+    ds = xr.open_mfdataset(paths, combine="by_coords", join="exact", chunks={"time": 1})
     return _select_years(ds[rule.model_variable], rule)
 
 
@@ -67,6 +78,44 @@ def monthly_time(data, rule):
             data = data.drop_vars(name)
     rule.time_method = "mean"
     rule.frequency_str = "MS"
+    return data
+
+
+def daily_time(data, rule):
+    """Require one complete ordered daily mean per calendar day, including leap days.
+
+    Do not resample monthly means into daily values or drop leap days. The
+    native REcoM daily streams are day-centred, and their calendar is retained.
+    """
+    if "time" not in data.dims:
+        candidates = [n for n in ("time_counter", "time_centered") if n in data.dims]
+        if len(candidates) != 1:
+            raise ValueError("Expected one daily time dimension")
+        data = data.rename({candidates[0]: "time"})
+    if "time" not in data.coords:
+        raise ValueError("Missing decoded daily time coordinate")
+    try:
+        calendar = data.time.dt.calendar
+        observed = list(zip(data.time.dt.year.values, data.time.dt.month.values, data.time.dt.day.values))
+    except (AttributeError, TypeError) as exc:
+        raise ValueError("Daily time must be decoded, not numeric") from exc
+    first = cftime.datetime(rule.year_start, 1, 1, calendar=calendar)
+    stop = cftime.datetime(rule.year_end + 1, 1, 1, calendar=calendar)
+    expected = [(d.year, d.month, d.day) for d in
+                (first + timedelta(days=i) for i in range((stop - first).days))]
+    if observed != expected:
+        raise ValueError("Missing, duplicate, unordered or out-of-range daily records")
+    for name in ("time_centered", "time_counter"):
+        if name in data.coords:
+            if data[name].dims != ("time",) or not np.array_equal(data[name].values, data.time.values):
+                raise ValueError(f"Ambiguous XIOS time coordinate: {name}")
+            data = data.drop_vars(name)
+    # Strict daily means: the source timestamps must be at the centre of each
+    # day. This prevents silently reinterpreting daily instantaneous records.
+    if not np.all((data.time.dt.hour == 12) & (data.time.dt.minute == 0) & (data.time.dt.second == 0)):
+        raise ValueError("Native daily means must have day-centred (12:00:00) timestamps")
+    rule.time_method = "mean"
+    rule.frequency_str = "D"
     return data
 
 
@@ -175,13 +224,22 @@ def load_lpj(data, rule):
 
 def load_linear(data, rule):
     """Combine archived monthly fields with explicitly audited coefficients."""
+    return _load_linear(rule, monthly_time, {"time_counter": 1})
+
+
+def load_daily_linear(data, rule):
+    """Daily linear sums with exact time/grid alignment and one-day chunks."""
+    return _load_linear(rule, daily_time, {"time": 1})
+
+
+def _load_linear(rule, check_time, chunks):
     arrays = []
     for term in rule.get("lr_terms"):
         paths = term.get("files") or [
             Path(rule.get("data_path")) / term["file"].format(year=y) for y in range(rule.year_start, rule.year_end + 1)
         ]
-        ds = xr.open_mfdataset(paths, combine="by_coords", chunks={"time_counter": 1})
-        da = monthly_time(_select_years(ds[term["variable"]], rule), rule)
+        ds = xr.open_mfdataset(paths, combine="by_coords", join="exact", chunks=chunks)
+        da = check_time(_select_years(ds[term["variable"]], rule), rule)
         if da.attrs.get("units") != term["units"]:
             raise ValueError(f'Unexpected units for {term["variable"]}: {da.attrs.get("units")}')
         arrays.append(da.astype("float64") * term["coefficient"])

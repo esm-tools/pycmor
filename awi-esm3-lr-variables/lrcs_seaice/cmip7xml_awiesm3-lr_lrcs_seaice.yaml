@@ -1372,7 +1372,8 @@ rules:
   # average against FESOM's per-timestep sivoln for 1586). The v3.5.1 FESOM
   # cmip7 file_def writes a daily m_ice_day alias stream (sea-ice volume per
   # area, m) for exactly these rules, so LR integrates it directly, the same
-  # way siarea_*_day integrates a_ice. The variable in the file is m_ice_day.
+  # way siarea_*_day integrates a_ice. The variable in the file is m_ice;
+  # only the filename carries the daily stream suffix.
   - name: sivol_north_day
     inputs:
       - path: *dp
@@ -1380,7 +1381,7 @@ rules:
     compound_name: seaIce.sivol.tavg-u-hm-u.day.nh
     grid_label: g011  # Mittel über die Nordhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     cell_measures: ""
-    model_variable: m_ice_day
+    model_variable: m_ice
     model_unit: "m3"
     hemisphere: "N"
     pipelines:
@@ -1393,7 +1394,7 @@ rules:
     compound_name: seaIce.sivol.tavg-u-hm-u.day.sh
     grid_label: g012  # Mittel über die Südhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     cell_measures: ""
-    model_variable: m_ice_day
+    model_variable: m_ice
     model_unit: "m3"
     hemisphere: "S"
     pipelines:

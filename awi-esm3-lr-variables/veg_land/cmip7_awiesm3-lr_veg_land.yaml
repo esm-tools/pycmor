@@ -513,8 +513,8 @@ not_enabled:
     or mapping review required.
 - name: dgw_day
   compound_name: land.dgw.tavg-u-hxy-lnd.day.glb
-  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
-    or mapping review required.
+  reason: UNRESOLVED_GROUNDWATER_MAPPING; no genuine groundwater storage diagnostic
+    is archived. swvl4 is volumetric soil water in layer 4 and cannot represent groundwater.
 - name: dsn_day
   compound_name: land.dsn.tavg-u-hxy-lnd.day.glb
   reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics

@@ -279,6 +279,33 @@ def _validate_rule_has_marked_regex(rule: dict, required_marks: List[str] = ["ye
     return all(re.search(rf"\(\?P<{mark}>", pattern) for mark in required_marks)
 
 
+def _year_selection_mask(time_values, year_start, year_end, retain_year_end_point=False):
+    """Select model years, optionally retaining an exact next-Jan-1 instant.
+
+    Some XIOS point streams contain (Jan 1 06:00, ..., next Jan 1 00:00]
+    rather than [Jan 1 00:00, ..., Dec 31 18:00]. Dropping their final point
+    loses a genuine sample. This explicit opt-in preserves its timestamp;
+    it does not admit a next-year interval midpoint or shift any data.
+    Callers must independently verify the source sampling window/cadence.
+    """
+    def fields(value):
+        if isinstance(value, np.datetime64):
+            text = np.datetime_as_string(value, unit="us")
+            date, clock = text.split("T")
+            y, m, d = map(int, date.split("-"))
+            h, minute, second = clock.split(":")
+            return y, m, d, int(h), int(minute), float(second)
+        return value.year, value.month, value.day, value.hour, value.minute, value.second + getattr(value, "microsecond", 0) / 1e6
+
+    result = []
+    for value in time_values:
+        stamp = fields(value)
+        within = int(year_start) <= stamp[0] <= int(year_end)
+        endpoint = retain_year_end_point and stamp == (int(year_end) + 1, 1, 1, 0, 0, 0)
+        result.append(within or endpoint)
+    return np.asarray(result, dtype=bool)
+
+
 def _filter_files_by_year_range(files, year_start, year_end):
     """
     Filter files whose year range overlaps with [year_start, year_end].
@@ -341,7 +368,11 @@ def _check_compatible_schemas(files, rule_spec):
         ref_path = None
         for f in files:
             with xr.open_dataset(f, decode_times=False, engine="netcdf4") as ds:
-                dims = {k: int(v) for k, v in ds.sizes.items() if k != "time"}
+                time_dims = {"time", rule_spec.get("time_dimname")}
+                for coord in ds.variables.values():
+                    if coord.attrs.get("standard_name") == "time" or coord.attrs.get("axis") == "T":
+                        time_dims.update(coord.dims)
+                dims = {k: int(v) for k, v in ds.sizes.items() if k not in time_dims}
             if reference is None:
                 reference = dims
                 ref_path = f
@@ -496,15 +527,9 @@ def load_mfdataset(data, rule_spec):
         and "time" in mf_ds.dims
         and "time" in mf_ds.coords
     ):
-        import pandas as _pd  # local: gather_inputs.py runs once per rule
-
         time_vals = mf_ds["time"].values
-        try:
-            years = _pd.Series(time_vals).dt.year.to_numpy()
-        except (AttributeError, TypeError):
-            # cftime objects don't go through pandas .dt
-            years = np.fromiter((t.year for t in time_vals), dtype=np.int64, count=len(time_vals))
-        mask = (years >= int(year_start)) & (years <= int(year_end))
+        mask = _year_selection_mask(time_vals, year_start, year_end,
+                                    bool(rule_spec.get("retain_year_end_point", False)))
         if not mask.all():
             n_dropped = int((~mask).sum())
             logger.info(

@@ -85,7 +85,7 @@ MODELS = {
         "placeholders": {
             "__LR_SOURCE_ID__": _LR_SOURCE_ID,
             "__LR_GRID_ATM__": "g235",  # TODO(EMD): verify
-            "__LR_GRID_ATM_REGULAR__": "g999",  # TODO(EMD): placeholder, not registered
+            "__LR_GRID_ATM_REGULAR__": "g271",  # TCO95 regular 400 x 192; Jan review 2026-11-04
             "__LR_GRID_OCEAN__": "g236",  # TODO(EMD): verify
             "__LR_GRID_OCEAN_ELEM__": "g238",  # TODO(EMD): verify
         },

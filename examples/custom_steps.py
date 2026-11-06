@@ -65,6 +65,8 @@ import numpy as np
 import pint
 import xarray as xr
 
+from pycmor.std_lib.basins import BASIN_IDS, BASIN_NAMES, canonical_basin_ids
+
 logger = logging.getLogger(__name__)
 
 
@@ -2949,6 +2951,30 @@ def accumulate_monthly_climatology(data, rule):
         ``$PYCMOR_CLIMATOLOGY_STATE_DIR`` (set by a campaign), then the
         default above.
     """
+    window = rule.get("climatology_window")
+    if window is not None:
+        first, last = map(int, window)
+        da = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+        observed = sorted(set(map(int, da.time.dt.year.values)))
+        if observed != list(range(first, last + 1)):
+            raise ValueError("Climatology requires every year in its frozen window")
+        monthly = []
+        for year in observed:
+            one = da.where(da.time.dt.year == year, drop=True)
+            if set(map(int, one.time.dt.month.values)) != set(range(1, 13)):
+                raise ValueError("Climatology requires all twelve months in every year")
+            # Native Dask reductions avoid a per-process Numba/JIT thread pool
+            # on sites with strict login/compute process limits.
+            with xr.set_options(use_flox=False):
+                monthly.append(one.groupby('time.month').mean('time', keep_attrs=True))
+        result = xr.concat(monthly, dim='climatology_year').mean('climatology_year', keep_attrs=True)
+        result = result.rename(month='time').assign_coords(time=(
+            'time', [np.datetime64(f'{first:04d}-{m:02d}-01') for m in range(1, 13)]))
+        result.name = rule.model_variable
+        result.attrs = dict(da.attrs)
+        rule.climatology_years = (first, last)
+        return result
+
     state_dir = pathlib.Path(
         rule.get("climatology_state_dir")
         or _os.environ.get("PYCMOR_CLIMATOLOGY_STATE_DIR")
@@ -5027,8 +5053,18 @@ def select_southern_hemisphere(data, rule):
             break
     if lat_name is None:
         raise ValueError("Cannot find latitude coordinate in data")
-    result = data.sel({lat_name: data[lat_name] <= -30.0})
-    return result
+    lat = data[lat_name]
+    if lat.ndim == 1:
+        # On a reduced/unstructured grid latitude is lat(cell), not an
+        # indexed dimension. Label selection on "lat" then fails (and must
+        # not select longitude independently from its paired latitude).
+        dim = lat.dims[0]
+        return data.isel({dim: np.asarray(lat.values <= -30.0)})
+    if lat.ndim == 2:
+        # A curvilinear mask is not necessarily rectangular. Keep its
+        # geometry and mask out-of-region cells rather than invent points.
+        return data.where(lat <= -30.0, drop=True)
+    raise ValueError(f"Expected one- or two-dimensional latitude, got {lat.dims}")
 
 
 def compute_sftgif(data, rule):
@@ -5559,8 +5595,11 @@ def extract_single_plevel(data, rule):
 # ============================================================
 
 
-_BASIN_IDS = (1, 2, 3, 10, 11)  # Atl, Pac, Ind, Arctic, SO — matches basin_mask.nc
-_BASIN_NAMES = ("atlantic", "pacific", "indian", "arctic", "southern")
+# Internal diagnostic codes/order only, NOT a claim about IDs in a mask file.
+# _load_basin_nodes decodes the file's flag_values/flag_meanings into this
+# convention. In the supplied CORE3 file 10 is Southern and 11 is Arctic.
+_BASIN_IDS = BASIN_IDS
+_BASIN_NAMES = BASIN_NAMES
 # CMIP basin axis (CMIP6_coordinate.json → 'basin') requires exactly three names.
 _CMIP_BASIN_NAMES = ("atlantic_arctic_ocean", "indian_pacific_ocean", "global_ocean")
 _CMIP_BASIN_AGG = {
@@ -5611,14 +5650,18 @@ _CP = 3900.0
 
 
 def _load_basin_nodes(rule):
-    """Return node→basin-id array from rule.basin_mask_file (rename ncells→nod2)."""
+    """Return semantic basin IDs in the diagnostic's internal convention.
+
+    Never infer an ocean from a numeric flag alone. The mask is opened
+    read-only; only the returned in-memory array is normalized.
+    """
     path = rule.get("basin_mask_file")
     if path is None:
         raise ValueError("Rule must specify 'basin_mask_file'")
-    ds = xr.open_dataset(path)
-    b = ds["basin"].values
-    ds.close()
-    return b
+    with xr.open_dataset(path) as ds:
+        basin = ds["basin"]
+        return canonical_basin_ids(basin.values, basin.attrs.get("flag_values"),
+                                   basin.attrs.get("flag_meanings"))
 
 
 def _mesh_nodes(grid_file):
@@ -6773,14 +6816,16 @@ def compute_msftm_density(data, rule):
 
     Total advective transport: cumulative-summed (lat) integrated divergence
     of the resolved velocity (FESOM ``std_dens_DIV``), plus the GM bolus
-    contribution (``std_dens_DIVbolus``) when present in ``data_path``.
-    No-bolus configurations (HR with ``Fer_GM=.false.``) work too — bolus
-    files are detected at runtime and skipped silently if absent.
+    contribution (``std_dens_DIVbolus``). If ``msftm_bolus_file`` is supplied,
+    that exact, required secondary input is used. Otherwise legacy no-bolus
+    configurations (HR with ``Fer_GM=.false.``) remain supported — bolus files
+    are detected in ``data_path`` and omitted if absent.
 
     Pipeline shape: prepend ``pycmor.core.gather_inputs.load_mfdataset`` so
     pycmor handles year-filtering of the primary ``std_dens_DIV`` files via
     the rule's input pattern. The bolus addend (``std_dens_DIVbolus``) is
-    discovered in ``data_path`` using the year range of the loaded data.
+    either pinned explicitly or discovered in ``data_path`` using the year
+    range of the loaded data. Resolved and bolus coordinates must match exactly.
 
     Required rule attributes:
       data_path: FESOM output directory
@@ -6807,20 +6852,37 @@ def compute_msftm_density(data, rule):
         years = sorted({int(t.year) for t in div["time"].values}) if div.sizes.get("time", 0) else None
     else:
         years = None
-    bolus_ds = _open_fesom_year_files(data_path, "std_dens_DIVbolus", years)
-    if bolus_ds is not None:
-        bolus = _normalize_dmoc_dim(bolus_ds["std_dens_DIVbolus"])
-        # align on time/ndens; sum into resolved
-        div = div + bolus.reindex_like(div, method=None)
+    pinned_bolus = rule.get("msftm_bolus_file")
+    if pinned_bolus is not None:
+        # The full LR workflow freezes and fingerprints this secondary input.
+        # Missing files are fatal; never silently change total into resolved-only.
+        bolus_ds = xr.open_dataset(pinned_bolus, decode_times=True,
+                                   use_cftime=True, chunks={"time": 1})
+    else:
+        # Legacy rules without a frozen secondary still support configurations
+        # that do not produce GM bolus output (e.g. HR with Fer_GM=false).
+        bolus_ds = _open_fesom_year_files(data_path, "std_dens_DIVbolus", years)
 
     # Mesh + basin info
     grid_file = mesh_path if _os.path.isfile(mesh_path) else _os.path.join(mesh_path, "mesh.nc")
     with xr.open_dataset(grid_file) as m:
         lat_nodes = m["lat"].values
-    with xr.open_dataset(basin_mask_file) as bm:
-        basin_nodes = bm["basin"].values
+    basin_nodes = _load_basin_nodes(rule)
 
-    psi, lat_centers = _msftm_density_streamfunction(div, lat_nodes, basin_nodes)
+    try:
+        if bolus_ds is not None:
+            bolus = _normalize_dmoc_dim(bolus_ds["std_dens_DIVbolus"])
+            if set(bolus.dims) != set(div.dims) or any(
+                    bolus.sizes[dim] != div.sizes[dim] for dim in div.dims):
+                raise ValueError("Resolved and bolus density divergence dimensions differ")
+            # Inexact reindexing used to fill mismatched samples with NaN;
+            # downstream binning could then silently treat them as zero.
+            div, bolus = xr.align(div, bolus, join="exact", copy=False)
+            div = div + bolus
+        psi, lat_centers = _msftm_density_streamfunction(div, lat_nodes, basin_nodes)
+    finally:
+        if bolus_ds is not None:
+            bolus_ds.close()
     psi_kg = psi * _RHO0  # m³/s × kg/m³ → kg/s
 
     rho_coord = _resolve_rho_axis(div, rule.get("std_dens"))
@@ -6873,8 +6935,7 @@ def compute_msftmmpa_density(data, rule):
     grid_file = mesh_path if _os.path.isfile(mesh_path) else _os.path.join(mesh_path, "mesh.nc")
     with xr.open_dataset(grid_file) as m:
         lat_nodes = m["lat"].values
-    with xr.open_dataset(basin_mask_file) as bm:
-        basin_nodes = bm["basin"].values
+    basin_nodes = _load_basin_nodes(rule)
 
     psi, lat_centers = _msftm_density_streamfunction(div, lat_nodes, basin_nodes)
     psi_kg = psi * _RHO0
@@ -7370,13 +7431,33 @@ def _read_oifs_vtable(path):
         if m is None:
             raise ValueError(f"{key} not found in OIFS vtable {path}")
         vals = [tok for tok in _re.split(r"[,\s]+", m.group(1)) if tok]
-        return np.array([float(v) for v in vals], dtype=np.float64)
+        return np.array([float(v.replace("D", "e").replace("d", "e")) for v in vals], dtype=np.float64)
 
     a_half = _grab("DVALH")
     b_half = _grab("DVBH")
     if a_half.size != b_half.size:
         raise ValueError(f"OIFS vtable {path}: DVALH has {a_half.size} values, DVBH has {b_half.size}")
+    if not np.all(np.isfinite(a_half)) or not np.all(np.isfinite(b_half)):
+        raise ValueError(f"OIFS vtable {path}: non-finite hybrid coefficients")
     return a_half, b_half
+
+
+def _oifs_vtable_for_levels(rule, nlev):
+    """Resolve an explicitly configured table; never use L137 for LR L91."""
+    explicit = rule.get("oifs_vtable") or rule.get("model_level_table")
+    if explicit:
+        return str(explicit)
+    directory = rule.get("oifs_vtable_dir")
+    if directory:
+        return str(pathlib.Path(directory) / f"vtable_L{nlev}")
+    # Preserve the established HR default only when it really matches.
+    if nlev == 137:
+        return _OIFS_VTABLE_DEFAULT
+    raise ValueError(
+        f"No OIFS coefficient table configured for {nlev} model levels; "
+        "set oifs_vtable/model_level_table or oifs_vtable_dir. "
+        "The legacy L137 table must not be used for another vertical grid."
+    )
 
 
 def _average_onto_time_axis(src, ds):
@@ -7440,13 +7521,15 @@ def add_hybrid_sigma_coordinate(data, rule):
     z_bounds_factors ``ap: ap_bnds b: b_bnds ps: ps``.
 
     The A/B coefficients are not in the model output; they come from the ECMWF
-    vertical table for the L137 grid, which is static for the vertical
+    vertical table for the selected model grid, which is static for the vertical
     discretisation and ships with the model input. Full-level terms are the
     means of the bounding half levels, and the level index itself is the
     dimensionless ``ap/p0 + b``.
 
     Rule attributes:
-      - ``oifs_vtable``: path to the vtable (default: the L137 table)
+      - ``oifs_vtable`` / ``model_level_table``: path to the matching vtable
+      - ``oifs_vtable_dir``: directory containing vtable_L<N> (optional)
+        The legacy L137 default is retained only for 137-level data.
       - ``ps_path`` / ``ps_pattern`` / ``ps_variable``: surface pressure source
     """
     if isinstance(data, xr.DataArray):
@@ -7459,8 +7542,9 @@ def add_hybrid_sigma_coordinate(data, rule):
     if level_dim is None:
         raise ValueError(f"add_hybrid_sigma_coordinate: no model-level dimension in dims={list(ds.dims)}")
 
-    a_half, b_half = _read_oifs_vtable(rule.get("oifs_vtable", _OIFS_VTABLE_DEFAULT))
     nlev = ds.sizes[level_dim]
+    vtable = _oifs_vtable_for_levels(rule, nlev)
+    a_half, b_half = _read_oifs_vtable(vtable)
     if a_half.size != nlev + 1:
         raise ValueError(
             f"add_hybrid_sigma_coordinate: vtable has {a_half.size} half levels, "
@@ -7513,7 +7597,15 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
 
     ps = _load_secondary_mf(rule, "ps_path", "ps_pattern", "ps_variable")
-    ps = _average_onto_time_axis(ps, ds)
+    if rule.get("climatology_window") is not None:
+        first, last = map(int, rule.get("climatology_window"))
+        ps = ps.where((ps.time.dt.year >= first) & (ps.time.dt.year <= last), drop=True)
+        ps = accumulate_monthly_climatology(ps, rule)
+        if ps.sizes.get("time") != ds.sizes.get("time"):
+            raise ValueError("Climatology surface pressure and primary time axes disagree")
+        ps = ps.assign_coords(time=ds.time)
+    else:
+        ps = _average_onto_time_axis(ps, ds)
     ps = ps.rename("ps")
     # surface_air_pressure is the CMIP7 value: CMIP7_formula_terms.json since
     # 2026-09-15 (cmip7-cmor-tables#153), confirmed in WCRP-universe#413. The CV
@@ -7544,7 +7636,7 @@ def add_hybrid_sigma_coordinate(data, rule):
     lev_out = np.asarray(ds["lev"].values)
     logger.info(
         f"hybrid sigma coordinate: {nlev} levels from "
-        f"{rule.get('oifs_vtable', _OIFS_VTABLE_DEFAULT)}, stored surface-first, "
+        f"{vtable}, stored surface-first, "
         f"lev {lev_out[0]:.6g}..{lev_out[-1]:.6g} (decreasing)"
     )
 

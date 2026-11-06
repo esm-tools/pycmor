@@ -2160,10 +2160,49 @@ def _add_cf_quantization_metadata(ds, rule):
     return ds
 
 
+def _allow_worker_materialization(datasets):
+    """Whether it is safe to gather whole output datasets before writing.
+
+    ``PYCMOR_WORKER_COMPUTE=auto`` (the default) uses eager worker compute
+    only up to ``PYCMOR_WORKER_COMPUTE_MAX_BYTES`` (default 1 GiB across
+    the whole write batch). Larger outputs use the existing lazy, local
+    write path so chunks can be written and released incrementally.
+    ``off`` always streams; ``on`` explicitly retains the old eager path.
+
+    Dataset.nbytes uses shape/dtype metadata: this decision never loads the
+    values. The threshold is not a peak-memory guarantee; computations
+    can have larger intermediate arrays. In particular, annual 6-hourly
+    model-level fields must not be gathered as one 20+ GiB numpy result.
+    """
+    mode = os.environ.get("PYCMOR_WORKER_COMPUTE", "auto").strip().lower()
+    if mode == "off":
+        return False
+    if mode != "auto":
+        # Preserve the established explicit-enable behavior. The bounded
+        # policy applies to the default automatic mode only.
+        return True
+    limit_text = os.environ.get("PYCMOR_WORKER_COMPUTE_MAX_BYTES", str(1024 ** 3))
+    try:
+        limit = int(limit_text)
+        if limit <= 0:
+            raise ValueError
+    except ValueError:
+        raise ValueError("PYCMOR_WORKER_COMPUTE_MAX_BYTES must be a positive integer") from None
+    total = sum(int(ds.nbytes) for ds in datasets)
+    if total > limit:
+        logger.info(
+            f"Streaming lazy NetCDF write: estimated output bytes={total} "
+            f"exceed worker-materialization limit={limit}; no full Dataset gather"
+        )
+        return False
+    return True
+
+
 def _safe_to_netcdf(ds_or_da, *args, scheduler="synchronous", **kwargs):
     """Wrapper around ``to_netcdf`` that:
 
-    1. (Fix #3 of PLAN_save_dataset_reliability / FORENSIC_lrcs_seaice)
+    1. For bounded-size outputs (see ``_allow_worker_materialization``),
+       (Fix #3 of PLAN_save_dataset_reliability / FORENSIC_lrcs_seaice)
        Dispatches the **lazy compute** to the LocalCluster workers via
        ``Client.compute(..., sync=True)`` so the heavy regrid/mask/
        arithmetic happens on workers, not in the driver process.
@@ -2176,9 +2215,10 @@ def _safe_to_netcdf(ds_or_da, *args, scheduler="synchronous", **kwargs):
        ``netcdf_write_scheduler: synchronous`` is set (cli16: 87 GiB
        driver RSS at 4 concurrent OIFS-regrid rules → cascade failure).
 
-    2. Falls back to the legacy synchronous path
+    2. Uses the lazy synchronous path for larger outputs, or falls back
+       to that path when no Client is active
        (``to_netcdf(compute=False)`` → ``delayed.compute()`` under
-       ``scheduler="synchronous"``) when no Client is active.
+       ``scheduler="synchronous"``).
 
     3. For eager input (numpy-backed): direct ``to_netcdf`` — no
        dask graph is built, no serialization happens.
@@ -2263,8 +2303,7 @@ def _safe_to_netcdf(ds_or_da, *args, scheduler="synchronous", **kwargs):
         n_keys = n_layers = approx_bytes = n_chunks = None
 
     # Try the Fix #3 path: gather data via workers, then write eagerly.
-    use_worker_compute = os.environ.get("PYCMOR_WORKER_COMPUTE", "auto").lower()
-    if use_worker_compute != "off":
+    if _allow_worker_materialization([ds_or_da]):
         try:
             from dask.distributed import get_client
 
@@ -3017,8 +3056,12 @@ def split_data_timespan(ds, rule):
     resampled_times = ds[time_label].values
     ref = pd.DataFrame(resampled_times, columns=["dateindex"])
     ref["mark"] = ncuts
+    retain_endpoint = bool(rule.get("retain_year_end_point", False))
     for ind, timecut in enumerate(reversed(time_cuts), start=1):
-        ref.loc[ref.dateindex < timecut, "mark"] = ncuts - ind
+        # End-inclusive instantaneous source windows must keep their final
+        # point in the corresponding chunk, not create a one-record spill.
+        belongs = ref.dateindex <= timecut if retain_endpoint else ref.dateindex < timecut
+        ref.loc[belongs, "mark"] = ncuts - ind
     result = []
     for _, grp in ref.groupby("mark"):
         result.append((grp.dateindex.iloc[0], grp.dateindex.iloc[-1]))
@@ -3187,8 +3230,9 @@ def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, 
     ``_safe_to_netcdf`` (Fix #3): compute the lazy datasets on the
     LocalCluster workers via ``Client.compute``, then write the eager
     results via ``xr.save_mfdataset``. Falls back to the legacy
-    ``compute=False`` + synchronous-scheduler path when no Client is
-    active or the worker path fails."""
+    ``compute=False`` + synchronous-scheduler path for large batches
+    (see ``_allow_worker_materialization``), when no Client is active,
+    or when the worker path fails."""
     # cf Appendix A: demote bounds coords to plain data variables so xarray
     # does not emit a global ``coordinates`` attribute. See the longer note
     # in ``_safe_to_netcdf``; the same treatment is needed here because the
@@ -3238,8 +3282,7 @@ def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, 
             sum_bytes += b or 0
             sum_chunks += c or 0
 
-    use_worker_compute = os.environ.get("PYCMOR_WORKER_COMPUTE", "auto").lower()
-    if use_worker_compute != "off":
+    if _allow_worker_materialization(datasets):
         try:
             from dask.distributed import get_client
 

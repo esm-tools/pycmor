@@ -242,9 +242,15 @@ def process(
         raise click.UsageError(str(e))
     logger.debug(f"Effective config after CLI overrides:\n{yaml.safe_dump(cfg)}")
     cmorizer = CMORizer.from_dict(cfg)
-    client = Client(cmorizer._cluster)  # noqa: F841
     cmorizer._config_file = str(config_file)
-    cmorizer.process()
+    # Client(None) creates an implicit LocalCluster even when enable_dask is
+    # false. Respect the configured serial path, including its HDF5 threading
+    # and memory policy. Close an explicitly configured client on failures too.
+    if cmorizer._cluster is None:
+        cmorizer.process()
+    else:
+        with Client(cmorizer._cluster):
+            cmorizer.process()
 
     # Rule failures used to stay inside serial_process, so a shard in which
     # every rule died still exited 0 and SLURM recorded COMPLETED. At a few

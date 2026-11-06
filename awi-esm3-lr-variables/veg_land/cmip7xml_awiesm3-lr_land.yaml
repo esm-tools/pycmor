@@ -348,15 +348,9 @@ rules:
     pipelines:
       - snd_pipeline
 
-  - name: dgw_day
-    inputs:
-      - path: *dp
-        pattern: atmos_day_land_swvl4_.*\.nc
-    compound_name: land.dgw.tavg-u-hxy-lnd.day.glb
-    model_variable: swvl4
-    layer_thickness: 1.89
-    pipelines:
-      - temporal_diff_pipeline
+  # dgw is intentionally unmapped: swvl4 is the deepest soil layer, not a
+  # groundwater reservoir. Keep the request and reason in the raw catalogue's
+  # unmapped list until a genuine archived groundwater diagnostic is available.
 
   - name: dsn_day
     # `sd` is snow depth in m of liquid water equivalent. The temporal_diff
