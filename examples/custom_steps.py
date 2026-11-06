@@ -51,6 +51,10 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
   Land / LPJ-GUESS
     compute_fire_emission, compute_mrtws, compute_snd,
     compute_mrsow, compute_sftgif, compute_mrsofc, compute_rootd
+
+  Reduced Gaussian grid (EC-Earth4: OIFS, LPJ-GUESS)
+    reduced_to_regular, daily_statistic_time, remap_conservative,
+    _remap_conservative_da, _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
 """
 
 import glob as _glob
@@ -4312,7 +4316,7 @@ def load_lpjguess_monthly(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4523,7 +4527,7 @@ def load_lpjguess_yearly(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4676,7 +4680,7 @@ def load_lpjguess_yearly_lut(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -4756,7 +4760,7 @@ def load_lpjguess_monthly_lut(data, rule):
     frames = []
     for f in files:
         logger.info(f"  * {f}")
-        df = pd.read_csv(f, delim_whitespace=True)
+        df = pd.read_csv(f, sep=r"\s+")
         frames.append(df)
 
     df_all = pd.concat(frames, ignore_index=True)
@@ -7641,3 +7645,215 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
 
     return ds[da_name] if was_dataarray and da_name in ds else ds
+
+
+# ============================================================
+# Reduced Gaussian grid (EC-Earth4: OIFS output, LPJ-GUESS on it)
+# ============================================================
+
+
+def _reduced_gaussian_rows(lat, lon):
+    """Row starts, row lengths and row latitudes of a reduced Gaussian grid, north to south."""
+    lat = np.asarray(lat, dtype="f8")
+    lon = np.asarray(lon, dtype="f8")
+    brk = np.flatnonzero(np.abs(np.diff(lat)) > 1e-6) + 1
+    starts = np.concatenate([[0], brk])
+    counts = np.diff(np.concatenate([starts, [lat.size]]))
+    rlat = lat[starts]
+    if np.unique(np.round(rlat, 6)).size != rlat.size:
+        raise ValueError("reduced Gaussian: latitude rows are not contiguous")
+    if not np.all(np.diff(rlat) < 0):
+        raise ValueError("reduced Gaussian: latitude rows are not north to south")
+    for s, n in zip(starts, counts):
+        if not np.allclose(np.mod(lon[s : s + n], 360.0), np.arange(n) * 360.0 / n, atol=1e-4):
+            raise ValueError(f"reduced Gaussian: row at lat {lat[s]:.4f}, longitudes not uniform from 0")
+    return starts, counts, rlat
+
+
+def _reduced_gaussian_index(lat, lon):
+    """Linear weights from a reduced Gaussian grid to the regular grid with the same rows.
+
+    Returns (rlat, rlon, i0, i1, w): regular latitudes and longitudes, and per
+    regular point the two neighbouring cells along the row and the weight of i1.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
+    nlon = int(counts.max())
+    rlon = np.arange(nlon) * 360.0 / nlon
+    i0, i1, w = [], [], []
+    for s, n in zip(starts, counts):
+        x = rlon * n / 360.0
+        j = np.floor(x).astype(int)
+        i0.append(s + j % n)
+        i1.append(s + (j + 1) % n)
+        w.append(x - j)
+    return rlat, rlon, np.concatenate(i0), np.concatenate(i1), np.concatenate(w)
+
+
+def reduced_to_regular(data, rule):
+    """OIFS reduced Gaussian (..., cell) to regular (..., lat, lon).
+
+    Linear along rows; rule option regrid_nearest: true takes the nearest cell
+    instead (keeps land/sea edges). No-op without a cell dimension.
+    """
+    if "cell" not in data.dims:
+        return data
+    rlat, rlon, i0, i1, w = _reduced_gaussian_index(data["lat"].values, data["lon"].values)
+    shape = (rlat.size, rlon.size)
+    if rule.get("regrid_nearest", False):
+        near = np.where(w < 0.5, i0, i1)
+
+        def _to_regular(x):
+            return x[..., near].reshape(x.shape[:-1] + shape)
+
+    else:
+
+        def _to_regular(x):
+            a, b = x[..., i0], x[..., i1]
+            # w == 0: exact point, ignore the neighbour
+            return np.where(w == 0.0, a, a + w * (b - a)).reshape(x.shape[:-1] + shape)
+
+    out = xr.apply_ufunc(
+        _to_regular,
+        data.drop_vars(["lat", "lon"]),
+        input_core_dims=[["cell"]],
+        output_core_dims=[["lat", "lon"]],
+        dask="parallelized",
+        output_dtypes=[data.dtype],
+        dask_gufunc_kwargs={"output_sizes": {"lat": shape[0], "lon": shape[1]}},
+        keep_attrs=True,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    out.name = data.name
+    return out
+
+
+def daily_statistic_time(data, rule):
+    """Daily statistic stamped at 00:00 of the next day: move stamps back 12 h.
+
+    The model writes daily max/min once a day at the end of the day; the
+    stamp moves into the day it describes. Only with rule option
+    daily_statistic: true and when all stamps are at 00:00.
+    """
+    import pandas as pd
+
+    if not rule.get("daily_statistic", False):
+        return data
+    dim = next(d for d in data.dims if d.startswith("time"))
+    t = data[dim]
+    if not bool((t.dt.hour == 0).all()):
+        return data
+    # pd.Timedelta works with cftime and datetime64
+    return data.assign_coords({dim: t - pd.Timedelta(hours=12)})
+
+
+def _reduced_gaussian_bounds(lat, lon):
+    """Cell corners (cell, 4) of a reduced Gaussian grid.
+
+    Longitude: centre plus or minus half the row spacing. Latitude: midpoint
+    between rows, 90 and -90 at the first and last row.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
+    edges = np.concatenate([[90.0], (rlat[:-1] + rlat[1:]) / 2.0, [-90.0]])
+    row = np.repeat(np.arange(counts.size), counts)
+    half = np.repeat(180.0 / counts, counts)
+    lon = np.asarray(lon, dtype="f8")
+    north, south = edges[row], edges[row + 1]
+    lon_b = np.stack([lon - half, lon + half, lon + half, lon - half], axis=-1)
+    lat_b = np.stack([north, north, south, south], axis=-1)
+    return lat_b, lon_b
+
+
+def remap_conservative(data, rule):
+    """Cell field on a reduced Gaussian grid (..., cell) to a regular grid with CDO remapcon.
+
+    Takes a DataArray or a Dataset (each variable with the cell dimension).
+    Cells may be a subset of the grid (LPJ-GUESS land points): they are put
+    on the full grid of the file in rule option remap_source_grid, missing
+    elsewhere. Rule options: remap_target (CDO grid, default F128: regular
+    N128, 512x256), remap_fill (value for missing cells before remapping:
+    0 for grid-cell means; none keeps means over the valid area, missing
+    elsewhere). Needs pycdo and cdo.
+    """
+    if isinstance(data, xr.Dataset):
+        cell = data["lat"].dims[0]
+        out = xr.Dataset(
+            {n: _remap_conservative_da(v, rule) if cell in v.dims else v for n, v in data.data_vars.items()},
+            attrs=data.attrs,
+        )
+        for k in out.coords:
+            if k in data.coords and k not in ("lat", "lon"):
+                out[k].encoding = dict(data[k].encoding)
+        return out
+    return _remap_conservative_da(data, rule)
+
+
+def _remap_conservative_da(data, rule):
+    import tempfile
+
+    from pycdo import cdo
+
+    from pycmor.std_lib.files import _match_cells
+
+    cell = data["lat"].dims[0]
+    data = data.transpose(..., cell)
+    ref = rule.get("remap_source_grid")
+    if ref:
+        files = sorted(_glob.glob(str(ref)))
+        if not files:
+            raise FileNotFoundError(f"remap_source_grid matches nothing: {ref}")
+        with xr.open_dataset(files[0], decode_times=False) as src:
+            full = xr.Dataset(coords={"lat": src["lat"].load(), "lon": src["lon"].load()})
+    else:
+        full = xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]})
+    full_lat = np.asarray(full["lat"].values, dtype="f8").ravel()
+    full_lon = np.asarray(full["lon"].values, dtype="f8").ravel()
+    take = _match_cells(xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]}), full)
+    if take is None or np.unique(take).size != take.size:
+        raise ValueError(f"{data.sizes[cell]} cells are not a subset of the {full_lat.size}-cell reference grid")
+
+    lead = data.shape[:-1]
+    values = np.full((int(np.prod(lead)), full_lat.size), np.nan)
+    values[:, take] = np.asarray(data.values, dtype="f8").reshape(-1, data.sizes[cell])
+    fill = rule.get("remap_fill")
+    if fill is not None:
+        values = np.where(np.isnan(values), float(fill), values)
+    lat_b, lon_b = _reduced_gaussian_bounds(full_lat, full_lon)
+
+    src = xr.Dataset(
+        {"v": (("time", "cell"), values, {"coordinates": "lat lon"})},
+        coords={
+            "time": ("time", np.arange(values.shape[0], dtype="f8"), {"units": "days since 2000-01-01"}),
+            "lat": ("cell", full_lat, {"units": "degrees_north", "bounds": "lat_bnds"}),
+            "lon": ("cell", full_lon, {"units": "degrees_east", "bounds": "lon_bnds"}),
+            "lat_bnds": (("cell", "nv"), lat_b),
+            "lon_bnds": (("cell", "nv"), lon_b),
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        src_path, out_path = f"{tmp}/src.nc", f"{tmp}/out.nc"
+        src.to_netcdf(src_path, encoding={"v": {"_FillValue": 1.0e20}})
+        cdo(src_path).remapcon(rule.get("remap_target", "F128")).execute(output=out_path)
+        with xr.open_dataset(out_path, decode_times=False) as res:
+            res = res.load()
+    res = res.sortby("lat", ascending=False)
+    rlat, rlon = res["lat"].values, res["lon"].values
+    out = xr.DataArray(
+        res["v"].values.reshape(lead + (rlat.size, rlon.size)).astype(data.dtype),
+        dims=data.dims[:-1] + ("lat", "lon"),
+        coords={k: v for k, v in data.coords.items() if cell not in v.dims},
+        attrs=data.attrs,
+        name=data.name,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    for k in out.coords:
+        if k in data.coords and k not in ("lat", "lon"):
+            out[k].encoding = dict(data[k].encoding)
+    return out

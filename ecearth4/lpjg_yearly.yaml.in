@@ -1,0 +1,77 @@
+# LPJ-GUESS land cover fractions, yearly, for any EC-Earth4 run:
+# run.sh run lpjg_yearly <exp>; input <exp output>/<leg>/lpjg/<var>_yearly.out
+# (or .out.gz), all legs found. Rendered by run.sh; @...@ from its environment.
+# LPJ-GUESS loader from examples/custom_steps.py. Land points go on the TL255
+# grid of the run's OIFS files, 0 over ocean (fractions of the whole grid
+# cell), then conservative remap to the regular N128 grid.
+general:
+  name: "ecearth4-@EXP@-lpjg-yearly"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "@METADATA@"
+  CV_Dir: "@SRC@/CMIP7-CVs"
+  CMIP_Tables_Dir: "@SRC@/src/pycmor/data/cmip7"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: false
+  parallel: false
+  dask_cluster: "local"
+  # Small local cluster; the default takes the whole node (cores and memory).
+  dask_n_workers: 1
+  dask_threads_per_worker: 4
+  dask_memory_limit: "16GB"
+
+pipelines:
+  - name: ecearth4_lpjg
+    steps:
+      - script://@SRC@/examples/custom_steps.py:load_lpjguess_yearly
+      - script://@SRC@/examples/custom_steps.py:remap_conservative
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.files.save_dataset
+
+inherit:
+  source_id: EC-Earth4
+  institution_id: EC-Earth-Consortium
+  activity_id: CMIP
+  experiment_id: historical
+  variant_label: r1i1p1f1
+  parent_experiment_id: piControl
+  parent_activity_id: CMIP
+  parent_time_units: "days since 1850-01-01"
+  branch_time_in_parent: 0.0
+  grid_label: g114
+  grid: "regular Gaussian N128, conservative remap of LPJ-GUESS land points on the TL255 reduced Gaussian grid"
+  nominal_resolution: "100 km"
+  qc_enabled: false
+  remap_source_grid: "@OUTPUT@/*/oifs/*_1m_*.nc"
+  remap_fill: 0.0
+  output_directory: "@OUT@"
+
+rules:
+  - name: vegFrac
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/vegFrac_yearly.out*"
+    compound_name: land.vegFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    # One file per 10 years: with "1YS" pycmor sees a span shorter than a
+    # year and reopens the inputs with xarray, which cannot read .out.gz.
+    file_timespan: "10YS"
+    pipelines: [ecearth4_lpjg]
+  - name: treeFrac
+    inputs:
+      - path: "@OUTPUT@"
+        pattern: "*/lpjg/treeFrac_yearly.out*"
+    compound_name: land.treeFrac.tavg-u-hxy-u.yr.glb
+    model_variable: Total
+    source_units: "%"
+    file_timespan: "10YS"
+    pipelines: [ecearth4_lpjg]
