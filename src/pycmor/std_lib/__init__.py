@@ -26,6 +26,7 @@ from xarray import DataArray, Dataset
 
 from ..core.logging import logger
 from ..core.rule import Rule
+from ..core.xarray_locks import harden_combined_lock, install_lock_guard, patch_combined_lock
 from .bounds import add_vertical_bounds as _add_vertical_bounds
 from .coordinate_attributes import set_coordinate_attributes as _set_coordinate_attributes
 from .dataset_helpers import freq_is_coarser_than_data, get_time_label, has_time_axis
@@ -39,6 +40,10 @@ from .time_bounds import time_bounds as _set_time_bounds
 from .timeaverage import timeavg
 from .units import handle_unit_conversion
 from .variable_attributes import set_variable_attrs
+
+patch_combined_lock()
+harden_combined_lock()
+install_lock_guard()
 
 __all__ = [
     "convert_units",
@@ -562,6 +567,20 @@ def set_time_bounds(data: Union[DataArray, Dataset], rule: Rule) -> Union[DataAr
         var_name = data.name or "data"
         ds = data.to_dataset(name=var_name)
         ds_with_bounds = _set_time_bounds(ds, rule)
-        return ds_with_bounds[var_name]
+        da = ds_with_bounds[var_name]
+        # Replace the DataArray's time coord with the (possibly midpoint-
+        # realigned) version from the bounded dataset, including its
+        # canonical-encoding tweaks. The time_bnds variable itself can't
+        # ride on a DataArray (xarray refuses the foreign 'bnds' dim);
+        # save_dataset re-runs _set_time_bounds on each group as a Dataset
+        # so the canonical bnds always make it into the output file.
+        time_label = None
+        for cand in ("time", "Time", "T"):
+            if cand in ds_with_bounds.dims:
+                time_label = cand
+                break
+        if time_label is not None and time_label in ds_with_bounds.variables:
+            da = da.assign_coords({time_label: ds_with_bounds[time_label]})
+        return da
 
     return _set_time_bounds(data, rule)

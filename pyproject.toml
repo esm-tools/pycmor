@@ -63,6 +63,8 @@ dependencies = [
     "pendulum>=3.0.0",
     "pint-xarray>=0.4,<0.6.0",
     "prefect[dask]>=3.0.3",
+    # Python 3.10 stops at Prefect 3.8, which needs FastAPI to still accept min_items.
+    "fastapi<0.151; python_version < '3.11'",
     "pyyaml>=6.0.2",
     "questionary>=2.0.1",
     "randomname>=0.2.1",
@@ -108,6 +110,27 @@ doc = [
     "watchdog[watchmedo]>=4.0.1",
 ]
 
+# Optional CMIP7 QC toolchain. Enable with: pip install -e ".[qc]"
+# Pulls the IOOS compliance-checker engine, the WCRP CMIP plugin
+# (registers `wcrp_cmip6` / `wcrp_cmip6plus` / `wcrp_cmip7` suites and
+# the `esgvoc` controlled-vocabulary cache), and the cmip7_repack tool
+# used by the `qc_repack: true` pre-step in pycmor.std_lib.qc.
+#
+# IMPORTANT: esgvoc >= 4 switched from local-clone to pre-built sqlite
+# databases. After install you MUST initialise the local CV cache, or
+# the wcrp_cmip7 FILE001 check will crash with
+# `EsgvocDbError: Universe database is not installed or active`:
+#
+#     esgvoc use universe@latest
+#     esgvoc use cmip7@latest
+#
+qc = [
+    "compliance-checker>=6.1",
+    "cc-plugin-wcrp>=2.3",
+    "esgvoc>=4.1",
+    "cmip7_repack>=1.1",
+]
+
 fesom = [
     # NOTE(PG): pyfesom2 is now auto-publishing (GH pyfesom2 #215)
     #           See the relevant information in shell::
@@ -116,6 +139,8 @@ fesom = [
     "pyfesom2",
     # FESOM test datasets (external package)
     "pycmor-test-data-fesom @ git+https://github.com/fesom/pycmor_test_data.git@v0.2.0",
+    # tripyview — used for MHT / MOC diagnostics via calc_mhflx_box_fast, calc_xmoc
+    "tripyview @ git+https://github.com/FESOM/tripyview.git",
 ]
 
 cmip7 = [
@@ -164,7 +189,11 @@ exclude = ["tests*"]
 [tool.setuptools.package-data]
 pycmor = [
     "data/*.yaml",
-    "data/cmip7/all_var_info.json",
+    # Glob rather than naming all_var_info.json alone: CMIP7_coordinate.json
+    # was already being read at runtime without ever being packaged, so it
+    # only resolved in an editable install. CMIP7_grids.json and
+    # CMIP7_formula_terms.json join it for the coordinate work.
+    "data/cmip7/*.json",
     "tutorial/datasets/*.yaml",
 ]
 
@@ -198,7 +227,13 @@ extend-exclude = '''
     | cmip6-cmor-tables
     | CMIP7_DReq_Software
     | CMIP7-CVs
+    | awi-esm3-lr-variables
+    | awi-esm3-veg-hr-variables
+    | notes
+    | tools
+    | tests/awiesm3
   )/
+  | ^/examples/(?!0\d-)
   | _version\.py
   | versioneer\.py
 )
@@ -213,10 +248,21 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+extend_skip = [
+    "cmip6-cmor-tables",
+    "CMIP7_DReq_Software",
+    "CMIP7-CVs",
+    "awi-esm3-lr-variables",
+    "awi-esm3-veg-hr-variables",
+    "notes",
+    "tools",
+]
 extend_skip_glob = [
     "cmip6-cmor-tables/*",
     "CMIP7_DReq_Software/*",
     "CMIP7-CVs/*",
+    "*/tests/awiesm3/*",
+    "*/examples/[!0]*",
     "*/_version.py",
     "versioneer.py"
 ]

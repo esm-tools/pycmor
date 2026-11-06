@@ -1,0 +1,33 @@
+size_class,n_files,sum_values,sum_var_storage_bytes,weighted_bytes_per_value,median_bytes_per_value,p10_bytes_per_value,p90_bytes_per_value,median_overhead_bytes,unstructured_files,example_vars
+atmos1d_1hr,23,64999247936,137968631687,2.1226,2.2097,1.4623,2.6789,8586673,0,clt hfls hfss hurs huss pr ps psl rlds rlus rsds rsus sfcWind tas ts uas vas
+atmos1d_3hr,14,17260024320,36365211127,2.1069,2.2214,1.6450,2.7255,8219350,0,hfls hfss hurs huss pr prsn ps rlds rlus rsds rsus tas uas vas
+atmos1d_6hr,5,3081335040,4856105483,1.5760,1.7443,0.9382,2.0793,8044269,0,hurs prsn ps psl ts
+atmos1d_day,32,4932157440,9993410240,2.0262,2.2633,0.7370,2.6096,8066162,0,clivi clt clwvi evspsbl hfls hfss hurs pr prc prsn prw rlds rldscs rls rlus rluscs rlut rlutcs rsds rsdscs rsdt rss rsus rsuscs rsut
+atmos1d_fx,1,421120,131042,0.3112,0.3112,0.3112,0.3112,8024638,0,areacella
+atmos1d_mon,43,192030780,323341915,1.6838,1.9290,0.1869,2.6036,8036942,0,cfc11 cfc12 ch4 clt co2mass emibbbc emibbch4 emibbco emibbdms emibboa emibbso2 emibbvoc evspsbl fco2antt fco2nat hfls hfss lwp n2o pr prc prsn rlds rldscs rls
+atmos2d_6hr,3,5544887040,13274131741,2.3939,2.7003,1.9215,2.7439,9432547,0,ta ua va
+atmos2d_day,14,51124285440,56870384095,1.1124,1.8020,1.0854,2.4119,81111,0,cl hur hurs huss pfull ps psl sfcWind ta tas uas vas wap zg
+atmos2d_fx,2,1658880,651528,0.3928,0.3928,0.0966,0.6889,47100,0,areacella sftlf
+atmos2d_mon,23,5177625600,7166587540,1.3841,1.5990,0.9823,2.2844,59741,0,ci cl cli clivi clw clwvi hur hurs hus huss pfull prw ps psl sfcWind ta tas toz ts uas vas zg
+atmos3d_day,5,28839628800,59926329283,2.0779,2.1547,1.6333,2.4650,722962,0,hus ta ua va wap
+atmos3d_mon,5,945561600,1866428429,1.9739,2.0003,1.4945,2.4285,77371,0,hus ta ua va wap
+land1d_3hr,5,6164775680,10240201906,1.6611,1.7446,0.6042,2.6489,8219363,0,hfdsl mrro mrros srfrad tslsi
+land1d_day,18,2772232960,1964320666,0.7086,0.7382,0.3970,0.8451,8066119,0,dcw dgw dslw dsn dsw esn mrro mrrob mrso mrsow mrtws sbl snc snd snm snw tslsi tsn
+land1d_fx,5,1779052,1990056,1.1186,0.8083,0.1406,2.9310,8024346,0,mrsofc orog rootd sftgif
+land1d_mon,135,682214400,385012878,0.5644,0.6868,0.1500,0.8347,8040508,0,baresoilFrac burntFractionAll c3PftFrac c4PftFrac cLand cLeaf cLitter cLitterCwd cLitterSubSurf cLitterSurf cOther cProduct cRoot cSoil cStem cVeg cnc cropFrac cropFracC3 cropFracC4 evspsblpot evspsblsoi evspsblveg fAnthDisturb fBNF
+land1d_yr,5,2105600,1519225,0.7215,0.7888,0.5507,0.8426,8040459,0,baresoilFrac cropFrac grassFrac shrubFrac treeFrac
+land2d_fx,2,2513920,105531,0.0420,0.0371,0.0255,0.0486,4452816,0,areacellr slthick
+land2d_mon,18,540410880,320937415,0.5939,0.5775,0.2611,0.7876,8042276,0,cSoilPools fLulccAtmLut fracLut gppLut irrLut laiLut landCoverFrac mrsll mrsol mrsolLut nbpLut nppLut raLut rhLut snc snd sweLut tsl
+land2d_yr,7,11791360,4735248,0.4016,0.5749,0.1450,0.6032,8039309,0,cLitterLut cProductLut cSoilLut cVegLut fracInLut fracLut fracOutLut
+ocean1d_fx,3,9440283,8622625,0.9134,0.5989,0.1407,1.8119,196989116,0,areacello deptho sftof
+ocean1d_mon,7,84,219,2.6071,1.6667,1.6667,3.9333,25247,0,masso so sos thetao tos volo zostoga
+ocean2d_day,7,8062001682,18546626396,2.3005,2.2285,1.9768,2.7503,174163266,7,mlotst sos tos tossq uos vos zos
+ocean2d_fx,4,531802609,280731107,0.5279,0.0809,0.0437,1.0258,206555332,1,basin masscello thkcello volcello
+ocean2d_mon,30,1205273088,2523614000,2.0938,2.2933,0.8501,2.7638,174123593,28,evspsbl friver hfbasin hfds hfx hfy mlotst mlotstsq msftbarot pbo pso sfdsi sfx sfy siflfwbot sltbasin sob sos sossq tauuo tauvo tob tos tossq vsf
+ocean2d_yr,2,6293522,12830740,2.0387,2.0387,1.8214,2.2561,649381299,2,opottempmint somint
+ocean3d_mon,21,38506132296,57890858758,1.5034,1.8320,0.7658,1.8876,649532150,19,absscint hfx hfy masscello msftm obvfsq phcint scint sfx sfy so thetao thkcello umo uo vmo vo volcello wmo wo
+ocean3d_yr,4,890003510,1152513152,1.2950,1.4823,0.8103,1.5129,649405365,4,difmxylo difvho difvso rsdoabsorb
+seaIce1d_day,8,2928,8533,2.9143,2.9290,2.8240,2.9817,46492,0,siarea siextent sisnmass sivol
+seaIce1d_mon,8,96,418,4.3542,4.4167,4.1167,4.5250,25127,0,siarea siextent sisnmass sivol
+seaIce2d_day,12,12972434826,7377057540,0.5687,0.6823,0.2704,0.7867,174163275,11,rsds rsus siconc siconca sisnhc sispeed sithick sitimefrac siu siv snd ts
+seaIce2d_mon,50,1860248748,1178681804,0.6336,0.7460,0.2266,0.8392,174123616,49,evspsbl prra prsn rlds rlus rsds rsus sbl sfdsi sicompstren siconc siconca sidconcdyn sidconcth sidmassdyn sidmassth sidmasstranx sidmasstrany sidragbot sidragtop sieqthick sifb siflcondbot siflcondtop siflfwbot

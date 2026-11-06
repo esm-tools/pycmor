@@ -314,7 +314,7 @@ class TestCMIP7MetadataLocator:
         """Test creating CMIP7MetadataLocator"""
         locator = CMIP7MetadataLocator()
         assert locator.resource_name == "cmip7_metadata"
-        assert locator.version == "v1.2.2.2"  # Default
+        assert locator.version == CMIP7MetadataLocator.DEFAULT_VERSION
 
     def test_can_create_locator_with_custom_version(self):
         """Test creating locator with custom version"""

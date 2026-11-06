@@ -1,0 +1,74 @@
+tier: cap7_seaice
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: prsn
+  compound_name: seaIce.prsn.tavg-u-hxy-si.mon.glb
+  model_variable: sf
+  expected_units: m
+  lr_scale: 0.2777777777777778
+  lr_units: kg m-2 s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_sf_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: evspsbl
+  compound_name: seaIce.evspsbl.tavg-u-hxy-si.mon.glb
+  model_variable: e
+  expected_units: m
+  lr_scale: -0.2777777777777778
+  lr_units: kg m-2 s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_e_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: sieqthick
+  compound_name: seaIce.sieqthick.tavg-u-hxy-si.mon.glb
+  model_variable: m_ice
+  expected_units: m
+  lr_scale: 1
+  lr_units: m
+  pipelines:
+  - lr_monthly
+  grid_label: gn
+  grid: FESOM CORE3 native 220509 nodes; 47 ocean layers
+  time_dimname: time
+  lr_ice_free_zero: true
+  lr_input:
+    component: fesom
+    pattern: m_ice\.fesom\.\d{4}\.nc$
+  lr_grid_key: core3
+  lr_group: seaice
+not_enabled:
+- name: sithick_day
+  compound_name: seaIce.sithick.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snd_day
+  compound_name: seaIce.snd.tavg-u-hxy-sn.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siu_day
+  compound_name: seaIce.siu.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siv_day
+  compound_name: seaIce.siv.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snw
+  compound_name: seaIce.snw.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prra
+  compound_name: seaIce.prra.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

@@ -1,0 +1,828 @@
+# CMIP7 Core Atmosphere Variables — Test config with TCo95 mesh
+# Adapted from awi-esm3-veg-hr-variables/core_atm/cmip7_awiesm3-veg-hr_atmos.yaml
+# Uses low-resolution TCo95 (~100km) for quick testing.
+
+general:
+  name: "awiesm3-cmip7-core-atm-tco95-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ba0989
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # Frozen fx pipeline: computes areacella from 1st timestep of any Amon file
+  # that carries cell_measures: area: areacella.
+  - name: areacella_pipeline
+    uses: pycmor.core.pipeline.AreacellaFxPipeline
+
+  - name: sfcwind_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sfcwind
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  # hur on pressure levels: CMIP7 phase-dependent saturation e_sat
+  # (water >=0 C, ice <0 C), recomputed from ta + hus.
+  - name: hur_plev_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_hur_plev
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: hurs_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_hurs
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: huss_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_huss
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: clwvi_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_clwvi
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/oifs
+  source_id: AWI-ESM3-VEG-LR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo95 reduced Gaussian, interpolated to 1deg regular grid"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/core_atm_tco95_test
+  year_start: 1900
+  year_end: 1901
+
+rules:
+  # ============================================================
+  # fx / time-invariant — areacella from first timestep of an Amon file
+  # via cell_measures: area: areacella.
+  # ============================================================
+
+  - name: areacella
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsdt_mon_.*\.nc
+    compound_name: atmos.areacella.ti-u-hxy-u.fx.glb
+    model_variable: rsdt
+    pipelines:
+      - areacella_pipeline
+
+  # ============================================================
+  # Monthly 2D surface (Amon)
+  # ============================================================
+
+  # --- Radiation (TOA) ---
+
+  - name: rsdt
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsdt_mon_.*\.nc
+    compound_name: atmos.rsdt.tavg-u-hxy-u.mon.glb
+    model_variable: rsdt
+
+  - name: rsut
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsut_mon_.*\.nc
+    compound_name: atmos.rsut.tavg-u-hxy-u.mon.glb
+    model_variable: rsut
+
+  - name: rsutcs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsutcs_mon_.*\.nc
+    compound_name: atmos.rsutcs.tavg-u-hxy-u.mon.glb
+    model_variable: rsutcs
+
+  - name: rlut
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rlut_mon_.*\.nc
+    compound_name: atmos.rlut.tavg-u-hxy-u.mon.glb
+    model_variable: rlut
+
+  - name: rlutcs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rlutcs_mon_.*\.nc
+    compound_name: atmos.rlutcs.tavg-u-hxy-u.mon.glb
+    model_variable: rlutcs
+
+  # --- Radiation (surface, all-sky) ---
+
+  - name: rsds
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsds_mon_.*\.nc
+    compound_name: atmos.rsds.tavg-u-hxy-u.mon.glb
+    model_variable: rsds
+
+  - name: rsus
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsus_mon_.*\.nc
+    compound_name: atmos.rsus.tavg-u-hxy-u.mon.glb
+    model_variable: rsus
+
+  - name: rlds
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rlds_mon_.*\.nc
+    compound_name: atmos.rlds.tavg-u-hxy-u.mon.glb
+    model_variable: rlds
+
+  - name: rlus
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rlus_mon_.*\.nc
+    compound_name: atmos.rlus.tavg-u-hxy-u.mon.glb
+    model_variable: rlus
+
+  # --- Radiation (surface, clear-sky) ---
+
+  - name: rsdscs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsdscs_mon_.*\.nc
+    compound_name: atmos.rsdscs.tavg-u-hxy-u.mon.glb
+    model_variable: rsdscs
+
+  - name: rsuscs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rsuscs_mon_.*\.nc
+    compound_name: atmos.rsuscs.tavg-u-hxy-u.mon.glb
+    model_variable: rsuscs
+
+  - name: rldscs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rldscs_mon_.*\.nc
+    compound_name: atmos.rldscs.tavg-u-hxy-u.mon.glb
+    model_variable: rldscs
+
+  - name: rluscs
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_rluscs_mon_.*\.nc
+    compound_name: atmos.rluscs.tavg-u-hxy-u.mon.glb
+    model_variable: rluscs
+
+  # --- Turbulent fluxes ---
+
+  - name: hfls
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_hfls_mon_.*\.nc
+    compound_name: atmos.hfls.tavg-u-hxy-u.mon.glb
+    model_variable: hfls
+
+  - name: hfss
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_hfss_mon_.*\.nc
+    compound_name: atmos.hfss.tavg-u-hxy-u.mon.glb
+    model_variable: hfss
+
+  # --- Surface stress ---
+
+  - name: tauu
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_tauu_mon_.*\.nc
+    compound_name: atmos.tauu.tavg-u-hxy-u.mon.glb
+    model_variable: tauu
+
+  - name: tauv
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_tauv_mon_.*\.nc
+    compound_name: atmos.tauv.tavg-u-hxy-u.mon.glb
+    model_variable: tauv
+
+  # --- Precipitation ---
+
+  - name: pr
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_pr_mon_.*\.nc
+    compound_name: atmos.pr.tavg-u-hxy-u.mon.glb
+    model_variable: pr
+
+  - name: prc
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_prc_mon_.*\.nc
+    compound_name: atmos.prc.tavg-u-hxy-u.mon.glb
+    model_variable: prc
+
+  - name: prsn
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_prsn_mon_.*\.nc
+    compound_name: atmos.prsn.tavg-u-hxy-u.mon.glb
+    model_variable: prsn
+
+  # --- Cloud, humidity, temperature, pressure ---
+
+  - name: clt
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_clt_mon_.*\.nc
+    compound_name: atmos.clt.tavg-u-hxy-u.mon.glb
+    model_variable: clt
+
+  - name: tas
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_2t_1m_.*\.nc
+    compound_name: atmos.tas.tavg-h2m-hxy-u.mon.glb
+    model_variable: 2t
+
+  - name: ts
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_skt_1m_.*\.nc
+    compound_name: atmos.ts.tavg-u-hxy-u.mon.glb
+    model_variable: skt
+
+  - name: psl
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_msl_1m_.*\.nc
+    compound_name: atmos.psl.tavg-u-hxy-u.mon.glb
+    model_variable: msl
+
+  - name: ps
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_1m_.*\.nc
+    compound_name: atmos.ps.tavg-u-hxy-u.mon.glb
+    model_variable: sp
+
+  - name: prw
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_tcwv_1m_.*\.nc
+    compound_name: atmos.prw.tavg-u-hxy-u.mon.glb
+    model_variable: tcwv
+
+  - name: clivi
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_tciw_1m_.*\.nc
+    compound_name: atmos.clivi.tavg-u-hxy-u.mon.glb
+    model_variable: tciw
+
+  - name: uas
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_10u_1m_.*\.nc
+    compound_name: atmos.uas.tavg-h10m-hxy-u.mon.glb
+    model_variable: 10u
+
+  - name: vas
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_10v_1m_.*\.nc
+    compound_name: atmos.vas.tavg-h10m-hxy-u.mon.glb
+    model_variable: 10v
+
+  # --- Computed variables (multi-input pipelines) ---
+
+  - name: sfcWind
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_10u_1m_.*\.nc
+    compound_name: atmos.sfcWind.tavg-h10m-hxy-u.mon.glb
+    model_variable: 10u
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1m_10v_1m_.*\.nc
+    second_variable: 10v
+    pipelines:
+      - sfcwind_pipeline
+
+  - name: hurs
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_2t_1m_.*\.nc
+    compound_name: atmos.hurs.tavg-h2m-hxy-u.mon.glb
+    model_variable: 2t
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1m_2d_1m_.*\.nc
+    second_variable: 2d
+    pipelines:
+      - hurs_pipeline
+
+  - name: huss
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_2d_1m_.*\.nc
+    compound_name: atmos.huss.tavg-h2m-hxy-u.mon.glb
+    model_variable: 2d
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1m_sp_1m_.*\.nc
+    second_variable: sp
+    pipelines:
+      - huss_pipeline
+
+  - name: clwvi
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_tclw_1m_.*\.nc
+    compound_name: atmos.clwvi.tavg-u-hxy-u.mon.glb
+    model_variable: tclw
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1m_tciw_1m_.*\.nc
+    second_variable: tciw
+    pipelines:
+      - clwvi_pipeline
+
+  # --- Fixed (fx) variables ---
+
+  - name: sftlf
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_lsm_1m_.*\.nc
+    compound_name: atmos.sftlf.ti-u-hxy-u.fx.glb
+    model_variable: lsm
+    scale_factor: 100.0
+    scaled_units: "%"
+    pipelines:
+      - scale_pipeline
+
+  # ============================================================
+  # Monthly 3D on pressure levels (Amon, plev19)
+  # ============================================================
+
+  - name: ta
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_pl_t_1m_pl_.*\.nc
+    compound_name: atmos.ta.tavg-p19-hxy-air.mon.glb
+    model_variable: t
+
+  - name: ua
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_pl_u_1m_pl_.*\.nc
+    compound_name: atmos.ua.tavg-p19-hxy-air.mon.glb
+    model_variable: u
+
+  - name: va
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_pl_v_1m_pl_.*\.nc
+    compound_name: atmos.va.tavg-p19-hxy-air.mon.glb
+    model_variable: v
+
+  - name: hus
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_pl_q_1m_pl_.*\.nc
+    compound_name: atmos.hus.tavg-p19-hxy-u.mon.glb
+    model_variable: q
+
+  - name: wap
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_pl_w_1m_pl_.*\.nc
+    compound_name: atmos.wap.tavg-p19-hxy-air.mon.glb
+    model_variable: w
+
+  - name: zg
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_pl_zg_mon_pl_.*\.nc
+    compound_name: atmos.zg.tavg-p19-hxy-air.mon.glb
+    model_variable: zg
+
+  - name: hur
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_pl_ta_mon_pl_.*\.nc
+    compound_name: atmos.hur.tavg-p19-hxy-air.mon.glb
+    model_variable: ta
+    second_input_path: *dp
+    second_input_pattern: "atmos_mon_pl_hus_mon_pl_.*\\.nc"
+    second_variable: hus
+    pipelines: [hur_plev_pipeline]
+
+  # ============================================================
+  # Daily 2D surface (day)
+  # ============================================================
+
+  - name: clt_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_clt_day_.*\.nc
+    compound_name: atmos.clt.tavg-u-hxy-u.day.glb
+    model_variable: clt
+
+  - name: rsds_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_rsds_day_.*\.nc
+    compound_name: atmos.rsds.tavg-u-hxy-u.day.glb
+    model_variable: rsds
+
+  - name: pr_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_pr_day_.*\.nc
+    compound_name: atmos.pr.tavg-u-hxy-u.day.glb
+    model_variable: pr
+
+  - name: tas_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_2t_1d_cmip7_.*\.nc
+    compound_name: atmos.tas.tavg-h2m-hxy-u.day.glb
+    model_variable: 2t
+
+  - name: psl_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_msl_1d_cmip7_.*\.nc
+    compound_name: atmos.psl.tavg-u-hxy-u.day.glb
+    model_variable: msl
+
+  - name: ps_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_sp_1d_cmip7_.*\.nc
+    compound_name: atmos.ps.tavg-u-hxy-u.day.glb
+    model_variable: sp
+
+  - name: uas_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_10u_1d_cmip7_.*\.nc
+    compound_name: atmos.uas.tavg-h10m-hxy-u.day.glb
+    model_variable: 10u
+
+  - name: vas_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_10v_1d_cmip7_.*\.nc
+    compound_name: atmos.vas.tavg-h10m-hxy-u.day.glb
+    model_variable: 10v
+
+  - name: sfcWind_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_10u_1d_cmip7_.*\.nc
+    compound_name: atmos.sfcWind.tavg-h10m-hxy-u.day.glb
+    model_variable: 10u
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1d_cmip7_10v_1d_cmip7_.*\.nc
+    second_variable: 10v
+    pipelines:
+      - sfcwind_pipeline
+
+  - name: hurs_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_2t_1d_cmip7_.*\.nc
+    compound_name: atmos.hurs.tavg-h2m-hxy-u.day.glb
+    model_variable: 2t
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1d_cmip7_2d_1d_cmip7_.*\.nc
+    second_variable: 2d
+    pipelines:
+      - hurs_pipeline
+
+  - name: huss_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_cmip7_2d_1d_cmip7_.*\.nc
+    compound_name: atmos.huss.tavg-h2m-hxy-u.day.glb
+    model_variable: 2d
+    second_input_path: *dp
+    second_input_pattern: atm_remapped_1d_cmip7_sp_1d_cmip7_.*\.nc
+    second_variable: sp
+    pipelines:
+      - huss_pipeline
+
+  # ============================================================
+  # Daily 3D on pressure levels (day, plev19)
+  # ============================================================
+
+  - name: ta_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_t_1d_pl_cmip7_.*\.nc
+    compound_name: atmos.ta.tavg-p19-hxy-air.day.glb
+    model_variable: t
+
+  - name: ua_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_u_1d_pl_cmip7_.*\.nc
+    compound_name: atmos.ua.tavg-p19-hxy-air.day.glb
+    model_variable: u
+
+  - name: va_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_v_1d_pl_cmip7_.*\.nc
+    compound_name: atmos.va.tavg-p19-hxy-air.day.glb
+    model_variable: v
+
+  - name: hus_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_q_1d_pl_cmip7_.*\.nc
+    compound_name: atmos.hus.tavg-p19-hxy-u.day.glb
+    model_variable: q
+
+  - name: wap_day
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1d_pl_cmip7_w_1d_pl_cmip7_.*\.nc
+    compound_name: atmos.wap.tavg-p19-hxy-u.day.glb
+    model_variable: w
+
+  - name: zg_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_pl_zg_day_pl_.*\.nc
+    compound_name: atmos.zg.tavg-p19-hxy-air.day.glb
+    model_variable: zg
+
+  - name: hur_day
+    inputs:
+      - path: *dp
+        pattern: atmos_day_pl_ta_day_pl_.*\.nc
+    compound_name: atmos.hur.tavg-p19-hxy-u.day.glb
+    model_variable: ta
+    second_input_path: *dp
+    second_input_pattern: "atmos_day_pl_hus_day_pl_.*\\.nc"
+    second_variable: hus
+    pipelines: [hur_plev_pipeline]
+
+  # ============================================================
+  # Daily tasmax / tasmin
+  # ============================================================
+
+  - name: tasmax
+    inputs:
+      - path: *dp
+        pattern: atmos_day_minmax_tasmax_day_minmax_.*\.nc
+    compound_name: atmos.tas.tmax-h2m-hxy-u.day.glb
+    model_variable: tasmax
+
+  - name: tasmin
+    inputs:
+      - path: *dp
+        pattern: atmos_day_minmax_tasmin_day_minmax_.*\.nc
+    compound_name: atmos.tas.tmin-h2m-hxy-u.day.glb
+    model_variable: tasmin
+
+  # ============================================================
+  # Monthly mean of daily max/min temperature (Amon)
+  # ============================================================
+
+  - name: tasmax_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_day_minmax_tasmax_day_minmax_.*\.nc
+    compound_name: atmos.tas.tmaxavg-h2m-hxy-u.mon.glb
+    model_variable: tasmax
+
+  - name: tasmin_mon
+    inputs:
+      - path: *dp
+        pattern: atmos_day_minmax_tasmin_day_minmax_.*\.nc
+    compound_name: atmos.tas.tminavg-h2m-hxy-u.mon.glb
+    model_variable: tasmin
+
+  # ============================================================
+  # Monthly 3D on model levels (Amon, alevel)
+  # ============================================================
+
+  - name: cl
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_cl_mon_ml_.*\.nc
+    compound_name: atmos.cl.tavg-al-hxy-u.mon.glb
+    model_variable: cl
+
+  - name: cli
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_cli_mon_ml_.*\.nc
+    compound_name: atmos.cli.tavg-al-hxy-u.mon.glb
+    model_variable: cli
+
+  - name: clw
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_clw_mon_ml_.*\.nc
+    compound_name: atmos.clw.tavg-al-hxy-u.mon.glb
+    model_variable: clw
+
+  # ============================================================
+  # 3-hourly instantaneous surface (3hrPt)
+  # ============================================================
+
+  - name: tas_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_2t_3h_pt_.*\.nc
+    compound_name: atmos.tas.tpt-h2m-hxy-u.3hr.glb
+    model_variable: 2t
+
+  - name: uas_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_10u_3h_pt_.*\.nc
+    compound_name: atmos.uas.tpt-h10m-hxy-u.3hr.glb
+    model_variable: 10u
+
+  - name: vas_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_10v_3h_pt_.*\.nc
+    compound_name: atmos.vas.tpt-h10m-hxy-u.3hr.glb
+    model_variable: 10v
+
+  - name: huss_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_2d_3h_pt_.*\.nc
+    compound_name: atmos.huss.tpt-h2m-hxy-u.3hr.glb
+    model_variable: 2d
+    second_input_path: *dp
+    second_input_pattern: atmos_3h_pt_sp_3h_pt_.*\.nc
+    second_variable: sp
+    pipelines:
+      - huss_pipeline
+
+  # ============================================================
+  # 3-hourly averaged precipitation
+  # ============================================================
+
+  - name: pr_3hr
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pr_pr_3h_pr_.*\.nc
+    compound_name: atmos.pr.tavg-u-hxy-u.3hr.glb
+    model_variable: pr
+
+  # ============================================================
+  # 1-hourly averaged precipitation
+  # ============================================================
+
+  - name: pr_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pr_pr_1h_pr_.*\.nc
+    compound_name: atmos.pr.tavg-u-hxy-u.1hr.glb
+    model_variable: pr
+
+  # ============================================================
+  # 6-hourly surface (hurs averaged)
+  # ============================================================
+
+  - name: hurs_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_2t_6h_.*\.nc
+    compound_name: atmos.hurs.tavg-h2m-hxy-u.6hr.glb
+    model_variable: 2t
+    second_input_path: *dp
+    second_input_pattern: atmos_6h_2d_6h_.*\.nc
+    second_variable: 2d
+    pipelines:
+      - hurs_pipeline
+
+  # ============================================================
+  # 6-hourly instantaneous pressure levels (plev3)
+  # ============================================================
+
+  - name: ta_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl3_t_6h_pl3_.*\.nc
+    compound_name: atmos.ta.tpt-p3-hxy-air.6hr.glb
+    model_variable: t
+
+  - name: ua_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl3_u_6h_pl3_.*\.nc
+    compound_name: atmos.ua.tpt-p3-hxy-air.6hr.glb
+    model_variable: u
+
+  - name: va_6hr
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pl3_v_6h_pl3_.*\.nc
+    compound_name: atmos.va.tpt-p3-hxy-air.6hr.glb
+    model_variable: v

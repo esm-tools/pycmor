@@ -1,0 +1,664 @@
+tier: core_atm
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: tas
+  compound_name: atmos.tas.tavg-h2m-hxy-u.mon.glb
+  model_variable: 2t
+  expected_units: K
+  lr_scale: 1
+  lr_units: K
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_2t_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: ts
+  compound_name: atmos.ts.tavg-u-hxy-u.mon.glb
+  model_variable: skt
+  expected_units: K
+  lr_scale: 1
+  lr_units: K
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_skt_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: psl
+  compound_name: atmos.psl.tavg-u-hxy-u.mon.glb
+  model_variable: msl
+  expected_units: Pa
+  lr_scale: 1
+  lr_units: Pa
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_msl_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: uas
+  compound_name: atmos.uas.tavg-h10m-hxy-u.mon.glb
+  model_variable: 10u
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_10u_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: vas
+  compound_name: atmos.vas.tavg-h10m-hxy-u.mon.glb
+  model_variable: 10v
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_10v_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: clt
+  compound_name: atmos.clt.tavg-u-hxy-u.mon.glb
+  model_variable: tcc
+  expected_units: '1'
+  lr_scale: 100
+  lr_units: '%'
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tcc_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: clivi
+  compound_name: atmos.clivi.tavg-u-hxy-u.mon.glb
+  model_variable: tciw
+  expected_units: kg m-2
+  lr_scale: 1
+  lr_units: kg m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tciw_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: prw
+  compound_name: atmos.prw.tavg-u-hxy-u.mon.glb
+  model_variable: tcwv
+  expected_units: kg m-2
+  lr_scale: 1
+  lr_units: kg m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tcwv_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: ta
+  compound_name: atmos.ta.tavg-p19-hxy-air.mon.glb
+  model_variable: t
+  expected_units: K
+  lr_scale: 1
+  lr_units: K
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_t_1m_pl_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: ua
+  compound_name: atmos.ua.tavg-p19-hxy-air.mon.glb
+  model_variable: u
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_u_1m_pl_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: va
+  compound_name: atmos.va.tavg-p19-hxy-air.mon.glb
+  model_variable: v
+  expected_units: m s-1
+  lr_scale: 1
+  lr_units: m s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_v_1m_pl_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: hus
+  compound_name: atmos.hus.tavg-p19-hxy-u.mon.glb
+  model_variable: q
+  expected_units: kg*kg-1
+  lr_scale: 1
+  lr_units: '1'
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_q_1m_pl_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: zg
+  compound_name: atmos.zg.tavg-p19-hxy-air.mon.glb
+  model_variable: z
+  expected_units: m2 s-2
+  lr_scale: 0.10197162129779283
+  lr_units: m
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_z_1m_pl_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rsdt
+  compound_name: atmos.rsdt.tavg-u-hxy-u.mon.glb
+  model_variable: tisr
+  expected_units: J m-2
+  lr_scale: 0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tisr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rlut
+  compound_name: atmos.rlut.tavg-u-hxy-u.mon.glb
+  model_variable: ttr
+  expected_units: J m-2
+  lr_scale: -0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ttr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rlutcs
+  compound_name: atmos.rlutcs.tavg-u-hxy-u.mon.glb
+  model_variable: ttrc
+  expected_units: J m-2
+  lr_scale: -0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ttrc_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rsds
+  compound_name: atmos.rsds.tavg-u-hxy-u.mon.glb
+  model_variable: ssrd
+  expected_units: J m-2
+  lr_scale: 0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ssrd_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rlds
+  compound_name: atmos.rlds.tavg-u-hxy-u.mon.glb
+  model_variable: strd
+  expected_units: J m-2
+  lr_scale: 0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_strd_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: hfls
+  compound_name: atmos.hfls.tavg-u-hxy-u.mon.glb
+  model_variable: slhf
+  expected_units: J m-2
+  lr_scale: -0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_slhf_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: hfss
+  compound_name: atmos.hfss.tavg-u-hxy-u.mon.glb
+  model_variable: sshf
+  expected_units: J m-2
+  lr_scale: -0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_sshf_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: prc
+  compound_name: atmos.prc.tavg-u-hxy-u.mon.glb
+  model_variable: cp
+  expected_units: m
+  lr_scale: 0.2777777777777778
+  lr_units: kg m-2 s-1
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_cp_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rsut
+  compound_name: atmos.rsut.tavg-u-hxy-u.mon.glb
+  model_variable: tisr
+  expected_units: J m-2
+  lr_scale: 1
+  lr_units: W m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: tisr
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_tisr_1m_\d{4}\-\d{4}\.nc$
+  - variable: tsr
+    units: J m-2
+    coefficient: -0.0002777777777777778
+    pattern: atm_remapped_1m_tsr_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tisr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rsutcs
+  compound_name: atmos.rsutcs.tavg-u-hxy-u.mon.glb
+  model_variable: tisr
+  expected_units: J m-2
+  lr_scale: 1
+  lr_units: W m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: tisr
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_tisr_1m_\d{4}\-\d{4}\.nc$
+  - variable: tsrc
+    units: J m-2
+    coefficient: -0.0002777777777777778
+    pattern: atm_remapped_1m_tsrc_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tisr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rsus
+  compound_name: atmos.rsus.tavg-u-hxy-u.mon.glb
+  model_variable: ssrd
+  expected_units: J m-2
+  lr_scale: 1
+  lr_units: W m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: ssrd
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_ssrd_1m_\d{4}\-\d{4}\.nc$
+  - variable: ssr
+    units: J m-2
+    coefficient: -0.0002777777777777778
+    pattern: atm_remapped_1m_ssr_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ssrd_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rlus
+  compound_name: atmos.rlus.tavg-u-hxy-u.mon.glb
+  model_variable: strd
+  expected_units: J m-2
+  lr_scale: 1
+  lr_units: W m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: strd
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_strd_1m_\d{4}\-\d{4}\.nc$
+  - variable: str
+    units: J m-2
+    coefficient: -0.0002777777777777778
+    pattern: atm_remapped_1m_str_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_strd_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: pr
+  compound_name: atmos.pr.tavg-u-hxy-u.mon.glb
+  model_variable: cp
+  expected_units: m
+  lr_scale: 1
+  lr_units: kg m-2 s-1
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: cp
+    units: m
+    coefficient: 0.2777777777777778
+    pattern: atm_remapped_1m_cp_1m_\d{4}\-\d{4}\.nc$
+  - variable: lsp
+    units: m
+    coefficient: 0.2777777777777778
+    pattern: atm_remapped_1m_lsp_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_cp_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: clwvi
+  compound_name: atmos.clwvi.tavg-u-hxy-u.mon.glb
+  model_variable: tclw
+  expected_units: kg m-2
+  lr_scale: 1
+  lr_units: kg m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 interpolated by XIOS to 400 longitude x 192 latitude points
+  lr_terms:
+  - variable: tclw
+    units: kg m-2
+    coefficient: 1
+    pattern: atm_remapped_1m_tclw_1m_\d{4}\-\d{4}\.nc$
+  - variable: tciw
+    units: kg m-2
+    coefficient: 1
+    pattern: atm_remapped_1m_tciw_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tclw_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: tauu
+  compound_name: atmos.tauu.tavg-u-hxy-u.mon.glb
+  model_variable: ewss
+  expected_units: N m-2 s
+  lr_scale: 0.0002777777777777778
+  lr_units: Pa
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ewss_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: tauv
+  compound_name: atmos.tauv.tavg-u-hxy-u.mon.glb
+  model_variable: nsss
+  expected_units: N m-2 s
+  lr_scale: 0.0002777777777777778
+  lr_units: Pa
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_nsss_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: areacella_atmos
+  compound_name: atmos.areacella.ti-u-hxy-u.fx.glb
+  model_variable: cell_area
+  lr_mesh_variable: cell_area
+  lr_units: m2
+  grid_label: gr
+  grid: 'Practice grid: atmos_grid'
+  pipelines:
+  - lr_fx
+  lr_grid_key: atmos
+  lr_group: fx_areacella_atmos
+not_enabled:
+- name: rsdscs
+  compound_name: atmos.rsdscs.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsuscs
+  compound_name: atmos.rsuscs.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rldscs
+  compound_name: atmos.rldscs.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rluscs
+  compound_name: atmos.rluscs.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prsn
+  compound_name: atmos.prsn.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ps
+  compound_name: atmos.ps.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfcWind
+  compound_name: atmos.sfcWind.tavg-h10m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs
+  compound_name: atmos.hurs.tavg-h2m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: huss
+  compound_name: atmos.huss.tavg-h2m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sftlf
+  compound_name: atmos.sftlf.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: wap
+  compound_name: atmos.wap.tavg-p19-hxy-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hur
+  compound_name: atmos.hur.tavg-p19-hxy-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: clt_day
+  compound_name: atmos.clt.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_day
+  compound_name: atmos.rsds.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pr_day
+  compound_name: atmos.pr.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tas_day
+  compound_name: atmos.tas.tavg-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: psl_day
+  compound_name: atmos.psl.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ps_day
+  compound_name: atmos.ps.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: uas_day
+  compound_name: atmos.uas.tavg-h10m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vas_day
+  compound_name: atmos.vas.tavg-h10m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfcWind_day
+  compound_name: atmos.sfcWind.tavg-h10m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_day
+  compound_name: atmos.hurs.tavg-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: huss_day
+  compound_name: atmos.huss.tavg-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ta_day
+  compound_name: atmos.ta.tavg-p19-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ua_day
+  compound_name: atmos.ua.tavg-p19-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: va_day
+  compound_name: atmos.va.tavg-p19-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hus_day
+  compound_name: atmos.hus.tavg-p19-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: wap_day
+  compound_name: atmos.wap.tavg-p19-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: zg_day
+  compound_name: atmos.zg.tavg-p19-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hur_day
+  compound_name: atmos.hur.tavg-p19-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tasmax
+  compound_name: atmos.tas.tmax-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tasmin
+  compound_name: atmos.tas.tmin-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tasmax_mon
+  compound_name: atmos.tas.tmaxavg-h2m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tasmin_mon
+  compound_name: atmos.tas.tminavg-h2m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cl
+  compound_name: atmos.cl.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cli
+  compound_name: atmos.cli.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: clw
+  compound_name: atmos.clw.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tas_3hr
+  compound_name: atmos.tas.tpt-h2m-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: uas_3hr
+  compound_name: atmos.uas.tpt-h10m-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vas_3hr
+  compound_name: atmos.vas.tpt-h10m-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: huss_3hr
+  compound_name: atmos.huss.tpt-h2m-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pr_3hr
+  compound_name: atmos.pr.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pr_1hr
+  compound_name: atmos.pr.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_6hr
+  compound_name: atmos.hurs.tavg-h2m-hxy-u.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ta_6hr
+  compound_name: atmos.ta.tpt-p3-hxy-air.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ua_6hr
+  compound_name: atmos.ua.tpt-p3-hxy-air.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: va_6hr
+  compound_name: atmos.va.tpt-p3-hxy-air.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

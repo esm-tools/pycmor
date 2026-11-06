@@ -7,11 +7,16 @@ defined in test_data_registry.yaml.
 
 import logging
 import os
+import time
 from pathlib import Path
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Waits between download attempts. The data lives on one Nextcloud server, and
+# CI starts dozens of jobs at once, which it answers with 503s and dropped connections.
+RETRY_WAITS_SEC = (30, 60, 120)
 
 
 def get_cache_dir() -> Path:
@@ -20,6 +25,20 @@ def get_cache_dir() -> Path:
         os.getenv("PYCMOR_TEST_DATA_CACHE_DIR")
         or Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache") / "pycmor" / "test_data"
     )
+
+
+def _retrieve(url, known_hash, path, fname):
+    """``pooch.retrieve``, retrying when the server fails."""
+    import pooch
+    import requests
+
+    for wait in RETRY_WAITS_SEC:
+        try:
+            return pooch.retrieve(url=url, known_hash=known_hash, path=path, fname=fname)
+        except requests.exceptions.RequestException as exc:
+            logger.warning(f"Download of {fname} failed, retrying in {wait}s: {exc}")
+            time.sleep(wait)
+    return pooch.retrieve(url=url, known_hash=known_hash, path=path, fname=fname)
 
 
 def load_registry(registry_path=None):
@@ -73,8 +92,6 @@ def fetch_and_extract(filename: str, registry_path=None) -> Path:
     >>> print(data_dir)  # doctest: +SKIP
     /home/user/.cache/pycmor/test_data/fesom_2p6_pimesh
     """
-    import pooch
-
     registry = load_registry(registry_path)
     logger.info(f"Loaded registry from: {registry_path or 'default test_data_registry.yaml'}")
 
@@ -118,7 +135,7 @@ def fetch_and_extract(filename: str, registry_path=None) -> Path:
     logger.info(f"Downloading and extracting {filename}...")
 
     # Download the tarball with pooch (no extraction yet)
-    downloaded_path = pooch.retrieve(
+    downloaded_path = _retrieve(
         url=url,
         known_hash=f"sha256:{checksum}" if checksum else None,
         path=cache_dir,
@@ -163,8 +180,6 @@ def fetch_tarball(filename: str, registry_path=None) -> Path:
     --------
     >>> tarball = fetch_tarball("fesom_2p6_pimesh.tar")  # doctest: +SKIP
     """
-    import pooch
-
     registry = load_registry(registry_path)
 
     if filename not in registry:
@@ -181,7 +196,7 @@ def fetch_tarball(filename: str, registry_path=None) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Download without processing
-    downloaded_path = pooch.retrieve(
+    downloaded_path = _retrieve(
         url=url,
         known_hash=f"sha256:{checksum}" if checksum else None,
         path=cache_dir,

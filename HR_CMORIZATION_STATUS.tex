@@ -1,0 +1,94 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.7cm,top=1.4cm,bottom=1.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage[colorlinks=true,urlcolor=blue!60!black]{hyperref}
+\setlist{nosep,leftmargin=1.2em}
+\setlength{\parskip}{3pt}
+\pagestyle{empty}
+\definecolor{accent}{RGB}{0,84,140}
+\newcommand{\sect}[1]{\vspace{5pt}{\color{accent}\large\bfseries #1}\par\vspace{1pt}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\keyfig}[2]{\begin{tabular}[t]{@{}c@{}}{\color{accent}\Large\bfseries #1}\\[-1pt]{\footnotesize #2}\end{tabular}}
+
+\begin{document}
+
+{\color{accent}\LARGE\bfseries AWI-ESM3-4-2-veg-HR: CMIP7 CMORization status}\\[2pt]
+{\small piControl \textbar\ OpenIFS 48r1 TCo319, FESOM 2.7, LPJ-GUESS \textbar\ pycmor on DKRZ Levante \textbar\ 14 September 2026}
+
+\sect{Where we are}
+The pipeline turns one model year into a complete, CMIP7-structured data set in under four hours. Against the
+QC checker DKRZ will publish with (\code{cc-plugin-wcrp} coordinate checks, PR \#81), the latest test year has
+\textbf{no HIGH findings from the CMIP7 plugin on any of its 529 files}. What remains is upstream work in the
+checkers and tables, a review of flagged values, and running the 196 years.
+
+\vspace{2pt}
+\begin{center}
+\keyfig{529}{files per year}\hfill
+\keyfig{329}{variables}\hfill
+\keyfig{403}{branded variables}\hfill
+\keyfig{7}{realms}\hfill
+\keyfig{6}{grids}\hfill
+\keyfig{470\,GB}{per year}\hfill
+\keyfig{3.9\,h}{wall time per year}
+\end{center}
+
+\sect{What one year contains}
+\begin{tabularx}{\linewidth}{@{}lrrX@{}}
+\toprule
+\textbf{realm} & \textbf{files} & \textbf{variables} & \textbf{frequencies and grids} \\
+\midrule
+land      & 183 & 153 & 3-hourly to yearly, tiles and land-use types, TCo319 (\code{g122}) \\
+atmos     & 156 &  55 & 1-hourly to monthly, native TCo319 and regridded 0.28\textdegree{} (\code{g129}), pressure and model levels \\
+ocean     &  87 &  61 & daily to decadal, FESOM nodes (\code{g130}) and elements (\code{g132}), basin transports (\code{g239}), global means (\code{g010}) \\
+seaIce    &  78 &  54 & daily and monthly, plus hemispheric totals (\code{g010}) \\
+landIce, aerosol, atmosChem & 25 & 20 & monthly and yearly \\
+\bottomrule
+\end{tabularx}
+
+\sect{Compliance: from dozens of findings to none on our side}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{test year} & \textbf{HIGH findings (cf / CMIP7 plugin / aicc)} \\
+\midrule
+\code{cli117} & 65 with that week's checkers; DKRZ's newer \code{aicc} then also flagged longitude range (299 files), grid variable names, data types and climatologies \\
+\code{cli119}, released checkers & 0 / 42 / 1: all 42 are a known TIME001 checker bug, the 1 is a typo in the data request table \\
+\code{cli119}, checker with PR \#81 & \textbf{9 / 0 / 1}: the 9 are a cf test that contradicts CF 1.7 itself, the 1 is the table typo \\
+\bottomrule
+\end{tabularx}
+
+\vspace{2pt}
+Across the DKRZ review rounds (Martin Schupfner), every finding in our files has been fixed and re-measured.
+Along the way we reported or fixed more than a dozen issues upstream in \code{compliance-checker}, \code{cc-plugin-wcrp},
+the WCRP universe and the data request, and registered our grids in the Essential Model Documentation, including
+the zonal-band grid \code{g239}.
+
+\sect{Built and working}
+\begin{itemize}
+\item Year-by-year submission as SLURM shard arrays (17 tiers, 59 tasks), with QC running inside every job.
+\item Unstructured FESOM output with CMIP7 grid variables and cell vertices, one coordinate set per grid.
+\item Climatologies and monthly means of daily extremes as CF climatologies; decadal means written from
+      ten years of input by year-by-year jobs, verified against the raw model output.
+\item Value checks on every file against literature ranges: 307 of 529 pass, 169 sit slightly outside.
+\end{itemize}
+
+\sect{Still to do before publication}
+\begin{itemize}
+\item \textbf{Values:} understand the 53 files outside plausible ranges. 49 have been flagged since August, some
+      are ranges set too tight (ch4 and n2o are confirmed false alarms); sea-ice and ocean transport cases need a look.
+\item \textbf{Checkers:} the release with the coordinate checks and the registry fix is expected by the end of
+      September. Until then 42 files fail TIME001 in the released version.
+\item \textbf{Open details:} two conventions for decadal means are with DKRZ; how the running climatology file is
+      named across years needs checking; five 6-hourly variables on seven pressure levels cannot be produced for HR.
+\end{itemize}
+
+\sect{Scale of the production run}
+196 years (1850--2045): about \textbf{98\,600 files and 92\,TB}, roughly 6\,500 node-hours at the current rate.
+Write permission on the DKRZ ESGF data node is in place.
+
+\end{document}

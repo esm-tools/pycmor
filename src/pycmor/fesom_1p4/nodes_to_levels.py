@@ -13,6 +13,7 @@ This script can also be used stand-alone::
 
 The argument ``[variable]`` defaults to ``"temp"``.
 """
+
 import os
 
 import numpy as np

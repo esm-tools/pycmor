@@ -44,7 +44,7 @@ class ResourceLocator:
     resource_name : str
         Name of the resource (e.g., 'cmip6-cvs', 'cmip7-cvs')
     version : str, optional
-        Version identifier (e.g., '6.2.58.64', 'v1.2.2.2')
+        Version identifier (e.g., '6.2.58.64', 'v1.2.2.5')
     user_path : str or Path, optional
         User-specified path to resource
     """
@@ -501,12 +501,12 @@ class CMIP7MetadataLocator(MetadataLocator):
     Parameters
     ----------
     version : str, optional
-        DReq version (e.g., 'v1.2.2.2', uses DEFAULT_VERSION if not specified)
+        DReq version (e.g., 'v1.2.2.5', uses DEFAULT_VERSION if not specified)
     user_path : str or Path, optional
         User-specified CMIP7_DReq_metadata path
     """
 
-    DEFAULT_VERSION = "v1.2.2.2"
+    DEFAULT_VERSION = "v1.2.2.5"
     RESOURCE_NAME = "cmip7_metadata"
 
     def __init__(
@@ -520,7 +520,7 @@ class CMIP7MetadataLocator(MetadataLocator):
 
     def _get_cache_path(self) -> Path:
         """Override to return file path instead of directory path."""
-        # For metadata, we want a file: ~/.cache/pycmor/cmip7_metadata/v1.2.2.2/metadata.json
+        # For metadata, we want a file: ~/.cache/pycmor/cmip7_metadata/v1.2.2.5/metadata.json
         if self.version:
             return self._cache_base / self.resource_name / self.version / "metadata.json"
         else:

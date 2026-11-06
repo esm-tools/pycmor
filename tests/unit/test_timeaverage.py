@@ -1,12 +1,15 @@
 """Tests for time averaging functionality."""
 
+from types import SimpleNamespace
+
+import cftime
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
 import pycmor.std_lib.timeaverage
-from pycmor.std_lib.timeaverage import timeavg
+from pycmor.std_lib.timeaverage import _days_in_year, timeavg
 
 
 @pytest.fixture
@@ -58,28 +61,26 @@ def test_instantaneous_sampling(sample_data, sample_rule):
 
 
 def test_mean_default_offset(sample_data, sample_rule):
-    """Test mean with default offset (None).
-    This used to be mid-values as default. Now it is changed to None
-    """
+    """Without an offset, a mean sits at the middle of its interval (CMIP, wcrp TIME001)."""
     rule = sample_rule("Amon", "30")  # Monthly mean
     result = timeavg(sample_data, rule)
 
     # Should have 12 monthly values
     assert len(result) == 12
-    # month starting dates
+    # the middle of a month: noon on the 16th of January, midnight on the 15th of February
     times = pd.DatetimeIndex(result.time.values)
-    assert times[0].strftime("%Y-%m-%d") == "2023-01-01"
-    assert times[1].strftime("%Y-%m-%d") == "2023-02-01"
+    assert times[0].strftime("%Y-%m-%d %H:%M:%S") == "2023-01-16 12:00:00"
+    assert times[1].strftime("%Y-%m-%d %H:%M:%S") == "2023-02-15 00:00:00"
 
 
 @pytest.mark.parametrize(
     "offset,expected_date",
     [
         (0.0, "2023-01-01"),  # Start of month
-        (0.5, "2023-01-15 12:00:00"),  # Middle of month
+        (0.5, "2023-01-16 12:00:00"),  # Middle of a 31-day month
         (1.0, "2023-01-31"),  # End of month
         ("first", "2023-01-01"),  # Start of month
-        ("mid", "2023-01-15 12:00:00"),  # Middle of month
+        ("mid", "2023-01-16 12:00:00"),  # Middle of a 31-day month
         ("last", "2023-01-31"),  # End of month
         ("14d", "2023-01-15"),  # Fixed 14 days offset
     ],
@@ -238,3 +239,26 @@ def test__frequency_from_approx_interval_millisecond():
 def test__invalid_interval():
     with pytest.raises(ValueError):
         pycmor.std_lib.timeaverage._frequency_from_approx_interval("not_a_number")
+
+
+@pytest.mark.parametrize(
+    "start, expected",
+    [
+        (pd.Timestamp("2000-01-01"), 366),
+        (pd.Timestamp("2001-01-01"), 365),
+        (cftime.DatetimeNoLeap(2000, 1, 1), 365),
+        (cftime.Datetime360Day(2000, 1, 1), 360),
+    ],
+)
+def test__days_in_year_without_the_xarray_accessor(start, expected):
+    """The fallback for xarray older than 2024.10, as on Python 3.9."""
+    assert _days_in_year(SimpleNamespace(dt=object()), start) == expected
+
+
+@pytest.mark.parametrize("calendar", ["standard", "noleap", "360_day"])
+def test__days_in_year_fallback_agrees_with_xarray(calendar):
+    start = xr.date_range("2000-01-01", periods=1, calendar=calendar, use_cftime=calendar != "standard")[0]
+    time = xr.DataArray([start], dims="time", name="time")
+    if not hasattr(time.dt, "days_in_year"):
+        pytest.skip("xarray without dt.days_in_year")
+    assert _days_in_year(SimpleNamespace(dt=object()), start) == _days_in_year(time, start)

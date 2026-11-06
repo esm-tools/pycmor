@@ -147,17 +147,13 @@ def test_library_process(model_run_instance, cmip_version, orchestrator_config, 
     result = cmorizer.process()
 
     # Verify processing completed successfully
-    # Result should be a list of processed datasets (one per rule)
     assert result is not None, "Processing returned None"
     assert len(result) > 0, "Processing returned empty result"
 
-    # Verify each result is a valid xarray Dataset or DataArray
-    import xarray as xr
-
-    for i, dataset in enumerate(result):
-        assert isinstance(
-            dataset, (xr.Dataset, xr.DataArray)
-        ), f"Result {i} is not an xarray Dataset or DataArray: {type(dataset)}"
+    # Backends report per rule, and leave the data on disk. Serial and dask give
+    # {rule: True}, prefect a list of summaries.
+    outcomes = result.values() if isinstance(result, dict) else result
+    assert all(outcomes), f"Rules that failed: {result}"
 
 
 @pytest.mark.parametrize("cmip_version", ["cmip6", "cmip7"])

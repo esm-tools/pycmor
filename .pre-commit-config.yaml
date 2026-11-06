@@ -33,5 +33,11 @@ exclude: |
       ^versioneer\.py$|           # Exclude 'versioneer.py'
       ^src/pycmor/webapp\.py$|    # Exclude 'src/pycmor/webapp.py'
       _version\.py|               # Exclude '_version.py'
-      ^src/pycmor/data/cmip7/     # Exclude 'src/pycmor/data/cmip7/'
+      ^src/pycmor/data/cmip7/|    # Exclude 'src/pycmor/data/cmip7/'
+      # AWI-ESM3 campaign configuration and tooling is not linted
+      ^awi-esm3-[a-z-]+-variables/|
+      ^notes/|
+      ^tools/|
+      ^tests/awiesm3/|
+      ^examples/(?!0\d-|chunking_example|cmip7-example)
   )

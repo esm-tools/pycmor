@@ -1,0 +1,222 @@
+tier: cap7_atm
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: ci_mon
+  compound_name: atmos.ci.tavg-u-hxy-u.mon.glb
+  model_variable: ci
+  expected_units: '1'
+  lr_scale: 1
+  lr_units: '1'
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ci_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rtmt_mon
+  compound_name: atmos.rtmt.tavg-u-hxy-u.mon.glb
+  model_variable: tsr
+  expected_units: J m-2
+  lr_scale: 1
+  lr_units: W m-2
+  pipelines:
+  - lr_linear
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_terms:
+  - variable: tsr
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_tsr_1m_\d{4}\-\d{4}\.nc$
+  - variable: ttr
+    units: J m-2
+    coefficient: 0.0002777777777777778
+    pattern: atm_remapped_1m_ttr_1m_\d{4}\-\d{4}\.nc$
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tsr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+not_enabled:
+- name: hfls_day
+  compound_name: atmos.hfls.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfss_day
+  compound_name: atmos.hfss.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlus_day
+  compound_name: atmos.rlus.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsus_day
+  compound_name: atmos.rsus.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rluscs_day
+  compound_name: atmos.rluscs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsuscs_day
+  compound_name: atmos.rsuscs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlds_day
+  compound_name: atmos.rlds.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rldscs_day
+  compound_name: atmos.rldscs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsdscs_day
+  compound_name: atmos.rsdscs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlut_day
+  compound_name: atmos.rlut.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlutcs_day
+  compound_name: atmos.rlutcs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsdt_day
+  compound_name: atmos.rsdt.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsut_day
+  compound_name: atmos.rsut.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsutcs_day
+  compound_name: atmos.rsutcs.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prc_day
+  compound_name: atmos.prc.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prsn_day
+  compound_name: atmos.prsn.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prw_day
+  compound_name: atmos.prw.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: clivi_day
+  compound_name: atmos.clivi.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snw_day
+  compound_name: landIce.snw.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: clwvi_day
+  compound_name: atmos.clwvi.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snc_day
+  compound_name: landIce.snc.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_day_max
+  compound_name: atmos.hurs.tmax-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_day_min
+  compound_name: atmos.hurs.tmin-h2m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfcWind_day_max
+  compound_name: atmos.sfcWind.tmax-h10m-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ta_day_700hPa
+  compound_name: atmos.ta.tavg-700hPa-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: wap_day_500hPa
+  compound_name: atmos.wap.tavg-500hPa-hxy-air.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prsn_3hr
+  compound_name: atmos.prsn.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: huss_1hr
+  compound_name: atmos.huss.tpt-h2m-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: psl_1hr
+  compound_name: atmos.psl.tpt-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ts_1hr
+  compound_name: atmos.ts.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: uas_1hr
+  compound_name: atmos.uas.tpt-h10m-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vas_1hr
+  compound_name: atmos.vas.tpt-h10m-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ps_1hr
+  compound_name: atmos.ps.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlds_1hr
+  compound_name: atmos.rlds.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_1hr
+  compound_name: atmos.rsds.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfcWind_1hr
+  compound_name: atmos.sfcWind.tavg-h10m-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ps_6hr
+  compound_name: atmos.ps.tpt-u-hxy-u.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: psl_6hr
+  compound_name: atmos.psl.tpt-u-hxy-u.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ts_6hr
+  compound_name: atmos.ts.tpt-u-hxy-u.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sbl_mon
+  compound_name: landIce.sbl.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pfull_mon
+  compound_name: atmos.pfull.tclm-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ta_mon_ml
+  compound_name: atmos.ta.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hus_mon_ml
+  compound_name: atmos.hus.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hur_mon_ml
+  compound_name: atmos.hur.tavg-al-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snd_mon
+  compound_name: landIce.snd.tavg-u-hxy-lnd.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

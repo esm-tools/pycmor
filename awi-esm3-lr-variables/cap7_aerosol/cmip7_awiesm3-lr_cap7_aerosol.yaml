@@ -1,0 +1,29 @@
+tier: cap7_aerosol
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules: []
+not_enabled:
+- name: cfc11_mon
+  compound_name: atmosChem.cfc11.tavg-u-hm-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cfc12_mon
+  compound_name: atmosChem.cfc12.tavg-u-hm-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ch4_mon
+  compound_name: atmosChem.ch4.tavg-u-hm-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: n2o_mon
+  compound_name: atmosChem.n2o.tavg-u-hm-air.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: co2mass_mon
+  compound_name: atmos.co2mass.tavg-u-hm-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: toz_mon
+  compound_name: aerosol.toz.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

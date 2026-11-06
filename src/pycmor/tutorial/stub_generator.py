@@ -119,6 +119,9 @@ def create_coordinate(coord_meta: Dict[str, Any], file_index: int = 0) -> xr.Dat
             base = pd.Timestamp("2000-01-01")
             start = base + pd.Timedelta(days=day_offset)
             data = pd.date_range(start, periods=shape[0], freq="D").values
+    elif len(shape) == 1 and np.issubdtype(dtype, np.number):
+        # An axis: the same in every file and monotonic, or open_mfdataset cannot combine them.
+        data = np.arange(shape[0], dtype=dtype)
     else:
         # Generate random data
         data = generate_random_data(shape, dtype)

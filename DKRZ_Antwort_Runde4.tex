@@ -1,0 +1,351 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,urlcolor=blue!60!black,linkcolor=black]{hyperref}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\ok}{\textcolor{green!45!black}{\textbf{erledigt}}}
+\newcommand{\offen}{\textcolor{orange!75!black}{\textbf{offen}}}
+\newcommand{\upstream}{\textcolor{blue!60!black}{\textbf{upstream}}}
+
+\title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
+\large Stand nach \code{cli117}, und was dein \code{\#67} sichtbar gemacht hat}
+\author{Jan Streffing, AWI}
+\date{8. September 2026}
+
+\begin{document}
+% babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt. Die Shorthands
+% werden erst bei \begin{document} scharfgeschaltet, also muss das hierhin.
+\shorthandoff{"}
+\maketitle
+
+\section{Kurzfassung}
+
+Seit der dritten Antwort gab es einen vollen Lauf, \code{cli117}, und seit
+vorgestern einen Checker-Stand, der die Zahlen deutlich verschiebt. Dazu ein
+Befund bei uns, der nicht mehr zu reparieren ist.
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+& \textbf{\code{cli117}, alter Checker} & \textbf{heute, \code{develop} \code{8f2574c}} \\
+\midrule
+Dateien & 534 & 534 \\
+HIGH    &  24 & \textbf{65} \\
+MEDIUM  & 306 & 305 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Der Sprung von 24 auf 65 kommt fast vollstaendig aus einer einzigen Pruefung,
+und die Dateien sind dabei in Ordnung. Das ist der erste Abschnitt.
+
+\section{TIME001 nach deinem \code{\#67}}
+
+Wir haben den Checker-Checkout am 8.\,September von \code{88c6c45} (21.\,Juli)
+auf \code{8f2574c} nachgezogen. Dabei kamen zehn Commits und drei PRs mit,
+\code{\#67}, \code{\#74} und \code{\#76}. Gemessen an denselben 534 Dateien
+kostet das 42 neue HIGH, alle aus \code{TIME001}:
+
+\begin{center}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{frequency} & \textbf{Dateien} & \textbf{erwartet} & \textbf{gefunden} & \textbf{Abstand} \\
+\midrule
+\code{1hr} & 19 & 365{,}041667 & 365{,}020833 & 30 min \\
+\code{3hr} & 12 & 365{,}125000 & 365{,}062500 & 1{,}5 h \\
+\code{dec} &  9 & 3652{,}5     & 1826{,}0     & 5 Jahre \\
+\code{6hr} &  2 & 365{,}250000 & 365{,}125000 & 3 h \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Jeder Abstand ist genau eine halbe Zelle. Ein Beispiel, \code{rsus} stuendlich:
+
+\begin{quote}
+\code{bnds[0] = [365.000000, 365.041667]} \quad 00:00 bis 01:00 \\
+\code{time[0] = 365.020833} \quad 00:30, der midpoint \\
+\code{cell\_methods = "area: time: mean"} \\
+Dateiname beginnt mit \code{185101010030}
+\end{quote}
+
+Der Dateiname traegt die erste time coordinate, so wie die CMIP7-Guidance es
+verlangt und wie du es in \code{\#58} selbst begruendet hast. \code{TIME001}
+liest denselben Wert aber als Periodenanfang und addiert eine halbe Zelle,
+kommt also auf 01:00. Bei \code{dec} faellt es am staerksten auf, weil eine
+halbe Zelle dort fuenf Jahre sind.
+
+Das beruehrt auch \code{\#51} von uns aus dem Juni. Dort kamen \code{1hr},
+\code{3hr} und \code{6hr} in die \code{AVERAGE\_CORRECTION\_FREQ}, damit
+mittig gestempelte \code{tavg}-Dateien bestehen. \code{\#67} hat die Liste
+wiederhergestellt, aber mit einem erwarteten Wert, der aus einem Token
+rekonstruiert wird, das bereits die Mitte ist.
+
+Wir haben das als \code{cc-plugin-wcrp\#80} aufgeschrieben, mit dem
+Reproduzierer. Von unserer Seite ist daran nichts zu machen: die Dateien
+stimmen, und den Stempel vom midpoint wegzuschieben wuerde die Daten
+falsch machen.
+
+\section{\code{plev7h}: das koennen wir nicht mehr reparieren}
+
+Die fuenf 6-stuendlichen \code{plev7h}-Variablen
+(\code{hus}, \code{ta}, \code{ua}, \code{va}, \code{zg}) stehen auf den
+falschen Druckflaechen, und zwar seit dem Anfang des Laufs.
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+geschrieben & 100000, 92500, 85000, 70000, 50000, 25000, 10000 \\
+verlangt    & 92500, 85000, 70000, \textbf{60000}, 50000, 25000, \textbf{5000} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Fuenf Flaechen stimmen. \code{100000} steht, wo \code{60000} gehoert, und
+\code{10000}, wo \code{5000} gehoert. Ursache ist eine Zeile in unserer
+XIOS-Konfiguration, die den CMIP6-Satz statt des CMIP7-Satzes anlegt.
+
+Nachtraeglich ist nichts zu holen. Der Lauf hat 196 Jahre geschrieben, 1850 bis
+2045, und endete am 27.\,August. Einen 6-stuendlichen model-level-Strom gibt
+es nicht, nur taeglich \code{cl} und \code{pfull} und monatlich
+\code{ta}/\code{hus}/\code{hur}/\code{cli}/\code{clw}. \code{60000} laege
+zwischen zwei vorhandenen Flaechen und waere interpolierbar, \code{5000} laege
+ueber der obersten und waere Extrapolation. Beides hiesse, eine Zahl unter
+einem Label auszuliefern, das Modellausgabe behauptet, und das wollen wir
+nicht.
+
+Die fuenf Regeln sind deshalb deaktiviert und die Ursache ist dokumentiert, so
+wie vorher schon bei den sechs FESOM-Tendenzvariablen und den
+\code{mrsol}-Varianten. Die XIOS-Achse ist fuer den LR-Lauf korrigiert.
+
+Es kostet etwas. Die fuenf korrekten Flaechen sind 925, 850, 700, 500 und
+250\,hPa, 6-stuendlich ueber 196 Jahre, also genau das, was fuer Sturmzugbahnen
+gebraucht wird.
+
+\section{Zwei Fehler, die wirklich unsere waren}
+
+Beide kamen ans Licht, als wir deine Befunde nach Zustaendigkeit sortiert haben.
+Zwei davon lagen in der falschen Schublade.
+
+\textbf{\code{slthick} lag auf dem falschen Gitter.} Die Regel las
+\code{atm\_remapped\_1m\_lsm}, also die auf $640 \times 1296$ regriddete
+Land-See-Maske, deklarierte aber \code{g122}, das reduzierte Gauss-Gitter mit
+421120 Zellen. Von allen unseren Regeln mit einer \code{atm\_remapped\_*}-Eingabe war
+sie die einzige mit \code{g122}, alle anderen tragen \code{g129}. Richtig ist
+trotzdem \code{g122}: \code{slthick} liefert die Schichtdicken zu \code{mrsol} und
+\code{tsl}, und wer die zusammen rechnet, braucht sie auf demselben Gitter. Die
+Regel liest jetzt ein natives Feld.
+
+Darunter lag ein zweiter Fehler, der den ersten verdeckt hat. Unser Schritt
+broadcastete die vier Schichtdicken nur ueber die \emph{letzte} horizontale
+Dimension. Auf einem unstrukturierten Gitter gibt es nur eine, dort ist das nie
+aufgefallen. Auf dem regulaeren wurde daraus \code{lon}, und die Breitenachse
+verschwand kommentarlos. \code{cli116} hat \code{slthick(depth, lon)} ausgeliefert.
+
+\textbf{\code{depth} trug weiter \code{units = "meter"}} bei \code{tsl},
+\code{mrsol} und \code{mrsll}. Der Grund ist derselbe Namensbruch wie damals bei
+\code{plev}: unser Pass sucht die Achsen unter ihrem Namen aus der Datenanfrage, die
+Datei fuehrt sie unter dem \code{out\_name}. Fuer \code{lev}, \code{plev} und
+\code{height} sind die gleich, fuer \code{sdepth} nicht, das steht als \code{depth}
+auf der Platte.
+
+Eine Falle dabei, die der naheliegende Fix gestellt haette: \code{mrsol} gibt es
+zweimal, die Schichtvariante mit \code{meter} und die \code{d10cm}-Variante mit
+\code{cm}. Euer Checker erlaubt beide. Die CV-Einheit einfach durchzuschreiben
+haette Zentimeter zu Metern erklaert und die Schicht um Faktor 100 verschoben. Wir
+gleichen jetzt nur noch die Schreibweise an, nie die Einheit selbst.
+
+\section{Ein dritter Fehler, den erst \code{\#67} sichtbar gemacht hat}
+
+Als \code{dec} in die \code{AVERAGE\_CORRECTION\_FREQ} kam, lief \code{TIME001}
+zum ersten Mal auf unseren dekadischen Dateien. Dabei fiel etwas anderes auf:
+alle neun trugen \code{time\_bnds} ueber ein Jahr statt ueber zehn.
+
+Unser Code fuehrte \code{dec} zusammen mit \code{yr} und \code{yrPt}, also ging
+jede Datei mit genau einem Zeitpunkt durch den Jahres-Zweig. Nachgemessen an
+einem synthetischen Lauf war auch eine volle Dekade betroffen, es lag also nicht
+an unserem Einjahres-Testlauf. Behoben, \code{dec} bekommt jetzt einen eigenen
+Pfad und schnappt auf die Kalenderdekade.
+
+Das raeumt den \code{TIME001}-Befund nicht ab, der haengt an \code{\#80}. Aber
+ein Zehnjahresmittel sollte keine zwoelf Monate als \code{time\_bnds} fuehren, egal
+wer sie liest.
+
+\section{Nebenbei: unsere Koordinatentabelle war zwoelf Tage alt}
+
+Beim Aufraeumen kam heraus, dass wir gegen \code{CMIP7\_coordinate.json}
+vom 2026-07-09 cmorisiert haben, waehrend \code{aicc} und \code{wcrp\_cmip7} gegen
+den Stand vom 2026-07-21 validieren. Sieben Achsen weichen ab. Zwei davon sind
+sichtbar geworden:
+
+\begin{itemize}
+\item \code{typetreebd/be/nd/ne} trugen alle vier \code{value = "trees"}. Das ist
+  genau dein Befund aus der Runde zu \code{cli112}. Wir hatten das im Code
+  ueberschrieben, unter der Annahme, die Tabelle sei eben so. Upstream hatte die
+  spezifischen CF area types laengst nachgezogen, der Workaround war also eine
+  Kruecke fuer eine veraltete Datei.
+\item \code{deltasigt} hatte einen ganzen Absatz Prosa als \code{long\_name},
+  inklusive literalem \verb|\n\n|. In jeder \code{mlotst}-Datei stand deshalb ein
+  \code{long\_name} mit doppeltem Leerzeichen und ein \code{comment} mit dem Rest.
+\end{itemize}
+
+Die Tabelle ist jetzt auf dem Stand, gegen den auch geprueft wird, und ein Test
+schlaegt an, wenn ein kuenftiger Refresh wieder eine aeltere einzieht.
+
+\section{Das Zonalgitter, und ein Zeitfenster von drei Stunden}
+
+Die vier Dateien ohne eigenes Gitter (\code{msftm} auf Tiefe und auf Dichte,
+\code{hfbasin}, \code{sltbasin}) haben ihr Label bekommen. Registriert als
+\code{g239}, gemergt am 18.08. Die Achsen passten schon vorher: 180 Baender von
+$-89{,}5$ bis $89{,}5$ mit Schritt 1. Es fehlte nur das Label, vorher stand dort
+\code{g130} und behauptete damit die 3146761 FESOM-Knoten.
+
+Das hat 15 der 27 verschwundenen HIGH gebracht. Und alle 16 neuen, denn
+\code{g239} kennt kein Checker:
+
+\begin{center}
+\begin{tabular}{rl}
+\toprule
+4 & \code{[ATTR004]} \code{grid\_label} Vokabularpruefung \\
+4 & \code{[FILE001]} DRS-Verzeichnis \\
+4 & \code{[FILE001]} DRS-Dateiname \\
+4 & \code{[AICC002]} \code{grid\_label='g239' is not registered} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Die Kette dahinter, weil die Frage naheliegt, ob wir etwas falsch gemacht haben:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Stufe} & \textbf{\code{g239}} & \textbf{Zeitpunkt} \\
+\midrule
+EMD \code{src-data}                & da      & 18.08., PR \#1294 \\
+EMD \code{production}              & da      & \textbf{18.08. 08:22} \\
+\code{CMIP7-CVs} \code{grid\_label} & fehlt   & letzter Sync \textbf{18.08. 05:34} \\
+esgvoc \code{cmip7@1.2.18}          & fehlt   & veroeffentlicht 19.08. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Der Sync von EMD in die CV laeuft als automatischer PR
+(\code{.github/scripts/sync\_emd\_entries.py}). Der letzte gemergte war \#576 am
+18.08. um 05:34. \code{g239} kam um 08:22 auf \code{production}, also zwei Stunden
+und achtundvierzig Minuten zu spaet fuer genau diesen Lauf. \code{g238} hatte es
+rechtzeitig geschafft und ist drin.
+
+\textbf{Stand 8.\,September.} \code{CMIP7-CVs\#592} ist am 4.\,September gemergt,
+nachdem das CV-Komitee die Grundsatzfrage zu den \glqq special grids\grqq{} geklaert
+hatte. Der Merge ist aber auf \code{esgvoc\_dev} gelandet, nicht auf \code{main}:
+\code{grid\_label/g239.json} liefert dort 404 und auf \code{esgvoc\_dev} 200. Die
+neuesten CV-Releases sind \code{2.0.1} vom 1.\,September und \code{1.2.19} vom
+26.\,August, beide aelter als der Merge. Es fehlt also nur noch der Schritt von
+\code{esgvoc\_dev} nach \code{main} und ein Release danach.
+
+Wir drehen \code{g239} nicht zurueck: lieber 16 Befunde aus einem Terminproblem als
+vier Dateien, die ein Gitter behaupten, auf dem sie nicht liegen.
+
+Falls du an der Stelle mehr Einblick hast: aus Sicht eines Datenproduzenten
+ist das unangenehm, weil zwischen "Gitter ist registriert" und "Gitter validiert"
+ein Fenster von Tagen liegt, in dem ein Produktionslauf HIGH-Befunde einsammelt,
+die niemand beheben kann.
+
+\section{Was uebrig bleibt}
+
+65 HIGH, gemessen mit dem Checker-Stand von heute. 42 davon sind neu und kommen
+aus \code{TIME001}, die restlichen 23 kennst du aus der dritten Antwort:
+
+\begin{center}
+\begin{tabular}{rl}
+\toprule
+42 & \code{TIME001}, die halbe Zelle, \code{cc-plugin-wcrp\#80} \\
+16 & \code{g239}, wartet auf ein CV-Release \\
+ 5 & \code{plev7h}, inzwischen deaktiviert, faellt im naechsten Lauf weg \\
+ 1 & \code{vegtype}, der Tabellenwiderspruch \\
+ 1 & \code{pfull}, die Klimatologie war in diesem Lauf schon aktuell \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\code{basin} ist weg. Dein \code{\#67} hat den Befund
+\glqq No geophysical variable detected\grqq{} behoben, nachgemessen an derselben
+Datei: 1 HIGH vorher, 0 nachher.
+
+Zu \code{vegtype} ein Nachtrag, diesmal nachgeschlagen: der
+geforderte Term ist \code{needleleaf\_evergreen\_tree}, im Singular, waehrend seine
+drei Geschwister im Plural stehen und wir \code{needleleaf\_evergreen\_trees}
+schreiben. Der Singular steht \emph{in beiden} Koordinatentabellen, auch in der
+offiziellen vom 2026-07-21. Es ist also kein Versaeumnis von uns und auch keine
+Altlast unserer Kopie.
+
+Der eine MEDIUM mehr ist ein CF-2.4-Befund auf \code{slthick}, und den handelt man
+sich genau dadurch ein, dass die Datei jetzt eine echte horizontale Dimension hat.
+Gleiche Klasse wie die anderen 75.
+
+Zu den rund 70 \code{ATTR004}-\code{long\_name}-MEDIUM haben wir am 25.\,August
+auf \code{WCRP-universe\#190} eine Antwort bekommen. Die Korrektur laeuft ueber
+\code{known\_branded\_variables} auf der CV-Seite, geplant fuer September, und
+ausdruecklich: \glqq since long\_name values are not standardized, the reported
+issue remains a Medium severity warning and should not prevent you from publishing
+your data to ESGF\grqq{}. Damit ist der groesste MEDIUM-Block eingeordnet.
+
+\section{Die fuenf fehlenden Sidecars aus \code{cli116}}
+
+Beim Nachzaehlen von \code{cli116} lagen nur 529 Reports auf 534 Dateien. Fuenf
+Dateien hatten gar keinen Sidecar. Die Ursache lag nicht an den Dateien.
+
+Die fuenf sind vollstaendig und lassen sich einwandfrei
+pruefen. Derselbe Aufruf von Hand wiederholt, und vier davon
+kamen ohne einen einzigen Befund zurueck.
+
+Es lag an \code{cchecker.py} selbst. Er stirbt sporadisch schon beim Import, bevor er
+ueberhaupt eine Datei anfasst:
+
+\begin{quote}
+\code{FileNotFoundError: [Errno 2] No such file or directory}\\
+\code{~~File ".../bin/cchecker.py", line 10, in <module>}\\
+\code{~~~~from compliance\_checker.cf.util import download\_cf\_standard\_name\_table}\\
+\code{~~File ".../compliance\_checker/cf/util.py", line 17, in <module>}
+\end{quote}
+
+Unser Verdacht: parallele Shards, die gleichzeitig den Cache der
+CF-Standardnamentabelle anlegen wollen, und einer sieht die Datei halb geschrieben.
+Dazu passt, dass es in demselben Lauf und derselben Umgebung 529 mal geklappt hat
+und fuenf mal nicht, und dass der Wiederholungsversuch von Hand jedes Mal
+durchlief. Reproduzierbar ist es nicht, deshalb bleibt es ein Verdacht.
+Falls du das kennst, waere der Grund interessant.
+
+\section{Warum das lautlos war, und was jetzt dagegen laeuft}
+
+Das ist derselbe lautlose Ausfall wie in der dritten Antwort im Zusammenhang mit
+\code{CMIP7\_TABLES\_PATH} beschrieben habe, nur mit einer anderen Ursache: der
+QC-Schritt hat protokolliert, dass kein JSON entstand, und ist weitergelaufen. Eine
+Datei ohne Sidecar wird danach nirgends mehr gezaehlt. Der Lauf sieht dadurch
+sauberer aus als er ist, und das ist die unangenehme Richtung des Fehlers.
+
+Der QC-Schritt wiederholt den Aufruf jetzt bis zu dreimal, mit gestaffelter Pause,
+damit zwei kollidierte Shards nicht gleich wieder kollidieren. Wiederholt wird nur,
+wenn ueberhaupt kein Report auf der Platte liegt. Ein Report mit Befunden und
+Exitcode $\neq$ 0 ist der Normalfall und wird wie bisher durchgereicht. Bleibt es
+auch nach dem letzten Versuch dabei, sagt die Fehlermeldung jetzt ausdruecklich,
+dass diese Regel ohne Report dasteht.
+
+\section{Was das fuer den Bestand heisst}
+
+Fuer \code{cli116} sind es jetzt 534 Reports auf 534 Dateien, und \code{cli117}
+hat von sich aus 534 auf 534 geliefert. Der Wiederholungsversuch hat dort nicht
+einmal ausgeloest, es gab schlicht keinen Importfehler. Die Zahl ist also echt und
+nicht gerettet. Die frueheren Laeufe haben wir nicht nachgezaehlt. Falls dir in Zahlen aus
+\code{cli108} bis \code{cli115} etwas nicht aufgeht, koennte das derselbe Effekt
+sein, dann schauen wir gezielt nach.
+
+\end{document}

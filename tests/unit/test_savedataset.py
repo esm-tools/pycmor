@@ -173,6 +173,8 @@ def test_save_dataset_saves_to_single_file_when_no_time_axis(tmp_path):
     t = tmp_path / "output"
     da = xr.DataArray([1, 2, 3], coords={"ncells": [1, 2, 3]}, dims=["ncells"])
     rule = Mock()
+    rule.compound_name = ""
+    rule.data_request_variable.dimensions = ()
     rule.data_request_variable.table.table_id = "Omon"
     rule.data_request_variable.table_header.approx_interval = 30
     rule.cmor_variable = "CO2"
@@ -190,6 +192,8 @@ def test_save_dataset_saves_to_single_file(tmp_path):
     dates = xr.cftime_range(start="2001", periods=24, freq="MS", calendar="noleap")
     da = xr.DataArray(np.arange(24), coords=[dates], dims=["time"], name="foo")
     rule = Mock()
+    rule.compound_name = ""
+    rule.data_request_variable.dimensions = ()
     rule._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg({})
     rule.data_request_variable.frequency = "mon"
     rule.data_request_variable.table.table_id = "Omon"
@@ -210,6 +214,8 @@ def test_save_dataset_saves_to_multiple_files(tmp_path):
     dates = xr.cftime_range(start="2001", periods=24, freq="MS", calendar="noleap")
     da = xr.DataArray(np.arange(24), coords=[dates], dims=["time"], name="foo")
     rule = Mock()
+    rule.compound_name = ""
+    rule.data_request_variable.dimensions = ()
     rule._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg({})
     rule.data_request_variable.frequency = "mon"
     rule.data_request_variable.table.table_id = "Omon"
@@ -238,8 +244,11 @@ def test_save_dataset_with_custom_time_settings(tmp_path):
 
     # Create a mock rule with custom time settings (following the pattern of other tests)
     rule = Mock()
+    rule.compound_name = ""
+    rule.data_request_variable.dimensions = ()
     rule._pycmor_cfg = PycmorConfigManager.from_pycmor_cfg({})
     rule.data_request_variable = Mock()
+    rule.data_request_variable.dimensions = ()
     rule.data_request_variable.frequency = "day"
     rule.data_request_variable.table = Mock()
     rule.data_request_variable.table.table_id = "Amon"
