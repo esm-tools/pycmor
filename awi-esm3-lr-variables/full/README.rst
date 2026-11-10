@@ -218,7 +218,8 @@ Results and known limits
 Each external campaign directory has this layout::
 
     <results>/<experiment>__<path-hash>/<leg>/
-      NOT_FOR_PUBLICATION/       products by product/year/attempt
+      MIP-DRS7/CMIP7/            CMIP7 DRS data tree, directly below the leg
+      attempts/                  conversion logs, scratch space and QC sidecars
       recipes/                   generated rules
       coverage.json              full inventory including blocked requests
       report/products.csv        status/reason for every product-year
@@ -227,6 +228,14 @@ Each external campaign directory has this layout::
       reproduce/                 exact settings/code/dependency evidence
       logs/                      scheduler logs
       submission.json            submitted job IDs
+
+Below ``MIP-DRS7/CMIP7`` the directory order is activity, institution, source,
+experiment, variant, region, frequency, variable, branding suffix, grid and
+version (``vYYYYMMDD``). Product/year/attempt directories are execution records
+outside this data tree. Successful validated files are moved into the DRS tree
+without rewriting NetCDF contents; existing destinations are never overwritten.
+Publication and scientific/QC status are recorded in reports and JSON metadata.
+Directory names do not encode publication readiness.
 
 Annual tasks, fixed fields, decadal tasks, distinct compounds, variable names and output files are
 different counts. The earlier full-catalog audit contained 206 unmapped
@@ -334,8 +343,15 @@ Exporter versions can change the exported file; record the exporter as well as
 the DReq version. Recompute coverage after a metadata change. Removed compounds
 remain explicitly blocked, and cannot be used as a validation-gate selection.
 
-For CF, WCRP and AICC configure ``qc_tests``, ``cmip7_tables_path`` and
-``aicc_grid_config``. Pin the tables checkout. Missing requested checker reports
+For CF, WCRP and AICC configure ``qc_tests``, ``cmip7_tables_path``,
+``aicc_grid_config`` and ``aicc_vertical_config``. The supplied vertical
+configuration identifies OpenIFS hybrid pressure and FESOM depth axes; the
+``LR-SPINUP-TEST`` key enables those checks without pretending that the test
+identity is registered. Pin the tables and configuration files. Each execution
+retains command, return code, stdout and stderr in ``checker_execution_*.json``.
+The LR gate rejects internal checker exceptions, missing/stale reports and
+empty suites, separately from retained HIGH/MEDIUM findings. Ordinary findings
+remain visible when ``qc_fail_on_mandatory`` is false. Missing requested checker reports
 fail conversion validation. Findings are retained separately and do not constitute
 publication approval. The current development spinup uses an explicit test
 identity; a v3.5.1 run must not be relabelled as registered v3.5.2 without review.

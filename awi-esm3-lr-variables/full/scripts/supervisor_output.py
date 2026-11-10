@@ -17,10 +17,19 @@ SURFACE_MEANS={'ocean.tos.tavg-u-hm-sea.mon.glb': 'sst',
 
 def verify_qc(paths, output, requested):
     import json
+    requested=list(dict.fromkeys(k.split(':')[0] for k in requested))
     reports={}
     for p in Path(output).glob('qc_*.json'):
         reports.update(json.loads(p.read_text()))
+    layout=Path(output)/'output_layout.json'
+    relocations=json.loads(layout.read_text()).get('files',{}) if layout.is_file() else {}
+    executions={}
+    for p in Path(output).glob('checker_execution_*.json'):
+        evidence=json.loads(p.read_text())
+        for name in evidence.get('files',[]):
+            executions[str(Path(relocations.get(name,name)).resolve())]=(p,evidence)
     checked=[]
+    execution_reports=set()
     for path in paths:
         result=reports.get(str(path))
         if result is None:
@@ -29,8 +38,25 @@ def verify_qc(paths, output, requested):
         present={k.split(':')[0] for k in result}
         if not set(requested)<=present:
             raise ValueError(f'Missing QC suites for {path}: {set(requested)-present}; got {present}')
+        for checker in requested:
+            suite=next(v for k,v in result.items() if k.split(':')[0]==checker)
+            if not isinstance(suite,dict) or not suite.get('possible_points'):
+                raise ValueError(f'Empty QC suite for {path}: {checker}')
+        execution=executions.get(str(Path(path).resolve()))
+        if execution is None:
+            raise ValueError(f'Missing checker execution evidence for {path}')
+        execution_path,evidence=execution
+        if (evidence.get('status') not in ('COMPLETED','COMPLETED_WITH_FINDINGS')
+                or evidence.get('returncode') not in (0,1)
+                or evidence.get('checker_exception')):
+            raise ValueError(f'Checker execution incomplete for {path}: {execution_path}')
+        suites={k.split(':')[0] for k in evidence.get('requested_suites',[])}
+        if not set(requested)<=suites:
+            raise ValueError(f'Checker execution omitted requested suites for {path}')
+        execution_reports.add(str(execution_path))
         checked.append(str(path))
-    return dict(status='REPORTS_PRESENT',files=checked,checkers=requested,
+    return dict(status='CHECKERS_COMPLETED',files=checked,checkers=requested,
+                execution_reports=sorted(execution_reports),
                 limitations='Reports exist; all findings remain visible and require review.')
 
 

@@ -17,8 +17,26 @@ class QCRequiredTests(TestCase):
             side.write_text(json.dumps({str(nc):{'cf':{},'wcrp_cmip7':{}}}))
             with self.assertRaisesRegex(ValueError,'Missing QC suites'):
                 verify_qc([nc],root,['cf','wcrp_cmip7','aicc'])
-            side.write_text(json.dumps({str(nc):{'cf':{},'wcrp_cmip7':{},'aicc':{}}}))
-            self.assertEqual(verify_qc([nc],root,['cf','wcrp_cmip7','aicc'])['status'],'REPORTS_PRESENT')
+            suites={k:dict(possible_points=1,scored_points=1) for k in ['cf','wcrp_cmip7','aicc']}
+            side.write_text(json.dumps({str(nc):suites}))
+            with self.assertRaisesRegex(ValueError,'Missing checker execution evidence'):
+                verify_qc([nc],root,['cf','wcrp_cmip7','aicc'])
+            execution=root/'checker_execution_test.json'
+            record=dict(files=[str(nc)],status='COMPLETED_WITH_FINDINGS',returncode=1,
+                        checker_exception=False,requested_suites=list(suites))
+            execution.write_text(json.dumps(record))
+            self.assertEqual(verify_qc([nc],root,list(suites))['status'],'CHECKERS_COMPLETED')
+            record.update(status='CHECKER_ERROR',returncode=2,checker_exception=True)
+            execution.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError,'Checker execution incomplete'):
+                verify_qc([nc],root,list(suites))
+            record.update(status='COMPLETED_WITH_FINDINGS',returncode=1,checker_exception=False)
+            execution.write_text(json.dumps(record))
+            moved=root/'moved.nc';nc.rename(moved)
+            side.write_text(json.dumps({str(moved):suites}))
+            (root/'output_layout.json').write_text(json.dumps({'files':{str(nc):str(moved)}}))
+            self.assertEqual(verify_qc([moved],root,['cf:1.11','wcrp_cmip7','aicc'])[
+                'status'],'CHECKERS_COMPLETED')
 
 
 class RepairedDailyValuesTests(TestCase):

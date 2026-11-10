@@ -73,7 +73,8 @@ def load_config(path):
         allow_dirty=False, vector_frame='auto', known_rotated_fesom_sha256=[],
         walltime='12:00:00', memory='48G', shards=24, concurrency=2,
         product_timeout_seconds=7200, validation_timeout_seconds=1800,
-        metadata_overrides={}, publication_ready=False, leg='latest')
+        metadata_overrides={}, publication_ready=False, leg='latest',
+        aicc_vertical_config=str(ROOT/'config/aicc_vertical_config.json'))
     for key, value in defaults.items():
         config.setdefault(key, value)
     required = {'metadata', 'cv_dir', 'mesh_dir', 'ghg_dir', 'results', 'esgvoc_home'}
@@ -81,7 +82,7 @@ def load_config(path):
         raise ValueError(f'Missing configuration settings: {sorted(missing)}')
     for key in ('repo', 'python', *sorted(required), 'experiment',
                 'model_level_table', 'basin_mask_file', 'hr_reference_manifest',
-                'cmip7_tables_path', 'aicc_grid_config', 'source_audit_report'):
+                'cmip7_tables_path', 'aicc_grid_config', 'aicc_vertical_config', 'source_audit_report'):
         if config.get(key):
             value = Path(os.path.expandvars(config[key])).expanduser()
             # Resolving a venv's python symlink would bypass that environment.
@@ -105,6 +106,8 @@ def load_config(path):
             raise ValueError('AICC requires a pinned cmip7_tables_path with CMIP7_*.json')
         if not Path(config.get('aicc_grid_config', '')).is_file():
             raise ValueError('AICC requires aicc_grid_config')
+        if not Path(config.get('aicc_vertical_config', '')).is_file():
+            raise ValueError('AICC requires aicc_vertical_config')
     window = config.get('decadal_window')
     if window is not None and (not isinstance(window, list) or len(window) != 2
             or any(type(y) is not int for y in window) or window[1]-window[0] != 9):
@@ -465,12 +468,16 @@ def new_doc(doc, config, year, compound):
                    lazy_write=True,
                    qc_enabled=True, qc_tests=['cf','wcrp_cmip7'], qc_ignore_codes=[],
                    qc_checker_options=[], qc_fail_on_mandatory=False,
+                   qc_fail_on_checker_error=True,
                    netcdf_write_scheduler='synchronous',
                    comment='Test CMORization; actual simulation years retained. Not publication approved.')
     inherit.update(config.get('metadata_overrides', {}))
     inherit['qc_tests'] = config.get('qc_tests', ['cf', 'wcrp_cmip7'])
     if 'aicc' in inherit['qc_tests']:
-        inherit['qc_checker_options'] = ['aicc:grid_config:' + config['aicc_grid_config']]
+        inherit['qc_checker_options'] = [
+            'aicc:grid_config:' + config['aicc_grid_config'],
+            'aicc:vertical_config:' + config.get('aicc_vertical_config',
+                str(ROOT/'config/aicc_vertical_config.json'))]
     if config.get('drs_version'):
         inherit['drs_version'] = config['drs_version']
     for rule in doc['rules']:
@@ -737,7 +744,7 @@ def build_catalog(config, experiment, period, identity, campaign):
                         f'duplicate when {equivalent} is produced; no separate product counted'))
             if good:
                 key = f'{year}__{compound}'
-                good['doc']['inherit']['output_directory'] = str(campaign/'NOT_FOR_PUBLICATION'/key)
+                good['doc']['inherit']['output_directory'] = str(campaign)
                 target = campaign/'recipes'/f'{key}.yaml'
                 target.write_text(yaml.safe_dump(good['doc'],sort_keys=False))
                 task = {k:v for k,v in good.items() if k not in ('doc','status')}
@@ -787,6 +794,9 @@ def plan(args, config):
             metadata_paths.append(Path(config['source_audit_report']))
         if config.get('cmip7_tables_path'):
             metadata_paths.extend(sorted(Path(config['cmip7_tables_path']).rglob('*.json')))
+        for key in ('aicc_grid_config', 'aicc_vertical_config'):
+            if config.get(key):
+                metadata_paths.append(Path(config[key]))
         if config.get('esgvoc_home'):
             metadata_paths.extend(sorted(Path(config['esgvoc_home']).rglob('*.db')))
             metadata_paths.extend(sorted(Path(config['esgvoc_home']).rglob('*.active.json')))
@@ -808,7 +818,7 @@ def plan(args, config):
             verify_campaign(campaign)
             print(f'Reusing immutable plan: {campaign}',flush=True)
             return campaign
-        for name in ('recipes','logs','status','report','reproduce','NOT_FOR_PUBLICATION','grids'):
+        for name in ('recipes','logs','status','report','reproduce','attempts','grids'):
             (campaign/name).mkdir(exist_ok=True)
         # Test metadata only unless an explicit reviewed metadata profile is supplied.
         if 'spinup' not in experiment.name.lower():
@@ -917,7 +927,7 @@ def run_one(campaign, task, config):
             return
     if file_state(task['input_state'])!=task['input_state']:
         raise ValueError('Inputs changed since planning; no conversion of a live/changing archive')
-    base=campaign/'NOT_FOR_PUBLICATION'/task['key']
+    base=campaign/'attempts'/task['key']
     base.mkdir(parents=True,exist_ok=True)
     attempt=base/f'attempt_{len(list(base.glob("attempt_*")))+1:03d}'
     attempt.mkdir()
@@ -975,7 +985,9 @@ def run_one(campaign, task, config):
                 else 'not performed: no independent source values compared')
         if file_state(task['input_state'])!=task['input_state']:
             raise ValueError('Source changed during conversion')
-        result.update(status='PASS',validation=validation)
+        validation = support_module('output_layout').promote(campaign, attempt, validation)
+        result.update(status='PASS',validation=validation,
+                      data_directory=str(campaign/'MIP-DRS7'))
     except Exception as e:
         result['error']=str(e)
     result['finished']=stamp()
@@ -1006,7 +1018,7 @@ def report(campaign):
             info=read(status) if status.exists() else {}
             r['status']=info.get('status','PENDING')
             r['reason']=info.get('error','')
-            r['output']=info.get('output','')
+            r['output']=info.get('data_directory',info.get('output',''))
     target=campaign/'report';target.mkdir(exist_ok=True)
     fields=['compound','year','window_start','window_end','status','reason','route','tier','output',
             'equivalent_compound','equivalent_status']

@@ -26,6 +26,9 @@ Rule attributes consumed (all optional):
 - ``qc_criteria`` (str, default ``"normal"``) — lenient | normal | strict
 - ``qc_fail_on_mandatory`` (bool, default False) — raise on any Mandatory
   finding instead of just logging.
+- ``qc_fail_on_checker_error`` (bool, default False) — raise when the checker
+  crashes, omits its report, or reports an internal exception. Execution
+  stdout/stderr and return codes are always retained separately from findings.
 - ``qc_binary`` (str, default ``"cchecker.py"``) — override path.
 - ``qc_checker_options`` (list[str], default ``[]``) — passed to cchecker as
   ``-O``, one per entry, e.g. ``aicc:grid_config:/path/grid_config.json``.
@@ -50,6 +53,7 @@ Rule attributes consumed (all optional):
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 import os
 import shutil
 import subprocess
@@ -61,7 +65,18 @@ from ..core.logging import logger
 
 
 class QCFailure(RuntimeError):
-    """Raised when ``qc_fail_on_mandatory`` is True and the run had Mandatory findings."""
+    """Raised for findings or checker execution failures when configured."""
+
+
+def _execution_path(report: Path) -> Path:
+    name = report.stem[3:] if report.stem.startswith('qc_') else report.stem
+    return report.with_name(f'checker_execution_{name}.json')
+
+
+def _checker_execution_failed(returncode: int, stderr: str) -> bool:
+    return (returncode not in (0, 1)
+            or 'following exceptions occurred' in stderr
+            or 'Traceback (most recent call last)' in stderr)
 
 
 def _rule_files(rule) -> list[Path]:
@@ -184,6 +199,7 @@ def _run_cchecker(
     attempts: int = 3,
     options: Iterable[str] = (),
 ) -> tuple[int, str]:
+    tests = list(tests)
     cmd = [binary, "-f", "json_new", "-o", str(out_json), "-c", criteria]
     for t in tests:
         cmd += ["-t", t]
@@ -193,11 +209,33 @@ def _run_cchecker(
     logger.info(f"qc: running {' '.join(cmd)}")
     attempts = max(1, int(attempts))
     rc, err = 1, ""
+    executions = []
     for attempt in range(1, attempts + 1):
+        started = datetime.now(timezone.utc).isoformat()
+        previous = ((out_json.stat().st_size, out_json.stat().st_mtime_ns)
+                    if out_json.exists() else None)
         proc = subprocess.run(cmd, capture_output=True, text=True)
         rc, err = proc.returncode, (proc.stderr or proc.stdout or "")
-        # A report on disk means the checker ran; rc!=0 then just means it
-        # found something. Only a missing report is worth retrying.
+        present = out_json.exists()
+        current = ((out_json.stat().st_size, out_json.stat().st_mtime_ns) if present else None)
+        refreshed = present and current != previous
+        execution_error = _checker_execution_failed(rc, proc.stderr or '')
+        status = ('NO_REPORT' if not present else 'STALE_REPORT' if not refreshed
+                  else 'CHECKER_ERROR' if execution_error
+                  else 'COMPLETED_WITH_FINDINGS' if rc == 1 else 'COMPLETED')
+        executions.append(dict(attempt=attempt, started=started,
+            finished=datetime.now(timezone.utc).isoformat(), returncode=rc,
+            stdout=proc.stdout or '', stderr=proc.stderr or '', report_present=present,
+            report_refreshed=refreshed))
+        evidence = dict(status=status, command=cmd, files=list(map(str, files)),
+            requested_suites=list(tests), criteria=criteria, returncode=rc,
+            checker_exception=execution_error, report=str(out_json), attempts=executions)
+        target = _execution_path(out_json)
+        temporary = target.with_name(target.name + f'.{os.getpid()}.tmp')
+        temporary.write_text(json.dumps(evidence, indent=2) + '\n')
+        temporary.replace(target)
+        # A report can coexist with internal exceptions (cchecker exit 2).
+        # Keep that evidence; deterministic checker errors are not retried.
         if out_json.exists():
             return rc, err
         if attempt < attempts:
@@ -435,7 +473,8 @@ def run_compliance_checker(data, rule):
             f"qc: cchecker.py rc={rc} after {attempts} attempt(s); no JSON "
             f"produced, so this rule has NO qc report. stderr:\n{err}"
         )
-        if getattr(rule, "qc_fail_on_mandatory", False):
+        if (getattr(rule, "qc_fail_on_mandatory", False)
+                or getattr(rule, "qc_fail_on_checker_error", False)):
             raise QCFailure(f"qc: cchecker.py produced no report for {cmor_var}")
         return data
 
@@ -443,6 +482,8 @@ def run_compliance_checker(data, rule):
         report = json.loads(out_json.read_text())
     except json.JSONDecodeError as exc:
         logger.error(f"qc: failed to parse {out_json}: {exc}")
+        if getattr(rule, "qc_fail_on_checker_error", False):
+            raise QCFailure(f'qc: invalid checker JSON: {out_json}') from exc
         return data
 
     summary = _summarize(report, ignore)
@@ -461,6 +502,12 @@ def run_compliance_checker(data, rule):
                     f"high={fc['high']} medium={fc['medium']} low={fc['low']}"
                 )
 
+    execution = json.loads(_execution_path(out_json).read_text())
+    if _checker_execution_failed(rc, err) or execution['status'] not in (
+            'COMPLETED', 'COMPLETED_WITH_FINDINGS'):
+        logger.error(f'qc: checker execution failed (rc={rc}); see {_execution_path(out_json)}')
+        if getattr(rule, 'qc_fail_on_checker_error', False):
+            raise QCFailure(f'qc: checker execution failed (rc={rc}); see {_execution_path(out_json)}')
     if totals["high"] and getattr(rule, "qc_fail_on_mandatory", False):
         raise QCFailure(f"qc[{cmor_var}]: {totals['high']} Mandatory finding(s) — see {out_json}")
 

@@ -110,7 +110,8 @@ def guide_pages(config, config_path):
             ("h", "5. Find products and diagnose missing variables"),
             ("code", str(config["results"]) + "/\n"
                      "  <experiment>__<path-hash>/<leg>/\n"
-                     "    NOT_FOR_PUBLICATION/        products by attempt\n"
+                     "    MIP-DRS7/CMIP7/             CMIP7 DRS data tree\n"
+                     "    attempts/                   execution logs and QC evidence\n"
                      "    recipes/                    generated conversion rules\n"
                      "    report/products.csv         every product-year status\n"
                      "    report/variable_inventory.csv\n"

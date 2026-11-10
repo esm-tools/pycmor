@@ -41,5 +41,6 @@
     "aicc"
   ],
   "cmip7_tables_path": "/external/reviewed/cmip7-cmor-tables/tables",
-  "aicc_grid_config": "/reviewed/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json"
+  "aicc_grid_config": "/reviewed/pycmor/awi-esm3-veg-hr-variables/aicc_grid_config.json",
+  "aicc_vertical_config": "/reviewed/pycmor/awi-esm3-lr-variables/full/config/aicc_vertical_config.json"
 }
