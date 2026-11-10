@@ -130,8 +130,14 @@ def explicit_decadal_mean(data, rule):
     first, last = int(rule.get("year_start")), int(rule.get("year_end"))
     if last - first != 9 or "time" not in data.dims or data.sizes["time"] != 120:
         raise ValueError("explicit_decadal_mean requires exactly 120 monthly means")
-    observed = list(zip(*(getattr(data.time.dt, part).values.tolist()
-                          for part in ("year", "month", "day", "hour", "minute", "second"))))
+    observed = list(
+        zip(
+            *(
+                getattr(data.time.dt, part).values.tolist()
+                for part in ("year", "month", "day", "hour", "minute", "second")
+            )
+        )
+    )
     expected = [tuple(d) for d in rule.get("decadal_dates", [])]
     if observed != expected:
         raise ValueError("explicit_decadal_mean: runtime time coordinates differ from the plan")

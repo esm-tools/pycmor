@@ -2181,7 +2181,7 @@ def _allow_worker_materialization(datasets):
         # Preserve the established explicit-enable behavior. The bounded
         # policy applies to the default automatic mode only.
         return True
-    limit_text = os.environ.get("PYCMOR_WORKER_COMPUTE_MAX_BYTES", str(1024 ** 3))
+    limit_text = os.environ.get("PYCMOR_WORKER_COMPUTE_MAX_BYTES", str(1024**3))
     try:
         limit = int(limit_text)
         if limit <= 0:

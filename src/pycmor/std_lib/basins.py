@@ -7,7 +7,6 @@ Its ``flag_values`` and ``flag_meanings`` are therefore always authoritative.
 
 import numpy as np
 
-
 BASIN_NAMES = ("atlantic", "pacific", "indian", "arctic", "southern")
 BASIN_IDS = (1, 2, 3, 10, 11)
 _CANONICAL_IDS = dict(zip(BASIN_NAMES, BASIN_IDS))
@@ -51,10 +50,7 @@ def basin_flag_mapping(flag_values, flag_meanings):
     if len(set(names)) != len(names):
         raise ValueError("basin flag_meanings must be unique")
     if set(names) != set(BASIN_NAMES):
-        raise ValueError(
-            "basin flag_meanings must declare exactly the five known basins: "
-            + ", ".join(BASIN_NAMES)
-        )
+        raise ValueError("basin flag_meanings must declare exactly the five known basins: " + ", ".join(BASIN_NAMES))
     return dict(zip(source_ids, names))
 
 

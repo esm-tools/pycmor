@@ -288,6 +288,7 @@ def _year_selection_mask(time_values, year_start, year_end, retain_year_end_poin
     it does not admit a next-year interval midpoint or shift any data.
     Callers must independently verify the source sampling window/cadence.
     """
+
     def fields(value):
         if isinstance(value, np.datetime64):
             text = np.datetime_as_string(value, unit="us")
@@ -295,7 +296,14 @@ def _year_selection_mask(time_values, year_start, year_end, retain_year_end_poin
             y, m, d = map(int, date.split("-"))
             h, minute, second = clock.split(":")
             return y, m, d, int(h), int(minute), float(second)
-        return value.year, value.month, value.day, value.hour, value.minute, value.second + getattr(value, "microsecond", 0) / 1e6
+        return (
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second + getattr(value, "microsecond", 0) / 1e6,
+        )
 
     result = []
     for value in time_values:
@@ -528,8 +536,9 @@ def load_mfdataset(data, rule_spec):
         and "time" in mf_ds.coords
     ):
         time_vals = mf_ds["time"].values
-        mask = _year_selection_mask(time_vals, year_start, year_end,
-                                    bool(rule_spec.get("retain_year_end_point", False)))
+        mask = _year_selection_mask(
+            time_vals, year_start, year_end, bool(rule_spec.get("retain_year_end_point", False))
+        )
         if not mask.all():
             n_dropped = int((~mask).sum())
             logger.info(

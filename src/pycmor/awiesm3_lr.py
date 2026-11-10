@@ -6,8 +6,8 @@ All source files and shared meshes are read-only. Scaling and mesh choices
 must be supplied explicitly by an audited experiment recipe.
 """
 
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 
 import cftime
 import numpy as np
@@ -101,8 +101,7 @@ def daily_time(data, rule):
         raise ValueError("Daily time must be decoded, not numeric") from exc
     first = cftime.datetime(rule.year_start, 1, 1, calendar=calendar)
     stop = cftime.datetime(rule.year_end + 1, 1, 1, calendar=calendar)
-    expected = [(d.year, d.month, d.day) for d in
-                (first + timedelta(days=i) for i in range((stop - first).days))]
+    expected = [(d.year, d.month, d.day) for d in (first + timedelta(days=i) for i in range((stop - first).days))]
     if observed != expected:
         raise ValueError("Missing, duplicate, unordered or out-of-range daily records")
     for name in ("time_centered", "time_counter"):
