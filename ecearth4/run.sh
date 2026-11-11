@@ -28,6 +28,8 @@ SAMPLES=${ECE4_SAMPLES_DIR:-$ROOT/samples}
 SOURCE=${SOURCE_DIR:-$ROOT/$EXP/source}
 # Run output in the EC-Earth4 layout (cases using @OUTPUT@): <root>/<exp>/output.
 OUTPUT=${EXP_OUTPUT:-$ROOT/$EXP/output}
+# NEMO domain file (cases using @NEMO_DOMAIN@).
+NEMO_DOMAIN=${NEMO_DOMAIN:-}
 DREQ_VERSION=${DREQ_VERSION:-v1.2.2.4}
 METADATA=$WORK/cmip7_metadata/$DREQ_VERSION/metadata.json
 # cdo for remap_conservative (env_mn5.sh install).
@@ -45,7 +47,9 @@ export PIXI_CACHE_DIR=$WORK/cache/pixi RATTLER_CACHE_DIR=$WORK/cache/rattler
 render() {
     sed -e "s|@SRC@|$SRC|g" -e "s|@METADATA@|$METADATA|g" \
         -e "s|@SAMPLES@|$SAMPLES|g" -e "s|@ROOT@|$ROOT|g" -e "s|@SOURCE@|$SOURCE|g" -e "s|@OUT@|$OUT|g" \
-        -e "s|@EXP@|$EXP|g" -e "s|@OUTPUT@|$OUTPUT|g" "$TEMPLATE"
+        -e "s|@EXP@|$EXP|g" -e "s|@OUTPUT@|$OUTPUT|g" \
+        -e "s|@NEMO_DOMAIN_DIR@|$(dirname "${NEMO_DOMAIN:-.}")|g" -e "s|@NEMO_DOMAIN_NAME@|$(basename "${NEMO_DOMAIN:-.}")|g" \
+        -e "s|@NEMO_DOMAIN@|$NEMO_DOMAIN|g" "$TEMPLATE"
 }
 
 if [ ! -d "$SAMPLES" ]; then
@@ -58,8 +62,13 @@ if [ -z "$CASE" ] || [ ! -f "$TEMPLATE" ] || { [ "$MODE" != plan ] && [ "$MODE" 
     exit 2
 fi
 
+if grep -q '@NEMO_DOMAIN' "$TEMPLATE" && [ ! -f "$NEMO_DOMAIN" ]; then
+    echo "NEMO domain file not found: '$NEMO_DOMAIN' (set NEMO_DOMAIN in $SETTINGS)" >&2
+    exit 2
+fi
+
 case $MODE in
-    plan) echo "# settings $SETTINGS"; echo "# exp  $EXP"; echo "# source $SOURCE"; echo "# output $OUTPUT"; echo "# out  $OUT"; echo "# log  $LOGS/${CASE}_$TS.log"; render ;;
+    plan) echo "# settings $SETTINGS"; echo "# exp  $EXP"; echo "# source $SOURCE"; echo "# output $OUTPUT"; echo "# domain ${NEMO_DOMAIN:-none}"; echo "# out  $OUT"; echo "# log  $LOGS/${CASE}_$TS.log"; render ;;
     run)
         mkdir -p "$OUT" "$LOGS" "$TMP"
         CFG=$TMP/${CASE}.yaml

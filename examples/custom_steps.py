@@ -55,6 +55,10 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
   Reduced Gaussian grid (EC-Earth4: OIFS, LPJ-GUESS)
     reduced_to_regular, daily_statistic_time, remap_conservative,
     _remap_conservative_da, _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
+
+  ORCA grid (EC-Earth4: NEMO, SI3)
+    orca_grid, orca_vertices, orca_cell_area, _orca_geometry, _orca_domain_fields,
+    _orca_corners
 """
 
 import glob as _glob
@@ -7883,3 +7887,127 @@ def _remap_conservative_da(data, rule):
         if k in data.coords and k not in ("lat", "lon"):
             out[k].encoding = dict(data[k].encoding)
     return out
+
+
+# ============================================================
+# ORCA grid (EC-Earth4: NEMO, SI3)
+# ============================================================
+
+# Cell corners of each point from the staggered grid: corner point and the
+# (dj, di) of the SW, SE, NE, NW corners (counterclockwise).
+_ORCA_CORNERS = {
+    "T": ("f", ((-1, -1), (-1, 0), (0, 0), (0, -1))),
+    "U": ("v", ((-1, 0), (-1, 1), (0, 1), (0, 0))),
+}
+
+
+def _orca_domain_fields(path, names):
+    """2D fields (y, x) of a NEMO domain file as float64, first time step."""
+    out = {}
+    with xr.open_dataset(path, decode_times=False) as ds:
+        for n in names:
+            v = ds[n]
+            if "time_counter" in v.dims:
+                v = v.isel(time_counter=0)
+            out[n] = np.asarray(v.values, dtype="f8")
+    return out
+
+
+def _orca_corners(glam, gphi, offsets):
+    """Corners (y, x, 4) from the corner point grid.
+
+    x is cyclic (no halo columns); the row south of the first one is
+    extrapolated (land on ORCA grids). Corner longitudes are within 180
+    degrees of the first corner of the cell.
+    """
+    ny, nx = gphi.shape
+    lat = np.vstack([np.maximum(2.0 * gphi[0] - gphi[1], -90.0), gphi])
+    lon = np.vstack([glam[0], glam])
+    jj = np.arange(ny)[:, None] + 1
+    ii = np.arange(nx)[None, :]
+    lat_b = np.stack([lat[jj + dj, (ii + di) % nx] for dj, di in offsets], axis=-1)
+    lon_b = np.stack([lon[jj + dj, (ii + di) % nx] for dj, di in offsets], axis=-1)
+    return lat_b, lon_b
+
+
+def _orca_geometry(rule, shape):
+    """Centres and corners (double precision) at the rule's orca_point."""
+    path = rule.get("orca_domain")
+    if not path:
+        raise ValueError("ORCA grid: rule option orca_domain (domain_cfg.nc) not set")
+    point = str(rule.get("orca_point", "T")).upper()
+    if point not in _ORCA_CORNERS:
+        raise ValueError(f"ORCA grid: orca_point {point!r} not supported ({sorted(_ORCA_CORNERS)})")
+    cp, offsets = _ORCA_CORNERS[point]
+    p = point.lower()
+    f = _orca_domain_fields(path, [f"glam{p}", f"gphi{p}", f"glam{cp}", f"gphi{cp}"])
+    lat, lon = f[f"gphi{p}"], f[f"glam{p}"]
+    if lat.shape != tuple(shape):
+        raise ValueError(f"ORCA grid: domain {lat.shape} does not match data (j, i) {tuple(shape)}")
+    lat_b, lon_b = _orca_corners(f[f"glam{cp}"], f[f"gphi{cp}"], offsets)
+    lon_b = lon[..., None] + (lon_b - lon[..., None] + 180.0) % 360.0 - 180.0
+    return lat, lon, lat_b, lon_b
+
+
+def orca_grid(data, rule):
+    """NEMO or SI3 field (..., y, x) to the CMOR curvilinear form (..., j, i).
+
+    latitude and longitude (2D, double precision) come from the domain file in
+    rule option orca_domain, at the point in orca_point (T or U; default T);
+    the file nav_lat/nav_lon go. Corners follow in orca_vertices, before
+    save_dataset. Runs before map_dimensions, which would take y and x for
+    latitude and longitude axes.
+    """
+    if not {"y", "x"} <= set(data.dims):
+        return data
+    lat, lon, _, _ = _orca_geometry(rule, (data.sizes["y"], data.sizes["x"]))
+    out = data.drop_vars([c for c in ("nav_lat", "nav_lon") if c in data.coords])
+    out = out.rename({"y": "j", "x": "i"})
+    out = out.assign_coords(
+        latitude=(
+            ("j", "i"),
+            lat,
+            {"standard_name": "latitude", "units": "degrees_north", "bounds": "vertices_latitude"},
+        ),
+        longitude=(
+            ("j", "i"),
+            lon,
+            {"standard_name": "longitude", "units": "degrees_east", "bounds": "vertices_longitude"},
+        ),
+    )
+    out.attrs.pop("coordinates", None)
+    out.encoding.pop("coordinates", None)
+    return out
+
+
+def orca_vertices(data, rule):
+    """Add vertices_latitude/longitude (j, i, vertices) to an orca_grid field.
+
+    Returns a Dataset (a DataArray cannot hold the vertices dimension); place
+    it right before save_dataset. No-op without j and i dimensions.
+    """
+    ds = data.to_dataset() if isinstance(data, xr.DataArray) else data
+    if not {"j", "i"} <= set(ds.dims):
+        return data
+    _, _, lat_b, lon_b = _orca_geometry(rule, (ds.sizes["j"], ds.sizes["i"]))
+    ds["vertices_latitude"] = (("j", "i", "vertices"), lat_b)
+    ds["vertices_longitude"] = (("j", "i", "vertices"), lon_b)
+    for v in ("vertices_latitude", "vertices_longitude"):
+        ds[v].encoding["_FillValue"] = None
+    return ds
+
+
+def orca_cell_area(data, rule):
+    """Cell area e1*e2 (y, x) at orca_point (default T) from the domain file.
+
+    Takes the Dataset of load_gridfile (grid_file: the domain file). Defined
+    on every cell, land included.
+    """
+    p = str(rule.get("orca_point", "T")).lower()
+    e1, e2 = data[f"e1{p}"], data[f"e2{p}"]
+    if "time_counter" in e1.dims:
+        e1, e2 = e1.isel(time_counter=0, drop=True), e2.isel(time_counter=0, drop=True)
+    area = (e1.astype("f8") * e2.astype("f8")).drop_vars([c for c in e1.coords if c not in ("y", "x")])
+    area.attrs = {"units": "m2", "standard_name": "cell_area"}
+    area.name = rule.model_variable
+    return area

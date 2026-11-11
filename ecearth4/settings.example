@@ -16,3 +16,5 @@ ECE4_SAMPLES_ROOT=
 # Optional: run output in the EC-Earth4 layout (<leg>/lpjg, ...) for cases using
 # it; default <ECE4_SAMPLES_ROOT>/<exp>/output.
 EXP_OUTPUT=
+# NEMO domain file of the run (domain_cfg.nc in a leg runtime dir), nemo cases.
+NEMO_DOMAIN=
