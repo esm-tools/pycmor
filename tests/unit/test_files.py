@@ -7,7 +7,13 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pycmor.std_lib.files import file_timespan_tail, get_offset, save_dataset, split_data_timespan
+from pycmor.std_lib.files import (
+    _normalise_vertices_naming,
+    file_timespan_tail,
+    get_offset,
+    save_dataset,
+    split_data_timespan,
+)
 
 
 @pytest.mark.parametrize(
@@ -227,3 +233,16 @@ def test_save_dataset(mocker):
 
         # file-timespan is 6MS, so 2 years data should be split into 4 files
         assert nfiles == 4, f"Expected 4 files, found {nfiles}"
+
+
+def test_curvilinear_bounds_named_vertices():
+    ds = xr.Dataset(
+        {"tos": (("j", "i"), np.ones((2, 3)))},
+        coords={
+            "latitude": (("j", "i"), np.zeros((2, 3)), {"bounds": "latitude_bnds"}),
+            "latitude_bnds": (("j", "i", "nv"), np.zeros((2, 3, 4))),
+        },
+    )
+    out = _normalise_vertices_naming(ds)
+    assert out["vertices_latitude"].dims == ("j", "i", "vertices")
+    assert out["latitude"].attrs["bounds"] == "vertices_latitude"
