@@ -7821,6 +7821,22 @@ def remap_conservative(data, rule):
 
 
 def _remap_conservative_da(data, rule):
+    """remap_conservative for one DataArray (..., cell).
+
+    CDO works on files and pycmor passes xarray objects between steps, so:
+    1. Full source grid: the cells of the file in remap_source_grid (or of
+       the data itself); the data cells (LPJ-GUESS: land only) are matched to
+       it by lat/lon and the other cells are missing (or remap_fill).
+    2. Cell corners of the reduced Gaussian grid (_reduced_gaussian_bounds):
+       remapcon needs them, the model output has none.
+    3. Target: remap_target, else the regular Gaussian grid with the same
+       latitudes. A reduced Gaussian grid N<n> has 2n latitude rows, and
+       CDO names the regular grid with those rows F<n> (TL255: N128, F128).
+    4. Write the source (leading dimensions folded into one time axis) to a
+       temporary file, cdo remapcon, read the result back.
+    5. Rebuild the DataArray: leading dimensions and their coordinates back,
+       (lat, lon) north to south, attributes and encodings of the input.
+    """
     import tempfile
 
     from pycdo import cdo
@@ -7851,7 +7867,9 @@ def _remap_conservative_da(data, rule):
     if fill is not None:
         values = np.where(np.isnan(values), float(fill), values)
     lat_b, lon_b = _reduced_gaussian_bounds(full_lat, full_lon)
-    target = rule.get("remap_target") or f"F{np.unique(lat_b[:, 0]).size // 2}"
+    # 2n latitude rows on N<n> -> regular Gaussian F<n>
+    n_rows = _reduced_gaussian_rows(full_lat, full_lon)[1].size
+    target = rule.get("remap_target") or f"F{n_rows // 2}"
 
     src = xr.Dataset(
         {"v": (("time", "cell"), values, {"coordinates": "lat lon"})},
