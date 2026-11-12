@@ -61,8 +61,8 @@ inherit:
   parent_activity_id: CMIP
   parent_time_units: "days since 1850-01-01"
   branch_time_in_parent: 0.0
-  # Provisional: no registered label for eORCA1 360x331 yet.
-  grid_label: gn
+  # eORCA1 360 x 331 in the EMD: h117 with g147 (T), g148 (U), g149 (V).
+  grid_label: g147
   grid: "native eORCA1 tripolar, 360 x 331, 75 levels"
   nominal_resolution: "100 km"
   time_dimname: time_counter
@@ -95,6 +95,7 @@ rules:
     compound_name: ocean.tauuo.tavg-u-hxy-sea.mon.glb
     model_variable: tauuo
     orca_point: U
+    grid_label: g148
     pipelines: [nemo_orca]
   - name: siconc_mon
     inputs:
