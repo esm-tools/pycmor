@@ -5164,54 +5164,58 @@ def compute_mrsofc(data, rule):
     return ds
 
 
-# HTESSEL root depth by vegetation type (Zeng et al. 1998 effective depth)
-# IFS BATS vegetation types with 95% cumulative root fraction depth (m)
-_HTESSEL_ROOT_DEPTH = {
-    1: 1.00,  # Crops, mixed farming
-    2: 1.00,  # Short grass
-    3: 1.50,  # Evergreen needleleaf
-    4: 1.50,  # Deciduous needleleaf
-    5: 1.50,  # Deciduous broadleaf
-    6: 2.00,  # Evergreen broadleaf
-    7: 1.00,  # Tall grass
-    8: 0.50,  # Desert
-    9: 0.50,  # Tundra
-    10: 1.00,  # Irrigated crops
-    11: 0.50,  # Semidesert
-    12: 0.00,  # Ice caps and glaciers
-    13: 0.50,  # Bogs and marshes
-    14: 0.00,  # Inland water
-    15: 0.00,  # Ocean
-    16: 1.50,  # Evergreen shrubs
-    17: 1.00,  # Deciduous shrubs
-    18: 1.50,  # Mixed forest
-    19: 1.00,  # Interrupted forest
-    20: 0.00,  # Water and land mix
-}
+# HTESSEL root fractions (srfrootfr_mod.F90, Zeng et al. 1998 table). Types
+# 8, 12, 14, 15 and 20 are redefined to root in soil layer 1 only; every other
+# type gets PROOTF(4) = 1 - sum(layers 1-3) > 0, so its roots reach the bottom
+# of soil layer 4. The four layers are 0.07, 0.21, 0.72 and 1.89 m thick
+# (sussoil_mod.F90).
+_HTESSEL_TOP_LAYER_ONLY_TYPES = (8, 12, 14, 15, 20)
+_HTESSEL_TOP_LAYER_DEPTH = 0.07
+_HTESSEL_SOIL_COLUMN_DEPTH = 0.07 + 0.21 + 0.72 + 1.89
 
 
 def compute_rootd(data, rule):
     """
-    Compute effective maximum root depth from IFS vegetation types.
+    Maximum depth from which HTESSEL roots extract soil water.
 
-    Uses vegetation-type-weighted root depth:
-    rootd = cvl * rootd(tvl) + cvh * rootd(tvh)
+    HTESSEL takes transpiration from the low- and high-vegetation tiles
+    through the root fractions of their vegetation types. A vegetated type
+    has a nonzero root fraction in soil layer 4, so its roots reach the
+    bottom of the column at 2.89 m. Types 8, 12, 14, 15 and 20 root in layer 1
+    only (0.07 m), which is also the only layer the bare-soil tile evaporates
+    from.
 
-    Input data should contain tvl, tvh, cvl, cvh fields.
+    A cell gets 2.89 m when, in any time step of the input, its low or high
+    vegetation tile has nonzero cover and a type other than those five; it
+    gets 0.07 m otherwise. Type 0 means the tile has no vegetation type. In
+    AWI-ESM3 LPJ-GUESS updates tvl/tvh/cvl/cvh during the run, so the fx
+    value is the maximum over the input year, and a monthly mean type that
+    is not an integer (the type changed within the month) counts as rooted
+    in layer 4 unless it equals one of the five top-layer types.
+
+    With ``slt`` in the input, cells without HTESSEL soil (slt == 0) are
+    missing, as the "where land" cell method asks.
+
+    Input data should contain tvl, tvh, cvl, cvh fields, optionally slt.
     """
     tvl = data["tvl"]
-    tvh = data["tvh"]
-    cvl = data["cvl"]
-    cvh = data["cvh"]
+    time_dims = [d for d in tvl.dims if d.startswith("time")]
 
-    rootd_low = xr.zeros_like(tvl, dtype=float)
-    rootd_high = xr.zeros_like(tvh, dtype=float)
+    def _rooted_to_layer4(vtype, cover):
+        top_only = xr.zeros_like(vtype, dtype=bool)
+        for t in _HTESSEL_TOP_LAYER_ONLY_TYPES:
+            top_only = top_only | (abs(vtype - t) < 1e-3)
+        return (cover > 0) & (vtype >= 0.5) & ~top_only
 
-    for vtype, depth in _HTESSEL_ROOT_DEPTH.items():
-        rootd_low = xr.where(np.round(tvl) == vtype, depth, rootd_low)
-        rootd_high = xr.where(np.round(tvh) == vtype, depth, rootd_high)
-
-    result = cvl * rootd_low + cvh * rootd_high
+    deep = _rooted_to_layer4(tvl, data["cvl"]) | _rooted_to_layer4(data["tvh"], data["cvh"])
+    if time_dims:
+        deep = deep.any(time_dims)
+    result = xr.where(deep, _HTESSEL_SOIL_COLUMN_DEPTH, _HTESSEL_TOP_LAYER_DEPTH)
+    if "slt" in data:
+        soil = data["slt"].max(time_dims) if time_dims else data["slt"]
+        result = result.where(soil > 0)
+    # Every time step carries the same fx value; the save takes the first.
+    result = result.broadcast_like(tvl).transpose(*tvl.dims)
 
     result.attrs = {"units": "m", "long_name": "Maximum Root Depth"}
     result.name = rule.model_variable

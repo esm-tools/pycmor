@@ -187,11 +187,13 @@ rules:
     pipelines:
       - mrsofc_pipeline
 
-  # Maximum root depth from vegetation type weighted average
+  # Maximum root depth: 2.89 m where a vegetation tile of the year has a
+  # type with roots in HTESSEL soil layer 4, 0.07 m (layer 1) elsewhere on
+  # land (srfrootfr_mod.F90, see compute_rootd). slt marks the land cells.
   - name: rootd
     inputs:
       - path: *dp
-        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh)_.*\.nc
+        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh|slt)_.*\.nc
     compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
     model_variable: rootd
     pipelines:
