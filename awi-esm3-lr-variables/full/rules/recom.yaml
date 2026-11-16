@@ -1,5 +1,6 @@
 schema_version: 1
-description: Reviewed native LR REcoM monthly and daily mappings; no new tracer interpretation is introduced.
+description: Reviewed native LR REcoM monthly and daily mappings; nutrient interpretations are stated under
+  scientific_assumptions.
 scientific_assumptions:
   eligibility_profile: awiesm3-v3.5.1-cc-raw-v1
   applicability: These mappings require the reviewed REcoM tracer definitions and CORE3 geometry. A different
@@ -30,6 +31,13 @@ scientific_assumptions:
     umol_to_mol: 1.0e-06
   sum_policy: Only explicitly represented pools are summed; no missing pool, nutrient species or functional
     group is inferred.
+  nutrient_interpretation: DIN is reported as nitrate (no ammonium tracer) and phosphate is DIN/16, the
+    Redfield diagnosis REcoM itself uses for its carbonate chemistry; neither is a separate tracer.
+  cmip7_diagnostics: Rules on recom_cmip7_diags streams (field_def_fesom.xml CMIP7 REcoM diagnostics) and
+    on the daily 200 m streams (<field>_200, two-layer zoom of nz) report MISSING_INPUT until a leg writes them.
+  derived_vertical_policy: Fixed depths are taken from an exact CORE3 level or interpolated linearly in depth
+    between the two bracketing levels, never extrapolated; column integrals use the monthly layer thickness
+    hnode of the same month.
   daily_evidence: Native daily source headers were checked for every year 2605-2609, including 366
     records in 2608. Daily fields have time mean cell_methods and noon-centred timestamps; 3D daily
     sources have 47 native layers and surface sources have one nz_sfc layer. Daily recipes apply
@@ -704,3 +712,501 @@ rules:
   - {component: fesom, pattern: 'HetC_day\.fesom\.\d{4}\.nc$', variable: HetC, units: '[mmol/m3]', coefficient: 0.001}
   - {component: fesom, pattern: 'Zoo2C_day\.fesom\.\d{4}\.nc$', variable: Zoo2C, units: '[mmol/m3]', coefficient: 0.001}
   - {component: fesom, pattern: 'Zoo3C_day\.fesom\.\d{4}\.nc$', variable: Zoo3C, units: '[mmol/m3]', coefficient: 0.001}
+- name: no3
+  compound_name: ocnBgchem.no3.tavg-ol-hxy-sea.mon.glb
+  model_variable: DIN
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DIN\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: REcoM carries one dissolved inorganic nitrogen tracer (DIN) and no separate ammonium pool; DIN
+    is reported as nitrate.
+- name: po4
+  compound_name: ocnBgchem.po4.tavg-ol-hxy-sea.mon.glb
+  model_variable: DIN
+  expected_units: '[mmol/m3]'
+  lr_scale: 6.25e-05
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DIN\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: Diagnosed by Redfield ratio N:P=16 in REcoM carbonate chemistry, not a prognostic tracer (recom_sms_init
+    REcoM_Phos_depth = DIN/16). DIN/16 * 1e-3.
+- name: intdic_south30
+  compound_name: ocnBgchem.intdic.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: DIC
+  expected_units: '[mmol/m3]'
+  lr_units: kg m-2
+  lr_input:
+    component: fesom
+    pattern: DIC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_south30_integral]
+  lr_region: 30S-90S
+  lr_terms:
+  - {component: fesom, pattern: 'DIC\.fesom\.\d{4}\.nc$', variable: DIC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  lr_thickness: {component: fesom, pattern: 'hnode\.fesom\.\d{4}\.nc$', variable: hnode, units: m}
+  comment: Column sum of monthly DIC times the monthly layer thickness hnode, mmol C to kg C with 12.011
+    g/mol. hnode is constant in time under linfs, so the product of monthly means is the monthly mean
+    inventory.
+- name: intdoc_south30
+  compound_name: ocnBgchem.intdoc.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: DOC
+  expected_units: '[mmol/m3]'
+  lr_units: kg m-2
+  lr_input:
+    component: fesom
+    pattern: DOC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_south30_integral]
+  lr_region: 30S-90S
+  lr_terms:
+  - {component: fesom, pattern: 'DOC\.fesom\.\d{4}\.nc$', variable: DOC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  lr_thickness: {component: fesom, pattern: 'hnode\.fesom\.\d{4}\.nc$', variable: hnode, units: m}
+  comment: Column sum of monthly DOC (the only explicit DOC pool) times the monthly layer thickness hnode,
+    mmol C to kg C with 12.011 g/mol.
+- name: intpoc_south30
+  compound_name: ocnBgchem.intpoc.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: DetC
+  expected_units: '[mmol/m3]'
+  lr_units: kg m-2
+  lr_input:
+    component: fesom
+    pattern: DetC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_south30_integral]
+  lr_region: 30S-90S
+  lr_terms:
+  - {component: fesom, pattern: 'PhyC\.fesom\.\d{4}\.nc$', variable: PhyC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'DiaC\.fesom\.\d{4}\.nc$', variable: DiaC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'HetC\.fesom\.\d{4}\.nc$', variable: HetC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'Zoo2C\.fesom\.\d{4}\.nc$', variable: Zoo2C, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'Zoo3C\.fesom\.\d{4}\.nc$', variable: Zoo3C, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'DetC\.fesom\.\d{4}\.nc$', variable: DetC, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  - {component: fesom, pattern: 'idetz2c\.fesom\.\d{4}\.nc$', variable: idetz2c, units: '[mmol/m3]', coefficient: 1.2011e-05}
+  lr_thickness: {component: fesom, pattern: 'hnode\.fesom\.\d{4}\.nc$', variable: hnode, units: m}
+  comment: Column sum of the same seven POC pools as the poc rule (phytoplankton, zooplankton, detritus;
+    the pools REcoM intPOC sums) times the monthly layer thickness hnode, mmol C to kg C with 12.011 g/mol.
+- name: intpcalcite_south30
+  compound_name: ocnBgchem.intpcalcite.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: calcif
+  expected_units: mmolC/m2/d
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: calcif\.fesom\.\d{4}\.nc$
+  pipelines: [lr_south30_integral]
+  lr_region: 30S-90S
+  lr_terms:
+  - {component: fesom, pattern: 'calcif\.fesom\.\d{4}\.nc$', variable: calcif, units: mmolC/m2/d, coefficient: 1.1574074074074074e-08}
+  lr_thickness: {component: fesom, pattern: 'hnode\.fesom\.\d{4}\.nc$', variable: hnode, units: m}
+  comment: 'XIOS units mmolC/m2/d are incorrect for this 3D rate: recom_sms accumulates vertcalcif as the
+    calcite precipitation rate in mmolC/(m3*d) (as NPPn3D). Column sum with the monthly layer thickness hnode,
+    then 1e-3/86400 to mol m-2 s-1. Production only; dissolution (calcdiss) is not subtracted.'
+- name: graz
+  compound_name: ocnBgchem.graz.tavg-ol-hxy-sea.mon.glb
+  model_variable: graz
+  expected_units: mmolC/(m3*d)
+  lr_scale: 1.1574074074074074e-08
+  lr_units: mol m-3 s-1
+  lr_input:
+    component: fesom
+    pattern: graz\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), grazing on phytoplankton by all zooplankton. The
+    30S-90S request is covered by this global product (DReq processing note).
+- name: o2sat
+  compound_name: ocnBgchem.o2sat.tavg-ol-hxy-sea.mon.glb
+  model_variable: O2sat
+  expected_units: mmolO/m3
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: O2sat\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), O2 saturation for 1 atm moist air (Garcia and Gordon,
+    o2sato) in mmol O2/m3.
+- name: dpo2
+  compound_name: ocnBgchem.dpo2.tavg-u-hxy-sea.mon.glb
+  model_variable: dpO2s
+  expected_units: Pa
+  lr_scale: 1
+  lr_units: Pa
+  lr_input:
+    component: fesom
+    pattern: dpO2s\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), surface pO2 ocean minus atmosphere, positive when
+    the ocean is higher, as the DReq requests; missing under ice-shelf cavities.
+- name: limndiat
+  compound_name: ocnBgchem.limndiat.tavg-u-hxy-sea.mon.glb
+  model_variable: limNd
+  expected_units: '1'
+  lr_scale: 1
+  lr_units: '1'
+  lr_input:
+    component: fesom
+    pattern: limNd\.fesom\.\d{4}\.nc$
+  pipelines: [recom_surface]
+  surface_layer: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), nitrogen limitation factor of diatom photosynthesis
+    (1 = no limitation). The source is 3D; the requested 2D field is its first ocean layer.
+- name: limfediat
+  compound_name: ocnBgchem.limfediat.tavg-u-hxy-sea.mon.glb
+  model_variable: limFed
+  expected_units: '1'
+  lr_scale: 1
+  lr_units: '1'
+  lr_input:
+    component: fesom
+    pattern: limFed\.fesom\.\d{4}\.nc$
+  pipelines: [recom_surface]
+  surface_layer: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), iron limitation factor of diatom photosynthesis
+    (1 = no limitation). The source is 3D; the requested 2D field is its first ocean layer.
+- name: intpbsi_south30
+  compound_name: ocnBgchem.intpbsi.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: intpbsi
+  expected_units: mmolSi/m2/d
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: intpbsi\.fesom\.\d{4}\.nc$
+  pipelines: [recom_south30_linear]
+  lr_region: 30S-90S
+  lr_terms:
+  - {component: fesom, pattern: 'intpbsi\.fesom\.\d{4}\.nc$', variable: intpbsi, units: mmolSi/m2/d, coefficient: 1.1574074074074074e-08}
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), depth-integrated silicate uptake by diatoms.
+- name: expc
+  compound_name: ocnBgchem.expc.tavg-ol-hxy-sea.mon.glb
+  model_variable: expC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expC\.fesom\.\d{4}\.nc$
+  lr_interface_midpoints: true
+  lr_exact_ocean_depth: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking POC flux written on the 48 layer
+    interfaces; the olevel product is the mean of the two interfaces of each layer.
+- name: expc_100m
+  compound_name: ocnBgchem.expc.tavg-d100m-hxy-sea.mon.glb
+  model_variable: expC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 100.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking POC flux at the CORE3 layer interface
+    at 100 m.
+- name: expc_1000m
+  compound_name: ocnBgchem.expc.tavg-d1000m-hxy-sea.mon.glb
+  model_variable: expC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 1000.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking POC flux. CORE3 has no interface
+    at 1000 m; linear in depth between the 910 m and 1040 m interfaces.
+- name: expcalc
+  compound_name: ocnBgchem.expcalc.tavg-ol-hxy-sea.mon.glb
+  model_variable: expCalc
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expCalc\.fesom\.\d{4}\.nc$
+  lr_interface_midpoints: true
+  lr_exact_ocean_depth: true
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking calcite flux written on the 48 layer
+    interfaces; the olevel product is the mean of the two interfaces of each layer.
+- name: expcalc_100m
+  compound_name: ocnBgchem.expcalc.tavg-d100m-hxy-sea.mon.glb
+  model_variable: expCalc
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expCalc\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 100.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking calcite flux at the CORE3 layer
+    interface at 100 m.
+- name: expcalc_1000m
+  compound_name: ocnBgchem.expcalc.tavg-d1000m-hxy-sea.mon.glb
+  model_variable: expCalc
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expCalc\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 1000.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking calcite flux. CORE3 has no interface
+    at 1000 m; linear in depth between the 910 m and 1040 m interfaces.
+- name: epn_100m
+  compound_name: ocnBgchem.epn.tavg-d100m-hxy-sea.mon.glb
+  model_variable: expN
+  expected_units: mmolN/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expN\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 100.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking PON flux at the CORE3 layer interface
+    at 100 m.
+- name: epsi_100m
+  compound_name: ocnBgchem.epsi.tavg-d100m-hxy-sea.mon.glb
+  model_variable: expSi
+  expected_units: mmolSi/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: expSi\.fesom\.\d{4}\.nc$
+  pipelines: [lr_target_depth]
+  lr_target_depth: 100.0
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), downward sinking biogenic silica flux at the CORE3
+    layer interface at 100 m.
+- name: expcob_daily
+  compound_name: ocnBgchem.expcob.tavg-u-hxy-sea.day.glb
+  model_variable: bflxC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), POC flux into the benthos (recom_sinking BotFlux),
+    i.e. the flux leaving the deepest ocean layer. Daily mean stream.
+- name: expcob
+  compound_name: ocnBgchem.expcob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxC\.fesom\.\d{4}\.nc$
+  lr_source_frequency: day
+  pipelines: [lr_daily_to_monthly]
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), POC flux into the benthos (recom_sinking BotFlux).
+    bflxC is written daily only; the monthly value is the mean of the complete daily means of the month.
+- name: froc
+  compound_name: ocnBgchem.froc.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxC
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxC\.fesom\.\d{4}\.nc$
+  lr_source_frequency: day
+  pipelines: [lr_daily_to_monthly]
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), gross POC deposition into the benthos (recom_sinking
+    BotFlux); benthic remineralisation back to the water column is a separate source and not subtracted.
+    Monthly mean of the complete daily means of bflxC.
+- name: expcalcob
+  compound_name: ocnBgchem.expcalcob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxCalc
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxCalc\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), calcite flux into the benthos (recom_sinking BotFlux).
+- name: fric
+  compound_name: ocnBgchem.fric.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxCalc
+  expected_units: mmolC/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxCalc\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), gross calcite deposition into the benthos (recom_sinking
+    BotFlux), the only inorganic carbon sedimentation term; benthic dissolution back to the water column
+    is not subtracted.
+- name: expnob
+  compound_name: ocnBgchem.expnob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxN
+  expected_units: mmolN/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxN\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), PON flux into the benthos (recom_sinking BotFlux).
+- name: frn
+  compound_name: ocnBgchem.frn.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxN
+  expected_units: mmolN/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxN\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), gross PON deposition into the benthos (recom_sinking
+    BotFlux). REcoM has no denitrification in this source (commented out even with NitrogenSS), so the
+    denitrification term is zero.
+- name: expsiob
+  compound_name: ocnBgchem.expsiob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxSi
+  expected_units: mmolSi/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxSi\.fesom\.\d{4}\.nc$
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), biogenic silica flux into the benthos (recom_sinking
+    BotFlux).
+- name: expfeob
+  compound_name: ocnBgchem.expfeob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxN
+  expected_units: mmolN/m2/s
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxN\.fesom\.\d{4}\.nc$
+  pipelines: [lr_linear]
+  lr_recom_production: fe2n_ratio
+  lr_terms:
+  - {component: fesom, pattern: 'bflxN\.fesom\.\d{4}\.nc$', variable: bflxN, units: mmolN/m2/s, coefficient: null, fe2n_factor: 1.0e-06}
+  comment: 'REcoM has no particulate iron tracer; organic iron is fe2n (micromol Fe per mmol N) times organic
+    nitrogen. Materialization reads fe2n from the actual leg namelist and sets coefficient=fe2n*1e-6 on
+    the PON flux into the benthos (bflxN, recom_cmip7_diags).'
+- name: frfe
+  compound_name: ocnBgchem.frfe.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxN
+  expected_units: mmolN/m2/s
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxN\.fesom\.\d{4}\.nc$
+  pipelines: [lr_linear]
+  lr_recom_production: fe2n_ratio
+  lr_terms:
+  - {component: fesom, pattern: 'bflxN\.fesom\.\d{4}\.nc$', variable: bflxN, units: mmolN/m2/s, coefficient: null, fe2n_factor: 1.0e-06}
+  - {component: fesom, pattern: 'scavFe\.fesom\.\d{4}\.nc$', variable: scavFe, units: umolFe/m2/d, coefficient: 1.1574074074074074e-11}
+  comment: 'Iron removed to the sediment: organic iron deposited with the PON flux into the benthos (fe2n
+    from the actual leg namelist times bflxN, times 1e-6) plus the depth-integrated scavenging of dissolved
+    iron, which REcoM removes permanently (scavFe, micromol Fe/m2/d, times 1e-6/86400). Benthic iron release
+    (fe2n_benthos) is a separate source and not subtracted. Both fields need recom_cmip7_diags.'
+- name: o2min_daily
+  compound_name: ocnBgchem.o2min.tavg-u-hxy-sea.day.glb
+  model_variable: O2min
+  expected_units: mmolO/m3
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: O2min\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), O2 at the shallowest interior local minimum of the
+    profile, or the column minimum where there is none (recom_main); daily mean.
+- name: intpoc_daily
+  compound_name: ocnBgchem.intpoc.tavg-u-hxy-sea.day.glb
+  model_variable: intPOC
+  expected_units: mmolC/m2
+  lr_scale: 1.2011e-05
+  lr_units: kg m-2
+  lr_input:
+    component: fesom
+    pattern: intPOC\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), column inventory of the same POC pools as the poc
+    rule (recom_main intPOC), mmol C to kg C with 12.011 g/mol; daily mean.
+- name: o2_200
+  compound_name: ocnBgchem.o2.tavg-op20bar-hxy-sea.day.glb
+  model_variable: O2
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: O2_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth]
+  lr_target_depth: 200.0
+  comment: &depth200 'Daily means on CORE3 layers 15 and 16 (XIOS zoom indices 14 and 15, centres 175 m and 210 m), interpolated linearly
+    in depth to 200 m. The op20bar coordinate is 20.2 bar of sea-water pressure, 199.7-200.8 m by TEOS-10
+    z_from_p, and the DReq asks for the depth of 200 m. Missing where the 210 m layer is below the sea floor.'
+- name: ph_200
+  compound_name: ocnBgchem.ph.tavg-op20bar-hxy-sea.day.glb
+  model_variable: pH
+  expected_units: total_scale
+  lr_scale: 1.0
+  lr_units: '1'
+  lr_input:
+    component: fesom
+    pattern: pH_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth]
+  lr_target_depth: 200.0
+  comment: *depth200
+- name: co3_200
+  compound_name: ocnBgchem.co3.tavg-op20bar-hxy-sea.day.glb
+  model_variable: CO3
+  expected_units: '[mol/m3]'
+  lr_scale: 1.0
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO3_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth]
+  lr_target_depth: 200.0
+  comment: *depth200
+- name: co3satarag_200
+  compound_name: ocnBgchem.co3satarag.tavg-op20bar-hxy-sea.day.glb
+  model_variable: CO3satA
+  expected_units: '[mol/m3]'
+  lr_scale: 1.0
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO3satA_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth]
+  lr_target_depth: 200.0
+  comment: *depth200
+- name: chl_200
+  compound_name: ocnBgchem.chl.tavg-op20bar-hxy-sea.day.glb
+  model_variable: PhyChl
+  expected_units: '[mg/m3]'
+  lr_units: kg m-3
+  lr_input:
+    component: fesom
+    pattern: PhyChl_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth_linear]
+  lr_target_depth: 200.0
+  lr_terms:
+  - {component: fesom, pattern: 'PhyChl_200\.fesom\.\d{4}\.nc$', variable: PhyChl, units: '[mg/m3]', coefficient: 1.0e-06}
+  - {component: fesom, pattern: 'DiaChl_200\.fesom\.\d{4}\.nc$', variable: DiaChl, units: '[mg/m3]', coefficient: 1.0e-06}
+  comment: *depth200
+- name: phyc_200
+  compound_name: ocnBgchem.phyc.tavg-op20bar-hxy-sea.day.glb
+  model_variable: PhyC
+  expected_units: '[mmol/m3]'
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyC_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth_linear]
+  lr_target_depth: 200.0
+  lr_terms:
+  - {component: fesom, pattern: 'PhyC_200\.fesom\.\d{4}\.nc$', variable: PhyC, units: '[mmol/m3]', coefficient: 0.001}
+  - {component: fesom, pattern: 'DiaC_200\.fesom\.\d{4}\.nc$', variable: DiaC, units: '[mmol/m3]', coefficient: 0.001}
+  comment: *depth200

@@ -178,6 +178,8 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
         from iceberg_validation import sample_freshwater
         return sample_freshwater(rule, year, month, horizontal_indices['nod2'], level)
     paths=rule['lr_source_files']
+    # A monthly product of a daily stream is the mean of the month's records.
+    month_mean=day is None and rule.get('lr_source_frequency')=='day'
     def one(files,var,coeff,depth=level):
         p=next(p for p in files if str(year) in Path(p).name)
         with netCDF4.Dataset(p) as ds:
@@ -187,14 +189,32 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
                      and (day is None or d.day==day)]
             if day is not None and len(matches)!=1:
                 raise ValueError(f'Expected one source daily record for {year}-{month}-{day}')
-            ti=matches[0]
+            ti=matches if month_mean else matches[0]
             v=ds[var]; ix=[]
             for d in v.dimensions:
                 if d in ('time','time_counter'): ix.append(ti)
-                elif d in ('nz','nz1','nz_sfc','depth','lev','pressure_levels'): ix.append(depth)
+                # Output model levels are stored surface-first, OpenIFS writes them top-first.
+                elif d=='model_levels': ix.append(len(ds.dimensions[d])-1-depth)
+                elif d in ('nz','nz1','nz_sfc','nz_200','depth','lev','pressure_levels'): ix.append(depth)
                 elif d in horizontal_indices: ix.append(horizontal_indices[d])
+                elif d in ('cell','ncells') and 'nod2' in horizontal_indices: ix.append(horizontal_indices['nod2'])
                 else: raise ValueError(f'Unknown source axis {d}')
-            return np.ma.asarray(v[tuple(ix)],dtype=float)*coeff
+            value=np.ma.asarray(v[tuple(ix)],dtype=float)
+            return (value.mean(axis=0) if month_mean else value)*coeff
+    def depth_weights(files,var):
+        # Independent of the conversion step: levels read from the raw file.
+        p=next(p for p in files if str(year) in Path(p).name)
+        with netCDF4.Dataset(p) as ds:
+            d=next(d for d in ds[var].dimensions if d in ('nz','nz1','nz_200','depth'))
+            z=np.abs(np.asarray(ds[d][:],dtype=float))
+        target=float(rule['lr_target_depth'])
+        exact=np.flatnonzero(np.isclose(z,target,rtol=0,atol=1e-6))
+        if exact.size: return [(int(exact[0]),1.)]
+        k=int(np.searchsorted(z,target))
+        assert 0<k<len(z), 'Target depth outside source levels'
+        w=(target-z[k-1])/(z[k]-z[k-1])
+        return [(k-1,1.-w),(k,w)]
+    terms=rule.get('lr_terms') or [dict(files=paths,variable=rule['model_variable'],coefficient=rule.get('lr_scale',1))]
     if rule.get('vector_partner_pattern'):
         own=one(paths,rule['model_variable'],1.)
         other=one(rule['vector_source_files'],rule['vector_partner_variable'],1.)
@@ -203,6 +223,13 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
             j=horizontal_indices['nod2'];lon=float(mesh['lon'][j]);lat=float(mesh['lat'][j])
         east,north=geographic_vector(u,v,lon,lat,[rule[k] for k in ('alpha_euler','beta_euler','gamma_euler')])
         value=(east if rule['vector_component']=='x' else north)*rule.get('lr_scale',1)+rule.get('lr_offset',0)
+    elif rule.get('lr_target_depth') is not None:
+        value=sum(w*one(t['files'],t['variable'],t['coefficient'],k)
+                  for t in terms for k,w in depth_weights(t['files'],t['variable']))
+        value=value+(0 if rule.get('lr_terms') else rule.get('lr_offset',0))
+    elif rule.get('lr_thickness_files'):
+        h=one(rule['lr_thickness_files'],rule['lr_thickness_variable'],1.,slice(None))
+        value=np.ma.sum(sum(one(t['files'],t['variable'],t['coefficient'],slice(None)) for t in terms)*h)
     elif rule.get('lr_interface_midpoints'):
         value=(one(paths,rule['model_variable'],1.,level)+one(paths,rule['model_variable'],1.,level+1))*0.5
         value=value*rule.get('lr_scale',1)+rule.get('lr_offset',0)

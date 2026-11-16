@@ -147,7 +147,7 @@ class RawFilenameMaterializeTests(unittest.TestCase):
         # fco2nat in the v3.5.2 legs: co2fire is not in the CMIP7 file_def.
         for variable in ('co2nbf', 'co2of'):
             self.source(variable)
-        with self.assertRaisesRegex(ValueError, r'^MISSING_INPUT: co2fire \^atm_remapped_1m_co2fire_'):
+        with self.assertRaisesRegex(ValueError, r'^MISSING_INPUT: co2fire: oifs/\^atm_remapped_1m_co2fire_'):
             RAW.materialize(self.rule(), {})
 
     def test_planner_reports_unwritten_term_stream(self):
@@ -179,7 +179,7 @@ class RawFilenameMaterializeTests(unittest.TestCase):
             coverage = f.build_catalog(config, base, period, {}, campaign)[1]
         row = next(r for r in coverage if r['compound'] == compound)
         self.assertEqual(row['status'], 'BLOCKED')
-        self.assertIn('MISSING_INPUT: co2fire ^atm_remapped_1m_co2fire_', row['reason'])
+        self.assertIn('MISSING_INPUT: co2fire: oifs/^atm_remapped_1m_co2fire_', row['reason'])
         self.assertNotIn('Incomplete/duplicate', row['reason'])
         # A written but incomplete stream keeps the coverage message.
         self.source('co2fire', months=range(1, 12))

@@ -29,7 +29,12 @@ scientific_assumptions:
   flux_coefficient: 12.01115 / 44.0095; serialized coefficients below preserve the existing calculation
     exactly.
   tracer_coefficient: 28.9644 / 44.0095; serialized scale below preserves the existing calculation exactly.
-  scope: No CO2 mass, model-level tracer, surface tracer, methane diagnostic or new REcoM mapping is introduced.
+  scope: The prognostic tracer is reported on pressure levels, on model levels and on the lowest model level;
+    no CO2 mass, CO2 climatology, methane diagnostic or new REcoM mapping is introduced.
+  model_level_evidence: atmos_mon_ml_co2 (co2 added to the monthly model-level file atmos_mon_ml inside
+    with_co2_tracer) is on the reduced TCO95 grid (cell=40320, model_levels=91, level 91 next to the surface),
+    like atmos_mon_ml_ta. The hybrid sigma-pressure axis uses the configured model_level_table and the
+    leg's 6-hourly surface pressure, as the catalogue ta/hus model-level rules do.
 defaults:
   lr_group: co2
   grid_label: g271
@@ -127,3 +132,40 @@ rules:
   comment: Prognostic pressure-level CO2 tracer, not a prescribed concentration. Linear kg/kg to mol/mol
     conversion with OpenIFS RMD=28.9644 and RMCO2=44.0095, as used in ECE_LPJG_SET_STATE. Monthly pressure-level
     output is retained; no model-level, near-surface or total-atmospheric-mass diagnostic is inferred.
+- name: co2_ml
+  compound_name: atmos.co2.tavg-al-hxy-u.mon.glb
+  model_variable: co2
+  expected_units: kg*kg-1
+  lr_scale: 0.6581397198332178
+  lr_units: mol mol-1
+  pipelines:
+  - lr_model_levels
+  grid_label: g235
+  grid: OpenIFS TCo95 reduced Gaussian (~100 km); 91 model levels
+  lr_input:
+    component: oifs
+    pattern: atmos_mon_ml_co2_\d{4}-\d{4}\.nc$
+  lr_hybrid_levels: true
+  lr_ps_input:
+    component: oifs
+    pattern: atmos_6h_pt_sp_\d{4}-\d{4}\.nc$
+    variable: sp
+  comment: Prognostic model-level CO2 tracer, not a prescribed concentration. Linear kg/kg to mol/mol conversion
+    with OpenIFS RMD=28.9644 and RMCO2=44.0095, as for co2_p19; hybrid sigma-pressure axis from the configured
+    L91 table and monthly mean surface pressure.
+- name: co2_h2m
+  compound_name: atmos.co2.tavg-h2m-hxy-u.mon.glb
+  model_variable: co2
+  expected_units: kg*kg-1
+  lr_scale: 658139.7198332178
+  lr_units: '1E-06'
+  pipelines:
+  - lr_lowest_model_level
+  grid_label: g235
+  grid: OpenIFS TCo95 reduced Gaussian (~100 km); lowest model level
+  lr_input:
+    component: oifs
+    pattern: atmos_mon_ml_co2_\d{4}-\d{4}\.nc$
+  comment: Prognostic CO2 tracer on the lowest of the 91 model levels (about 10 m above the surface), reported
+    as the near-surface value; the DReq processing note accepts the modelling centre's best estimate instead
+    of an interpolation to 2 m. kg/kg to mol/mol with 28.9644/44.0095, times 1e6 for the requested 1E-06.
