@@ -228,6 +228,50 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # phalf monthly climatology over the leg: the twelve monthly means of ps
+  # over the window (accumulate_monthly_climatology), then a_k + b_k*ps on
+  # the 92 half levels of the configured vtable. phalf is linear in ps, so
+  # this is the climatology of phalf. add_hybrid_sigma_coordinate writes the
+  # alternate_hybrid_sigma_half coordinate for it.
+  - name: phalf_climatology_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:accumulate_monthly_climatology
+      - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_half_level_pressure
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Tendencies from the OpenIFS pextra budget fields: sum of the rule's
+  # pextra_terms divided by the model step (oifs_pextra_tendency).
+  - name: tendency_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_pextra_tendency
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -884,3 +928,349 @@ rules:
     second_variable: rsn
     pipelines:
       - snd_pipeline
+
+  # ============================================================
+  # LR gap closure (notes/LR_gap_closure_design.md 4.8, 4.9)
+  # ============================================================
+
+  # Instantaneous hourly surface pressure: the v3.5.1+ cmip7 file_def writes
+  # sp to the instantaneous atmos_1h_pt stream (one model step per hour).
+  - name: ps_1hr_pt
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_sp_.*\.nc
+    compound_name: atmos.ps.tpt-u-hxy-u.1hr.glb
+    model_variable: sp
+    lazy_write: true
+
+  # Daily maximum hourly precipitation rate: timeavg takes the maximum of the
+  # hourly mean rates off the DReq cell_methods.
+  - name: pr_day_max
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pr_pr_.*\.nc
+    compound_name: atmos.pr.tmax-u-hxy-u.day.glb
+    model_variable: pr
+    lazy_write: true
+
+  # 100 m wind, instantaneous hourly (esm_tools change O1: 100u/100v in
+  # atmos_1h_pt). OpenIFS grid-point winds are geographic eastward and
+  # northward components, as for 10u/10v in uas_1hr/vas_1hr; no rotation.
+  - name: ua_100m_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_100u_.*\.nc
+    compound_name: atmos.ua.tpt-h100m-hxy-u.1hr.glb
+    model_variable: 100u
+    lazy_write: true
+
+  - name: va_100m_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_pt_100v_.*\.nc
+    compound_name: atmos.va.tpt-h100m-hxy-u.1hr.glb
+    model_variable: 100v
+    lazy_write: true
+
+  # Half-level pressure, monthly climatology over the leg window, from the
+  # 6-hourly instantaneous ps the model-level products use for their
+  # coordinate.
+  - name: phalf_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - phalf_climatology_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_sp_.*\.nc
+    compound_name: atmos.phalf.tclm-alh-hxy-u.mon.glb
+    model_variable: sp
+    lazy_write: true
+
+  # ============================================================
+  # Tendencies from the OpenIFS budget fields (pextra, LBUD23)
+  # ============================================================
+  # XIOS file atmos_mon_ml_pextra_<NN> per field (esm_tools change O5).
+  # pextra_93/94 dynamics, 95 radiation, 98/99 vertical diffusion with
+  # orographic drag and surface processes, 102 gravity-wave drag (no
+  # humidity term), 105/106 convection, 109/110 cloud scheme with
+  # saturation adjustment and SL physics (110 also holds the methane
+  # oxidation source and the negative-humidity fix), callpar.F90.
+  # tnta and tnhusa are the terms the OpenIFS budget calls explicit
+  # dynamics; the model-physics totals (tntmp, tnhusmp) are everything else.
+  # The fields hold tendency x step per step only with NAMCLDP
+  # LCLDBUD_TIMEINT=.false.; the planner checks the run's namelist and the
+  # step length before these rules go READY (oifs_pextra_tendency).
+
+  - name: tnt_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_93_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_95_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_98_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_102_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_105_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_109_.*\.nc
+    compound_name: atmos.tnt.tavg-al-hxy-u.mon.glb
+    model_variable: tnt
+    pextra_terms: [93, 95, 98, 102, 105, 109]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tnta_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_93_.*\.nc
+    compound_name: atmos.tnta.tavg-al-hxy-u.mon.glb
+    model_variable: tnta
+    pextra_terms: [93]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntr_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_95_.*\.nc
+    compound_name: atmos.tntr.tavg-al-hxy-u.mon.glb
+    model_variable: tntr
+    pextra_terms: [95]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntpbl_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_98_.*\.nc
+    compound_name: atmos.tntpbl.tavg-al-hxy-u.mon.glb
+    model_variable: tntpbl
+    pextra_terms: [98]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntc_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_105_.*\.nc
+    compound_name: atmos.tntc.tavg-al-hxy-u.mon.glb
+    model_variable: tntc
+    pextra_terms: [105]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntscp_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_109_.*\.nc
+    compound_name: atmos.tntscp.tavg-al-hxy-u.mon.glb
+    model_variable: tntscp
+    pextra_terms: [109]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntscpbl_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_98_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_109_.*\.nc
+    compound_name: atmos.tntscpbl.tavg-al-hxy-u.mon.glb
+    model_variable: tntscpbl
+    pextra_terms: [98, 109]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tntmp_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_95_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_98_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_102_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_105_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_109_.*\.nc
+    compound_name: atmos.tntmp.tavg-al-hxy-u.mon.glb
+    model_variable: tntmp
+    pextra_terms: [95, 98, 102, 105, 109]
+    pextra_step_seconds: 3600
+    scaled_units: "K s-1"
+    lazy_write: true
+
+  - name: tnhus_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_94_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_99_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_106_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_110_.*\.nc
+    compound_name: atmos.tnhus.tavg-al-hxy-u.mon.glb
+    model_variable: tnhus
+    pextra_terms: [94, 99, 106, 110]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhusa_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_94_.*\.nc
+    compound_name: atmos.tnhusa.tavg-al-hxy-u.mon.glb
+    model_variable: tnhusa
+    pextra_terms: [94]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhuspbl_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_99_.*\.nc
+    compound_name: atmos.tnhuspbl.tavg-al-hxy-u.mon.glb
+    model_variable: tnhuspbl
+    pextra_terms: [99]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhusc_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_106_.*\.nc
+    compound_name: atmos.tnhusc.tavg-al-hxy-u.mon.glb
+    model_variable: tnhusc
+    pextra_terms: [106]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhusscp_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_110_.*\.nc
+    compound_name: atmos.tnhusscp.tavg-al-hxy-u.mon.glb
+    model_variable: tnhusscp
+    pextra_terms: [110]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhusscpbl_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_99_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_110_.*\.nc
+    compound_name: atmos.tnhusscpbl.tavg-al-hxy-u.mon.glb
+    model_variable: tnhusscpbl
+    pextra_terms: [99, 110]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
+
+  - name: tnhusmp_mon
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - tendency_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_99_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_106_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_ml_pextra_110_.*\.nc
+    compound_name: atmos.tnhusmp.tavg-al-hxy-u.mon.glb
+    model_variable: tnhusmp
+    pextra_terms: [99, 106, 110]
+    pextra_step_seconds: 3600
+    scaled_units: "s-1"
+    lazy_write: true
