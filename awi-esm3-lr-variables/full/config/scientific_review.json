@@ -1450,6 +1450,7 @@
       "title": "River flux reads a coupled liquid-plus-solid discharge bundle",
       "detail": "In the OpenIFS branch the runoff producer adds solid discharge (excess glacier snow/calving) to the liquid runoff. The friver request is river water entering the ocean, and a separate ficeberg route sums explicit iceberg melt diagnostics. The land-ice, solid-discharge, river and iceberg partition must be documented to show the intended source budget and prevent omissions or overlap. This audit does not assert that every solid-discharge convention is forbidden.",
       "products": [
+        "ocean.ficeberg.tavg-ol-hxy-sea.mon.glb",
         "ocean.ficeberg.tavg-u-hxy-sea.mon.glb",
         "ocean.friver.tavg-u-hxy-sea.mon.glb"
       ],

@@ -3,6 +3,32 @@ from functools import lru_cache
 import netCDF4
 import numpy as np
 
+# Node positions are compared on the sphere: XIOS float32 coordinates differ
+# from mesh.nc by up to 0.003 deg near the pole, the minimum CORE3 node
+# spacing is 0.069 deg. Kept independent of the planner and worker modules.
+NODE_TOLERANCE_DEG = 0.01
+
+
+def _same_nodes(lon, lat, reference_lon, reference_lat):
+    lon, lat, rlon, rlat = (np.deg2rad(np.ma.filled(np.ma.asarray(x, dtype=float), np.nan))
+                            for x in (lon, lat, reference_lon, reference_lat))
+    if lon.shape != rlon.shape or lat.shape != rlat.shape:
+        return False
+    h = np.sin((lat - rlat) / 2) ** 2 + np.cos(lat) * np.cos(rlat) * np.sin((lon - rlon) / 2) ** 2
+    offset = np.rad2deg(2 * np.arcsin(np.sqrt(np.clip(h, 0, 1))))
+    return bool(np.isfinite(offset).all() and offset.max(initial=0) <= NODE_TOLERANCE_DEG)
+
+
+@lru_cache(maxsize=4)
+def _wet_layers(grid_file):
+    """Index range [cav_nod_lev, depth_lev) of ocean layers at every node."""
+    with netCDF4.Dataset(grid_file) as mesh:
+        levels = len(mesh['depth'])
+        top, bottom = (np.asarray(mesh[n][:]).astype(int) for n in ('cav_nod_lev', 'depth_lev'))
+    if (top < 0).any() or (top >= bottom).any() or (bottom > levels).any():
+        raise ValueError('ICEBERG_QC: invalid wet-layer range')
+    return top, bottom, levels
+
 
 @lru_cache(maxsize=4)
 def _expected_month(grid_file, terms, year, month):
@@ -29,8 +55,7 @@ def _expected_month(grid_file, terms, year, month):
                     field = ds[variable]
                     if field.ndim != 2 or field.shape[1] != len(lon) or getattr(field, 'units', '') != 'm s-1':
                         raise ValueError('ICEBERG_QC: wrong source dimensions/units')
-                    dl = (np.asarray(ds['lon'][:]) - lon + 180) % 360 - 180
-                    if not np.allclose(dl, 0, rtol=0, atol=1e-4) or not np.allclose(ds['lat'][:], lat, rtol=0, atol=1e-4):
+                    if not _same_nodes(ds['lon'][:], ds['lat'][:], lon, lat):
                         raise ValueError('ICEBERG_QC: source/mask coordinates differ')
                     matches.append(np.ma.asarray(field[ti, :], dtype=float).filled(np.nan))
         if len(matches) != 1:
@@ -52,8 +77,14 @@ def expected_month(rule, year, month):
     return _expected_month(str(rule['grid_file']), terms, year, month)
 
 
-def sample_freshwater(rule, year, month, node):
-    return expected_month(rule, year, month)[0][node]
+def sample_freshwater(rule, year, month, node, level=0):
+    total = expected_month(rule, year, month)[0][node]
+    if not rule.get('lr_iceberg_layers'):
+        return total
+    top, bottom, _ = _wet_layers(str(rule['grid_file']))
+    if not top[node] <= level < bottom[node]:
+        return np.ma.masked
+    return total if level == top[node] else 0.
 
 
 def validate_output(rule, dataset, variable, decoded):
@@ -62,26 +93,41 @@ def validate_output(rule, dataset, variable, decoded):
     This is in addition to generic sampled-value checks, which might otherwise
     happen to select no iceberg-active or negative-freezing cells.
     """
-    if variable.ndim != 2 or variable.dimensions[0] != 'time':
-        raise ValueError('ICEBERG_QC: expected time by native-cell output')
+    layered = bool(rule.get('lr_iceberg_layers'))
+    if variable.ndim != 2 + layered or variable.dimensions[0] != 'time':
+        raise ValueError('ICEBERG_QC: expected time by native-cell (by layer) output')
     if getattr(variable, 'units', '').replace(' ', '').replace('**', '').replace('^', '') != 'kgm-2s-1':
         raise ValueError('ICEBERG_QC: unexpected output units')
     checks = []
     for ti in sorted({0, len(decoded) - 1}):
         date = decoded[ti]
         expected, cavity, lon, lat = expected_month(rule, date.year, date.month)
-        actual = np.ma.asarray(variable[ti, :], dtype=float)
+        actual = np.ma.asarray(variable[ti], dtype=float)
+        if layered:
+            # Every wet layer present, every dry layer missing, the whole
+            # column flux in the top wet layer and exactly zero below it.
+            if len(dataset.dimensions[variable.dimensions[1]]) != len(expected):
+                actual = actual.T
+            top, bottom, levels = _wet_layers(str(rule['grid_file']))
+            level = np.arange(levels)
+            if actual.shape != (len(expected), levels):
+                raise ValueError('ICEBERG_QC: unexpected node/layer output shape')
+            wet = (level >= top[:, None]) & (level < bottom[:, None])
+            surface = level == top[:, None]
+            missing = np.ma.getmaskarray(actual) | ~np.isfinite(actual.filled(np.nan))
+            if missing[wet].any() or not missing[~wet].all():
+                raise ValueError('ICEBERG_QC: wet layers missing or dry layers filled')
+            if np.any(actual.filled(0)[wet & ~surface] != 0):
+                raise ValueError('ICEBERG_QC: nonzero flux below the top wet layer')
+            actual = actual[surface]
         if actual.shape != expected.shape or np.ma.getmaskarray(actual).any() or not np.isfinite(actual).all():
             raise ValueError('ICEBERG_QC: finite native flux was masked or invalid')
-        for choices, reference in ((('lon', 'longitude'), lon), (('lat', 'latitude'), lat)):
-            name = next((n for n in choices if n in dataset.variables), None)
-            if name is None:
-                raise ValueError('ICEBERG_QC: output node coordinates missing')
-            delta = np.asarray(dataset[name][:]) - reference
-            if name in ('lon', 'longitude'):
-                delta = (delta + 180) % 360 - 180
-            if not np.allclose(delta, 0, rtol=0, atol=1e-4):
-                raise ValueError('ICEBERG_QC: output node coordinates changed')
+        names = [next((n for n in choices if n in dataset.variables), None)
+                 for choices in (('lon', 'longitude'), ('lat', 'latitude'))]
+        if None in names:
+            raise ValueError('ICEBERG_QC: output node coordinates missing')
+        if not _same_nodes(dataset[names[0]][:], dataset[names[1]][:], lon, lat):
+            raise ValueError('ICEBERG_QC: output node coordinates changed')
         if not np.allclose(actual, expected, rtol=3e-5, atol=1e-30):
             raise ValueError('ICEBERG_QC: output differs from independent four-term sum')
         if np.any(actual[cavity] != 0):
@@ -90,4 +136,7 @@ def validate_output(rule, dataset, variable, decoded):
                            cavity_zero_nodes=int(cavity.sum()),
                            negative_freezing_nodes=int((expected < 0).sum()),
                            nonzero_nodes=int(np.count_nonzero(expected))))
-    return {'check': 'independent full-surface iceberg sum, cavity-zero and signed-freezing checks', 'months': checks}
+    check = 'independent full-surface iceberg sum, cavity-zero and signed-freezing checks'
+    if layered:
+        check += '; full sum in the top wet layer, zero below, dry layers missing'
+    return {'check': check, 'months': checks}
