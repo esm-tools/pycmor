@@ -95,6 +95,166 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # CH4/N2O from the OpenIFS radiation climatology (oifs_ghg_climatology_field).
+  # Model levels: from the month-mean 6-hourly ps on the native grid, with
+  # the hybrid coordinate added like every alevel product.
+  - name: ghg_alevel_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_ghg_climatology_field
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # p19: ps (atm_remapped_1m_sp) supplies the regular grid and months.
+  - name: ghg_plev_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_ghg_climatology_field
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # p19 tclm: the twelve months of the window (accumulate_monthly_climatology
+  # sets the climatology years the save writes as climatology bounds).
+  - name: ghg_plev_climatology_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:accumulate_monthly_climatology
+      - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_ghg_climatology_field
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Global-mean tclm: the 12 monthly 1850 values of ghg_scalar_pipeline,
+  # labelled as the climatology of the window.
+  - name: ghg_scalar_climatology_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:broadcast_forcing_year_to_monthly
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - script://$PYCMOR_HOME/examples/custom_steps.py:as_monthly_climatology
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ozone: mass mixing ratio to mole fraction, on model levels, on pressure
+  # levels, and from the lowest model level.
+  - name: o3_alevel_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: o3_plev_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: o3_surface_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:select_lowest_model_level
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:apply_variable_attributes
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Aerosol optical depth: sum of the rule's summed_variables (one input file
+  # each) with the 550 nm comment the request asks for.
+  - name: aod_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:sum_variables
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:apply_variable_attributes
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -149,8 +309,8 @@ inherit:
   parent_experiment_id: no parent
   calendar: proleptic_gregorian
 rules:
-  # od550aer dropped: MACv2-SP represents only anthropogenic simple-plume AOD,
-  # not total AOD as CMIP7 requires. No prognostic/other aerosol in this config.
+  # od550aer: CAMS-climatology AOD plus the MACv2-SP plumes, see the aerosol
+  # optical depth rules at the end (MACv2-SP alone is not total AOD).
 
   # cfc11: global-mean mole fraction from input4MIPs annual GHG forcing file.
   # CMIP7 registry says units='1E-12' (file values are in ppt, label is the
@@ -184,8 +344,9 @@ rules:
 
   # ch4: global-mean mole fraction from input4MIPs annual GHG forcing file.
   # CMIP7 registry says units='1E-09' (file values are in ppb).
-  # Note: AWI-ESM3-veg-LR uses well-mixed prescribed CH4 (no spatial variation).
-  # CMIP7 guidance: "if CH4 is spatially uniform, omit 3D field, report global mean instead."
+  # The value is the prescribed global mean. Radiation distributes it with
+  # the OpenIFS gas climatology (NGHGRAD=16), so CH4 is not spatially
+  # uniform; the 3D products follow at the end of the rules.
   - name: ch4_mon
     inputs:
       - path: *ghg
@@ -241,3 +402,319 @@ rules:
     scaled_units: "m"
     pipelines:
       - toz_pipeline
+
+  # ============================================================
+  # CH4 and N2O as the radiation used them (design 4.6)
+  # ============================================================
+  # With NGHGRAD=16 (OpenIFS log) radiation does not use one global value
+  # for CH4 and N2O: it takes the latitude x pressure x month climatology
+  # greenhouse_gas_climatology_48r1.nc and scales it to the year's global
+  # mean (upd_ghgclim.F90), here the 1850 input4MIPs means the ch4_mon and
+  # n2o_mon rules above report. oifs_ghg_climatology_field repeats the
+  # model's time, latitude and layer interpolation. The climatology file is
+  # the copy the run staged in its work/ifsdata (the planner points the
+  # template path there). The fields do not change from year to year in
+  # piControl, so the processing notes ask for tclm-p19 and tclm-u-hm; the
+  # yearly tavg-al and tavg-p19 products are written as well.
+
+  - name: ch4_mon_ml
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - ghg_alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_sp_.*\.nc
+    compound_name: atmosChem.ch4.tavg-al-hxy-u.mon.glb
+    model_variable: sp
+    ghg_gas: ch4
+    ghg_vertical: model_levels
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+    lazy_write: true
+
+  - name: ch4_mon_pl
+    pipelines:
+      - ghg_plev_pipeline
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_.*\.nc
+    compound_name: atmosChem.ch4.tavg-p19-hxy-air.mon.glb
+    model_variable: sp
+    ghg_gas: ch4
+    ghg_vertical: pressure_levels
+    plevels: [100000., 92500., 85000., 70000., 60000., 50000., 40000., 30000., 25000., 20000., 15000., 10000.,
+              7000., 5000., 3000., 2000., 1000., 500., 100.]
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+
+  - name: ch4_clim_pl
+    pipelines:
+      - ghg_plev_climatology_pipeline
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_.*\.nc
+    compound_name: atmosChem.ch4.tclm-p19-hxy-air.mon.glb
+    model_variable: sp
+    ghg_gas: ch4
+    ghg_vertical: pressure_levels
+    plevels: [100000., 92500., 85000., 70000., 60000., 50000., 40000., 30000., 25000., 20000., 15000., 10000.,
+              7000., 5000., 3000., 2000., 1000., 500., 100.]
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+
+  # Twelve monthly copies of the 1850 global mean (ch4globalClim).
+  - name: ch4_clim_gm
+    inputs:
+      - path: *ghg
+        pattern: ch4_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
+    compound_name: atmosChem.ch4.tclm-u-hm-air.mon.glb
+    grid_label: g010
+    model_variable: ch4
+    scale_factor: 1.0e-9
+    scaled_units: "mol mol-1"
+    skip_input_year_filter: true
+    climatology_static_inputs: true
+    pipelines:
+      - ghg_scalar_climatology_pipeline
+
+  - name: n2o_mon_ml
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - ghg_alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_6h_pt_sp_.*\.nc
+    compound_name: atmosChem.n2o.tavg-al-hxy-u.mon.glb
+    model_variable: sp
+    ghg_gas: n2o
+    ghg_vertical: model_levels
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+    lazy_write: true
+
+  - name: n2o_mon_pl
+    pipelines:
+      - ghg_plev_pipeline
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_.*\.nc
+    compound_name: atmosChem.n2o.tavg-p19-hxy-air.mon.glb
+    model_variable: sp
+    ghg_gas: n2o
+    ghg_vertical: pressure_levels
+    plevels: [100000., 92500., 85000., 70000., 60000., 50000., 40000., 30000., 25000., 20000., 15000., 10000.,
+              7000., 5000., 3000., 2000., 1000., 500., 100.]
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+
+  - name: n2o_clim_pl
+    pipelines:
+      - ghg_plev_climatology_pipeline
+    inputs:
+      - path: *dp
+        pattern: atm_remapped_1m_sp_.*\.nc
+    compound_name: atmosChem.n2o.tclm-p19-hxy-air.mon.glb
+    model_variable: sp
+    ghg_gas: n2o
+    ghg_vertical: pressure_levels
+    plevels: [100000., 92500., 85000., 70000., 60000., 50000., 40000., 30000., 25000., 20000., 15000., 10000.,
+              7000., 5000., 3000., 2000., 1000., 500., 100.]
+    ghg_climatology_file: /work/ab0246/a270092/input/oifs-48r1/ifsdata/greenhouse_gas_climatology_48r1.nc
+    ghg_forcing_file: /work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg/n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022.nc
+
+  # Twelve monthly copies of the 1850 global mean (n2oglobalClim).
+  - name: n2o_clim_gm
+    inputs:
+      - path: *ghg
+        pattern: n2o_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
+    compound_name: atmosChem.n2o.tclm-u-hm-air.mon.glb
+    grid_label: g010
+    model_variable: n2o
+    scale_factor: 1.0e-9
+    scaled_units: "mol mol-1"
+    skip_input_year_filter: true
+    climatology_static_inputs: true
+    pipelines:
+      - ghg_scalar_climatology_pipeline
+
+  # ============================================================
+  # Ozone (esm_tools change O4)
+  # ============================================================
+  # OpenIFS carries prognostic ozone (YO3_NL%LGP) and radiation uses it
+  # (LEPO3RA). o3 is a mass mixing ratio, so the rules convert to mole
+  # fraction. Ozone varies from year to year, so the processing note of
+  # atmosChem.o3.tclm-p19 asks for tavg-p19 instead; the planner reports the
+  # tclm product as not applicable (data_request_coverage).
+  - name: o3_mon_ml
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - o3_alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_o3_.*\.nc
+    compound_name: atmosChem.o3.tavg-al-hxy-u.mon.glb
+    model_variable: o3
+    scale_factor: 0.6034476  # kg kg-1 -> mol mol-1: M(air)/M(O3) = 28.9644/47.9982
+    scaled_units: "mol mol-1"
+    lazy_write: true
+
+  - name: o3_mon_pl
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - o3_plev_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_pl_o3_.*\.nc
+    compound_name: atmosChem.o3.tavg-p19-hxy-air.mon.glb
+    model_variable: o3
+    scale_factor: 0.6034476  # kg kg-1 -> mol mol-1: M(air)/M(O3) = 28.9644/47.9982
+    scaled_units: "mol mol-1"
+
+  # Near-surface ozone from the lowest model level (about 10 m above the
+  # surface), hourly mean in atmos_1h_o3low; the processing note accepts a
+  # best estimate instead of 2 m.
+
+  - name: o3_surface_1hr
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - o3_surface_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_o3low_o3_.*\.nc
+    compound_name: aerosol.o3.tavg-h2m-hxy-u.1hr.glb
+    model_variable: o3
+    scale_factor: 0.6034476  # kg kg-1 -> mol mol-1: M(air)/M(O3) = 28.9644/47.9982
+    scaled_units: "mol mol-1"
+    variable_attributes:
+      comment: "Lowest model level (about 10 m above the surface), not interpolated to 2 m."
+    lazy_write: true
+
+  - name: o3_surface_day_max
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - o3_surface_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_o3low_o3_.*\.nc
+    compound_name: aerosol.o3.tmax-h2m-hxy-u.day.glb
+    model_variable: o3
+    scale_factor: 0.6034476  # kg kg-1 -> mol mol-1: M(air)/M(O3) = 28.9644/47.9982
+    scaled_units: "mol mol-1"
+    variable_attributes:
+      comment: "Lowest model level (about 10 m above the surface), not interpolated to 2 m."
+    lazy_write: true
+
+  # ============================================================
+  # Aerosol optical depth at 550 nm (esm_tools change O6)
+  # ============================================================
+  # radaca.F90 computes the CAMS-climatology optical depths (aod550 total,
+  # aod550bc/du/om/su/ss per species), written to monthly files
+  # atmos_mon_aod_<field> on the reduced grid. od550aer adds the MACv2-SP
+  # anthropogenic plumes (macv2sp_taod550), which radiation applies on top.
+  # The archived macv2sp_taod550 is on the regular grid only
+  # (atm_remapped_1m), so the same file must also write it on the reduced
+  # grid. Before the spinup takes these rules, the test month has to show
+  # that aod550 does not already contain the MACv2-SP part, otherwise
+  # od550aer counts it twice. The species products are the CAMS climatology
+  # alone; the plumes are not apportioned to species.
+
+  - name: od550aer_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550_.*\.nc
+      - path: *dp
+        pattern: atmos_mon_aod_macv2sp_taod550_.*\.nc
+    compound_name: aerosol.od550aer.tavg-u-hxy-u.mon.glb
+    model_variable: od550aer
+    summed_variables: [aod550, macv2sp_taod550]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol (radaca.F90) plus the MACv2-SP anthropogenic plumes; no stratospheric aerosol."
+
+  - name: od550bc_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550bc_.*\.nc
+    compound_name: aerosol.od550bc.tavg-u-hxy-u.mon.glb
+    model_variable: od550bc
+    summed_variables: [aod550bc]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
+
+  - name: od550dust_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550du_.*\.nc
+    compound_name: aerosol.od550dust.tavg-u-hxy-u.mon.glb
+    model_variable: od550dust
+    summed_variables: [aod550du]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
+
+  - name: od550oa_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550om_.*\.nc
+    compound_name: aerosol.od550oa.tavg-u-hxy-u.mon.glb
+    model_variable: od550oa
+    summed_variables: [aod550om]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
+
+  - name: od550so4_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550su_.*\.nc
+    compound_name: aerosol.od550so4.tavg-u-hxy-u.mon.glb
+    model_variable: od550so4
+    summed_variables: [aod550su]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
+
+  - name: od550ss_mon
+    grid_label: __LR_GRID_ATM__
+    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
+    pipelines:
+      - aod_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_aod_aod550ss_.*\.nc
+    compound_name: aerosol.od550ss.tavg-u-hxy-u.mon.glb
+    model_variable: od550ss
+    summed_variables: [aod550ss]
+    variable_attributes:
+      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
