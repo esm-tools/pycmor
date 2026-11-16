@@ -1,0 +1,215 @@
+schema_version: 1
+description: WAM integrated wave parameters on the WAM sea-point grid (file_def_wam_cmip7.xml.j2).
+scientific_assumptions:
+  grid: One XIOS cell per WAM sea point (29530 on the LR 1 degree reduced latitude-longitude grid,
+    78S to 90N). Land is not part of the grid; WAM writes -999 (decoded as missing) at points it
+    masks (sea ice, too shallow), so every mean is over the ice-free samples only.
+  grid_label: The WAM grid has no EMD registration yet; the label is taken from the run
+    configuration (wam_grid_label) and the products stay blocked without it.
+  directions: WAM mwd, mdww and mdts are "from" directions, clockwise from true north
+    (sea_surface_*_from_direction), the DReq convention. Checked on 2845 output, wind-sea from 72
+    degrees in the January North Pacific trades and from 279 degrees in the Southern Ocean westerlies.
+  stokes_drift: ust and vst are eastward and northward on the geographic latitude-longitude WAM grid,
+    no rotation. Checked on 2845 output, the drift points opposite to the mean wave direction.
+  periods: mpw, mpwswell and mpwwindsea are the inverse-moment periods Tm-1,0 (mwp, mpts, mpww);
+    wpp is the peak period pp1d.
+  sampling: 3hr products are the instantaneous WAM values at the end of each 3 hour step. swhmax at
+    3hr is the maximum of the hourly samples in that step (the DReq asks for time point and a maximum
+    at once), stamped at the end of the step like the instants. Monthly products are XIOS means of
+    the hourly samples, swhmax the monthly maximum of them, and the directions atan2 of the monthly
+    mean sine and cosine.
+defaults:
+  lr_group: wave
+  lr_wave: true
+  lr_grid_key: wam
+  lr_grid_cells: 29530
+  time_dimname: time
+  grid: WAM 1 degree reduced latitude-longitude sea points (29530 cells)
+  pipelines: [lr_wave]
+rules:
+- name: swh_3hr
+  compound_name: ocean.swh.tpt-u-hxy-sea.3hr.glb
+  model_variable: swh
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: swh\.wam_3h\.\d{4}\.nc$
+- name: swhmax_3hr
+  compound_name: ocean.swhmax.tpt-u-hxy-sea.3hr.glb
+  model_variable: swh_max
+  expected_units: m
+  lr_wave_window_end: true
+  lr_input:
+    component: oifs
+    pattern: swh_max\.wam_3h\.\d{4}\.nc$
+- name: swhswell_3hr
+  compound_name: ocean.swhswell.tpt-u-hxy-sea.3hr.glb
+  model_variable: shts
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: shts\.wam_3h\.\d{4}\.nc$
+- name: swhwindsea_3hr
+  compound_name: ocean.swhwindsea.tpt-u-hxy-sea.3hr.glb
+  model_variable: shww
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: shww\.wam_3h\.\d{4}\.nc$
+- name: mpw_3hr
+  compound_name: ocean.mpw.tpt-u-hxy-sea.3hr.glb
+  model_variable: mwp
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: mwp\.wam_3h\.\d{4}\.nc$
+- name: mpwswell_3hr
+  compound_name: ocean.mpwswell.tpt-u-hxy-sea.3hr.glb
+  model_variable: mpts
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: mpts\.wam_3h\.\d{4}\.nc$
+- name: mpwwindsea_3hr
+  compound_name: ocean.mpwwindsea.tpt-u-hxy-sea.3hr.glb
+  model_variable: mpww
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: mpww\.wam_3h\.\d{4}\.nc$
+- name: wpp_3hr
+  compound_name: ocean.wpp.tpt-u-hxy-sea.3hr.glb
+  model_variable: pp1d
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: pp1d\.wam_3h\.\d{4}\.nc$
+- name: wdir_3hr
+  compound_name: ocean.wdir.tpt-u-hxy-sea.3hr.glb
+  model_variable: mwd
+  expected_units: degree
+  lr_input:
+    component: oifs
+    pattern: mwd\.wam_3h\.\d{4}\.nc$
+- name: wdirswell_3hr
+  compound_name: ocean.wdirswell.tpt-u-hxy-sea.3hr.glb
+  model_variable: mdts
+  expected_units: degree
+  lr_input:
+    component: oifs
+    pattern: mdts\.wam_3h\.\d{4}\.nc$
+- name: wdirwindsea_3hr
+  compound_name: ocean.wdirwindsea.tpt-u-hxy-sea.3hr.glb
+  model_variable: mdww
+  expected_units: degree
+  lr_input:
+    component: oifs
+    pattern: mdww\.wam_3h\.\d{4}\.nc$
+- name: sduo_3hr
+  compound_name: ocean.sduo.tpt-u-hxy-sea.3hr.glb
+  model_variable: ust
+  expected_units: m s-1
+  lr_input:
+    component: oifs
+    pattern: ust\.wam_3h\.\d{4}\.nc$
+- name: sdvo_3hr
+  compound_name: ocean.sdvo.tpt-u-hxy-sea.3hr.glb
+  model_variable: vst
+  expected_units: m s-1
+  lr_input:
+    component: oifs
+    pattern: vst\.wam_3h\.\d{4}\.nc$
+- name: swh_mon
+  compound_name: ocean.swh.tavg-u-hxy-sea.mon.glb
+  model_variable: swh
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: swhmax_mon
+  compound_name: ocean.swhmax.tmax-u-hxy-sea.mon.glb
+  model_variable: swh_max
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: swhswell_mon
+  compound_name: ocean.swhswell.tavg-u-hxy-sea.mon.glb
+  model_variable: shts
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: swhwindsea_mon
+  compound_name: ocean.swhwindsea.tavg-u-hxy-sea.mon.glb
+  model_variable: shww
+  expected_units: m
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: mpw_mon
+  compound_name: ocean.mpw.tavg-u-hxy-sea.mon.glb
+  model_variable: mwp
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: mpwswell_mon
+  compound_name: ocean.mpwswell.tavg-u-hxy-sea.mon.glb
+  model_variable: mpts
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: mpwwindsea_mon
+  compound_name: ocean.mpwwindsea.tavg-u-hxy-sea.mon.glb
+  model_variable: mpww
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: wpp_mon
+  compound_name: ocean.wpp.tavg-u-hxy-sea.mon.glb
+  model_variable: pp1d
+  expected_units: s
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: wdir_mon
+  compound_name: ocean.wdir.tavg-u-hxy-sea.mon.glb
+  model_variable: mwd_sin
+  lr_wave_cosine: mwd_cos
+  expected_units: '1'
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: wdirswell_mon
+  compound_name: ocean.wdirswell.tavg-u-hxy-sea.mon.glb
+  model_variable: mdts_sin
+  lr_wave_cosine: mdts_cos
+  expected_units: '1'
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: wdirwindsea_mon
+  compound_name: ocean.wdirwindsea.tavg-u-hxy-sea.mon.glb
+  model_variable: mdww_sin
+  lr_wave_cosine: mdww_cos
+  expected_units: '1'
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: sduo_mon
+  compound_name: ocean.sduo.tavg-u-hxy-sea.mon.glb
+  model_variable: ust
+  expected_units: m s-1
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$
+- name: sdvo_mon
+  compound_name: ocean.sdvo.tavg-u-hxy-sea.mon.glb
+  model_variable: vst
+  expected_units: m s-1
+  lr_input:
+    component: oifs
+    pattern: wam_1mo\.\d{4}\.nc$

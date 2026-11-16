@@ -601,7 +601,7 @@ def build_catalog(config, experiment, period, identity, campaign):
     for file in raw.PROFILE['tier_files']:
         raw_rules += yaml.safe_load((repo/'awi-esm3-lr-variables'/file).read_text())['rules']
     raw_rules += (list(raw.recom_rules()) + list(raw.co2_rules()) + list(raw.transit_rules()) +
-                  list(raw.daily_land_rules()) + list(raw.ocean_fixed_rules()))
+                  list(raw.daily_land_rules()) + list(raw.ocean_fixed_rules()) + list(raw.wave_rules()))
     native_daily = copy.deepcopy(next(p for p in raw.PROFILE['pipelines'] if p['name']=='lr_lpj'))
     native_daily['name'] = 'lr_lpj_daily'
     native_daily['steps'] = [s for s in native_daily['steps'] if s!='pycmor.awiesm3_lr.monthly_time']
@@ -677,6 +677,7 @@ def build_catalog(config, experiment, period, identity, campaign):
     raw.PROFILE['pipelines'].append(vector)
     raw.register_daily_pipelines(raw.PROFILE, campaign)
     raw.register_derived_pipelines(raw.PROFILE, campaign)
+    raw.register_wave_pipelines(raw.PROFILE)
     iceberg.install_pipeline(raw.PROFILE, campaign/'reproduce')
     for year in years:
         print(f'Planning full catalog: {year}', flush=True)
@@ -926,7 +927,7 @@ def plan(args, config):
         tasks, coverage, full_count = build_catalog(config,experiment,period,identity,campaign)
         write(campaign/'tasks.json',tasks)
         write(campaign/'coverage.json',coverage)
-        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'transit.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py'):
+        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'transit.yaml', RULES/'wave.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py'):
             shutil.copy2(p,campaign/'reproduce'/p.name)
         if config.get('hr_reference_manifest'):
             shutil.copy2(config['hr_reference_manifest'], campaign/'reproduce/hr_reference_manifest.txt')
@@ -974,7 +975,7 @@ def validate_output(task, recipe, output):
             if compound.split('.')[-1] == 'glb' and '-hxy-' in compound:
                 lat = next((ds[n] for n in ('latitude', 'lat') if n in ds.variables), None)
                 lon = next((ds[n] for n in ('longitude', 'lon') if n in ds.variables), None)
-                required = {'g235':40320,'g236':220509,'g238':426403,'g271':76800}.get(label)
+                required = {'g235':40320,'g236':220509,'g238':426403,'g271':76800}.get(label, rule.get('lr_grid_cells'))
                 if required:
                     cells = (lat.size * lon.size if label == 'g271' and lat is not None and lon is not None
                              and lat.dimensions != lon.dimensions else lat.size if lat is not None else 0)

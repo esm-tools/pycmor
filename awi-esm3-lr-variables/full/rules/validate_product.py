@@ -240,9 +240,78 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
     return value
 
 
+def validate_wave(cfg, rule, files):
+    """WAM: whole sampled output fields against the raw records they come from."""
+    name=rule['compound_name'].split('.')[1]; frequency=rule['compound_name'].split('.')[-2]
+    years=range(cfg['inherit']['year_start'],cfg['inherit']['year_end']+1)
+    key=(lambda d:(d.year,d.month)) if frequency=='mon' else (lambda d:(d.year,d.month,d.day,d.hour,d.minute))
+    sources={}
+    for path in rule['lr_source_files']:
+        with netCDF4.Dataset(path) as ds:
+            t=ds['time']; calendar=getattr(t,'calendar','standard')
+            # A window statistic belongs to the end of its window, like the instants.
+            stamps=ds[t.bounds][:,1] if rule.get('lr_wave_window_end') else t[:]
+            for i,d in enumerate(netCDF4.num2date(stamps,t.units,calendar)):
+                assert key(d) not in sources, 'Duplicate raw WAM record'
+                sources[key(d)]=(path,i)
+            source_lat=np.asarray(ds['lat'][:],dtype=float); source_lon=np.asarray(ds['lon'][:],dtype=float)
+    def raw(path,index):
+        with netCDF4.Dataset(path) as ds:
+            if rule.get('lr_wave_cosine'):
+                sin,cos=(np.ma.masked_invalid(np.ma.asarray(ds[n][index],dtype=float))
+                         for n in (rule['model_variable'],rule['lr_wave_cosine']))
+                return np.ma.masked_array(np.degrees(np.arctan2(sin.filled(0),cos.filled(0)))%360,
+                                          mask=np.ma.getmaskarray(sin)|np.ma.getmaskarray(cos))
+            return np.ma.masked_invalid(np.ma.asarray(ds[rule['model_variable']][index],dtype=float))
+    dates=[]; checks=[]; compared=0
+    assert files, 'No output'
+    for path in files:
+        with netCDF4.Dataset(path) as ds:
+            assert name in ds.variables, f'Missing data variable {name}'
+            v=ds[name]
+            assert ds.getncattr('source_id')=='LR-SPINUP-TEST', 'Wrong experiment identity'
+            assert hasattr(ds,'tracking_id'), 'Missing tracking_id'
+            assert v.dimensions==('time','cell'), 'Unexpected WAM output dimensions'
+            moved=(np.abs(ds['latitude'][:]-source_lat).max(),np.abs((ds['longitude'][:]-source_lon+180)%360-180).max())
+            assert max(moved)<=1e-5, 'WAM cells reordered or moved'
+            factor,offset=unit_factor('degree' if rule.get('lr_wave_cosine') else rule['expected_units'],v.units)
+            t=ds['time']; decoded=netCDF4.num2date(t[:],t.units,getattr(t,'calendar','standard'))
+            if frequency=='mon':
+                bounds=netCDF4.num2date(ds[t.bounds][:],t.units,getattr(t,'calendar','standard'))
+                for d,(lo,hi) in zip(decoded,bounds):
+                    assert lo<d<hi and lo.day==hi.day==1 and (lo.year,lo.month)==key(d), 'Monthly interval mismatch'
+            keys=[key(d) for d in decoded]; dates.extend(keys)
+            for ti in sorted({0,len(keys)//2,len(keys)-1}):
+                expected=raw(*sources[keys[ti]])*factor+offset
+                actual=np.ma.masked_invalid(np.ma.asarray(v[ti],dtype=float))
+                masks=np.ma.getmaskarray(expected),np.ma.getmaskarray(actual)
+                assert np.array_equal(*masks), f'Mask changed: {path.name}'
+                valid=~np.ma.getmaskarray(actual)
+                difference=np.abs(actual.data[valid]-expected.data[valid])
+                scale=np.abs(expected.data[valid])
+                if v.units=='degree':
+                    # Circular: 359.99999 and 0.00001 degrees are neighbours.
+                    difference=np.minimum(difference,360-difference);scale=360.
+                assert np.all(difference<=np.maximum(scale*3e-5,1e-30)), (path.name,float(difference.max()))
+                compared+=int(valid.sum())
+            checks.append({'file':str(path),'check':'identity, WAM cells, whole first/middle/last fields'})
+    if frequency=='mon':
+        expected=[(y,m) for y in years for m in range(1,13)]
+    else:
+        # End-labelled 3-hourly steps; the last one is next January 1 00:00.
+        hours=int(frequency[:-2]); start=cftime.datetime(years.start,1,1,calendar=decoded[0].calendar)
+        stop=cftime.datetime(years.stop,1,1,calendar=decoded[0].calendar); step=timedelta(hours=hours)
+        expected=[key(start+step*(i+1)) for i in range(int((stop-start)/step))]
+    assert sorted(dates)==expected, f'Missing/duplicate records: {len(dates)}, expected {len(expected)}'
+    return {'files':checks,'coverage':'PASS','raw_sample_comparison':compared>0,'compared_samples':compared,
+            'limitations':[],'publication_ready':False}
+
+
 def validate(recipe):
     cfg=yaml.safe_load(Path(recipe).read_text()); rule=cfg['rules'][0]
     out=Path(cfg['inherit']['output_directory']); files=sorted(out.rglob('*.nc'))
+    if rule.get('lr_wave'):
+        return dict(validate_wave(cfg,rule,files),recipe=str(recipe))
     name=rule['compound_name'].split('.')[1]
     expected_frequency=rule['compound_name'].split('.')[-2]
     years=range(cfg['inherit']['year_start'],cfg['inherit']['year_end']+1)
