@@ -6644,6 +6644,175 @@ def compute_hfbasin_tripyview(data, rule):
     return hfbasin.to_dataset()
 
 
+def _basin_edges_and_nodes(mesh, mdiag, box):
+    """Edge mask and node latitudes of a basin, as tripyview selects them (with a buffer layer)."""
+    import tripyview as _tpv
+
+    edges = mdiag["edges"].values
+    if isinstance(box, str):
+        return np.ones(edges.shape[1], dtype=bool), mesh.n_y
+    e_in = _tpv.sub_utility.do_boxmask(mesh, box, do_elem=True)
+    nodes = np.zeros(mesh.n2dn, dtype=bool)
+    nodes[np.unique(mesh.e_i[e_in, :])] = True
+    buffered = nodes.copy()
+    buffered[np.unique(mesh.e_i[nodes[mesh.e_i].max(axis=1), :])] = True
+    return buffered[edges].any(axis=0), mesh.n_y[nodes]
+
+
+def _basin_section_edges(mdiag, inside, lat):
+    """Edges cut by the latitude line ``lat`` inside a basin, with tripyview's signs.
+
+    Same selection and orientation as tripyview calc_mhflx_box_fast_lessmem
+    (edge direction flipped where the first node lies south of the line;
+    cross-edge vectors turned into normals), so a transport summed here
+    equals the one hfbasin integrates.
+    Returns (edge_tri (2, ne), dx (2, ne), dy (2, ne)) or None.
+    """
+    y = mdiag["edge_y"].values
+    cut = inside & ((y[0] - lat) * (y[1] - lat) <= 0.0)
+    if not cut.any():
+        return None
+    dx = mdiag["edge_dx_lr"].values[:, cut].copy()
+    dy = mdiag["edge_dy_lr"].values[:, cut].copy()
+    south = y[0, cut] <= lat
+    dx[:, south] *= -1.0
+    dy[:, south] *= -1.0
+    dx[0] *= -1.0
+    dy[1] *= -1.0
+    return mdiag["edge_tri"].values[:, cut], dx, dy
+
+
+def compute_basin_transport_component(data, rule):
+    """Overturning, gyre or GM-bolus part of the northward basin transport of heat or salt.
+
+    On each latitude line of each CMIP basin (the edge path hfbasin uses),
+    with per-layer transports F_s(z) = (u_s dy_s + v_s dx_s) dz of the two
+    element halves s of every cut edge:
+
+      - overturning: sum_z V(z) [T](z), V(z) = sum_s F_s(z) with the resolved
+        plus GM bolus velocity, [T](z) the zonal mean of the element tracer
+        along the path (weights |dx_s|, wet halves only);
+      - gyre: total minus overturning, the total being the online u*T, v*T
+        streams (utemp/vtemp or usalt/vsalt, which FESOM builds from
+        UV + fer_UV, gen_modules_diag.F90:429) integrated the same way, so
+        overturning + gyre = hfbasin / sltbasin;
+      - bolus: the GM bolus velocity times the element tracer.
+
+    Monthly means are used for v and T, so the overturning and bolus parts
+    miss their sub-monthly covariance (it ends up in the gyre part). Element
+    tracer = mean of its three nodes, as FESOM forms u*T. Heat uses tripyview's
+    rho0*cp = 1030*3850 and its sign (northward positive), salt rho0*1e-3.
+
+    Rule attributes: transport_component (overturning|gyre|bolus),
+    transport_tracer (temp|salt), mesh_path, grid_file, and *_path/*_pattern/
+    *_variable for u, v, bolus_u, bolus_v and (gyre) tracer_u, tracer_v.
+    The primary input is the tracer on nodes (temp or salt).
+    """
+    import os as _os
+    import shapefile as _shp
+    import tripyview as _tpv
+
+    component = rule.get("transport_component")
+    tracer_name = rule.get("transport_tracer", "temp")
+    if component not in ("overturning", "gyre", "bolus"):
+        raise ValueError(f"transport_component must be overturning, gyre or bolus, not {component!r}")
+    factor = -1030.0 * 3850.0 if tracer_name == "temp" else -1030.0 * 1e-3
+    mesh_path = rule.get("mesh_path")
+    mesh = _tpv.load_mesh_fesom2(mesh_path, do_pickle=True, do_info=False)
+    mdiag = _build_tripyview_mdiag(mesh, _os.path.join(mesh_path, "fesom.mesh.diag.nc"))
+    mdiag["edge_y"] = (("n2", "edg_n"), mesh.n_y[mdiag["edges"].values])
+    tri = np.asarray(mesh.e_i, dtype=np.int64)
+
+    tracer = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    level = next(d for d in ("nz", "nz1") if d in tracer.dims)
+    tracer = tracer.transpose("time", next(d for d in tracer.dims if d not in ("time", level)), level)
+    with xr.open_dataset(rule.get("grid_file") or _os.path.join(mesh_path, "mesh.nc")) as m:
+        dz = np.diff(np.asarray(m["depth_bnds"].values, dtype=float))[: tracer.sizes[level]]
+
+    def element_field(key):
+        da = _load_secondary_mf(rule, f"{key}_path", f"{key}_pattern", f"{key}_variable")
+        return da.transpose("time", "elem", ...)
+
+    fields = {}
+    if component in ("overturning", "gyre"):
+        fields.update(u=element_field("u"), v=element_field("v"))
+    fields.update(bu=element_field("bolus_u"), bv=element_field("bolus_v"))
+    if component == "gyre":
+        fields.update(tu=element_field("tracer_u"), tv=element_field("tracer_v"))
+
+    shp_dir = rule.get("basin_shapefile_dir") or _os.path.join(
+        _os.path.dirname(_tpv.__file__), "shapefiles", "moc_basins"
+    )
+    basins = [
+        ("atlantic_arctic_ocean", _shp.Reader(_os.path.join(shp_dir, "Atlantic_MOC.shp"))),
+        ("indian_pacific_ocean", _shp.Reader(_os.path.join(shp_dir, "IndoPacific_MOC.shp"))),
+        ("global_ocean", "global"),
+    ]
+    glob_lat = _global_lat_centers(1.0)
+    sections = {}
+    ocean_lat = None
+    for name, box in basins:
+        inside, lat_nodes = _basin_edges_and_nodes(mesh, mdiag, box)
+        lats = np.arange(np.ceil(lat_nodes.min()) + 0.5, np.floor(lat_nodes.max()) - 0.5, 1.0)
+        sections[name] = {j: _basin_section_edges(mdiag, inside, lat) for j, lat in
+                          ((int(np.argmin(np.abs(glob_lat - lat))), lat) for lat in lats)}
+        if isinstance(box, str):
+            ocean_lat = np.zeros(glob_lat.size, dtype=bool)
+            ocean_lat[list(sections[name])] = True
+
+    out = np.full((tracer.sizes["time"], len(basins), glob_lat.size), np.nan)
+    for t in range(tracer.sizes["time"]):
+        node_tracer = np.asarray(tracer.isel(time=t).values, dtype=float)
+        elem_tracer = node_tracer[tri].mean(axis=1)  # (elem, nz), NaN below the bottom
+        f = {k: np.asarray(v.isel(time=t).values, dtype=float) for k, v in fields.items()}
+        for bi, (name, _) in enumerate(basins):
+            out[t, bi, ocean_lat] = 0.0
+            for j, section in sections[name].items():
+                if section is None:
+                    continue
+                etri, dx, dy = section
+                right = etri[1] >= 0
+                idx = np.where(right, etri, 0)
+                idx[0] = etri[0]
+
+                def halves(field):
+                    values = np.nan_to_num(field[idx])  # (2, ne, nz)
+                    values[1, ~right] = 0.0
+                    return values
+
+                def transport(fx, fy):
+                    return (halves(fx) * dy[..., None] + halves(fy) * dx[..., None]) * dz[None, None, :]
+
+                trc = elem_tracer[idx]
+                if component == "bolus":
+                    value = np.nansum(transport(f["bu"], f["bv"]) * np.nan_to_num(trc))
+                else:
+                    flux = transport(f["u"] + f["bu"], f["v"] + f["bv"])
+                    weight = np.abs(dx)[..., None] * np.isfinite(trc)
+                    weight[1, ~right] = 0.0
+                    wsum = weight.sum(axis=(0, 1))
+                    mean_tracer = np.where(wsum > 0, np.nansum(weight * np.nan_to_num(trc), axis=(0, 1))
+                                           / np.where(wsum > 0, wsum, 1.0), 0.0)
+                    value = np.sum(flux.sum(axis=(0, 1)) * mean_tracer)
+                    if component == "gyre":
+                        value = np.sum(transport(f["tu"], f["tv"])) - value
+                out[t, bi, j] = factor * value
+        logger.info(f"{rule.model_variable}: {component} {tracer_name} transport for record {t + 1}")
+
+    result = xr.DataArray(
+        out,
+        dims=("time", "basin", "lat"),
+        coords={"time": tracer["time"].values, "sector": ("basin", _label_values([n for n, _ in basins])),
+                "lat": glob_lat},
+        name=rule.model_variable,
+        attrs={"units": "W" if tracer_name == "temp" else "kg s-1",
+               "processing_note": f"{component} part of the basin {tracer_name} transport from monthly means "
+                                  "along the hfbasin edge path"},
+    )
+    result["lat"].attrs.update(standard_name="latitude", long_name="Latitude", units="degrees_north", axis="Y")
+    result["sector"].attrs.update(standard_name="region", long_name="Ocean Basin")
+    return result.to_dataset()
+
 def compute_sltbasin_tripyview(data, rule):
     """Northward Ocean Salt Transport per basin via tripyview's edge-crossing
     integration. Sibling of ``compute_hfbasin_tripyview``; replaces

@@ -356,5 +356,55 @@ class OverburdenTests(unittest.TestCase):
                                  'repaired_recipe')
 
 
+class BasinTransportTests(unittest.TestCase):
+    """Decomposition identities on a two-triangle mesh with a patched geometry."""
+
+    def run_component(self, component, temp_nodes, u, v, bu, bv):
+        mesh = SimpleNamespace(e_i=np.array([[0, 1, 2], [1, 3, 2]]), n_y=np.array([-1., -1., 2., 2.]), n2dn=4)
+        mdiag = xr.Dataset({
+            'edges': (('n2', 'edg_n'), np.array([[0, 1, 1], [2, 2, 3]])),
+            'edge_tri': (('n2', 'edg_n'), np.array([[0, 0, 1], [-1, 1, -1]])),
+            'edge_dx_lr': (('n2', 'edg_n'), np.array([[3., 2., 4.], [0., 5., 0.]])),
+            'edge_dy_lr': (('n2', 'edg_n'), np.array([[1., -1., 2.], [0., 1., 0.]])),
+        })
+        months = [cftime.DatetimeGregorian(2001, 1, 15)]
+        temp = xr.DataArray(temp_nodes[None], dims=('time', 'nod2', 'nz'), coords={'time': months}, name='temp')
+        elem_t = temp_nodes[mesh.e_i].mean(axis=1)
+        elem = lambda a: xr.DataArray(np.asarray(a, dtype=float)[None], dims=('time', 'elem', 'nz'),
+                                      coords={'time': months})
+        fields = {'u': elem(u), 'v': elem(v), 'bolus_u': elem(bu), 'bolus_v': elem(bv),
+                  'tracer_u': elem((np.asarray(u) + bu) * elem_t), 'tracer_v': elem((np.asarray(v) + bv) * elem_t)}
+        with tempfile.TemporaryDirectory() as tmp:
+            xr.Dataset({'depth_bnds': ('nlev_bnds', [0., 10., 30.])}).to_netcdf(Path(tmp) / 'mesh.nc')
+            rule = Rule(model_variable='temp', transport_component=component, transport_tracer='temp',
+                        mesh_path=tmp, grid_file=str(Path(tmp) / 'mesh.nc'))
+            with patch('tripyview.load_mesh_fesom2', return_value=mesh), \
+                    patch.object(CUSTOM, '_build_tripyview_mdiag', return_value=mdiag), \
+                    patch.object(CUSTOM, '_basin_edges_and_nodes', return_value=(np.ones(3, bool), mesh.n_y)), \
+                    patch('shapefile.Reader', return_value=None), \
+                    patch.object(CUSTOM, '_load_secondary_mf', side_effect=lambda r, key, *a: fields[key[:-5]]):
+                return CUSTOM.compute_basin_transport_component(temp, rule)['temp']
+
+    def test_overturning_plus_gyre_is_the_online_total(self):
+        temp = np.array([[10., 2.], [12., 3.], [20., 4.], [8., 1.]])
+        u, v = [[0.1, 0.0], [0.2, -0.1]], [[0.3, 0.1], [-0.2, 0.05]]
+        bu, bv = np.array([[0.01, 0.0], [0.0, 0.02]]), np.array([[0.0, 0.01], [0.02, 0.0]])
+        parts = {c: self.run_component(c, temp, u, v, bu, bv) for c in ('overturning', 'gyre', 'bolus')}
+        line = {k: float(x.sel(lat=0.5).isel(time=0, basin=2)) for k, x in parts.items()}
+        self.assertNotAlmostEqual(line['gyre'], 0.0)
+        uniform = self.run_component('gyre', np.full((4, 2), 5.), u, v, bu, bv)
+        np.testing.assert_allclose(uniform.sel(lat=0.5).values, 0.0, atol=1e-6)
+        self.assertTrue(np.isnan(float(parts['overturning'].sel(lat=60.5).isel(time=0, basin=2))))
+        zero_bolus = self.run_component('bolus', temp, u, v, 0 * bu, 0 * bv)
+        np.testing.assert_allclose(zero_bolus.sel(lat=0.5).values, 0.0)
+
+    def test_catalogue_rules(self):
+        for compound in ('ocean.htovovrt.tavg-u-hyb-sea.mon.glb', 'ocean.htovgyre.tavg-u-hyb-sea.mon.glb',
+                         'ocean.sltovovrt.tavg-u-hyb-sea.mon.glb', 'ocean.sltovgyre.tavg-u-hyb-sea.mon.glb',
+                         'ocean.hfbasinpadv.tavg-u-hyb-sea.mon.glb', 'ocean.hfbasinpmadv.tavg-u-hyb-sea.mon.glb'):
+            with self.subTest(compound=compound):
+                self.assertEqual(reviewed(compound)['grid_label'], 'g239')
+
+
 if __name__ == '__main__':
     unittest.main()

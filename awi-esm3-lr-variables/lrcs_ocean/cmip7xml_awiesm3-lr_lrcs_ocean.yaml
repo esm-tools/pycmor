@@ -553,6 +553,21 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Overturning / gyre / GM-bolus parts of the basin transports on the same
+  # edge path as hfbasin and sltbasin (compute_basin_transport_component).
+  - name: basin_transport_component_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_basin_transport_component
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Atmosphere + sea ice/snow + ice-shelf load on the ocean surface (pso) or
   # added to the native water-column pbo (compute_overburden_pressure).
   - name: overburden_pipeline
@@ -1637,3 +1652,159 @@ rules:
     scaled_units: "kg m-2 s-1"
     pipelines:
       - ice_shelf_scale_pipeline
+
+  # ============================================================
+  # Decomposed basin transports. Overturning = zonal-mean velocity (resolved
+  # + GM bolus) times zonal-mean tracer along the hfbasin edge path, layer by
+  # layer; gyre = online u*T total (the hfbasin/sltbasin integrand) minus
+  # overturning; padv/pmadv = GM bolus velocity times tracer. v and T are
+  # monthly means, so their sub-monthly covariance falls into the gyre part
+  # and is missing from the bolus part. The edge integral reproduces the
+  # tripyview hfbasin exactly (2845-01: 2.494 PW at 26.5N global).
+  # ============================================================
+
+  - name: htovovrt
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.htovovrt.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: overturning
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: htovgyre
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.htovgyre.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: gyre
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    tracer_u_path: *dp
+    tracer_u_pattern: utemp\.fesom\.\d{4}\.nc
+    tracer_u_variable: utemp
+    tracer_v_path: *dp
+    tracer_v_pattern: vtemp\.fesom\.\d{4}\.nc
+    tracer_v_variable: vtemp
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: sltovovrt
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sltovovrt.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: salt
+    transport_tracer: salt
+    transport_component: overturning
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: sltovgyre
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sltovgyre.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: salt
+    transport_tracer: salt
+    transport_component: gyre
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    tracer_u_path: *dp
+    tracer_u_pattern: usalt\.fesom\.\d{4}\.nc
+    tracer_u_variable: usalt
+    tracer_v_path: *dp
+    tracer_v_pattern: vsalt\.fesom\.\d{4}\.nc
+    tracer_v_variable: vsalt
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: hfbasinpadv
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfbasinpadv.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: bolus
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  # GM (fer_gm=.true.) is the only parameterised eddy advection in this
+  # FESOM setup (no submesoscale scheme), so pmadv equals padv.
+  - name: hfbasinpmadv
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfbasinpmadv.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: bolus
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
