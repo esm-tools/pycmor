@@ -51,6 +51,44 @@ class Tests(unittest.TestCase):
                                 for row in groundwater))
             self.assertEqual(tasks,[])
 
+    def catalog_without_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);period='26100101-26101231'
+            for component in ('oifs','fesom',f'lpj_guess/{period}'):
+                (base/'outdata'/component).mkdir(parents=True)
+            campaign=base/'campaign'
+            (campaign/'grids').mkdir(parents=True)
+            (campaign/'reproduce').mkdir()
+            (campaign/'grids/full_TCO95_grid.nc').touch()
+            metadata=base/'metadata.json';f.write(metadata,{'Compound Name':{}})
+            config=dict(repo=str(REPO),metadata=str(metadata),mesh_dir=str(base),ghg_dir=str(base))
+            load_module=f.module
+            def module(path,name):
+                result=load_module(path,name)
+                if name=='full_raw_rules':
+                    result.grids=lambda: {}
+                return result
+            with patch.object(f,'module',side_effect=module):
+                return f.build_catalog(config,base,period,{},campaign)[1]
+
+    def test_april_selection_is_scoped_and_flagged(self):
+        import csv
+        selected=set()
+        files=list((REPO/'awi-esm3-veg-hr-variables').glob('*/cmip7_*.csv'))
+        files+=[p for c in ('obgc','co2','icebergs_cavities') for p in (REPO/'awi-esm3-lr-variables'/c).glob('*.csv')]
+        for path in files:
+            with path.open(newline='') as stream:
+                selected.update(r['cmip7_compound_name'] for r in csv.DictReader(stream) if r.get('cmip7_compound_name'))
+        coverage=self.catalog_without_metadata()
+        flags={row['compound']:row['selection'] for row in coverage}
+        self.assertLessEqual(selected,set(flags))
+        self.assertEqual({c for c,flag in flags.items() if flag},selected)
+        self.assertIn(False,flags.values())
+        # Silent gap of the April selection: no LR rule, still a visible selected row.
+        self.assertTrue(flags['atmos.wsg.tmax-h10m-hxy-u.1hr.glb'])
+        self.assertTrue(flags['atmos.tas.tavg-h2m-hxy-u.1hr.glb'])
+        self.assertNotIn('land.tas.tavg-h2m-hxy-u.1hr.glb',flags)
+
     def test_full_catalog_not_profile_subset(self):
         files=list((REPO/'awi-esm3-lr-variables').glob('*/cmip7xml*.yaml'))
         compounds={r['compound_name'] for p in files for r in yaml.safe_load(p.read_text())['rules']}

@@ -626,12 +626,18 @@ def build_catalog(config, experiment, period, identity, campaign):
     if config.get('hr_reference_manifest'):
         scope.update(support_module('hr_reference').load_reference(
             config['hr_reference_manifest'], {'Compound Name': metadata}))
+    # The April opportunity selection (HR tier csvs) and the REcoM/CO2/iceberg
+    # lists are the selected products: scope all of them, so none can go
+    # missing silently, and flag them in every coverage row.
+    selection_files = sorted((repo/'awi-esm3-veg-hr-variables').glob('*/cmip7_*.csv'))
     for category in ('obgc','co2','icebergs_cavities'):
-        for file in (repo/'awi-esm3-lr-variables'/category).glob('*.csv'):
-            for row in csv.DictReader(file.open()):
-                compound = row.get('cmip7_compound_name')
-                if compound:
-                    scope.add(compound)
+        selection_files += sorted((repo/'awi-esm3-lr-variables'/category).glob('*.csv'))
+    selection = set()
+    for file in selection_files:
+        with file.open(newline='') as stream:
+            selection.update(c for row in csv.DictReader(stream) if (c := row.get('cmip7_compound_name')))
+    scope.update(selection)
+    policy = support_module('coverage_policy')
     if config.get('data_request_file'):
         requested, _ = support_module('data_request_coverage').load_request(
             config['data_request_file'], config.get('data_request_experiment', 'piControl'), metadata)
@@ -800,14 +806,14 @@ def build_catalog(config, experiment, period, identity, campaign):
                 compound, metadata, identity, config) if config.get('data_request_file') else None)
             if exclusion:
                 rows.append(dict(compound=compound, year=year, status='NOT_APPLICABLE',
-                                 reason=exclusion, alternatives=[]))
+                                 reason=exclusion, alternatives=[], selection=compound in selection))
                 continue
             row = dict(compound=compound,year=year, status='READY' if good else 'BLOCKED',
                        reason='' if good else ' | '.join(dict.fromkeys(r['reason'] for r in routes)) or 'UNMAPPED: no implemented rule',
-                       alternatives=[{k:v for k,v in r.items() if k not in ('doc','inputs')} for r in routes])
+                       alternatives=[{k:v for k,v in r.items() if k not in ('doc','inputs')} for r in routes],
+                       selection=compound in selection)
             if not good:
-                equivalent = support_module('coverage_policy').regional_global_alternative(
-                    compound, year, metadata, candidates)
+                equivalent = policy.regional_global_alternative(compound, year, metadata, candidates)
                 if equivalent:
                     row.update(equivalent_compound=equivalent, reason=(
                         'GLOBAL_EQUIVALENT_PLANNED: pinned DReq says to omit this regional '
@@ -1112,7 +1118,7 @@ def report(campaign):
                     r.update(status='FAILED',reason=f'Output verification: {error}')
     target=campaign/'report';target.mkdir(exist_ok=True)
     fields=['compound','year','window_start','window_end','status','reason','route','tier','output',
-            'equivalent_compound','equivalent_status']
+            'equivalent_compound','equivalent_status','selection']
     indexed = {(r['compound'], r['year']): r for r in rows}
     for r in rows:
         if r.get('equivalent_compound'):
@@ -1154,14 +1160,18 @@ def report(campaign):
             validated_files.update(record.get('validation', {}).get('files', []))
     conversion_state=('FAILED' if counts.get('FAILED') else 'PENDING' if counts.get('PENDING')
                       else 'COMPLETE' if counts.get('PASS') else 'NO_EXECUTABLE_TASKS')
+    selected={c:entries for c,entries in inventory.items() if any(r.get('selection') for r in entries)}
     write(target/'summary.json',dict(status=state,counts=dict(counts),updated=stamp(),
           conversion_status=conversion_state,requested_scope_status=state,
           realms=realm_counts,validated_physical_netcdf_files=len(validated_files),
           distinct_products=len(inventory),
           distinct_variable_names=len({k.split('.')[1] if '.' in k else k for k in inventory}),
+          selected_products=len(selected),
+          selected_counts=dict(Counter(r['status'] for entries in selected.values() for r in entries)),
           counts_unit='annual/fixed/decadal task records, not variable names or NetCDF files',
           publication_ready=False,qc='Requested checker reports required per file; findings retained; metadata not approved'))
     (target/'STATUS.txt').write_text(f"Requested scope: {state}\nConversion tasks: {conversion_state}\n{dict(counts)}\nAll-catalog scope; no category excluded.\n"
+        f"Selected products (April selection and REcoM/CO2/iceberg lists): {len(selected)}\n"
         'BLOCKED is not success. See products.csv for every missing input, unmapped rule and deferred decade.\n'
         'PASS means conversion and stated checks, not publication QC. Full-catalog scientific value audits remain necessary.\n'
         'No raw model output may be deleted based on this status.\n')
