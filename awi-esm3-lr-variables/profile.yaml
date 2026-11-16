@@ -1,8 +1,5 @@
 id: tco95-core3-raw-monthly-v1
 accumulation_seconds: 3600
-excludes:
-- REcoM
-- atmospheric CO2
 defaults:
   grid_label: gn
   nominal_resolution: 100 km
