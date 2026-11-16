@@ -19,6 +19,14 @@ reconstruct a field that was never saved. Every unresolved request remains
 visible in the coverage report; unsupported fields are never replaced by zero
 or by a different tracer.
 
+The scope also holds the April opportunity selection
+(``awi-esm3-veg-hr-variables/*/cmip7_*.csv``) and the REcoM, CO2 and iceberg
+lists; their ``coverage.json`` rows carry ``selection: true``. A product
+without a rule gets its reviewed category and reason from
+``full/config/exclusions.yaml`` instead of ``UNMAPPED: no implemented rule``;
+it stays BLOCKED. ``report/summary.json`` and ``STATUS.txt`` count the
+products that are still UNMAPPED without a reason.
+
 Only reusable source, tests and configuration examples belong in Git. Actual
 configuration, environments, metadata/CV caches, mesh and forcing files, model
 data, generated recipes, test results and PDFs belong outside this checkout.
