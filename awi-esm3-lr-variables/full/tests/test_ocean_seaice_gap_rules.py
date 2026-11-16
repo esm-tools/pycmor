@@ -406,5 +406,26 @@ class BasinTransportTests(unittest.TestCase):
                 self.assertEqual(reviewed(compound)['grid_label'], 'g239')
 
 
+class SnowIceInterfaceTests(unittest.TestCase):
+    def test_interface_temperature_and_snow_cover(self):
+        ist = xr.DataArray([[250., 260., 255.]], dims=('time', 'nod2'), name='ist')
+        h = xr.DataArray([[2.0, 1.0, 0.0]], dims=('time', 'nod2'))
+        hsn = xr.DataArray([[0.0, 0.31, 0.2]], dims=('time', 'nod2'))
+        sss = xr.DataArray([[34., 34., 34.]], dims=('time', 'nod2'))
+        loads = {'hice_path': h, 'hsnow_path': hsn, 'sss_path': sss}
+        with patch.object(CUSTOM, '_load_secondary_mf', side_effect=lambda rule, key, *a: loads[key]):
+            out = CUSTOM.compute_sitempsnic(ist, Rule())
+        tf = -0.0575 * 34 + 1.7105e-3 * 34 ** 1.5 - 2.155e-4 * 34 ** 2 + 273.15
+        expected = tf + (260. - tf) * 1.0 / (1.0 + 2.1656 / 0.31 * 0.31)
+        np.testing.assert_allclose(out.values, [[250., expected, np.nan]])
+        cover = CUSTOM.compute_snow_cover_percent(xr.DataArray([[0.0, 0.0005, 0.002, np.nan]], dims=('time', 'nod2')),
+                                                  Rule())
+        np.testing.assert_allclose(cover.values, [[0., 0., 100., np.nan]])
+
+    def test_catalogue_rules(self):
+        self.assertTrue(reviewed('seaIce.sitempsnic.tavg-u-hxy-si.mon.glb')['inputs'][0]['pattern'].startswith('ist'))
+        self.assertTrue(reviewed('seaIce.snc.tavg-u-hxy-si.mon.glb')['inputs'][0]['pattern'].startswith('h_snow'))
+
+
 if __name__ == '__main__':
     unittest.main()

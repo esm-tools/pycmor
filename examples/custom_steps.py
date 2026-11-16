@@ -941,6 +941,56 @@ def compute_sisnhc_from_msnow(data, rule):
     return result
 
 
+def compute_sitempsnic(data, rule):
+    """Temperature at the snow-ice interface from FESOM's 0-layer conduction (K).
+
+    The 0-layer model (ice_thermo_cpl.F90, ice_surftemp) carries one linear
+    conductive flux through snow and ice, with the ice base at the freezing
+    point Tf(S) and conductivities con = 2.1656, consn = 0.31 (MOD_ICE.F90:79):
+
+        T_si = Tf + (ist - Tf) * h / (h + con/consn * hsn)
+
+    which is ``ist`` where there is no snow. h = h_ice and hsn = h_snow are
+    thicknesses over the ice-covered part; Tf uses FESOM's TFrezs formula.
+    Inputs are daily means, so this is the interface temperature of the daily
+    mean state, not the mean of the per-step values. NaN where h_ice is 0.
+
+    Primary input: ist (K). Rule attributes: hice_path/hice_pattern,
+    hsnow_path/hsnow_pattern, sss_path/sss_pattern (+ *_variable).
+    """
+    con = float(rule.get("con", 2.1656))
+    consn = float(rule.get("consn", 0.31))
+    h = _load_secondary_mf(rule, "hice_path", "hice_pattern", "hice_variable")
+    hsn = _load_secondary_mf(rule, "hsnow_path", "hsnow_pattern", "hsnow_variable")
+    sss = _load_secondary_mf(rule, "sss_path", "sss_pattern", "sss_variable")
+    tf = -0.0575 * sss + 1.7105e-3 * np.sqrt(sss**3) - 2.155e-4 * sss**2 + 273.15
+    result = tf + (data - tf) * h / (h + con / consn * hsn)
+    result = result.where(h > 0)
+    result.attrs = {
+        "units": "K",
+        "standard_name": "sea_ice_surface_temperature",
+        "processing_note": f"0-layer linear conduction from daily ist, h_ice, h_snow, sss; con={con}, consn={consn}",
+    }
+    result.name = data.name
+    return result
+
+
+def compute_snow_cover_percent(data, rule):
+    """Snow-covered percentage of the sea-ice surface: 100 where h_snow exceeds a threshold.
+
+    FESOM has no fractional snow cover: with h_snowscale = 0 (the run's
+    namelist.ice) the surface albedo switches to snow above 1 mm of snow
+    (ice_thermo_cpl.F90 legacy step, ice_meltponds.F90:256), so each record is
+    0 or 100 and the time mean is the fraction of time with snow.
+    ``snow_cover_threshold`` (m, default 0.001).
+    """
+    threshold = float(rule.get("snow_cover_threshold", 0.001))
+    result = xr.where(data > threshold, 100.0, 0.0).where(data.notnull())
+    result.attrs = {"units": "%", "standard_name": "surface_snow_area_fraction",
+                    "processing_note": f"100 where h_snow > {threshold} m (FESOM binary snow cover)"}
+    result.name = data.name
+    return result
+
 def compute_snd_from_msnow(data, rule):
     """
     Compute daily snow depth on sea ice from m_snow and a_ice.

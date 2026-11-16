@@ -213,6 +213,48 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Daily diagnostics from the 0-layer ice state, masked without ice, then
+  # averaged (sitempsnic, snc).
+  - name: sitempsnic_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitempsnic
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: snow_cover_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_snow_cover_percent
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: scale_mask_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -1718,3 +1760,40 @@ rules:
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline
+
+  # Snow-ice interface temperature from FESOM's 0-layer conduction:
+  # Tf + (ist - Tf) * h/(h + con/consn*hsn), with daily ist, h_ice, h_snow and
+  # sss. From daily means, not per-step values.
+  - name: sitempsnic
+    inputs:
+      - path: *dp
+        pattern: ist\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sitempsnic.tavg-u-hxy-si.mon.glb
+    model_variable: ist
+    hice_path: *dp
+    hice_pattern: h_ice\.fesom\.\d{4}\.nc
+    hice_variable: h_ice
+    hsnow_path: *dp
+    hsnow_pattern: h_snow\.fesom\.\d{4}\.nc
+    hsnow_variable: h_snow
+    sss_path: *dp
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    sss_variable: sss
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sitempsnic_pipeline
+
+  # Snow cover of the ice: FESOM's snow is all or nothing above 1 mm
+  # (h_snowscale = 0), so daily values are 0 or 100 and the monthly mean is
+  # the share of ice-covered days with snow.
+  - name: snc_seaice
+    inputs:
+      - path: *dp
+        pattern: h_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.snc.tavg-u-hxy-si.mon.glb
+    model_variable: h_snow
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - snow_cover_pipeline
