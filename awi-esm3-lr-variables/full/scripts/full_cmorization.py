@@ -378,8 +378,24 @@ def dependencies(doc, year, repointer):
     paths = set()
     primary_files = set()
     target_frequency = r['compound_name'].split('.')[-2]
+    # XIOS stamps a monthly instant at 0Z on the 1st of the FOLLOWING month, so
+    # the year-Y file holds Feb 1 Y .. Jan 1 Y+1 and January 1 Y is in the Y-1
+    # file. Such rules pin both files; their pipeline keeps Jan 1 .. Dec 1 of Y.
+    previous_year = bool(r.get('previous_year_input'))
+    if previous_year:
+        if not r['compound_name'].split('.')[2].startswith('tpt-') or target_frequency != 'mon':
+            raise ValueError('UNSUPPORTED_PREVIOUS_YEAR_INPUT: only monthly point samples')
+        # Both pinned files must reach the steps; the year filter would drop Y-1.
+        r['skip_input_year_filter'] = True
+    def pin(pattern):
+        pattern = repointer.anchor_pattern(repointer.add_year_to_pattern(pattern, str(year)))
+        if previous_year:
+            pattern = re.sub(rf'(?<!\d){year}(?!\d)', f'(?:{year-1}|{year})', pattern)
+        return pattern
     for inp in r.get('inputs', []):
-        inp['pattern'] = repointer.anchor_pattern(repointer.add_year_to_pattern(inp['pattern'], str(year)))
+        inp['pattern'] = pin(inp['pattern'])
+        if previous_year and str(year-1) not in inp['pattern']:
+            raise ValueError('UNRESOLVED_PREVIOUS_YEAR_INPUT: no year in '+inp['pattern'])
         files = matching(inp['path'], inp['pattern'])
         if not files:
             raise ValueError('MISSING_INPUT: '+str(Path(inp['path'])/inp['pattern']))
@@ -387,7 +403,7 @@ def dependencies(doc, year, repointer):
         primary_files.update(files)
         # Derived pipelines may use a placeholder model_variable: check in execution.
         if '/outdata/' in inp['path'] and all(p.suffix == '.nc' for p in files) and target_frequency != 'fx':
-            streams = validate_input_streams(files, [year], target_frequency)
+            streams = validate_input_streams(files, [year], target_frequency, monthly_points=previous_year)
             steps=[s for p in doc.get('pipelines',[]) if p['name'] in r.get('pipelines',[]) for s in p.get('steps',[])]
             if any('compute_square' in s for s in steps) and any(
                     stream['frequency'] in ('yr','mon') for stream in streams.values()):
@@ -438,7 +454,7 @@ def dependencies(doc, year, repointer):
             base = key[:-8]+'_path'
             if base not in effective:
                 continue
-            pattern = repointer.anchor_pattern(repointer.add_year_to_pattern(val, str(year)))
+            pattern = pin(val)
             r[key] = pattern
             files = matching(effective[base], pattern)
             if not files:
@@ -537,6 +553,8 @@ def build_catalog(config, experiment, period, identity, campaign):
         return [p for p in source_index[component] if re.fullmatch(pattern,p.name)
                 and (component=='lpj_guess' or any(str(y) in p.name for y in raw.YEARS))]
     def raw_months(paths,variable,expected_units=None):
+        if not paths:
+            raise ValueError(f'MISSING_INPUT: {variable}')
         dates=[];shape=None
         for path in paths:
             header=nc_header(str(path))
@@ -550,7 +568,7 @@ def build_catalog(config, experiment, period, identity, campaign):
             shape=spatial
             dates.extend((d[0],d[1]) for d in header.get('dates',[]) if d[0] in raw.YEARS)
         if dates!=[(y,m) for y in raw.YEARS for m in range(1,13)]:
-            raise ValueError('Incomplete/duplicate monthly raw data')
+            raise ValueError(f'Incomplete/duplicate monthly raw data: {variable}, {len(dates)} records')
     raw.inputs=raw_inputs
     raw.check_months=raw_months
     grid = raw.grids()
@@ -610,12 +628,19 @@ def build_catalog(config, experiment, period, identity, campaign):
     if config.get('hr_reference_manifest'):
         scope.update(support_module('hr_reference').load_reference(
             config['hr_reference_manifest'], {'Compound Name': metadata}))
+    # The April opportunity selection (HR tier csvs) and the REcoM/CO2/iceberg
+    # lists are the selected products: scope all of them, so none can go
+    # missing silently, and flag them in every coverage row.
+    selection_files = sorted((repo/'awi-esm3-veg-hr-variables').glob('*/cmip7_*.csv'))
     for category in ('obgc','co2','icebergs_cavities'):
-        for file in (repo/'awi-esm3-lr-variables'/category).glob('*.csv'):
-            for row in csv.DictReader(file.open()):
-                compound = row.get('cmip7_compound_name')
-                if compound:
-                    scope.add(compound)
+        selection_files += sorted((repo/'awi-esm3-lr-variables'/category).glob('*.csv'))
+    selection = set()
+    for file in selection_files:
+        with file.open(newline='') as stream:
+            selection.update(c for row in csv.DictReader(stream) if (c := row.get('cmip7_compound_name')))
+    scope.update(selection)
+    policy = support_module('coverage_policy')
+    exclusions = policy.load_exclusions(ROOT/'config/exclusions.yaml')
     if config.get('data_request_file'):
         requested, _ = support_module('data_request_coverage').load_request(
             config['data_request_file'], config.get('data_request_experiment', 'piControl'), metadata)
@@ -784,18 +809,22 @@ def build_catalog(config, experiment, period, identity, campaign):
                 compound, metadata, identity, config) if config.get('data_request_file') else None)
             if exclusion:
                 rows.append(dict(compound=compound, year=year, status='NOT_APPLICABLE',
-                                 reason=exclusion, alternatives=[]))
+                                 reason=exclusion, alternatives=[], selection=compound in selection))
                 continue
             row = dict(compound=compound,year=year, status='READY' if good else 'BLOCKED',
-                       reason='' if good else ' | '.join(dict.fromkeys(r['reason'] for r in routes)) or 'UNMAPPED: no implemented rule',
-                       alternatives=[{k:v for k,v in r.items() if k not in ('doc','inputs')} for r in routes])
+                       reason='' if good else ' | '.join(dict.fromkeys(r['reason'] for r in routes)) or policy.UNMAPPED,
+                       alternatives=[{k:v for k,v in r.items() if k not in ('doc','inputs')} for r in routes],
+                       selection=compound in selection)
             if not good:
-                equivalent = support_module('coverage_policy').regional_global_alternative(
-                    compound, year, metadata, candidates)
+                equivalent = policy.regional_global_alternative(compound, year, metadata, candidates)
                 if equivalent:
                     row.update(equivalent_compound=equivalent, reason=(
                         'GLOBAL_EQUIVALENT_PLANNED: pinned DReq says to omit this regional '
                         f'duplicate when {equivalent} is produced; no separate product counted'))
+                elif row['reason'] == policy.UNMAPPED:
+                    category, row['reason'] = policy.unmapped_reason(compound, exclusions)
+                    if category:
+                        row['exclusion'] = category
             if good:
                 key = f'{year}__{compound}'
                 good['doc']['inherit']['output_directory'] = str(campaign)
@@ -1096,7 +1125,7 @@ def report(campaign):
                     r.update(status='FAILED',reason=f'Output verification: {error}')
     target=campaign/'report';target.mkdir(exist_ok=True)
     fields=['compound','year','window_start','window_end','status','reason','route','tier','output',
-            'equivalent_compound','equivalent_status']
+            'equivalent_compound','equivalent_status','selection','exclusion']
     indexed = {(r['compound'], r['year']): r for r in rows}
     for r in rows:
         if r.get('equivalent_compound'):
@@ -1138,14 +1167,24 @@ def report(campaign):
             validated_files.update(record.get('validation', {}).get('files', []))
     conversion_state=('FAILED' if counts.get('FAILED') else 'PENDING' if counts.get('PENDING')
                       else 'COMPLETE' if counts.get('PASS') else 'NO_EXECUTABLE_TASKS')
+    # Products without a rule and without a reviewed reason (config/exclusions.yaml).
+    unmapped=sorted(c for c,entries in inventory.items() if any(r.get('reason','').startswith('UNMAPPED') for r in entries))
+    selected={c:entries for c,entries in inventory.items() if any(r.get('selection') for r in entries)}
     write(target/'summary.json',dict(status=state,counts=dict(counts),updated=stamp(),
           conversion_status=conversion_state,requested_scope_status=state,
           realms=realm_counts,validated_physical_netcdf_files=len(validated_files),
           distinct_products=len(inventory),
           distinct_variable_names=len({k.split('.')[1] if '.' in k else k for k in inventory}),
+          selected_products=len(selected),
+          selected_counts=dict(Counter(r['status'] for entries in selected.values() for r in entries)),
+          excluded_products=dict(Counter(next(r['exclusion'] for r in entries if r.get('exclusion'))
+                                         for entries in inventory.values() if any(r.get('exclusion') for r in entries))),
+          unmapped_without_reason=len(unmapped),unmapped_without_reason_products=unmapped,
           counts_unit='annual/fixed/decadal task records, not variable names or NetCDF files',
           publication_ready=False,qc='Requested checker reports required per file; findings retained; metadata not approved'))
     (target/'STATUS.txt').write_text(f"Requested scope: {state}\nConversion tasks: {conversion_state}\n{dict(counts)}\nAll-catalog scope; no category excluded.\n"
+        f"Selected products (April selection and REcoM/CO2/iceberg lists): {len(selected)}\n"
+        f"UNMAPPED without a reviewed reason (config/exclusions.yaml): {len(unmapped)} products\n"
         'BLOCKED is not success. See products.csv for every missing input, unmapped rule and deferred decade.\n'
         'PASS means conversion and stated checks, not publication QC. Full-catalog scientific value audits remain necessary.\n'
         'No raw model output may be deleted based on this status.\n')

@@ -1,10 +1,33 @@
-"""Planner hooks for the independently reviewed surface iceberg product."""
+"""Planner hooks for the independently reviewed surface iceberg products."""
 import copy
 from pathlib import Path
 
 import netCDF4
 import numpy as np
 import yaml
+
+# XIOS writes node coordinates as float32 recomputed through Cartesian space.
+# Latitude is ill-conditioned near the pole: on CORE3 the 29 nodes poleward of
+# 87.8 deg differ from mesh.nc by up to 0.003 deg (sst shows the same), and
+# longitude differs by more at high latitude. Compare positions on the sphere
+# instead: 0.01 deg is far below the 0.069 deg minimum CORE3 node spacing, so a
+# reordered or different node still fails.
+NODE_TOLERANCE_DEG = 0.01
+
+
+def node_offset(lon, lat, reference_lon, reference_lat):
+    """Great-circle distance in degrees between paired nodes."""
+    lon, lat, rlon, rlat = (np.deg2rad(np.asarray(x, dtype='f8')) for x in (lon, lat, reference_lon, reference_lat))
+    h = np.sin((lat - rlat) / 2) ** 2 + np.cos(lat) * np.cos(rlat) * np.sin((lon - rlon) / 2) ** 2
+    return np.rad2deg(2 * np.arcsin(np.sqrt(np.clip(h, 0, 1))))
+
+
+def same_nodes(lon, lat, reference_lon, reference_lat):
+    lon, lat = (np.ma.filled(np.ma.asarray(x, dtype='f8'), np.nan) for x in (lon, lat))
+    if lon.shape != np.shape(reference_lon) or lat.shape != np.shape(reference_lat):
+        return False
+    offset = node_offset(lon, lat, reference_lon, reference_lat)
+    return bool(np.isfinite(offset).all() and offset.max(initial=0) <= NODE_TOLERANCE_DEG)
 
 
 def rules(rules_directory):
@@ -18,12 +41,14 @@ def rules(rules_directory):
 
 
 def install_pipeline(profile, reproduce_directory):
-    pipeline = copy.deepcopy(next(p for p in profile['pipelines'] if p['name'] == 'lr_linear'))
-    pipeline['name'] = 'lr_iceberg_surface'
-    pipeline['steps'][0] = f'script://{Path(reproduce_directory)}/iceberg_steps.py:load_surface_freshwater'
-    if any(p['name'] == pipeline['name'] for p in profile['pipelines']):
-        raise ValueError('Iceberg pipeline installed twice')
-    profile['pipelines'].append(pipeline)
+    for name, step in (('lr_iceberg_surface', 'load_surface_freshwater'),
+                       ('lr_iceberg_layers', 'load_layer_freshwater')):
+        pipeline = copy.deepcopy(next(p for p in profile['pipelines'] if p['name'] == 'lr_linear'))
+        pipeline['name'] = name
+        pipeline['steps'][0] = f'script://{Path(reproduce_directory)}/iceberg_steps.py:{step}'
+        if any(p['name'] == pipeline['name'] for p in profile['pipelines']):
+            raise ValueError('Iceberg pipeline installed twice')
+        profile['pipelines'].append(pipeline)
 
 
 def validate_rule(rule):
@@ -41,6 +66,14 @@ def validate_rule(rule):
                 or not all(np.isfinite(x).all() for x in (lon, lat, cavity))
                 or not np.isin(cavity, (0, 1)).all()):
             raise ValueError('ICEBERG_GRID: invalid coordinates/cavity mask')
+        if rule.get('lr_iceberg_layers'):
+            if not {'depth', 'depth_lev', 'cav_nod_lev'}.issubset(ds.variables):
+                raise ValueError('ICEBERG_GRID: layer centres and wet-layer range required')
+            levels = len(ds['depth'])
+            top, bottom = (np.asarray(ds[n][:]).astype(int) for n in ('cav_nod_lev', 'depth_lev'))
+            if (top.shape != lon.shape or bottom.shape != lon.shape or (top < 0).any()
+                    or (top >= bottom).any() or (bottom > levels).any()):
+                raise ValueError('ICEBERG_GRID: invalid wet-layer range')
     names = [t['variable'] for t in rule['lr_terms']]
     if sorted(names) != sorted(('ibfwb', 'ibfwbv', 'ibfwl', 'ibfwe')):
         raise ValueError('ICEBERG_TERMS: expected four reviewed terms')
@@ -52,11 +85,8 @@ def validate_rule(rule):
                 field = ds[term['variable']]
                 if field.ndim != 2 or field.shape[1] != len(lon) or getattr(field, 'units', '') != 'm s-1':
                     raise ValueError('ICEBERG_INPUT: expected monthly native m s-1 surface field')
-                if not np.allclose(ds['lat'][:], lat, rtol=0, atol=1e-4):
-                    raise ValueError('ICEBERG_GRID: latitude mismatch')
-                delta = (np.asarray(ds['lon'][:]) - lon + 180) % 360 - 180
-                if not np.allclose(delta, 0, rtol=0, atol=1e-4):
-                    raise ValueError('ICEBERG_GRID: longitude/node-order mismatch')
+                if not same_nodes(ds['lon'][:], ds['lat'][:], lon, lat):
+                    raise ValueError('ICEBERG_GRID: node position/order mismatch')
                 time = ds['time']
                 calendar = getattr(time, 'calendar', 'standard')
                 calendar = {'standard': 'gregorian'}.get(calendar, calendar)

@@ -82,6 +82,7 @@ def write_report(campaign, config, product_rows):
         else:
             state = 'NOT_WRITTEN'
         details.append(dict(compound=compound, priority=priority, status=state,
+            selection=any(r.get('selection') for r in rows),
             global_alternative=alt or '',
             reason=' | '.join(sorted({r.get('reason', '') for r in rows if r.get('reason')})),
             successful_tasks=sum(r.get('status') == 'PASS' for r in rows),
@@ -91,6 +92,7 @@ def write_report(campaign, config, product_rows):
         request_header=header, requested_products=len(requested),
         priorities=dict(Counter(requested.values())),
         statuses=dict(Counter(r['status'] for r in details)),
+        selected_statuses=dict(Counter(r['status'] for r in details if r['selection'])),
         total_written_products=len(completed),
         written_products_outside_request=len(completed - requested.keys()),
         count_definition='Distinct compound products. Global alternatives satisfy requests but are not extra written products. Rules and pending tasks are not completed output.',

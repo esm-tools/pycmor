@@ -176,7 +176,7 @@ def regional_native_indices(rule, output):
 def sample_nc(rule, year, month, horizontal_indices, level, day=None):
     if rule.get('lr_iceberg_surface', False):
         from iceberg_validation import sample_freshwater
-        return sample_freshwater(rule, year, month, horizontal_indices['nod2'])
+        return sample_freshwater(rule, year, month, horizontal_indices['nod2'], level)
     paths=rule['lr_source_files']
     def one(files,var,coeff,depth=level):
         p=next(p for p in files if str(year) in Path(p).name)

@@ -2167,6 +2167,43 @@ def compute_sistressmax(data, rule):
     return result
 
 
+def select_monthly_point_samples(data, rule):
+    """
+    Keep the instants at 0Z on the first of each month of the rule's years.
+
+    XIOS writes a monthly ``operation="instant"`` stream at the end of each
+    output interval, so the year-Y file holds Feb 1 Y .. Jan 1 Y+1 and the
+    January 1 sample of year Y sits in the Y-1 file. The CMIP7 tpt monthly
+    products ask for the value at 0Z on the first day of each month, so the
+    rule reads both files (full LR planner: ``previous_year_input``, which
+    also sets ``skip_input_year_filter``) and this step keeps Jan 1 .. Dec 1.
+    Anything other than exactly those twelve samples per year is an error.
+    """
+    year_start = int(rule.get("year_start", rule.get("year")))
+    year_end = int(rule.get("year_end", rule.get("year")))
+    time = data["time"].dt
+    stamps = list(
+        zip(
+            time.year.values,
+            time.month.values,
+            time.day.values,
+            time.hour.values,
+            time.minute.values,
+            time.second.values,
+        )
+    )
+    keep = [year_start <= s[0] <= year_end for s in stamps]
+    selected = [tuple(int(v) for v in s) for s, k in zip(stamps, keep) if k]
+    expected = [(y, m, 1, 0, 0, 0) for y in range(year_start, year_end + 1) for m in range(1, 13)]
+    if selected != expected:
+        raise ValueError(
+            f"INCOMPLETE_INPUT: expected monthly instants at 0Z on Jan 1 .. Dec 1 of "
+            f"{year_start}-{year_end}, got {len(selected)} samples; the January sample "
+            "is in the previous year's file"
+        )
+    return data.isel(time=np.flatnonzero(keep))
+
+
 # ============================================================
 # Ocean density and transport steps
 # These load auxiliary data (mesh, other variables) from paths

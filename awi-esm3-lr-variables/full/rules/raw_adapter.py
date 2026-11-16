@@ -300,6 +300,9 @@ def materialize(rule, gridpaths):
             component=term.pop('component','oifs')
             pattern=raw_input_pattern(component,term.pop('pattern'))
             terms=inputs(component,pattern)
+            if not terms:
+                # A stream that is not written at all is a missing input, not a coverage defect.
+                raise ValueError(f"MISSING_INPUT: {term['variable']} {pattern}")
             check_time(terms,term['variable'],term['units'])
             term['files']=list(map(str,terms))
         rule['lr_source_files']=list(map(str,paths))

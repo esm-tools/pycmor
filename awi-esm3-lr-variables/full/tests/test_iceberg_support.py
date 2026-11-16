@@ -80,30 +80,41 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ICEBERG_ALIGNMENT'):
             steps.combine_surface_terms(arrays, self.grid())
 
-    def test_no_duplicate_terms_or_fabricated_depth_rule(self):
-        rules = list(support.rules(ROOT / 'rules'))
-        self.assertEqual(len(rules), 1)
-        self.assertEqual(rules[0]['compound_name'], 'ocean.ficeberg.tavg-u-hxy-sea.mon.glb')
-        self.assertEqual({t['variable'] for t in rules[0]['lr_terms']}, set(steps.TERMS))
+    def test_surface_and_layer_rules_share_terms_and_no_3hr_product(self):
+        rules = {r['compound_name']: r for r in support.rules(ROOT / 'rules')}
+        self.assertEqual(set(rules), {'ocean.ficeberg.tavg-u-hxy-sea.mon.glb',
+                                      'ocean.ficeberg.tavg-ol-hxy-sea.mon.glb'})
+        layers = rules['ocean.ficeberg.tavg-ol-hxy-sea.mon.glb']
+        self.assertTrue(layers['lr_iceberg_layers'] and layers['lr_exact_ocean_depth'])
+        self.assertEqual(layers['pipelines'], ['lr_iceberg_layers'])
+        for rule in rules.values():
+            self.assertEqual({t['variable'] for t in rule['lr_terms']}, set(steps.TERMS))
 
-    def fixture(self, directory):
+    def fixture(self, directory, layers=False, lat_shift=0.):
         base = Path(directory)
         lon, lat, cavity = self.grid()
         grid = base / 'grid.nc'
-        xr.Dataset({'lon': ('nod2', lon), 'lat': ('nod2', lat),
-                    'cav_nod_mask': ('nod2', cavity.astype(int))}).to_netcdf(grid)
+        mesh = xr.Dataset({'lon': ('nod2', lon), 'lat': ('nod2', lat),
+                           'cav_nod_mask': ('nod2', cavity.astype(int))})
+        # Node 1 has four wet layers, node 0 three; the cavity node starts at layer 1.
+        mesh['depth'] = ('nz1', [5., 15., 30., 50.])
+        mesh['depth_lev'] = ('nod2', [3, 4, 4])
+        mesh['cav_nod_lev'] = ('nod2', [0, 0, 1])
+        mesh.to_netcdf(grid)
         starts = [cftime.DatetimeGregorian(2605, m, 1) for m in range(1, 13)]
         ends = starts[1:] + [cftime.DatetimeGregorian(2606, 1, 1)]
         mid = [a + (b-a)/2 for a, b in zip(starts, ends)]
         units = 'days since 2605-01-01'
-        rule = Rule(list(support.rules(ROOT / 'rules'))[0])
+        rule = Rule(list(support.rules(ROOT / 'rules'))[int(layers)])
         rule.update(year_start=2605, year_end=2605, grid_file=str(grid))
+        source_lat = (lat + lat_shift).astype('float32')
         for term in rule['lr_terms']:
             name = term['variable']
             path = base / f'{name}.fesom.2605.nc'
             data = xr.Dataset({name: (('time', 'nod2'), np.tile([1e-6, -1e-7, np.nan], (12, 1))),
                     'time_bounds': (('time', 'bnds'), cftime.date2num(np.array(list(zip(starts, ends))), units))},
-                    coords={'time': cftime.date2num(mid, units), 'lat': ('nod2', lat), 'lon': ('nod2', lon)})
+                    coords={'time': cftime.date2num(mid, units), 'lat': ('nod2', source_lat),
+                            'lon': ('nod2', lon.astype('float32'))})
             data[name].attrs['units'] = 'm s-1'
             data.time.attrs.update(units=units, calendar='gregorian', bounds='time_bounds')
             data.to_netcdf(path)
@@ -177,8 +188,79 @@ class Tests(unittest.TestCase):
         support.install_pipeline(profile, Path('/campaign/reproduce'))
         pipeline = next(p for p in profile['pipelines'] if p['name'] == 'lr_iceberg_surface')
         self.assertEqual(pipeline['steps'][0], 'script:///campaign/reproduce/iceberg_steps.py:load_surface_freshwater')
+        pipeline = next(p for p in profile['pipelines'] if p['name'] == 'lr_iceberg_layers')
+        self.assertEqual(pipeline['steps'][0], 'script:///campaign/reproduce/iceberg_steps.py:load_layer_freshwater')
         with self.assertRaisesRegex(ValueError, 'twice'):
             support.install_pipeline(profile, Path('/campaign/reproduce'))
+
+    def test_float32_polar_coordinates_accepted_but_node_order_strict(self):
+        # CORE3 pole node: mesh 89.95876171, XIOS float32 89.955765, lon -4.0300 vs -4.0358.
+        mesh_lon, mesh_lat = np.array([-4.03000535, 20.]), np.array([89.95876171, 10.])
+        xios_lon, xios_lat = np.array([-4.0357566, 20.], 'f4'), np.array([89.955765, 10.], 'f4')
+        self.assertFalse(np.allclose(xios_lat, mesh_lat, rtol=0, atol=1e-4))
+        for module in (support, steps):
+            self.assertLess(module.node_offset(xios_lon, xios_lat, mesh_lon, mesh_lat).max(), 0.0031)
+        self.assertTrue(support.same_nodes(xios_lon, xios_lat, mesh_lon, mesh_lat))
+        self.assertTrue(audit._same_nodes(xios_lon, xios_lat, mesh_lon, mesh_lat))
+        self.assertFalse(support.same_nodes(xios_lon[::-1], xios_lat[::-1], mesh_lon, mesh_lat))
+        self.assertFalse(audit._same_nodes(xios_lon[::-1], xios_lat[::-1], mesh_lon, mesh_lat))
+        # Neighbouring CORE3 nodes are at least 0.069 deg apart.
+        self.assertFalse(support.same_nodes(mesh_lon, mesh_lat + 0.069, mesh_lon, mesh_lat))
+
+    def test_planner_worker_and_audit_accept_float32_offsets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rule = self.fixture(directory, lat_shift=0.003)
+            support.validate_rule(rule)
+            self.assertEqual(steps.load_surface_freshwater(None, rule).shape, (12, 3))
+            self.assertAlmostEqual(audit.sample_freshwater(rule, 2605, 1, 0), .004)
+
+    def test_shifted_node_rejected_everywhere(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rule = self.fixture(directory, lat_shift=0.05)
+            with self.assertRaisesRegex(ValueError, 'ICEBERG_GRID'):
+                support.validate_rule(rule)
+            with self.assertRaisesRegex(ValueError, 'ICEBERG_GRID'):
+                steps.load_surface_freshwater(None, rule)
+            with self.assertRaisesRegex(ValueError, 'ICEBERG_QC'):
+                audit.sample_freshwater(rule, 2605, 1, 0)
+
+    def test_layer_product_puts_column_flux_in_top_wet_layer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rule = self.fixture(directory, layers=True)
+            support.validate_rule(rule)
+            result = steps.load_layer_freshwater(None, rule)
+            self.assertEqual(result.dims, ('time', 'nod2', 'nz'))
+            np.testing.assert_array_equal(result.nz.values, [5., 15., 30., 50.])
+            self.assertEqual(result.nz.attrs['standard_name'], 'depth')
+            np.testing.assert_allclose(result.isel(time=0).values, [[.004, 0., 0., np.nan],
+                                                                    [-.0004, 0., 0., 0.],
+                                                                    [np.nan, 0., 0., 0.]])
+            np.testing.assert_allclose(result.sum('nz').values, np.tile([.004, -.0004, 0.], (12, 1)))
+            self.assertEqual(result.attrs['units'], 'kg m-2 s-1')
+            self.assertAlmostEqual(audit.sample_freshwater(rule, 2605, 1, 1, 0), -.0004)
+            self.assertEqual(audit.sample_freshwater(rule, 2605, 1, 1, 2), 0.)
+            self.assertIs(audit.sample_freshwater(rule, 2605, 1, 0, 3), np.ma.masked)
+            self.assertIs(audit.sample_freshwater(rule, 2605, 1, 2, 0), np.ma.masked)
+
+    def test_layer_audit_rejects_flux_below_top_or_filled_dry_layer(self):
+        import netCDF4
+        with tempfile.TemporaryDirectory() as directory:
+            rule = self.fixture(directory, layers=True)
+            output = Path(directory) / 'output.nc'
+            steps.load_layer_freshwater(None, rule).rename('ficeberg').to_netcdf(output)
+            with netCDF4.Dataset(output) as ds:
+                dates = netCDF4.num2date(ds['time'][:], ds['time'].units, ds['time'].calendar)
+                self.assertIn('top wet layer', audit.validate_output(rule, ds, ds['ficeberg'], dates)['check'])
+            for node, level, value, message in ((1, 2, 1e-9, 'below the top wet layer'),
+                                                (0, 3, 0., 'dry layers filled')):
+                with netCDF4.Dataset(output, 'r+') as ds:
+                    original = ds['ficeberg'][0, node, level]
+                    ds['ficeberg'][0, node, level] = value
+                with netCDF4.Dataset(output) as ds:
+                    with self.assertRaisesRegex(ValueError, message):
+                        audit.validate_output(rule, ds, ds['ficeberg'], dates)
+                with netCDF4.Dataset(output, 'r+') as ds:
+                    ds['ficeberg'][0, node, level] = original
 
 
 if __name__ == '__main__':

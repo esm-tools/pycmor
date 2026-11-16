@@ -321,6 +321,7 @@ pipelines:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sistressave
+      - script://$PYCMOR_HOME/examples/custom_steps.py:select_monthly_point_samples
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
@@ -340,6 +341,7 @@ pipelines:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
       - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sistressmax
+      - script://$PYCMOR_HOME/examples/custom_steps.py:select_monthly_point_samples
       - pycmor.std_lib.timeaverage.timeavg
       - pycmor.std_lib.set_time_bounds
       - pycmor.std_lib.attributes.set_global
@@ -943,9 +945,18 @@ rules:
   # which for sistressmax (sqrt(((sgm11-sgm22)/2)^2 + sgm12^2), nonlinear)
   # is not even the monthly mean of the invariant, so the rules stayed off.
   # The v3.5.1 FESOM cmip7 file_def writes sgm11_inst / sgm12_inst /
-  # sgm22_inst (operation="instant", one sample per month). Their variables
-  # are named after the stream (sgm11_inst, ...), and they live on elements
-  # like tauuo, hence the element grid label.
+  # sgm22_inst (operation="instant", one sample per month). The files are
+  # named after the stream, the variables inside after the field (sgm11,
+  # sgm12, sgm22; checked in the v3.5.1 and v3.5.2 runs), and they live on
+  # elements like tauuo, hence the element grid label.
+  #
+  # XIOS stamps each instant at the end of its month, 0Z on the 1st of the
+  # next month, so sgm11_inst.fesom.Y.nc holds Feb 1 Y .. Jan 1 Y+1 and the
+  # January 1 sample of year Y is in the Y-1 file. previous_year_input makes
+  # the full LR planner pin both files (and skip the file-name year filter);
+  # select_monthly_point_samples then keeps Jan 1 .. Dec 1 of Y, which is the
+  # 0Z-on-the-first instant the DReq asks for. The first year of a run has no
+  # January sample and stays MISSING_INPUT.
   #
   - name: sistressave
     grid_label: __LR_GRID_OCEAN_ELEM__
@@ -954,10 +965,11 @@ rules:
       - path: *dp
         pattern: sgm11_inst\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistressave.tpt-u-hxy-si.mon.glb
-    model_variable: sgm11_inst
+    model_variable: sgm11
+    previous_year_input: true
     sgm22_path: *dp
     sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
-    sgm22_variable: sgm22_inst
+    sgm22_variable: sgm22
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:
@@ -970,13 +982,14 @@ rules:
       - path: *dp
         pattern: sgm11_inst\.fesom\.\d{4}\.nc
     compound_name: seaIce.sistressmax.tpt-u-hxy-si.mon.glb
-    model_variable: sgm11_inst
+    model_variable: sgm11
+    previous_year_input: true
     sgm22_path: *dp
     sgm22_pattern: sgm22_inst\.fesom\.\d{4}\.nc
-    sgm22_variable: sgm22_inst
+    sgm22_variable: sgm22
     sgm12_path: *dp
     sgm12_pattern: sgm12_inst\.fesom\.\d{4}\.nc
-    sgm12_variable: sgm12_inst
+    sgm12_variable: sgm12
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:

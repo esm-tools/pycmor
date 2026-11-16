@@ -81,7 +81,7 @@ def _compatible(a, b, description, same_variable=False):
         raise ValueError(f'INCOMPATIBLE_STREAM: {description}')
 
 
-def _cover(dates, year, calendar):
+def _cover(dates, year, calendar, monthly_points=False):
     if not dates or len(set(dates)) != len(dates) or dates != sorted(dates):
         raise ValueError('Duplicate or non-monotonic timestamps within a variable stream')
     days = int(cftime.date2num(cftime.datetime(year + 1, 1, 1, calendar=calendar),
@@ -93,6 +93,8 @@ def _cover(dates, year, calendar):
     if frequency == 'mon':
         if [(d[0], d[1]) for d in dates] != [(year, m) for m in range(1, 13)]:
             raise ValueError('INCOMPLETE_INPUT: expected January through December')
+        if monthly_points and any(d[2:] != (1, 0, 0, 0) for d in dates):
+            raise ValueError('INCOMPLETE_INPUT: monthly point samples must be at 0Z on the first of each month')
     elif frequency == 'yr':
         if dates[0][0] != year:
             raise ValueError('INCOMPLETE_INPUT: wrong annual timestamp')
@@ -109,12 +111,17 @@ def _cover(dates, year, calendar):
     return frequency
 
 
-def validate_input_streams(files, years, target_frequency):
+def validate_input_streams(files, years, target_frequency, monthly_points=False):
     """Return stream metadata after checking full, synchronized source coverage.
 
     ``years`` is an iterable of target years. Streams are distinguished by
     physical variable names, NOT by filename. Chunk order is obtained from
     each file's first date; dates within any chunk must already be monotonic.
+
+    ``monthly_points``: XIOS stamps a monthly instant at 0Z on the first of the
+    FOLLOWING month, so the year-Y file holds Feb 1 Y .. Jan 1 Y+1. The caller
+    then passes the Y-1 and Y files, and only the samples inside each year are
+    checked, which must be exactly 0Z on January 1 .. December 1.
     """
     years = tuple(years)
     if not years or years != tuple(range(years[0], years[-1] + 1)):
@@ -150,12 +157,14 @@ def validate_input_streams(files, years, target_frequency):
         frequencies = []
         for year in years:
             selected = [d for d in dates if d[0] == year]
-            if len(years) == 1:
+            if len(years) == 1 and not monthly_points:
                 selected = dates
-            frequencies.append(_cover(selected, year, calendar))
+            frequencies.append(_cover(selected, year, calendar, monthly_points))
         if len(set(frequencies)) != 1:
             raise ValueError(f'INCOMPATIBLE_FREQUENCY: {name}')
         native = frequencies[0]
+        if monthly_points and native != 'mon':
+            raise ValueError(f'INCOMPATIBLE_FREQUENCY: {name} is not a monthly point stream')
         if ranking[native] < ranking.get(target_frequency, 0):
             raise ValueError(f'MISSING_FREQUENCY: {native} cannot supply {target_frequency}')
         if reference_dates is not None and dates != reference_dates:
