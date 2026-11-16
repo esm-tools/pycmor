@@ -5618,6 +5618,66 @@ def mask_where_no_seaice(data, rule):
     return result
 
 
+def _mean_on_time_axis_of(field, target, time_dim="time"):
+    """Average ``field`` over each record period of ``target`` (daily a_ice onto monthly data).
+
+    Records are matched by calendar month (monthly target) or day (daily
+    target). A target record with no source record raises; nothing is filled.
+    """
+    if field.sizes.get(time_dim) == target.sizes.get(time_dim) and np.array_equal(
+        field[time_dim].values, target[time_dim].values
+    ):
+        return field
+    monthly = target.sizes[time_dim] <= 12 * len(set(target[time_dim].dt.year.values.tolist()))
+
+    def key(da):
+        year, month = da[time_dim].dt.year, da[time_dim].dt.month
+        return year * 100 + month if monthly else (year * 100 + month) * 100 + da[time_dim].dt.day
+
+    reduced = field.assign_coords(_period=key(field)).groupby("_period").mean(time_dim)
+    wanted = key(target).values
+    missing = set(wanted.tolist()) - set(reduced["_period"].values.tolist())
+    if missing:
+        raise ValueError(f"No sea-ice concentration for records {sorted(missing)[:3]}")
+    reduced = reduced.sel(_period=wanted).rename({"_period": time_dim})
+    return reduced.assign_coords({time_dim: target[time_dim].values})
+
+
+def combine_with_ice_concentration(data, rule):
+    """Multiply or divide a field by sea-ice concentration on the field's own time axis.
+
+    ``ice_concentration_operation``:
+      - ``multiply``: grid-cell mean of a flux that acts on the ice-covered part
+        only (snowfall onto ice, ``prec_snow * A``).
+      - ``divide``: fraction of the ice surface from a grid-cell fraction
+        (melt-pond area ``apnd / A``); NaN where A is 0.
+    With ``ice_concentration_mask`` the result is NaN where the period-mean A is
+    0 (cell_methods ``where sea_ice``). a_ice is read from ``aice_path`` /
+    ``aice_pattern`` and averaged to the field's records first, so a monthly
+    field is combined with the monthly mean of daily concentration.
+    """
+    op = rule.get("ice_concentration_operation")
+    a_ice = _mean_on_time_axis_of(_load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable"), data)
+    if op == "multiply":
+        result = data * a_ice
+    elif op == "divide":
+        result = data / a_ice.where(a_ice > 0)
+    else:
+        raise ValueError(f"ice_concentration_operation must be multiply or divide, not {op!r}")
+    if rule.get("ice_concentration_mask", False):
+        result = result.where(a_ice > 0)
+    result.attrs = data.attrs.copy()
+    result.attrs["processing_note"] = (
+        "multiplied by sea-ice concentration averaged to the same records; the product of two "
+        "means differs from the mean of the product by their covariance"
+        if op == "multiply"
+        else "divided by sea-ice concentration averaged to the same records: the ice-area weighted "
+        "mean of the per-ice fraction, sum(A*x/A)/sum(A) = mean(x)/mean(A)"
+    )
+    result.name = data.name
+    return result
+
+
 def extract_single_plevel(data, rule):
     """
     Extract a single pressure level from a multi-level dataset.

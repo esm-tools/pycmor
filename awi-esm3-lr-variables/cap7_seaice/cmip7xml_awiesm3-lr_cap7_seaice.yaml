@@ -72,6 +72,27 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Flux acting on the ice-covered part only: multiply by the monthly mean
+  # of daily a_ice, then scale (seaIce.prsn = A * prec_snow * 1000).
+  - name: ice_concentration_scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:combine_with_ice_concentration
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Tier-wide throttle: prevent the HDF5-write-lock parallel-save wedge
   # observed across FESOM-ingesting tiers (cli40/43/45). Cap=1 via
@@ -213,6 +234,10 @@ rules:
     pipelines:
       - scale_mask_pipeline
 
+  # Snowfall onto ice per grid-cell area: FESOM adds A*snow to the snow
+  # layer (ice_thermo_cpl.F90:364), so prec_snow is multiplied by the monthly
+  # mean of daily a_ice. Product of monthly means (prec_snow is only monthly);
+  # the exact sisn_snf stream (io_meandata.F90:1037) is not written.
   - name: prsn
     inputs:
       - path: *dp
@@ -223,5 +248,8 @@ rules:
     scaled_units: "kg m-2 s-1"
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    ice_concentration_operation: multiply
+    ice_concentration_mask: true
+    scientific_repairs: [F56]
     pipelines:
-      - scale_mask_pipeline
+      - ice_concentration_scale_pipeline

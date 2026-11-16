@@ -347,7 +347,10 @@
           "line": 925,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'm_snow',   'snow height per unit area',      'm',      ice%data(3)%values(1:partit%myDim_nod2D),     io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.sisnhc.tavg-u-hxy-si.day.glb": "sisnhc = -L_f * rhosno * m_snow with the model rhosno=290 kg m-3; m_snow is the snow height per grid-cell area, so no division by a_ice. Masked where a_ice is 0."
+      }
     },
     {
       "id": "F11",
@@ -436,7 +439,10 @@
           "line": 929,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'h_ice',    'ice thickness over ice-covered fraction',   'm',     ice%h_ice(1:partit%myDim_nod2D), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.sihc.tavg-u-hxy-sea.mon.glb": "Uses daily m_ice (ice volume per grid-cell area, m_ice_day) instead of h_ice, so the heat content is per grid-cell area. The sensible part still comes from the 0-layer linear profile between ist and the freezing point of sss; FESOM has no enthalpy state to read."
+      }
     },
     {
       "id": "F15",
@@ -578,7 +584,10 @@
           "line": 1255,
           "function": "compute_simpeffconc"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.simpconc.tavg-u-hxy-si.mon.glb": "simpconc = mean(apnd)/mean(a_ice)*100 per month (a_ice the monthly mean of daily values), NaN where a_ice is 0. With SIMIP ice-area weighting this equals sum(A*apnd/A)/sum(A) exactly. simpeffconc is not repaired."
+      }
     },
     {
       "id": "F22",
@@ -1408,7 +1417,10 @@
           "line": 1129,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'snow',     'precipitation snow',              'm/s',    prec_snow(:),              io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.prsn.tavg-u-hxy-si.mon.glb": "prsn = prec_snow * a_ice * 1000, a_ice the monthly mean of daily values, NaN where it is 0. prec_snow is only archived monthly, so the covariance of snowfall and ice cover within the month is lost; the exact sisn_snf stream is not written."
+      }
     },
     {
       "id": "F57",

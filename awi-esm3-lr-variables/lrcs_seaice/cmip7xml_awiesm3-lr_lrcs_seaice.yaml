@@ -167,6 +167,28 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Per-ice fraction from a grid-cell fraction: divide by the monthly mean
+  # of daily a_ice (NaN without ice), then express in percent.
+  - name: ice_concentration_percent_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:combine_with_ice_concentration
+      - script://$PYCMOR_HOME/examples/custom_steps.py:fraction_to_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: scale_mask_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -1070,13 +1092,18 @@ rules:
     pipelines:
       - siflcondtop_pipeline
 
-  # Sea ice heat content
+  # Sea ice heat content per grid-cell area: daily m_ice (ice volume per
+  # cell area, io_meandata m_ice_day alias) times rho_ice*(c_ice*(T_mean -
+  # 273.15) - L_f), T_mean the mid-point of the 0-layer linear profile
+  # between ist and the freezing point of sss. The 0-layer model has no
+  # enthalpy state; the sensible term is this profile's approximation.
   - name: sihc
     inputs:
       - path: *dp
-        pattern: h_ice\.fesom\.\d{4}\.nc
+        pattern: m_ice_day\.fesom\.\d{4}\.nc
     compound_name: seaIce.sihc.tavg-u-hxy-sea.mon.glb
-    model_variable: h_ice
+    model_variable: m_ice
+    scientific_repairs: [F14]
     ist_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     ist_pattern: ist\.fesom\.\d{4}\.nc
     sss_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
@@ -1207,8 +1234,12 @@ rules:
     model_variable: apnd
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    # apnd is pond area per grid cell (capped at 0.9*aice, ice_meltponds.F90:204).
+    # Per-ice fraction with SIMIP ice-area weighting: mean(apnd)/mean(a_ice).
+    ice_concentration_operation: divide
+    scientific_repairs: [F21]
     pipelines:
-      - fraction_to_percent_mask_pipeline
+      - ice_concentration_percent_pipeline
 
   - name: simpthick
     inputs:
