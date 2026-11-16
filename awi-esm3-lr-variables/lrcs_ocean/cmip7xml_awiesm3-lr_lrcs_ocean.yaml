@@ -553,6 +553,59 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Ice-shelf cavities (use_cavity=.true.): static cav_nod_mask from mesh.nc.
+  - name: fx_sftflf_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_shelf_area_percent
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: sftflf_time_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_shelf_area_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Field on ice-shelf cavity nodes only (0 elsewhere), then scaled.
+  - name: ice_shelf_scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:keep_ice_shelf_cavity_nodes
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -1478,3 +1531,56 @@ rules:
     usalt_variable: usalt
     pipelines:
       - sltbasin_pipeline
+
+  # ============================================================
+  # Ice-shelf cavities (CORE3, use_cavity=.true.)
+  # ============================================================
+  # cav_nod_mask in mesh.nc is 1 on the 10047 cavity nodes (64.5S-85.4S, all
+  # with cav_nod_lev > 0); its long_name has the two values the wrong way
+  # round. compute_ice_shelf_area_percent refuses a value that is not
+  # Antarctic or disagrees with cav_nod_lev. The geometry is fixed in time.
+  - name: sftflf_fx
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: landIce.sftflf.ti-u-hxy-u.fx.glb
+    model_variable: sftflf
+    pipelines:
+      - fx_sftflf_pipeline
+
+  # Monthly copy of the fixed mask; fw supplies the year's monthly time axis.
+  - name: sftflf_mon
+    inputs:
+      - path: *dp
+        pattern: fw\.fesom\.\d{4}\.nc
+    compound_name: landIce.sftflf.tavg-u-hxy-u.mon.glb
+    model_variable: fw
+    pipelines:
+      - sftflf_time_pipeline
+
+  # Water flux from land ice: under a cavity FESOM's fw is the ice-shelf
+  # basal melt flux (cavity_param.F90:308, positive out of the ocean, m/s of
+  # freshwater at 1000 kg m-3), so flandice = -1000 * fw on cavity nodes and 0
+  # elsewhere. Glacier and ice-sheet runoff reach the ocean inside the river
+  # runoff and cannot be separated from it, so they are not included.
+  - name: flandice
+    inputs:
+      - path: *dp
+        pattern: fw\.fesom\.\d{4}\.nc
+    compound_name: ocean.flandice.tavg-u-hxy-sea.mon.glb
+    model_variable: fw
+    scale_factor: -1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - ice_shelf_scale_pipeline
+
+  - name: flandice_3hr
+    inputs:
+      - path: *dp
+        pattern: fw_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.flandice.tavg-u-hxy-sea.3hr.glb
+    model_variable: fw
+    scale_factor: -1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - ice_shelf_scale_pipeline

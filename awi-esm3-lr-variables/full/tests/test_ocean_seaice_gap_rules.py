@@ -176,5 +176,42 @@ class SeaIceConcentrationTests(unittest.TestCase):
                             IDENTITY, CONFIG)
 
 
+class IceShelfTests(unittest.TestCase):
+    def test_fixed_and_monthly_ice_shelf_percentage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mesh, _ = mesh_files(tmp)
+            rule = Rule(grid_file=str(mesh), model_variable='sftflf')
+            fx = CUSTOM.compute_ice_shelf_area_percent(xr.open_dataset(mesh), rule)
+            np.testing.assert_allclose(fx.values, [0., 100.])
+            fw = xr.DataArray(np.ones((12, 2)), dims=('time', 'nod2'), name='fw')
+            mon = CUSTOM.compute_ice_shelf_area_percent(fw, Rule(grid_file=str(mesh), model_variable='fw'))
+            np.testing.assert_allclose(mon.values, np.tile([0., 100.], (12, 1)))
+            self.assertEqual(mon.attrs['units'], '%')
+
+    def test_inverted_or_inconsistent_mask_value_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mesh, _ = mesh_files(tmp)
+            with self.assertRaisesRegex(ValueError, 'does not mark Antarctic'):
+                CUSTOM.compute_ice_shelf_area_percent(xr.open_dataset(mesh), Rule(grid_file=str(mesh),
+                                                                                   cavity_mask_value=0))
+
+    def test_land_ice_flux_only_on_cavity_nodes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mesh, _ = mesh_files(tmp)
+            fw = xr.DataArray([[1e-6, -5e-8]], dims=('time', 'nod2'), name='fw', attrs={'units': 'm s-1'})
+            kept = CUSTOM.keep_ice_shelf_cavity_nodes(fw, Rule(grid_file=str(mesh)))
+            out = CUSTOM.scale_by_constant(kept, Rule(scale_factor=-1000., scaled_units='kg m-2 s-1'))
+            np.testing.assert_allclose(out.values, [[0., 5e-5]])
+
+    def test_catalogue_rules(self):
+        for compound, stream in (('landIce.sftflf.ti-u-hxy-u.fx.glb', 'mesh.nc'),
+                                 ('landIce.sftflf.tavg-u-hxy-u.mon.glb', 'fw\\.fesom'),
+                                 ('ocean.flandice.tavg-u-hxy-sea.mon.glb', 'fw\\.fesom'),
+                                 ('ocean.flandice.tavg-u-hxy-sea.3hr.glb', 'fw_3h\\.fesom')):
+            with self.subTest(compound=compound):
+                rule = reviewed(compound)
+                self.assertTrue(rule['inputs'][0]['pattern'].startswith(stream))
+
+
 if __name__ == '__main__':
     unittest.main()

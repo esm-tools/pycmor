@@ -3334,6 +3334,67 @@ def compute_volcello_time(data, rule):
 
 
 # ============================================================
+# Ice-shelf cavity steps (CORE3 with use_cavity)
+# ============================================================
+
+
+def _ice_shelf_cavity_nodes(rule):
+    """Boolean ice-shelf cavity mask per node from the mesh's ``cav_nod_mask``.
+
+    The CORE3 ``mesh.nc`` long_name says 1 is "ocean topped by atmosphere", but
+    the 10047 nodes with value 1 are exactly those with ``cav_nod_lev > 0`` and
+    lie between 64.5S and 85.4S, so 1 marks the cavity. ``cavity_mask_value``
+    selects the value (default 1); the latitude and ``cav_nod_lev`` checks
+    below refuse a mesh where the chosen value does not mark cavities.
+    """
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        mask = np.asarray(mesh["cav_nod_mask"].values, dtype=float)
+        lat = np.asarray(mesh["lat"].values, dtype=float)
+        level = np.asarray(mesh["cav_nod_lev"].values, dtype=float) if "cav_nod_lev" in mesh else None
+    cavity = mask == float(rule.get("cavity_mask_value", 1))
+    if not cavity.any() or lat[cavity].max() > -60.0:
+        raise ValueError("cav_nod_mask: selected value does not mark Antarctic ice-shelf cavities")
+    if level is not None and not np.array_equal(cavity, np.nan_to_num(level) > 0):
+        raise ValueError("cav_nod_mask disagrees with cav_nod_lev")
+    return cavity
+
+
+def compute_ice_shelf_area_percent(data, rule):
+    """Floating ice-shelf area percentage (sftflf) on the ocean mesh nodes.
+
+    100 on ice-shelf cavity nodes, 0 elsewhere. The cavity geometry is fixed,
+    so a time-dependent input only supplies the time axis to broadcast onto.
+    """
+    cavity = _ice_shelf_cavity_nodes(rule)
+    attrs = {"units": "%", "standard_name": "floating_ice_shelf_area_fraction"}
+    if isinstance(data, xr.Dataset) and "time" not in data.dims:
+        result = data["cav_nod_mask"].copy(data=np.where(cavity, 100.0, 0.0))
+        result.attrs = attrs
+        result.name = rule.model_variable
+        return result
+    template = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    node_dim = next(d for d in template.dims if d != "time")
+    result = xr.zeros_like(template, dtype=float) + xr.DataArray(np.where(cavity, 100.0, 0.0), dims=(node_dim,))
+    result.attrs = attrs
+    result.name = template.name
+    return result
+
+
+def keep_ice_shelf_cavity_nodes(data, rule):
+    """Keep ``data`` on ice-shelf cavity nodes and set it to 0 everywhere else.
+
+    Under a cavity FESOM's water_flux is the basal-melt flux of
+    cavity_heat_water_fluxes_3eq (cavity_param.F90:308); the global freshwater
+    balancing is not added there (ice_oce_coupling.F90:600-604).
+    """
+    cavity = xr.DataArray(_ice_shelf_cavity_nodes(rule), dims=(next(d for d in data.dims if d != "time"),))
+    result = data.where(cavity, 0.0)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    return result
+
+
+# ============================================================
 # Atmosphere derived-variable steps
 # These compute CMOR variables that require combining two or
 # more IFS output fields (e.g. wind speed from u/v components,
