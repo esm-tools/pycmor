@@ -24,11 +24,13 @@ import yaml
 CARBON_CONTEXT = {}
 ARCHIVED_FILES = {}
 GEOTHERMAL_CONTEXT = None
+WAM_GRID_LABEL = None
 
 
 def configure(root, repo, experiment, period, config):
-    global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT, ARCHIVED_FILES, GEOTHERMAL_CONTEXT, VERIFIED_FESOM_SHA256
+    global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT, ARCHIVED_FILES, GEOTHERMAL_CONTEXT, VERIFIED_FESOM_SHA256, WAM_GRID_LABEL
     ROOT, REPO, EXP, PERIOD = Path(root), Path(repo), Path(experiment), period
+    WAM_GRID_LABEL = config.get('wam_grid_label')
     YEARS = list(range(int(period[:4]), int(period[9:13]) + 1))
     META = json.loads(Path(config['metadata']).read_text())['Compound Name']
     PROFILE = yaml.safe_load((REPO/'awi-esm3-lr-variables/profile.yaml').read_text())
@@ -87,9 +89,42 @@ def grids():
             ds.cell_area.attrs['units']='m2'
             ds.attrs['provenance']=str(work/'grids.nc')+'; areas.nc; coordinates ordered exactly as native LPJG outputs'
             ds.to_netcdf(land)
+    result={'core3':str(core),'lpj':str(land)}
+    wam=target/'wam_grid.nc'
+    if not wam.exists() and ARCHIVED_FILES.get('wam_grid.nc'):
+        import shutil
+        shutil.copy2(ARCHIVED_FILES['wam_grid.nc'], wam)
+    if not wam.exists():
+        # Legs without WAM output keep the wave rules blocked on the missing grid.
+        source=inputs('oifs',r'wam_1mo\.\d{4}\.nc$')
+        if source:
+            wam_grid(source[0],wam)
+    if wam.exists():
+        result['wam']=str(wam)
     # Atmosphere fx area requires audited XIOS remapping geometry; do not
     # silently manufacture equal-area weights for the 400x192 grid.
-    return {'core3':str(core),'lpj':str(land)}
+    return result
+
+
+def wam_grid(source, target):
+    """WAM sea points exactly as XIOS writes them, with the area of each latitude-longitude box."""
+    with netCDF4.Dataset(source) as ds:
+        lat,lon=(np.asarray(ds[n][:],dtype=float) for n in ('lat','lon'))
+        lat_bnds,lon_bnds=(np.asarray(ds[n][:],dtype=float) for n in ('bounds_lat','bounds_lon'))
+    south,north=lat_bnds.min(1),lat_bnds.max(1)
+    west,east=lon_bnds.min(1),lon_bnds.max(1)
+    boxes=all(len(np.unique(row))==2 for row in lat_bnds) and all(len(np.unique(row))==2 for row in lon_bnds)
+    if not boxes or not np.all((south<=lat)&(lat<=north)&(west<=lon)&(lon<=east)):
+        raise ValueError(f'{source}: WAM cells are not latitude-longitude boxes around their centres')
+    # IFS/WAM Earth radius (RA in yomcst), the sphere the model integrates on.
+    area=6371229.**2*np.deg2rad(east-west)*(np.sin(np.deg2rad(north))-np.sin(np.deg2rad(south)))
+    ds=xr.Dataset({'lon':('cell',lon),'lat':('cell',lat),'cell_area':('cell',area),
+        'lon_bnds':(('cell','vertices'),lon_bnds),'lat_bnds':(('cell','vertices'),lat_bnds)})
+    ds.lon.attrs.update(units='degrees_east',bounds='lon_bnds')
+    ds.lat.attrs.update(units='degrees_north',bounds='lat_bnds')
+    ds.cell_area.attrs['units']='m2'
+    ds.attrs['provenance']=f'{source}; WAM sea points as written by XIOS, cell area on a sphere of radius 6371229 m'
+    ds.to_netcdf(target)
 
 
 def inputs(component, pattern):
@@ -138,6 +173,40 @@ def check_months(paths, variable, expected_units=None):
             shape=v.shape[1:]
     if records!=[(y,m) for y in YEARS for m in range(1,13)]:
         raise ValueError(f'Incomplete/duplicate monthly coverage: {len(records)} records')
+
+
+def check_points(paths, variable, expected_units=None, hours=3, window=False):
+    """Header/time-only check of end-labelled XIOS sub-daily samples.
+
+    Instants sit at the end of each step, (Jan 1 03:00 .. next Jan 1 00:00];
+    window statistics (window=True) carry bounds over the same steps. Either
+    way each step end of the selected years must occur exactly once.
+    """
+    ends, shape, calendar = [], None, None
+    step = timedelta(hours=hours)
+    for path in paths:
+        with netCDF4.Dataset(path) as ds:
+            v = ds[variable]
+            if expected_units and getattr(v, 'units', None) != expected_units:
+                raise ValueError(f'{path.name}: {variable} units {getattr(v,"units",None)!r}, expected {expected_units!r}')
+            t = ds['time']
+            calendar = getattr(t, 'calendar', 'standard')
+            bounds = netCDF4.num2date(ds[t.bounds][:], t.units, calendar)
+            point = 'time: point' in getattr(v, 'cell_methods', '')
+            if point == window or any(hi - lo != (step if window else timedelta(0)) for lo, hi in bounds):
+                raise ValueError(f'{path.name}: {variable} is not a {hours}h {"window" if window else "instant"}')
+            ends.extend(hi for _, hi in bounds)
+            if shape is not None and v.shape[1:] != shape:
+                raise ValueError('Spatial shape changed between files')
+            shape = v.shape[1:]
+    import cftime
+    first = cftime.datetime(YEARS[0], 1, 1, calendar=calendar)
+    stop = cftime.datetime(YEARS[-1] + 1, 1, 1, calendar=calendar)
+    records = [d.timetuple()[:6] for d in ends if first < d <= stop]
+    expected = [(first + step * (i + 1)).timetuple()[:6] for i in range(int((stop - first) / step))]
+    if records != expected:
+        raise ValueError(f'Incomplete/duplicate {hours}-hourly coverage: {len(records)} records, '
+                         f'expected {len(expected)}')
 
 
 def check_days(paths, variable, expected_units=None):
@@ -277,7 +346,11 @@ def verify_recom_production(rule):
 def materialize(rule, gridpaths):
     rule=copy.deepcopy(rule)
     verify_recom_production(rule)
-    check_time = check_days if rule['compound_name'].split('.')[-2] == 'day' else check_months
+    frequency = rule['compound_name'].split('.')[-2]
+    check_time = {'day': check_days, '3hr': check_points}.get(frequency, check_months)
+    if frequency == '3hr':
+        window = bool(rule.get('lr_wave_window_end'))
+        check_time = lambda paths, variable, units=None: check_points(paths, variable, units, window=window)
     group=rule.pop('lr_group','recom')
     key=rule.pop('lr_grid_key',None)
     if key:
@@ -296,6 +369,11 @@ def materialize(rule, gridpaths):
             raise ValueError('Missing source: '+selector['pattern'])
         if selector['component']!='lpj_guess':
             check_time(paths,rule['model_variable'],rule.get('expected_units'))
+        if rule.get('lr_wave_cosine'):
+            check_time(paths,rule['lr_wave_cosine'],rule.get('expected_units'))
+        if frequency=='3hr':
+            # The last instant of a year is next January 1 00:00; keep it.
+            rule['retain_year_end_point']=True
         for term in rule.get('lr_terms',[]):
             component=term.pop('component','oifs')
             pattern=raw_input_pattern(component,term.pop('pattern'))
@@ -315,6 +393,11 @@ def materialize(rule, gridpaths):
             rule['lr_soil_liquid_source_files']=list(map(str,liquid))
             rule['lr_auxiliary_files']+=list(map(str,liquid))
     rule['inputs']=[{'path':str(p.parent),'pattern':re.escape(p.name)+'$'} for p in paths]
+    if group=='wave':
+        if not WAM_GRID_LABEL:
+            raise ValueError('UNREGISTERED_WAM_GRID: the 29530-point WAM grid has no EMD grid label; '
+                             'register it and set wam_grid_label in the run configuration')
+        rule['grid_label']=WAM_GRID_LABEL
     if rule.get('lr_geothermal_zero'):
         if not GEOTHERMAL_CONTEXT or GEOTHERMAL_CONTEXT.get('binary_sha256')!=VERIFIED_FESOM_SHA256:
             raise ValueError('UNREVIEWED_GEOTHERMAL: reviewed binary does not match this archived run')
@@ -342,7 +425,7 @@ def materialize(rule, gridpaths):
     return group,rule
 
 
-def _carbon_rules(filename):
+def _carbon_rules(filename, carbon_context=True):
     """Load canonical mappings, preserving unsupported candidates for reporting."""
     path = Path(__file__).resolve().parent / filename
     document = yaml.safe_load(path.read_text())
@@ -365,7 +448,7 @@ def _carbon_rules(filename):
             raise ValueError(f'Duplicate carbon rule: {rule["name"]} in {path}')
         names.add(rule['name'])
         compounds.add(rule['compound_name'])
-        if CARBON_CONTEXT:
+        if CARBON_CONTEXT and carbon_context:
             context = json.dumps(CARBON_CONTEXT, sort_keys=True, separators=(',', ':'))
             rule['comment'] = (rule.get('comment', '') +
                 ' Operator-supplied carbon_context (not automatic scientific validation): ' +
@@ -427,3 +510,28 @@ def daily_land_rules():
 def ocean_fixed_rules():
     _, rules = _carbon_rules('ocean_fixed.yaml')
     yield from rules
+
+
+def wave_rules():
+    """WAM integrated parameters, 3-hourly instants and monthly XIOS statistics."""
+    _, rules = _carbon_rules('wave.yaml', carbon_context=False)
+    yield from rules
+
+
+def register_wave_pipelines(profile):
+    """WAM files are XIOS files like the atmosphere's: the default steps after one WAM selection."""
+    if any(p['name'] == 'lr_wave' for p in profile['pipelines']):
+        return
+    steps = ['pycmor.core.gather_inputs.load_mfdataset',
+             f'script://{Path(__file__).resolve().with_name("wave_steps.py")}:select_wave_variable',
+             'pycmor.std_lib.timeaverage.timeavg',
+             'pycmor.std_lib.set_time_bounds',
+             'pycmor.std_lib.units.handle_unit_conversion',
+             'pycmor.std_lib.attributes.set_global',
+             'pycmor.std_lib.attributes.set_variable',
+             'pycmor.std_lib.attributes.set_coordinates',
+             'pycmor.std_lib.dimensions.map_dimensions',
+             'pycmor.std_lib.generic.trigger_compute',
+             'pycmor.std_lib.files.save_dataset',
+             'pycmor.std_lib.qc.run_compliance_checker']
+    profile['pipelines'].append(dict(name='lr_wave', steps=steps))
