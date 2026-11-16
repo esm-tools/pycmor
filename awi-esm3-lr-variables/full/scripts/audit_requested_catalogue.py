@@ -122,6 +122,7 @@ def load_shared_rules(workflow_root, repo, config):
                      '20000101-20041231', config)
     from iceberg_support import rules as iceberg_rules
     return {'shared_recom': list(module.recom_rules()), 'shared_co2': list(module.co2_rules()),
+            'shared_transit': list(module.transit_rules()),
             'shared_daily_land': list(module.daily_land_rules()),
             'shared_ocean_fixed': list(module.ocean_fixed_rules()),
             'shared_iceberg': list(iceberg_rules(workflow_root / 'rules'))}

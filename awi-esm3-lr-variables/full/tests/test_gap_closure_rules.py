@@ -133,13 +133,26 @@ class RuleCatalogueTests(unittest.TestCase):
         self.assertNotIn('co2Clim', {r['name'] for r in rules.values()})
         self.assertFalse(any('tclm' in r['compound_name'] for r in rules.values()))
 
+    def test_transit_tracers(self):
+        rules = {r['name']: r for r in RAW.transit_rules()}
+        self.assertEqual(set(rules), {'sf6', 'thetao_200'})
+        sf6 = rules['sf6']
+        self.assertEqual(sf6['compound_name'], 'ocean.sf6.tavg-ol-hxy-sea.mon.glb')
+        self.assertEqual((sf6['expected_units'], sf6['lr_units'], sf6['lr_scale']), ('mol / m**3', 'mol m-3', 1))
+        self.assertEqual(sf6['lr_input']['pattern'], r'sf6\.fesom\.\d{4}\.nc$')
+        self.assertIn('zero', sf6['comment'])
+        self.assertTrue(all(r['lr_group'] == 'ocean' for r in rules.values()))
+        text = (RULES / 'transit.yaml').read_text()
+        self.assertIn('# - name: cfc11', text)
+        self.assertIn('# - name: cfc12', text)
+
     def test_every_rule_pipeline_is_registered(self):
         RAW.REPO = RULES.parents[2]
         profile = yaml.safe_load((RULES.parents[1] / 'profile.yaml').read_text())
         RAW.register_daily_pipelines(profile, Path('/campaign'))
         RAW.register_derived_pipelines(profile, Path('/campaign'))
         pipes = {p['name'] for p in profile['pipelines']}
-        used = {p for r in list(RAW.recom_rules()) + list(RAW.co2_rules())
+        used = {p for r in list(RAW.recom_rules()) + list(RAW.co2_rules()) + list(RAW.transit_rules())
                 for p in r['pipelines']}
         # The two surface pipelines are added by build_catalog itself.
         self.assertTrue(used <= pipes | {'recom_surface', 'recom_surface_linear'})
@@ -159,7 +172,7 @@ class MaterializeTests(unittest.TestCase):
         self.oifs = RAW.EXP / 'outdata/oifs'
         self.fesom.mkdir(parents=True)
         self.oifs.mkdir(parents=True)
-        self.rules = {r['name']: r for r in list(RAW.recom_rules()) + list(RAW.co2_rules())}
+        self.rules = {r['name']: r for r in list(RAW.recom_rules()) + list(RAW.co2_rules()) + list(RAW.transit_rules())}
 
     def write(self, path, variable, units, levels=None, daily=False, dims=('nod2',), time='time'):
         if daily:
@@ -206,7 +219,7 @@ class MaterializeTests(unittest.TestCase):
         Path(RAW.MODEL_LEVEL_TABLE).write_text('table')
         expected = {'expc': 'expC', 'graz': 'graz', 'o2min_daily': 'O2min', 'intpoc_daily': 'intPOC',
                     'expcob': 'bflxC', 'frfe': 'bflxN', 'o2_200': 'O2_200', 'chl_200': 'PhyChl_200',
-                    'co2_ml': 'atmos_mon_ml_co2',
+                    'thetao_200': 'temp_200', 'sf6': 'sf6', 'co2_ml': 'atmos_mon_ml_co2',
                     'co2_h2m': 'atmos_mon_ml_co2', 'dpo2': 'dpO2s', 'limndiat': 'limNd'}
         for name, stem in expected.items():
             with self.subTest(name=name):
@@ -242,6 +255,9 @@ class MaterializeTests(unittest.TestCase):
         _, rule = RAW.materialize(self.rules['chl_200'], grid)
         self.assertEqual([t['files'] for t in rule['lr_terms']],
                          [[str(self.fesom / f'{stem}_200.fesom.2000.nc')] for stem in ('PhyChl', 'DiaChl')])
+        self.write(self.fesom / 'sf6.fesom.2000.nc', 'sf6', 'mol / m**3', ('nz', CENTRES))
+        group, rule = RAW.materialize(self.rules['sf6'], grid)
+        self.assertEqual(group, 'ocean')
 
     def test_iron_flux_reads_leg_fe2n(self):
         namelist = RAW.EXP / f'run_{RAW.PERIOD}/config/fesom/namelist.recom'

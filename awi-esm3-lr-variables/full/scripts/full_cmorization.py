@@ -582,7 +582,7 @@ def build_catalog(config, experiment, period, identity, campaign):
     raw_rules = []
     for file in raw.PROFILE['tier_files']:
         raw_rules += yaml.safe_load((repo/'awi-esm3-lr-variables'/file).read_text())['rules']
-    raw_rules += (list(raw.recom_rules()) + list(raw.co2_rules()) +
+    raw_rules += (list(raw.recom_rules()) + list(raw.co2_rules()) + list(raw.transit_rules()) +
                   list(raw.daily_land_rules()) + list(raw.ocean_fixed_rules()))
     native_daily = copy.deepcopy(next(p for p in raw.PROFILE['pipelines'] if p['name']=='lr_lpj'))
     native_daily['name'] = 'lr_lpj_daily'
@@ -897,7 +897,7 @@ def plan(args, config):
         tasks, coverage, full_count = build_catalog(config,experiment,period,identity,campaign)
         write(campaign/'tasks.json',tasks)
         write(campaign/'coverage.json',coverage)
-        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py'):
+        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'transit.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py'):
             shutil.copy2(p,campaign/'reproduce'/p.name)
         if config.get('hr_reference_manifest'):
             shutil.copy2(config['hr_reference_manifest'], campaign/'reproduce/hr_reference_manifest.txt')

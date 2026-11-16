@@ -505,6 +505,12 @@ def co2_rules():
     yield from rules
 
 
+def transit_rules():
+    """FESOM physical-ocean tracers outside REcoM; not gated by carbon_profile."""
+    _, rules = _carbon_rules('transit.yaml')
+    yield from rules
+
+
 def daily_land_rules():
     """Native daily soil diagnostics; do not reuse remapped calendar mistakes."""
     _, rules = _carbon_rules('land_daily.yaml')

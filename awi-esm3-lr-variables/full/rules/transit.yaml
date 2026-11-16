@@ -1,0 +1,74 @@
+schema_version: 1
+description: FESOM physical-ocean raw rules outside REcoM (transient tracers, temperature at 200 m); not gated by
+  carbon_profile.
+scientific_assumptions:
+  configuration_evidence:
+  - FESOM io_meandata (v3.5.2) defines the transient tracer streams sf6, cfc11 and cfc12 in 'mol / m**3' on
+    (nz, nod2) when use_transit is on; they need matching XIOS field ids and a monthly file before a leg writes them.
+  - The 200 m temperature uses the daily two-layer zoom temp_200 (layers 15 and 16) like the REcoM 200 m products.
+  dreq_scope: In DReq v1.2.2.5 the only ocean transient tracer is ocean.sf6.tavg-ol-hxy-sea.mon.glb (April CAP7
+    ocean selection, not in the piControl request). CMIP6 Omon.cfc11 and Omon.cfc12 have no CMIP7 entry, so
+    they stay commented candidates below.
+  piControl: The transient tracers take their surface boundary from the atmospheric history of each gas; in
+    piControl that is zero, so the fields are zero.
+defaults:
+  time_dimname: time
+  lr_grid_key: core3
+  lr_group: ocean
+  grid_label: gn
+  grid: CORE3 native 220509 nodes; exact model vertical layers
+  pipelines:
+  - lr_monthly
+rules:
+- name: sf6
+  compound_name: ocean.sf6.tavg-ol-hxy-sea.mon.glb
+  model_variable: sf6
+  expected_units: mol / m**3
+  lr_scale: 1
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: sf6\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: FESOM transient tracer SF6 (use_transit, io_meandata stream sf6). In piControl the atmospheric boundary
+    values are zero, so the field is zero.
+# Candidates without a CMIP7 DReq entry (v1.2.2.5); a rule here would only report UNRESOLVED_DREQ.
+# - name: cfc12
+#   compound_name: ocean.cfc12.tavg-ol-hxy-sea.mon.glb
+#   model_variable: cfc12
+#   expected_units: mol / m**3
+#   lr_scale: 1
+#   lr_units: mol m-3
+#   lr_input:
+#     component: fesom
+#     pattern: cfc12\.fesom\.\d{4}\.nc$
+#   lr_exact_ocean_depth: true
+#   comment: FESOM transient tracer CFC-12 (use_transit, io_meandata stream cfc12). In piControl the atmospheric
+#     boundary values are zero, so the field is zero.
+# - name: cfc11
+#   compound_name: ocean.cfc11.tavg-ol-hxy-sea.mon.glb
+#   model_variable: cfc11
+#   expected_units: mol / m**3
+#   lr_scale: 1
+#   lr_units: mol m-3
+#   lr_input:
+#     component: fesom
+#     pattern: cfc11\.fesom\.\d{4}\.nc$
+#   lr_exact_ocean_depth: true
+#   comment: FESOM transient tracer CFC-11 (use_transit, io_meandata stream cfc11). In piControl the atmospheric
+#     boundary values are zero, so the field is zero.
+- name: thetao_200
+  compound_name: ocean.thetao.tavg-op20bar-hxy-sea.day.glb
+  model_variable: temp
+  expected_units: degC
+  lr_scale: 1.0
+  lr_units: degC
+  lr_input:
+    component: fesom
+    pattern: temp_200\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_target_depth]
+  lr_target_depth: 200.0
+  comment: 'Potential temperature, daily means on CORE3 layers 15 and 16 (XIOS zoom indices 14 and 15, centres
+    175 m and 210 m), interpolated linearly in depth to 200 m. The op20bar coordinate is 20.2 bar of sea-water
+    pressure, 199.7-200.8 m by TEOS-10 z_from_p, and the DReq asks for the depth of 200 m. Missing where the
+    210 m layer is below the sea floor.'
