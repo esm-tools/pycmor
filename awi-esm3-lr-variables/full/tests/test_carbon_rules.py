@@ -125,7 +125,7 @@ class CarbonRulesTests(unittest.TestCase):
         expected = {'fco2nat': ['co2nbf', 'co2fire', 'co2of'],
                     'fco2antt': ['co2apf'],
                     'fco2all': ['co2nbf', 'co2fire', 'co2of', 'co2apf']}
-        self.assertEqual(set(rules), set(expected) | {'co2_p19'})
+        self.assertEqual(set(rules), set(expected) | {'co2_p19', 'co2_ml', 'co2_h2m'})
         for name, sources in expected.items():
             r = rules[name]
             with self.subTest(name=name):
@@ -160,7 +160,7 @@ class CarbonRulesTests(unittest.TestCase):
         for rule in ADAPTER.co2_rules():
             self.assertNotIn('this spinup', rule['comment'])
             self.assertNotIn('no fossil emissions reader in this experiment', rule['comment'])
-            if rule['name'] != 'co2_p19':
+            if rule['compound_name'].split('.')[1] != 'co2':
                 self.assertIn('run-specific review', rule['comment'])
 
     def test_optional_context_is_provenance_not_a_conversion_change(self):

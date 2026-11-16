@@ -117,6 +117,22 @@ class RuleCatalogueTests(unittest.TestCase):
         self.assertIn('Redfield', rules['po4']['comment'])
         self.assertEqual(rules['expcob']['lr_source_frequency'], 'day')
 
+    def test_co2_model_level_and_near_surface(self):
+        rules = {r['name']: r for r in RAW.co2_rules()}
+        ml, near = rules['co2_ml'], rules['co2_h2m']
+        self.assertEqual(ml['compound_name'], 'atmos.co2.tavg-al-hxy-u.mon.glb')
+        self.assertEqual(ml['lr_scale'], 28.9644 / 44.0095)
+        self.assertEqual(ml['lr_units'], 'mol mol-1')
+        self.assertTrue(ml['lr_hybrid_levels'])
+        self.assertEqual(near['compound_name'], 'atmos.co2.tavg-h2m-hxy-u.mon.glb')
+        self.assertAlmostEqual(near['lr_scale'] / (28.9644 / 44.0095 * 1e6), 1., places=12)
+        self.assertEqual(near['lr_units'], '1E-06')
+        for rule in (ml, near):
+            self.assertEqual(rule['grid_label'], 'g235')
+            self.assertEqual(rule['lr_input']['pattern'], r'atmos_mon_ml_co2_\d{4}-\d{4}\.nc$')
+        self.assertNotIn('co2Clim', {r['name'] for r in rules.values()})
+        self.assertFalse(any('tclm' in r['compound_name'] for r in rules.values()))
+
     def test_every_rule_pipeline_is_registered(self):
         RAW.REPO = RULES.parents[2]
         profile = yaml.safe_load((RULES.parents[1] / 'profile.yaml').read_text())
@@ -186,13 +202,30 @@ class MaterializeTests(unittest.TestCase):
         namelist = RAW.EXP / f'run_{RAW.PERIOD}/config/fesom/namelist.recom'
         namelist.parent.mkdir(parents=True)
         namelist.write_text('&pairon\n fe2n = 0.033\n/\n')
+        RAW.MODEL_LEVEL_TABLE = str(RAW.EXP / 'vtable_L91')
+        Path(RAW.MODEL_LEVEL_TABLE).write_text('table')
         expected = {'expc': 'expC', 'graz': 'graz', 'o2min_daily': 'O2min', 'intpoc_daily': 'intPOC',
                     'expcob': 'bflxC', 'frfe': 'bflxN', 'o2_200': 'O2_200', 'chl_200': 'PhyChl_200',
-                    'dpo2': 'dpO2s', 'limndiat': 'limNd'}
+                    'co2_ml': 'atmos_mon_ml_co2',
+                    'co2_h2m': 'atmos_mon_ml_co2', 'dpo2': 'dpO2s', 'limndiat': 'limNd'}
         for name, stem in expected.items():
             with self.subTest(name=name):
                 with self.assertRaisesRegex(ValueError, r'^MISSING_INPUT: .*' + re.escape(stem)):
                     RAW.materialize(self.rules[name], {'core3': '/fixture/core3.nc'})
+
+    def test_missing_term_names_the_variable_and_pattern(self):
+        for variable in ('co2nbf', 'co2of'):
+            self.write(self.oifs / f'atm_remapped_1m_{variable}_2000-2000.nc', variable, 'kg m-2 s-1',
+                       dims=('lat',), time='time_counter')
+        with self.assertRaisesRegex(ValueError, r'MISSING_INPUT: co2fire: oifs/\^atm_remapped_1m_co2fire_'):
+            RAW.materialize(self.rules['fco2nat'], {})
+        name = 'atm_remapped_1m_co2fire_2000-2000.nc'
+        pattern = RAW.raw_input_pattern('oifs', self.rules['fco2nat']['lr_terms'][1]['pattern'])
+        self.assertIsNotNone(re.fullmatch(pattern, name))
+        self.assertIsNotNone(re.fullmatch(pattern, 'atm_remapped_1m_co2fire_1m_2000-2000.nc'))
+        self.write(self.oifs / name, 'co2fire', 'kg m-2 s-1', dims=('lat',), time='time_counter')
+        _, rule = RAW.materialize(self.rules['fco2nat'], {})
+        self.assertEqual(rule['lr_terms'][1]['files'], [str(self.oifs / name)])
 
     def test_future_streams_materialize_once_written(self):
         grid = {'core3': '/fixture/core3.nc'}
@@ -225,6 +258,27 @@ class MaterializeTests(unittest.TestCase):
         _, rule = RAW.materialize(self.rules['expfeob'], {'core3': '/fixture/core3.nc'})
         np.testing.assert_allclose([t['coefficient'] for t in rule['lr_terms']], [0.033e-6], rtol=1e-12)
 
+    def test_model_level_co2_pins_table_and_surface_pressure(self):
+        self.write(self.oifs / 'atmos_mon_ml_co2_2000-2000.nc', 'co2', 'kg*kg-1',
+                   ('model_levels', np.arange(1., 92.)), dims=('cell',), time='time_counter')
+        rule = self.rules['co2_ml']
+        with self.assertRaisesRegex(ValueError, 'MISSING_MODEL_LEVEL_TABLE'):
+            RAW.materialize(rule, {})
+        RAW.MODEL_LEVEL_TABLE = str(RAW.EXP / 'vtable_L91')
+        Path(RAW.MODEL_LEVEL_TABLE).write_text('table')
+        with self.assertRaisesRegex(ValueError, 'MISSING_INPUT: sp: oifs/atmos_6h_pt_sp_'):
+            RAW.materialize(rule, {})
+        sp = self.oifs / 'atmos_6h_pt_sp_2000-2000.nc'
+        sp.touch()
+        group, result = RAW.materialize(rule, {})
+        self.assertEqual(group, 'co2')
+        self.assertEqual(result['oifs_vtable'], str(Path(RAW.MODEL_LEVEL_TABLE).resolve()))
+        self.assertEqual((result['ps_path'], result['ps_variable']), (str(self.oifs), 'sp'))
+        self.assertIsNotNone(re.fullmatch(result['ps_pattern'], sp.name))
+        self.assertIsNone(re.fullmatch(result['ps_pattern'], 'atmos_6h_pt_sp_2001-2001.nc'))
+        self.assertIn(str(sp), result['lr_auxiliary_files'])
+        _, near = RAW.materialize(self.rules['co2_h2m'], {})
+        self.assertNotIn('oifs_vtable', near)
 
 
 if __name__ == '__main__':
