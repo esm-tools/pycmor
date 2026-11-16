@@ -89,6 +89,65 @@ class Tests(unittest.TestCase):
         self.assertTrue(flags['atmos.tas.tavg-h2m-hxy-u.1hr.glb'])
         self.assertNotIn('land.tas.tavg-h2m-hxy-u.1hr.glb',flags)
 
+    def test_reviewed_exclusion_replaces_bare_unmapped(self):
+        exclusions=f.support_module('coverage_policy').load_exclusions(f.ROOT/'config/exclusions.yaml')
+        coverage=self.catalog_without_metadata()
+        excluded=[r for r in coverage if r.get('exclusion')]
+        self.assertTrue(excluded)
+        for row in excluded:
+            entry=exclusions[row['compound']]
+            self.assertEqual(row['exclusion'],entry['category'])
+            self.assertEqual(row['reason'],f"EXCLUDED_{entry['category'].upper()}: {entry['reason']}")
+            self.assertEqual(row['status'],'BLOCKED')
+        for row in coverage:
+            if row['reason']==f.support_module('coverage_policy').UNMAPPED:
+                self.assertTrue(row['compound'] not in exclusions
+                                or exclusions[row['compound']]['category']=='global_equivalent')
+
+    def test_exclusions_file_is_reviewed_and_complete(self):
+        policy=f.support_module('coverage_policy')
+        exclusions=policy.load_exclusions(f.ROOT/'config/exclusions.yaml')
+        self.assertEqual({e['category'] for e in exclusions.values()},set(policy.EXCLUSION_CATEGORIES))
+        self.assertEqual(exclusions['ocean.ficeberg.tavg-ol-hxy-sea.3hr.glb']['category'],'dropped_by_jan')
+        for compound in ('ocean.ficeberg.tavg-ol-hxy-sea.mon.glb','seaIce.sistressave.tpt-u-hxy-si.mon.glb'):
+            self.assertNotIn(compound,exclusions)
+        with tempfile.TemporaryDirectory() as directory:
+            bad=Path(directory)/'exclusions.yaml'
+            bad.write_text('schema_version: 1\nexclusions:\n  a.b.c.mon.glb: {category: unclear, reason: x}\n')
+            with self.assertRaisesRegex(ValueError,'known category'):
+                policy.load_exclusions(bad)
+            bad.write_text('schema_version: 1\nexclusions:\n  a.b.c.mon.glb: {category: not_simulated, reason: " "}\n')
+            with self.assertRaisesRegex(ValueError,'reason'):
+                policy.load_exclusions(bad)
+
+    def test_global_equivalent_exclusion_needs_the_ready_global_product(self):
+        policy=f.support_module('coverage_policy')
+        exclusions={'a.x.t.mon.30S-90S':dict(category='global_equivalent',reason='global a.x.t.mon.glb'),
+                    'a.y.t.mon.glb':dict(category='output_gap',reason='needs code')}
+        self.assertEqual(policy.unmapped_reason('a.x.t.mon.30S-90S',exclusions),(None,policy.UNMAPPED))
+        self.assertEqual(policy.unmapped_reason('a.y.t.mon.glb',exclusions),('output_gap','EXCLUDED_OUTPUT_GAP: needs code'))
+        self.assertEqual(policy.unmapped_reason('a.z.t.mon.glb',exclusions),(None,policy.UNMAPPED))
+
+    def test_report_counts_unmapped_without_reason_and_selection(self):
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d)
+            f.write(base/'coverage.json',[
+                dict(compound='a.x.t.mon.glb',year=2595,status='BLOCKED',reason='UNMAPPED: no implemented rule',selection=True),
+                dict(compound='a.x.t.mon.glb',year=2596,status='BLOCKED',reason='UNMAPPED: no implemented rule',selection=True),
+                dict(compound='a.y.t.mon.glb',year=2595,status='BLOCKED',reason='EXCLUDED_NOT_SIMULATED: no',
+                     exclusion='not_simulated',selection=False),
+                dict(compound='a.z.t.mon.glb',year=2595,status='BLOCKED',reason='MISSING_INPUT: x',selection=True)])
+            self.assertEqual(f.report(base),3)
+            summary=f.read(base/'report/summary.json')
+            self.assertEqual(summary['unmapped_without_reason'],1)
+            self.assertEqual(summary['unmapped_without_reason_products'],['a.x.t.mon.glb'])
+            self.assertEqual(summary['selected_products'],2)
+            self.assertEqual(summary['excluded_products'],{'not_simulated':1})
+            self.assertIn('UNMAPPED without a reviewed reason (config/exclusions.yaml): 1 products',
+                          (base/'report/STATUS.txt').read_text())
+            with (base/'report/products.csv').open() as stream:
+                self.assertIn('selection',stream.readline())
+
     def test_full_catalog_not_profile_subset(self):
         files=list((REPO/'awi-esm3-lr-variables').glob('*/cmip7xml*.yaml'))
         compounds={r['compound_name'] for p in files for r in yaml.safe_load(p.read_text())['rules']}

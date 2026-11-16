@@ -28,3 +28,34 @@ def regional_global_alternative(compound, year, metadata, candidates):
                for r in candidates.get((global_compound, year), [])):
         return None
     return global_compound
+
+
+UNMAPPED = 'UNMAPPED: no implemented rule'
+EXCLUSION_CATEGORIES = ('not_simulated', 'recom_configuration', 'global_equivalent',
+                        'dropped_by_jan', 'not_requested', 'output_gap')
+
+
+def load_exclusions(path):
+    """Reviewed reasons for products without a rule (config/exclusions.yaml)."""
+    import yaml
+    document = yaml.safe_load(open(path))
+    if document.get('schema_version') != 1 or not isinstance(document.get('exclusions'), dict):
+        raise ValueError(f'Unsupported exclusions file: {path}')
+    for compound, entry in document['exclusions'].items():
+        if (not isinstance(entry, dict) or entry.get('category') not in EXCLUSION_CATEGORIES
+                or not str(entry.get('reason', '')).strip()):
+            raise ValueError(f'EXCLUSIONS: {compound} needs a known category and a reason')
+    return document['exclusions']
+
+
+def unmapped_reason(compound, exclusions):
+    """Category and reviewed reason replacing the bare UNMAPPED reason, if any.
+
+    A global_equivalent entry holds only while the global product is READY,
+    which the planner reports itself (GLOBAL_EQUIVALENT_PLANNED). Without that
+    the regional product is a real gap and stays UNMAPPED.
+    """
+    entry = exclusions.get(compound)
+    if entry is None or entry['category'] == 'global_equivalent':
+        return None, UNMAPPED
+    return entry['category'], f"EXCLUDED_{entry['category'].upper()}: {entry['reason']}"
