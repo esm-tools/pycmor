@@ -651,6 +651,7 @@ def build_catalog(config, experiment, period, identity, campaign):
     vector['steps'].insert(1, f'script://{repo}/examples/custom_steps.py:rotate_vector_to_geographic')
     raw.PROFILE['pipelines'].append(vector)
     raw.register_daily_pipelines(raw.PROFILE, campaign)
+    raw.register_derived_pipelines(raw.PROFILE, campaign)
     iceberg.install_pipeline(raw.PROFILE, campaign/'reproduce')
     for year in years:
         print(f'Planning full catalog: {year}', flush=True)

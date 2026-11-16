@@ -24,11 +24,14 @@ import yaml
 CARBON_CONTEXT = {}
 ARCHIVED_FILES = {}
 GEOTHERMAL_CONTEXT = None
+MODEL_LEVEL_TABLE = None
 
 
 def configure(root, repo, experiment, period, config):
     global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT, ARCHIVED_FILES, GEOTHERMAL_CONTEXT, VERIFIED_FESOM_SHA256
+    global MODEL_LEVEL_TABLE
     ROOT, REPO, EXP, PERIOD = Path(root), Path(repo), Path(experiment), period
+    MODEL_LEVEL_TABLE = config.get('model_level_table')
     YEARS = list(range(int(period[:4]), int(period[9:13]) + 1))
     META = json.loads(Path(config['metadata']).read_text())['Compound Name']
     PROFILE = yaml.safe_load((REPO/'awi-esm3-lr-variables/profile.yaml').read_text())
@@ -229,6 +232,45 @@ def register_daily_pipelines(profile, campaign):
         profile['pipelines'].append(pipe)
 
 
+def register_derived_pipelines(profile, campaign):
+    """Depth selection, column integrals, monthly means of daily streams and
+    OpenIFS model levels; call after register_daily_pipelines."""
+    existing = {p['name'] for p in profile['pipelines']}
+    extra = f'script://{campaign}/reproduce/extra_steps.py:'
+    transform = 'pycmor.awiesm3_lr.transform'
+    save = 'pycmor.std_lib.files.save_dataset'
+    def derive(base, name, edit):
+        if name in existing:
+            return
+        pipe = copy.deepcopy(next(p for p in profile['pipelines'] if p['name'] == base))
+        pipe['name'] = name
+        edit(pipe['steps'])
+        profile['pipelines'].append(pipe)
+    def replace_or_insert(step):
+        def edit(steps):
+            if transform in steps:
+                steps[steps.index(transform)] = extra + step
+            else:
+                steps.insert(2, extra + step)
+        return edit
+    derive('lr_monthly', 'lr_target_depth', replace_or_insert('transform_and_target_depth'))
+    derive('lr_daily', 'lr_daily_target_depth', replace_or_insert('transform_and_target_depth'))
+    derive('lr_daily_linear', 'lr_daily_target_depth_linear', replace_or_insert('target_depth_only'))
+    def integral(steps):
+        steps.insert(2, extra + 'vertical_integral')
+        steps.insert(steps.index(save), f'script://{REPO}/examples/custom_steps.py:select_southern_hemisphere')
+    derive('lr_linear', 'lr_south30_integral', integral)
+    def daily_mean(steps):
+        steps[steps.index('pycmor.awiesm3_lr.load_monthly')] = 'pycmor.awiesm3_lr.load_daily'
+        steps.insert(1, extra + 'daily_to_monthly_mean')
+    derive('lr_monthly', 'lr_daily_to_monthly', daily_mean)
+    def model_levels(steps):
+        steps.insert(steps.index('pycmor.std_lib.dimensions.map_dimensions') + 1,
+                     f'script://{REPO}/examples/custom_steps.py:add_hybrid_sigma_coordinate')
+    derive('lr_monthly', 'lr_model_levels', model_levels)
+    derive('lr_monthly', 'lr_lowest_model_level', replace_or_insert('transform_and_lowest_level'))
+
+
 def verify_recom_production(rule):
     """Bind net N/Fe production to this leg's actual namelist, not assumptions."""
     kind = rule.get('lr_recom_production')
@@ -245,13 +287,29 @@ def verify_recom_production(rule):
         if len(values) != 1:
             raise ValueError(f'Require one explicit {key} in {path}')
         return values[0].lower()
-    if scalar('enable_coccos') != '.false.':
-        raise ValueError('NNAn+NNAd is complete only when enable_coccos=.false.')
     def number(key):
         value = float(scalar(key).replace('d','e'))
         if not np.isfinite(value):
             raise ValueError(f'Nonfinite REcoM parameter {key}')
         return value
+    if kind == 'fe2n_ratio':
+        # Particulate iron is not a tracer: organic Fe is fe2n * organic N
+        # (micromol Fe per mmol N). Terms carry their own unit factor.
+        fe2n = number('fe2n')
+        if fe2n < 0:
+            raise ValueError('REcoM fe2n must be nonnegative')
+        for term in rule['lr_terms']:
+            factor = term.pop('fe2n_factor', None)
+            if factor is not None:
+                term['coefficient'] = fe2n * factor
+        evidence = {'fe2n_umolFe_per_mmolN': fe2n}
+        rule['lr_recom_parameter_evidence'] = evidence
+        rule['lr_auxiliary_files'] = list(rule.get('lr_auxiliary_files', [])) + [str(path)]
+        rule['comment'] = (rule.get('comment','') + ' Actual leg namelist verified: ' +
+                           json.dumps(evidence, sort_keys=True)).strip()
+        return
+    if scalar('enable_coccos') != '.false.':
+        raise ValueError('NNAn+NNAd is complete only when enable_coccos=.false.')
     # The reviewed vertNNAd diagnostic uses lossN while biological update
     # uses lossN_d. These must coincide before reporting it as production.
     lossn, lossn_d = number('lossn'), number('lossn_d')
@@ -277,7 +335,9 @@ def verify_recom_production(rule):
 def materialize(rule, gridpaths):
     rule=copy.deepcopy(rule)
     verify_recom_production(rule)
-    check_time = check_days if rule['compound_name'].split('.')[-2] == 'day' else check_months
+    # A monthly product may be averaged from a daily stream (lr_source_frequency).
+    source_frequency = rule.get('lr_source_frequency', rule['compound_name'].split('.')[-2])
+    check_time = check_days if source_frequency == 'day' else check_months
     group=rule.pop('lr_group','recom')
     key=rule.pop('lr_grid_key',None)
     if key:
@@ -293,15 +353,42 @@ def materialize(rule, gridpaths):
         selector['pattern']=raw_input_pattern(selector['component'],selector['pattern'])
         paths=inputs(selector['component'],selector['pattern'])
         if not paths:
-            raise ValueError('Missing source: '+selector['pattern'])
+            raise ValueError(f'MISSING_INPUT: Missing source: {selector["component"]}/{selector["pattern"]}')
         if selector['component']!='lpj_guess':
             check_time(paths,rule['model_variable'],rule.get('expected_units'))
         for term in rule.get('lr_terms',[]):
             component=term.pop('component','oifs')
             pattern=raw_input_pattern(component,term.pop('pattern'))
             terms=inputs(component,pattern)
+            if not terms:
+                raise ValueError(f'MISSING_INPUT: {term["variable"]}: {component}/{pattern}')
             check_time(terms,term['variable'],term['units'])
             term['files']=list(map(str,terms))
+        if rule.get('lr_thickness'):
+            # Layer thickness of the same months for vertical integrals.
+            thickness=rule.pop('lr_thickness')
+            component,pattern=thickness['component'],thickness['pattern']
+            files=inputs(component,pattern)
+            if not files:
+                raise ValueError(f'MISSING_INPUT: {thickness["variable"]}: {component}/{pattern}')
+            check_months(files,thickness['variable'],thickness['units'])
+            rule.update(lr_thickness_files=list(map(str,files)),lr_thickness_variable=thickness['variable'],
+                        lr_thickness_units=thickness['units'])
+            rule['lr_auxiliary_files']=list(rule.get('lr_auxiliary_files',[]))+list(map(str,files))
+        if rule.get('lr_hybrid_levels'):
+            # Same formula terms as the catalogue model-level rules: the
+            # configured vtable and the 6-hourly surface pressure of this leg.
+            if not MODEL_LEVEL_TABLE or not Path(MODEL_LEVEL_TABLE).is_file():
+                raise ValueError('MISSING_MODEL_LEVEL_TABLE: configure model_level_table for the LR vertical grid')
+            ps=rule.pop('lr_ps_input')
+            files=inputs(ps['component'],ps['pattern'])
+            if not files:
+                raise ValueError(f'MISSING_INPUT: {ps["variable"]}: {ps["component"]}/{ps["pattern"]}')
+            table=str(Path(MODEL_LEVEL_TABLE).resolve())
+            rule.update(oifs_vtable=table,model_level_table_file=table,ps_variable=ps['variable'],
+                        ps_path=str(files[0].parent),
+                        ps_pattern='(?:'+'|'.join(re.escape(p.name) for p in files)+')')
+            rule['lr_auxiliary_files']=list(rule.get('lr_auxiliary_files',[]))+[table]+list(map(str,files))
         rule['lr_source_files']=list(map(str,paths))
     if rule.get('lr_lpj_daily'):
         footprint=inputs('lpj_guess',rule['lr_lpj_footprint_pattern'])
