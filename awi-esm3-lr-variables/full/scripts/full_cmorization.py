@@ -27,6 +27,10 @@ import subprocess
 import sys
 import traceback
 
+for _thread_setting in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+                        'NUMBA_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+    os.environ[_thread_setting] = '1'
+
 import netCDF4
 import numpy as np
 import yaml
@@ -82,7 +86,8 @@ def load_config(path):
         raise ValueError(f'Missing configuration settings: {sorted(missing)}')
     for key in ('repo', 'python', *sorted(required), 'experiment',
                 'model_level_table', 'basin_mask_file', 'hr_reference_manifest',
-                'cmip7_tables_path', 'aicc_grid_config', 'aicc_vertical_config', 'source_audit_report'):
+                'cmip7_tables_path', 'aicc_grid_config', 'aicc_vertical_config', 'source_audit_report',
+                'data_request_file', 'field_capacity_context'):
         if config.get(key):
             value = Path(os.path.expandvars(config[key])).expanduser()
             # Resolving a venv's python symlink would bypass that environment.
@@ -90,6 +95,11 @@ def load_config(path):
                            else str((path.parent / value).resolve()))
     if Path(config['repo']) != REPO:
         raise ValueError('repo must identify the checkout containing this launcher')
+    config['archived_contexts'] = {leg: str((path.parent / Path(os.path.expandvars(value)).expanduser()).resolve())
+                                   for leg, value in config.get('archived_contexts', {}).items()}
+    if config.get('geothermal_context'):
+        evidence = Path(os.path.expandvars(config['geothermal_context']['evidence_file'])).expanduser()
+        config['geothermal_context']['evidence_file'] = str((path.parent / evidence).resolve())
     output = Path(config['results'])
     if output == REPO or REPO in output.parents or output in REPO.parents:
         raise ValueError('results must be outside the source repository and not its ancestor')
@@ -201,14 +211,18 @@ def identify(experiment, period, config):
     """Reject a different grid, not just a similar experiment directory name."""
     work = experiment/f'run_{period}'/'work'
     gridlist = work/'ece_gridlist_TCO95.txt'
-    if not gridlist.is_file():
+    archived = support_module('archived_context').load_context(experiment, period, config)
+    if not gridlist.is_file() and archived is None:
         raise ValueError(f'Missing staged TCO95 gridlist: {gridlist}; no guessed grid')
-    with netCDF4.Dataset(work/'grids.nc') as ds:
-        if 'TCO95-land.lon' not in ds.variables:
-            raise ValueError('This command supports TCO95-land / CORE3, not HR or another mask')
+    if archived is None:
+        with netCDF4.Dataset(work/'grids.nc') as ds:
+            if 'TCO95-land.lon' not in ds.variables:
+                raise ValueError('This command supports TCO95-land / CORE3, not HR or another mask')
     frame = config['vector_frame']
     binary = experiment/'bin/fesom/lib/fesom/libfesom.so'
     sha = digest(binary) if binary.is_file() else None
+    if archived is not None:
+        sha = archived['identity']['fesom_sha256']
     if frame == 'auto':
         frame = 'rotated' if sha in config['known_rotated_fesom_sha256'] else 'unknown'
     if frame not in ('rotated', 'geographic', 'unknown'):
@@ -218,10 +232,18 @@ def identify(experiment, period, config):
     files = list((experiment/'outdata/fesom').glob(f'temp.fesom.{year}.nc'))
     if not files:
         raise ValueError('No FESOM temp file to verify CORE3 grid')
+    temperature = 'unknown'
     with netCDF4.Dataset(files[0]) as ds:
         if 220509 not in ds['temp'].shape:
             raise ValueError('FESOM data is not on the audited 220509-node CORE3 mesh')
-    return dict(grid='TCO95-land / CORE3', vector_frame=frame, fesom_sha256=sha)
+        description = ' '.join(str(getattr(ds['temp'], k, '')).lower()
+                               for k in ('long_name', 'standard_name'))
+        if 'potential temperature' in description or 'sea_water_potential_temperature' in description:
+            temperature = 'potential'
+        elif 'conservative temperature' in description or 'sea_water_conservative_temperature' in description:
+            temperature = 'conservative'
+    return dict(grid='TCO95-land / CORE3', vector_frame=frame, fesom_sha256=sha,
+                ocean_temperature=temperature)
 
 
 def remap_strings(value, replacements):
@@ -469,8 +491,11 @@ def new_doc(doc, config, year, compound):
                    qc_enabled=True, qc_tests=['cf','wcrp_cmip7'], qc_ignore_codes=[],
                    qc_checker_options=[], qc_fail_on_mandatory=False,
                    qc_fail_on_checker_error=True,
+                   preserve_native_small_values=True,
+                   duration_weighted_annual_mean=True,
                    netcdf_write_scheduler='synchronous',
                    comment='Test CMORization; actual simulation years retained. Not publication approved.')
+    inherit['qc_binary'] = str(Path(support_module('checker_compat').__file__).with_name('cchecker_lr.py'))
     inherit.update(config.get('metadata_overrides', {}))
     inherit['qc_tests'] = config.get('qc_tests', ['cf', 'wcrp_cmip7'])
     if 'aicc' in inherit['qc_tests']:
@@ -499,7 +524,12 @@ def build_catalog(config, experiment, period, identity, campaign):
     repo = Path(config['repo'])
     rep = module(repo/'examples/repoint_hr_year.py', 'full_repointer')
     raw = module(RULES/'raw_adapter.py', 'full_raw_rules')
-    raw.configure(campaign, repo, experiment, period, config)
+    archived = support_module('archived_context').load_context(experiment, period, config)
+    raw_config = dict(config)
+    raw_config['_verified_fesom_sha256'] = identity.get('fesom_sha256')
+    if archived is not None:
+        raw_config['_archived_files'] = {k:v['path'] for k,v in archived['files'].items()}
+    raw.configure(campaign, repo, experiment, period, raw_config)
     # Index each archive once, rather than stat'ing decades of files per rule.
     source_index={c:sorted((experiment/'outdata'/c).glob('*.nc')) for c in ('oifs','fesom')}
     source_index['lpj_guess']=sorted((experiment/'outdata/lpj_guess'/period).glob('*.out'))
@@ -528,6 +558,8 @@ def build_catalog(config, experiment, period, identity, campaign):
     # existing pycmor expansion/bounds code the ACTUAL OASIS geometry, not
     # an absent XIOS orography file or a fabricated regular grid.
     full_grid=campaign/'grids/full_TCO95_grid.nc'
+    if not full_grid.exists() and archived is not None:
+        shutil.copy2(archived['files']['full_TCO95_grid.nc']['path'], full_grid)
     if not full_grid.exists():
         import xarray as xr
         with netCDF4.Dataset(experiment/f'run_{period}'/'work/grids.nc') as g:
@@ -550,7 +582,17 @@ def build_catalog(config, experiment, period, identity, campaign):
     raw_rules = []
     for file in raw.PROFILE['tier_files']:
         raw_rules += yaml.safe_load((repo/'awi-esm3-lr-variables'/file).read_text())['rules']
-    raw_rules += list(raw.recom_rules()) + list(raw.co2_rules())
+    raw_rules += (list(raw.recom_rules()) + list(raw.co2_rules()) +
+                  list(raw.daily_land_rules()) + list(raw.ocean_fixed_rules()))
+    native_daily = copy.deepcopy(next(p for p in raw.PROFILE['pipelines'] if p['name']=='lr_lpj'))
+    native_daily['name'] = 'lr_lpj_daily'
+    native_daily['steps'] = [s for s in native_daily['steps'] if s!='pycmor.awiesm3_lr.monthly_time']
+    native_daily['steps'][0] = f'script://{RULES / "lpj_daily.py"}:load_native_daily'
+    raw.PROFILE['pipelines'].append(native_daily)
+    geothermal = copy.deepcopy(next(p for p in raw.PROFILE['pipelines'] if p['name']=='lr_fx'))
+    geothermal['name']='lr_geothermal_zero'
+    geothermal['steps'][0]=f'script://{RULES / "geothermal.py"}:load_zero_boundary'
+    raw.PROFILE['pipelines'].append(geothermal)
     iceberg = support_module('iceberg_support')
     raw_rules += list(iceberg.rules(RULES))
     candidates = defaultdict(list)
@@ -574,6 +616,10 @@ def build_catalog(config, experiment, period, identity, campaign):
                 compound = row.get('cmip7_compound_name')
                 if compound:
                     scope.add(compound)
+    if config.get('data_request_file'):
+        requested, _ = support_module('data_request_coverage').load_request(
+            config['data_request_file'], config.get('data_request_experiment', 'piControl'), metadata)
+        scope.update(requested)
     # HR rotation-aware pipelines are the audited equivalents of the LR rules.
     vectors = {}
     for p in (repo/'awi-esm3-veg-hr-variables').glob('*/cmip7_awiesm3-veg-hr*.yaml'):
@@ -652,6 +698,7 @@ def build_catalog(config, experiment, period, identity, campaign):
                             lp = {p['name']:p for p in one.get('pipelines',[])}
                             lp.update({n:hp[n] for n in r['pipelines'] if n in hp})
                             one['pipelines'] = remap_strings(list(lp.values()),replacements)
+                    one = support_module('scientific_review').review_document(one, dict(identity,period=period), config)
                     one = new_doc(one,config,year,compound)
                     support_module('grid_auxiliary').configure_grid_auxiliaries(one, config)
                     # No template's Levante experiment/grid path may survive.
@@ -700,6 +747,7 @@ def build_catalog(config, experiment, period, identity, campaign):
                 doc = {'general': {'name': 'full-lr', 'cmor_version':'CMIP7','mip':'CMIP'},
                        'inherit':dict(raw.PROFILE['defaults']), 'rules':[r],
                        'pipelines': [copy.deepcopy(p) for p in raw.PROFILE['pipelines'] if p['name'] in r['pipelines']]}
+                doc = support_module('scientific_review').review_document(doc, dict(identity,period=period), config)
                 doc = new_doc(doc,config,year,compound)
                 # Raw adapters use the same physical grids as the XML routes.
                 # A global LPJG land subset must be expanded onto full TCO95.
@@ -732,6 +780,12 @@ def build_catalog(config, experiment, period, identity, campaign):
         for year in task_years:
             routes = candidates.get((compound,year),[])
             good = next((r for r in routes if r['status']=='READY'),None)
+            exclusion = (support_module('data_request_coverage').conditional_exclusion(
+                compound, metadata, identity, config) if config.get('data_request_file') else None)
+            if exclusion:
+                rows.append(dict(compound=compound, year=year, status='NOT_APPLICABLE',
+                                 reason=exclusion, alternatives=[]))
+                continue
             row = dict(compound=compound,year=year, status='READY' if good else 'BLOCKED',
                        reason='' if good else ' | '.join(dict.fromkeys(r['reason'] for r in routes)) or 'UNMAPPED: no implemented rule',
                        alternatives=[{k:v for k,v in r.items() if k not in ('doc','inputs')} for r in routes])
@@ -783,8 +837,22 @@ def plan(args, config):
     with (campaign/'.plan.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         metadata_paths = [Path(config['metadata']), *sorted(Path(config['cv_dir']).rglob('*.json'))]
+        archived = support_module('archived_context').load_context(experiment, period, config)
+        if archived is not None:
+            metadata_paths.extend([Path(archived['context_path']), Path(archived['original_plan'])])
+            metadata_paths.extend(Path(v['path']) for v in archived['files'].values())
         if config.get('hr_reference_manifest'):
             metadata_paths.append(Path(config['hr_reference_manifest']))
+        if config.get('data_request_file'):
+            metadata_paths.append(Path(config['data_request_file']))
+        if config.get('field_capacity_context'):
+            context=Path(config['field_capacity_context'])
+            evidence=read(context)
+            metadata_paths.extend([context,Path(evidence['source_file']),Path(evidence['log_prefix_file'])])
+        if config.get('geothermal_context'):
+            evidence = Path(config['geothermal_context']['evidence_file'])
+            metadata_paths.append(evidence)
+            metadata_paths.extend(Path(v['path']) for v in read(evidence)['source_files'])
         if config.get('source_audit_report'):
             audit = read(config['source_audit_report'])
             if audit.get('leg') != period or Path(audit.get('experiment', '')) != experiment:
@@ -1019,6 +1087,13 @@ def report(campaign):
             r['status']=info.get('status','PENDING')
             r['reason']=info.get('error','')
             r['output']=info.get('data_directory',info.get('output',''))
+            if r['status']=='PASS':
+                try:
+                    validation=info['validation']
+                    if not validation['files'] or file_state(validation['files'])!=validation['output_state']:
+                        raise ValueError('Validated output is missing or changed')
+                except (KeyError, OSError, ValueError) as error:
+                    r.update(status='FAILED',reason=f'Output verification: {error}')
     target=campaign/'report';target.mkdir(exist_ok=True)
     fields=['compound','year','window_start','window_end','status','reason','route','tier','output',
             'equivalent_compound','equivalent_status']
@@ -1051,36 +1126,53 @@ def report(campaign):
         realm_counts[realm] = dict(
             requested_products=len(products),
             variable_names=len({c.split('.')[1] if '.' in c else c for c in products}),
-            products_with_ready_tasks=sum(any(r['status'] != 'BLOCKED' for r in rr) for rr in products.values()),
+            products_with_ready_tasks=sum(any(r['status'] in ('PASS','PENDING','FAILED') for r in rr) for rr in products.values()),
             wholly_blocked_products=sum(all(r['status'] == 'BLOCKED' for r in rr) for rr in products.values()),
             complete_products=sum(all(r['status'] == 'PASS' for r in rr) for rr in products.values()),
             products_with_failures=sum(any(r['status'] == 'FAILED' for r in rr) for rr in products.values()))
     validated_files = set()
+    passed_keys={r.get('key') for r in rows if r['status']=='PASS'}
     for path in (campaign/'status').glob('*.json'):
         record = read(path)
-        if record.get('status') == 'PASS':
+        if record.get('status') == 'PASS' and record.get('key') in passed_keys:
             validated_files.update(record.get('validation', {}).get('files', []))
+    conversion_state=('FAILED' if counts.get('FAILED') else 'PENDING' if counts.get('PENDING')
+                      else 'COMPLETE' if counts.get('PASS') else 'NO_EXECUTABLE_TASKS')
     write(target/'summary.json',dict(status=state,counts=dict(counts),updated=stamp(),
+          conversion_status=conversion_state,requested_scope_status=state,
           realms=realm_counts,validated_physical_netcdf_files=len(validated_files),
           distinct_products=len(inventory),
           distinct_variable_names=len({k.split('.')[1] if '.' in k else k for k in inventory}),
           counts_unit='annual/fixed/decadal task records, not variable names or NetCDF files',
           publication_ready=False,qc='Requested checker reports required per file; findings retained; metadata not approved'))
-    (target/'STATUS.txt').write_text(f"{state}\n{dict(counts)}\nAll-catalog scope; no category excluded.\n"
+    (target/'STATUS.txt').write_text(f"Requested scope: {state}\nConversion tasks: {conversion_state}\n{dict(counts)}\nAll-catalog scope; no category excluded.\n"
         'BLOCKED is not success. See products.csv for every missing input, unmapped rule and deferred decade.\n'
         'PASS means conversion and stated checks, not publication QC. Full-catalog scientific value audits remain necessary.\n'
         'No raw model output may be deleted based on this status.\n')
     if (campaign/'plan.json').is_file():
         config = read(campaign/'plan.json')['signature']['config']
         support_module('hr_reference').write_report(campaign, config, rows)
+        support_module('data_request_coverage').write_report(campaign, config, rows)
+        if config.get('scientific_profile'):
+            support_module('scientific_review').write_report(campaign, rows)
     print(state,dict(counts),str(target/'products.csv'),flush=True)
-    return 0 if state=='COMPLETE' else (1 if counts.get('FAILED') or counts.get('PENDING') else 3)
+    return 0 if conversion_state=='COMPLETE' else (1 if counts.get('FAILED') or counts.get('PENDING') else 3)
 
 
 def batch(config, command, logfile, name, extra=()):
     account = os.environ.get('ESM_ACCOUNT') or config.get('account')
     if not account or not config.get('partition'):
         raise ValueError('Set account (or ESM_ACCOUNT) and partition in the site configuration before submission')
+    environment={key:'1' for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS',
+                                    'NUMBA_NUM_THREADS','NUMEXPR_NUM_THREADS')}
+    if config.get('repo'):
+        environment['PYTHONPATH']=str(Path(config['repo'])/'src')+':'+str(Path(config['repo'])/'awi-esm3-lr-variables/full/scripts')
+    native=config.get('native_io',{})
+    if native:
+        environment['HDF5_PLUGIN_PATH']=native['plugin_path']
+        environment['LD_LIBRARY_PATH']=':'.join([str(Path(native['hdf5_prefix'])/'lib'),
+            str(Path(native['netcdf_prefix'])/'lib'),os.environ.get('LD_LIBRARY_PATH','')])
+    command=shlex.join(['env',*[f'{k}={v}' for k,v in environment.items()]])+' '+command
     argv=['sbatch','--parsable',f"--account={os.environ.get('ESM_ACCOUNT') or config['account']}",
           f"--partition={config['partition']}",
           '--nodes=1','--ntasks=1','--cpus-per-task=1',f"--mem={config['memory']}",

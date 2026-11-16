@@ -29,6 +29,7 @@ _IGNORED_CELL_METHODS : list
 
 import re
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -181,6 +182,17 @@ def _frequency_from_approx_interval(interval: str):
     if second:
         result.append(f"{second}s")
     return "".join(result)
+
+
+def _duration_weighted_time_mean(da, frequency_str, **resample_kw):
+    """Integrate complete monthly means over actual calendar durations."""
+    weights=da.time.dt.days_in_month.astype('float64')
+    numerator=(da*weights).resample(time=frequency_str).sum(skipna=True,min_count=1,**resample_kw)
+    denominator=weights.where(da.notnull()).resample(time=frequency_str).sum(skipna=True,**resample_kw)
+    result=numerator/denominator.where(denominator>0)
+    result.attrs=dict(da.attrs)
+    result.name=da.name
+    return result
 
 
 def timeavg(da: xr.DataArray, rule):
@@ -467,7 +479,15 @@ def _timeavg_impl(da: xr.DataArray, rule):
         if _off:
             ds = ds.assign_coords(time=ds.time + pd.to_timedelta(float(approx_interval) * _off, unit="D"))
     elif time_method == "MEAN":
-        ds = da.resample(time=frequency_str).mean(**_resample_kw)
+        year_target = str(frequency_str).lstrip('0123456789').upper().startswith(('Y','A'))
+        month_index = np.asarray(da.time.dt.year.values)*12 + np.asarray(da.time.dt.month.values)
+        monthly_input = len(month_index)>1 and np.all(np.diff(month_index)==1)
+        if rule.get('duration_weighted_annual_mean',False) and year_target and monthly_input:
+            # Each monthly mean represents its actual calendar duration.
+            # A masked cell contributes neither value nor duration.
+            ds=_duration_weighted_time_mean(da,frequency_str,**_resample_kw)
+        else:
+            ds = da.resample(time=frequency_str).mean(**_resample_kw)
         # CMIP spec: time coordinate of MEAN-averaged data sits at the midpoint
         # of its averaging interval. Default to "mid" unless user overrides.
         offset = rule.get("adjust_timestamp", "mid")

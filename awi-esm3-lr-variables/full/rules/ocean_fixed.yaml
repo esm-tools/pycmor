@@ -1,0 +1,18 @@
+schema_version: 1
+description: Explicit reviewed model-imposed ocean boundary fields; no guessed constants.
+defaults:
+  time_dimname: time
+  lr_grid_key: core3
+  lr_group: ocean
+  grid_label: gn
+  pipelines: [lr_fx]
+rules:
+- name: hfgeou_zero_model_boundary
+  compound_name: ocean.hfgeou.ti-u-hxy-sea.fx.glb
+  model_variable: hfgeou
+  source_units: W m-2
+  lr_units: W m-2
+  lr_geothermal_zero: true
+  lr_input:
+    component: fesom
+    pattern: unused_fixed_model_boundary

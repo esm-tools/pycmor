@@ -1,0 +1,73 @@
+schema_version: 1
+description: Native daily LPJG soil layers; original Year/Day records, including leap days.
+defaults:
+  time_dimname: time
+  lr_grid_key: lpj
+  lr_group: land
+  grid_label: gn
+  lr_lpj_daily: true
+  lr_lpj_footprint_pattern: lai_monthly\.out
+  lr_soil_layer_thickness_m: 0.1
+  pipelines: [lr_lpj_daily]
+rules:
+- name: mrsol_daily_native
+  compound_name: land.mrsol.tavg-sl-hxy-lnd.day.glb
+  model_variable: mrsol
+  source_units: kg m-2
+  lr_units: kg m-2
+  lr_input:
+    component: lpj_guess
+    pattern: mrsol_daily\.out
+- name: mrsll_daily_native
+  compound_name: land.mrsll.tavg-sl-hxy-lnd.day.glb
+  model_variable: mrsll
+  source_units: kg m-2
+  lr_units: kg m-2
+  lr_input:
+    component: lpj_guess
+    pattern: mrsll_daily\.out
+- name: tsl_daily_native
+  compound_name: land.tsl.tavg-sl-hxy-lnd.day.glb
+  model_variable: tsl
+  source_units: K
+  lr_units: K
+  lr_input:
+    component: lpj_guess
+    pattern: tsl_daily\.out
+- name: lai_daily_native
+  compound_name: land.lai.tavg-u-hxy-lnd.day.glb
+  model_variable: lai
+  source_units: '1'
+  lr_units: '1'
+  lr_input:
+    component: lpj_guess
+    pattern: lai_daily\.out
+- name: potential_evaporation_daily_native
+  compound_name: land.evspsblpot.tavg-u-hxy-lnd.day.glb
+  model_variable: evspsblpot
+  source_units: kg m-2 s-1
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: lpj_guess
+    pattern: evspsblpot_daily\.out
+# CMIPoutput.cpp includes below-pwp liquid water in mrsll. The difference
+# from mrsol is therefore precisely the represented frozen water mass.
+- name: frozen_soil_water_daily_native
+  compound_name: land.mrsfl.tavg-sl-hxy-lnd.day.glb
+  model_variable: mrsfl
+  source_units: kg m-2
+  lr_units: kg m-2
+  lr_soil_liquid_pattern: mrsll_daily\.out
+  lr_input:
+    component: lpj_guess
+    pattern: mrsol_daily\.out
+- name: frozen_soil_water_monthly_native
+  compound_name: land.mrsfl.tavg-sl-hxy-lnd.mon.glb
+  model_variable: mrsfl
+  source_units: kg m-2
+  lr_units: kg m-2
+  lr_soil_liquid_pattern: mrsll_daily\.out
+  lr_native_monthly_mean: true
+  lr_input:
+    component: lpj_guess
+    pattern: mrsol_daily\.out

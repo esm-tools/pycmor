@@ -22,10 +22,12 @@ import xarray as xr
 import yaml
 
 CARBON_CONTEXT = {}
+ARCHIVED_FILES = {}
+GEOTHERMAL_CONTEXT = None
 
 
 def configure(root, repo, experiment, period, config):
-    global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT
+    global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT, ARCHIVED_FILES, GEOTHERMAL_CONTEXT, VERIFIED_FESOM_SHA256
     ROOT, REPO, EXP, PERIOD = Path(root), Path(repo), Path(experiment), period
     YEARS = list(range(int(period[:4]), int(period[9:13]) + 1))
     META = json.loads(Path(config['metadata']).read_text())['Compound Name']
@@ -35,6 +37,9 @@ def configure(root, repo, experiment, period, config):
     if not isinstance(context, dict):
         raise ValueError('carbon_context must be a mapping of reviewed run-specific evidence')
     CARBON_CONTEXT = copy.deepcopy(context)
+    ARCHIVED_FILES = dict(config.get('_archived_files', {}))
+    GEOTHERMAL_CONTEXT = copy.deepcopy(config.get('geothermal_context'))
+    VERIFIED_FESOM_SHA256 = config.get('_verified_fesom_sha256')
 
 
 def dump(path, value):
@@ -45,6 +50,9 @@ def grids():
     target = ROOT/'grids'
     target.mkdir(exist_ok=True)
     core = target/'core3_grid.nc'
+    if not core.exists() and ARCHIVED_FILES.get('core3_grid.nc'):
+        import shutil
+        shutil.copy2(ARCHIVED_FILES['core3_grid.nc'], core)
     if not core.exists():
         # Pool mesh.nc contains an extra bottom centre. Use actual model layers
         # and interfaces from its diagnostic mesh, not extrapolated bounds.
@@ -55,6 +63,9 @@ def grids():
             mesh.attrs['provenance'] = 'CORE3 pool mesh geometry; exact 47 centres/48 interfaces from fesom.mesh.diag.nc'
             mesh.to_netcdf(core)
     land = target/'lpj_grid.nc'
+    if not land.exists() and ARCHIVED_FILES.get('lpj_grid.nc'):
+        import shutil
+        shutil.copy2(ARCHIVED_FILES['lpj_grid.nc'], land)
     if not land.exists():
         work = EXP/f'run_{PERIOD}'/'work'
         # Geometry can be prepared while the archive merge is queued. The
@@ -224,6 +235,8 @@ def verify_recom_production(rule):
     if not kind:
         return
     path = EXP / f'run_{PERIOD}' / 'config/fesom/namelist.recom'
+    if not path.is_file() and ARCHIVED_FILES.get('namelist.recom'):
+        path=Path(ARCHIVED_FILES['namelist.recom'])
     if not path.is_file():
         raise ValueError(f'Net REcoM production requires actual leg namelist: {path}')
     text = '\n'.join(line.split('!', 1)[0] for line in path.read_text().splitlines())
@@ -290,7 +303,32 @@ def materialize(rule, gridpaths):
             check_time(terms,term['variable'],term['units'])
             term['files']=list(map(str,terms))
         rule['lr_source_files']=list(map(str,paths))
+    if rule.get('lr_lpj_daily'):
+        footprint=inputs('lpj_guess',rule['lr_lpj_footprint_pattern'])
+        if not footprint:
+            raise ValueError('Native daily LPJG requires the actual modeled-cell footprint')
+        rule['lr_lpj_footprint_files']=list(map(str,footprint))
+        rule['lr_auxiliary_files']=list(rule.get('lr_auxiliary_files',[]))+list(map(str,footprint))
+        if rule.get('lr_soil_liquid_pattern'):
+            liquid=inputs('lpj_guess',rule['lr_soil_liquid_pattern'])
+            if not liquid:raise ValueError('Frozen soil water requires matching native liquid water')
+            rule['lr_soil_liquid_source_files']=list(map(str,liquid))
+            rule['lr_auxiliary_files']+=list(map(str,liquid))
     rule['inputs']=[{'path':str(p.parent),'pattern':re.escape(p.name)+'$'} for p in paths]
+    if rule.get('lr_geothermal_zero'):
+        if not GEOTHERMAL_CONTEXT or GEOTHERMAL_CONTEXT.get('binary_sha256')!=VERIFIED_FESOM_SHA256:
+            raise ValueError('UNREVIEWED_GEOTHERMAL: reviewed binary does not match this archived run')
+        import importlib.util
+        path=Path(__file__).with_name('geothermal.py')
+        # A directly frozen raw_adapter lives in reproduce/, while the complete
+        # rules tree is retained in its full_workflow snapshot.
+        if not path.is_file():path=Path(__file__).parent/'full_workflow/rules/geothermal.py'
+        spec=importlib.util.spec_from_file_location('_verified_geothermal',path)
+        geo=importlib.util.module_from_spec(spec);spec.loader.exec_module(geo)
+        evidence=geo.verify_context(GEOTHERMAL_CONTEXT)
+        rule.update(pipelines=['lr_geothermal_zero'],lr_geothermal_evidence_file=str(evidence),
+                    lr_geothermal_binary_sha256=GEOTHERMAL_CONTEXT['binary_sha256'])
+        rule['lr_auxiliary_files']=list(rule.get('lr_auxiliary_files',[]))+[str(evidence)]
     partners={'unod':('vnod','x'),'vnod':('unod','y'),'uice':('vice','x'),'vice':('uice','y')}
     if rule['model_variable'] in partners:
         partner,component=partners[rule['model_variable']]
@@ -377,4 +415,15 @@ def recom_rules():
 def co2_rules():
     """Existing coupling/tracer conversions; experiment eligibility is driver-owned."""
     _, rules = _carbon_rules('co2.yaml')
+    yield from rules
+
+
+def daily_land_rules():
+    """Native daily soil diagnostics; do not reuse remapped calendar mistakes."""
+    _, rules = _carbon_rules('land_daily.yaml')
+    yield from rules
+
+
+def ocean_fixed_rules():
+    _, rules = _carbon_rules('ocean_fixed.yaml')
     yield from rules

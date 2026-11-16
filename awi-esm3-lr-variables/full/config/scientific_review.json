@@ -1,0 +1,1562 @@
+{
+  "profile": "awiesm3-v3.5.1-cc-4e03ffb1",
+  "fesom_sha256": "4e03ffb141d6be8c2bb26251e13527cf82e3606de600a1d3d2759212a07a4d47",
+  "source_revision": "dbf28153575c284980153debaf9a1b70c2d57eba",
+  "limitations": "Run-specific review of archived mappings. Corrected factors do not certify independent approximation/review findings on the same products. Source revision comes from the contemporaneous audit, not an embedded compiler manifest.",
+  "findings": [
+    {
+      "id": "F01",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Convection fraction is read from sea-ice cover",
+      "detail": "The official request for atmos.ci is convection_time_fraction. The selected ci input is OpenIFS sea-ice area fraction; matching the short name and units does not match the physical quantity.",
+      "products": [
+        "atmos.ci.tavg-u-hxy-u.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "oifs-48r1/ifs-source/arpifs/module/yom_grib_codes.F90",
+          "line": 55,
+          "excerpt": "! NGRBCI   -  31 Sea ice cover"
+        },
+        {
+          "path": "AWI-ESM3-CC-LR-CMIP7-Spinup_v351_from2230/run_26200101-26241231/work/field_def.xml",
+          "line": 7,
+          "excerpt": "{\"id\": \"ci\", \"long_name\": \"sea-ice cover\", \"standard_name\": \"sea_ice_area_fraction\", \"unit\": \"1\"} "
+        }
+      ]
+    },
+    {
+      "id": "F02",
+      "verdict": "PRIOR_MAPPING_INVALID",
+      "title": "Groundwater definition excludes a fixed unsaturated-soil proxy",
+      "detail": "The official linked physical-parameter page defines groundwater as water below the water table. The old delta(swvl4*1.89*1000) integrates the entire fixed deepest soil layer. The current LR route is already blocked from the earlier repair; this audit made no rule change.",
+      "products": [
+        "land.dgw.tavg-u-hxy-lnd.day.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/surftstp_ctl_mod.F90",
+          "line": 844,
+          "excerpt": "!*         4.6     CONTRIBUTION OF BOTTOM DRAINAGE TO TOTAL RUNOFF."
+        },
+        {
+          "url": "https://cmip-data-request.github.io/cmip7-dreq-webview/v1.2.2.5/u/59148822-9e49-11e5-803c-0d0b866b59f3.html"
+        }
+      ]
+    },
+    {
+      "id": "F03",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Near-surface RH uses ice saturation at a liquid-water dew point",
+      "detail": "OpenIFS constructs PD2 using water-only saturation, including below freezing. compute_hurs applies an ice/water switch to Td as well as ambient T. The numerator therefore changes a water dew point into a frost-point interpretation. A bounded counterexample gives 63.58% versus 73.84% at T=-10 C, Td=-15 C, isolating this phase error.",
+      "products": [
+        "atmos.hurs.tavg-h2m-hxy-u.1hr.glb",
+        "atmos.hurs.tavg-h2m-hxy-u.6hr.glb",
+        "atmos.hurs.tavg-h2m-hxy-u.day.glb",
+        "atmos.hurs.tavg-h2m-hxy-u.mon.glb",
+        "atmos.hurs.tmax-h2m-hxy-u.day.glb",
+        "atmos.hurs.tmin-h2m-hxy-u.day.glb",
+        "atmos.hurs.tpt-h2m-hxy-u.3hr.glb"
+      ],
+      "action": "corrected_dewpoint_phase",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3654,
+          "function": "compute_hurs"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/sppcfls_mod.F90",
+          "line": 315,
+          "excerpt": "! Note the use of saturation with respect to water in conformance to WMO"
+        }
+      ]
+    },
+    {
+      "id": "F04",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Daily/monthly wind speed is the speed of averaged components",
+      "detail": "The selected inputs are daily or monthly means of 10u and 10v. sqrt(mean(u)^2+mean(v)^2) is not mean(sqrt(u^2+v^2)); opposing winds can yield zero despite positive mean speed. The hourly route is assessed separately because its native sampling is hourly.",
+      "products": [
+        "atmos.sfcWind.tavg-h10m-hxy-u.day.glb",
+        "atmos.sfcWind.tavg-h10m-hxy-u.mon.glb"
+      ],
+      "action": "hourly_components_before_speed_average",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3615,
+          "function": "compute_sfcwind"
+        }
+      ]
+    },
+    {
+      "id": "F05",
+      "verdict": "APPROXIMATION",
+      "title": "Nonlinear humidity is reconstructed after temporal averaging",
+      "detail": "RH and specific humidity derived from daily/monthly mean T, q, Td or pressure generally differ from means of the native instantaneous humidity diagnostic. The selected source header explicitly records daily/monthly means. This is additional to the hurs dew-point phase error. The reviewed near-surface hurs routes now compute humidity from hourly temperature/dewpoint before daily/monthly reduction. Sub-hour covariance remains unresolved; pressure-level hur and huss retain their separate reconstruction limitations.",
+      "products": [
+        "atmos.hur.tavg-p19-hxy-air.mon.glb",
+        "atmos.hur.tavg-p19-hxy-u.day.glb",
+        "atmos.hurs.tavg-h2m-hxy-u.day.glb",
+        "atmos.hurs.tavg-h2m-hxy-u.mon.glb",
+        "atmos.huss.tavg-h2m-hxy-u.day.glb",
+        "atmos.huss.tavg-h2m-hxy-u.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3686,
+          "function": "compute_hur_plev"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 3756,
+          "function": "compute_huss"
+        }
+      ]
+    },
+    {
+      "id": "F06",
+      "verdict": "APPROXIMATION",
+      "title": "Squared diagnostics omit variability already lost in daily means",
+      "detail": "The recipes square archived daily values and then average. This can form a mean square of daily representatives, but cannot recover the mean of native subdaily squares. SST is explicitly averaged from 1800 s samples. E[X^2] differs from E[X]^2 by the unresolved variance. For MLD/SSS/SSH the recorded sampling is only daily, so the exact lost subdaily variance is not established by this audit.",
+      "products": [
+        "ocean.mlotstsq.tavg-u-hxy-sea.mon.glb",
+        "ocean.sossq.tavg-u-hxy-sea.mon.glb",
+        "ocean.tossq.tavg-u-hxy-sea.day.glb",
+        "ocean.tossq.tavg-u-hxy-sea.mon.glb",
+        "ocean.zossq.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1717,
+          "function": "compute_square"
+        }
+      ]
+    },
+    {
+      "id": "F07",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Time with ice is replaced by thresholding an averaged concentration",
+      "detail": "The requested fraction of model time steps with ice is E[1(A>0)]. The code computes 1(E[A]>0) for each archived daily record and averages those booleans for monthly output. This does not recover within-day occupancy. For concentrations [0,0.8] it gives 1 instead of 0.5.",
+      "products": [
+        "seaIce.sitimefrac.tavg-u-hxy-sea.day.glb",
+        "seaIce.sitimefrac.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 715,
+          "function": "compute_sitimefrac"
+        }
+      ]
+    },
+    {
+      "id": "F08",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "A common clipping step changes real positive values and missing values",
+      "detail": "clip_small_negatives actually replaces both signs of values with abs(x)<=1e-10 by zero and also replaces NaN by zero. All 131 affected routes use the default threshold. Bounded samples found nonzero positive raw values in the erased band for 61 routes. These are observed source-value changes; significance must be assessed per quantity, not assumed from a universal threshold.",
+      "products": [
+        "land.baresoilFrac.tavg-u-hxy-u.mon.glb",
+        "land.burntFractionAll.tavg-u-hxy-u.mon.glb",
+        "land.cLand.tavg-u-hxy-lnd.mon.glb",
+        "land.cLeaf.tavg-u-hxy-lnd.mon.glb",
+        "land.cLitter.tavg-u-hxy-lnd.mon.glb",
+        "land.cLitterCwd.tavg-u-hxy-lnd.mon.glb",
+        "land.cLitterSubSurf.tavg-u-hxy-lnd.mon.glb",
+        "land.cLitterSurf.tavg-u-hxy-lnd.mon.glb",
+        "land.cOther.tavg-u-hxy-lnd.mon.glb",
+        "land.cProduct.tavg-u-hxy-lnd.mon.glb",
+        "land.cRoot.tavg-u-hxy-lnd.mon.glb",
+        "land.cSoil.tavg-u-hxy-lnd.mon.glb",
+        "land.cStem.tavg-u-hxy-lnd.mon.glb",
+        "land.cVeg.tavg-u-hxy-lnd.mon.glb",
+        "land.cVeg.tavg-u-hxy-ng.mon.glb",
+        "land.cVeg.tavg-u-hxy-shb.mon.glb",
+        "land.cVeg.tavg-u-hxy-tree.mon.glb",
+        "land.cnc.tavg-u-hxy-u.mon.glb",
+        "land.cropFrac.tavg-u-hxy-u.mon.glb",
+        "land.evspsblpot.tavg-u-hxy-lnd.mon.glb",
+        "land.fAnthDisturb.tavg-u-hxy-lnd.mon.glb",
+        "land.fBNF.tavg-u-hxy-lnd.mon.glb",
+        "land.fCLandToOcean.tavg-u-hxy-lnd.mon.glb",
+        "land.fDeforestToAtmos.tavg-u-hxy-lnd.mon.glb",
+        "land.fDeforestToProduct.tavg-u-hxy-lnd.mon.glb",
+        "land.fFire.tavg-u-hxy-lnd.mon.glb",
+        "land.fFireAll.tavg-u-hxy-lnd.mon.glb",
+        "land.fFireNat.tavg-u-hxy-lnd.mon.glb",
+        "land.fHarvestToAtmos.tavg-u-hxy-lnd.mon.glb",
+        "land.fHarvestToProduct.tavg-u-hxy-lnd.mon.glb",
+        "land.fLitterFire.tavg-u-hxy-lnd.mon.glb",
+        "land.fLitterSoil.tavg-u-hxy-lnd.mon.glb",
+        "land.fLuc.tavg-u-hxy-lnd.mon.glb",
+        "land.fLulccAtmLut.tavg-u-hxy-multi.mon.glb",
+        "land.fN2O.tavg-u-hxy-lnd.mon.glb",
+        "land.fNAnthDisturb.tavg-u-hxy-lnd.mon.glb",
+        "land.fNLandToOcean.tavg-u-hxy-lnd.mon.glb",
+        "land.fNLitterSoil.tavg-u-hxy-lnd.mon.glb",
+        "land.fNOx.tavg-u-hxy-lnd.mon.glb",
+        "land.fNProduct.tavg-u-hxy-lnd.mon.glb",
+        "land.fNVegLitter.tavg-u-hxy-lnd.mon.glb",
+        "land.fNdep.tavg-u-hxy-lnd.mon.glb",
+        "land.fNfert.tavg-u-hxy-lnd.mon.glb",
+        "land.fNgas.tavg-u-hxy-lnd.mon.glb",
+        "land.fNgasFire.tavg-u-hxy-lnd.mon.glb",
+        "land.fNgasNonFire.tavg-u-hxy-lnd.mon.glb",
+        "land.fNleach.tavg-u-hxy-lnd.mon.glb",
+        "land.fNloss.tavg-u-hxy-lnd.mon.glb",
+        "land.fNnetmin.tavg-u-hxy-lnd.mon.glb",
+        "land.fNup.tavg-u-hxy-lnd.mon.glb",
+        "land.fProductDecomp.tavg-u-hxy-lnd.mon.glb",
+        "land.fVegFire.tavg-u-hxy-lnd.mon.glb",
+        "land.fVegLitter.tavg-u-hxy-lnd.mon.glb",
+        "land.fVegLitterMortality.tavg-u-hxy-lnd.mon.glb",
+        "land.fVegLitterSenescence.tavg-u-hxy-lnd.mon.glb",
+        "land.fracLut.tpt-u-hxy-u.mon.glb",
+        "land.gpp.tavg-u-hxy-lnd.mon.glb",
+        "land.gpp.tavg-u-hxy-ng.mon.glb",
+        "land.gpp.tavg-u-hxy-shb.mon.glb",
+        "land.gpp.tavg-u-hxy-tree.mon.glb",
+        "land.gppLut.tavg-u-hxy-multi.mon.glb",
+        "land.grassFrac.tavg-u-hxy-u.mon.glb",
+        "land.grassFracC3.tavg-u-hxy-u.mon.glb",
+        "land.grassFracC4.tavg-u-hxy-u.mon.glb",
+        "land.irrLut.tavg-u-hxy-multi.mon.glb",
+        "land.laiLut.tavg-u-hxy-multi.mon.glb",
+        "land.landCoverFrac.tavg-u-hxy-u.mon.glb",
+        "land.mrsol.tavg-sl-hxy-lnd.mon.glb",
+        "land.mrsolLut.tavg-d10cm-hxy-multi.mon.glb",
+        "land.mrtws.tavg-u-hxy-lnd.day.glb",
+        "land.nLand.tavg-u-hxy-lnd.mon.glb",
+        "land.nLeaf.tavg-u-hxy-lnd.mon.glb",
+        "land.nLitter.tavg-u-hxy-lnd.mon.glb",
+        "land.nLitterCwd.tavg-u-hxy-lnd.mon.glb",
+        "land.nLitterSubSurf.tavg-u-hxy-lnd.mon.glb",
+        "land.nLitterSurf.tavg-u-hxy-lnd.mon.glb",
+        "land.nMineral.tavg-u-hxy-lnd.mon.glb",
+        "land.nMineralNH4.tavg-u-hxy-lnd.mon.glb",
+        "land.nMineralNO3.tavg-u-hxy-lnd.mon.glb",
+        "land.nOther.tavg-u-hxy-lnd.mon.glb",
+        "land.nProduct.tavg-u-hxy-lnd.mon.glb",
+        "land.nRoot.tavg-u-hxy-lnd.mon.glb",
+        "land.nSoil.tavg-u-hxy-lnd.mon.glb",
+        "land.nStem.tavg-u-hxy-lnd.mon.glb",
+        "land.nVeg.tavg-u-hxy-lnd.mon.glb",
+        "land.nbp.tavg-u-hxy-lnd.mon.glb",
+        "land.nbpLut.tavg-u-hxy-multi.mon.glb",
+        "land.nep.tavg-u-hxy-lnd.mon.glb",
+        "land.npp.tavg-u-hxy-lnd.mon.glb",
+        "land.npp.tavg-u-hxy-ng.mon.glb",
+        "land.npp.tavg-u-hxy-shb.mon.glb",
+        "land.npp.tavg-u-hxy-tree.mon.glb",
+        "land.nppLeaf.tavg-u-hxy-lnd.mon.glb",
+        "land.nppLut.tavg-u-hxy-multi.mon.glb",
+        "land.nppOther.tavg-u-hxy-lnd.mon.glb",
+        "land.nppRoot.tavg-u-hxy-lnd.mon.glb",
+        "land.nppStem.tavg-u-hxy-lnd.mon.glb",
+        "land.pastureFrac.tavg-u-hxy-u.mon.glb",
+        "land.prveg.tavg-u-hxy-lnd.mon.glb",
+        "land.ra.tavg-u-hxy-lnd.mon.glb",
+        "land.ra.tavg-u-hxy-ng.mon.glb",
+        "land.ra.tavg-u-hxy-shb.mon.glb",
+        "land.ra.tavg-u-hxy-tree.mon.glb",
+        "land.raLeaf.tavg-u-hxy-lnd.mon.glb",
+        "land.raLut.tavg-u-hxy-multi.mon.glb",
+        "land.raOther.tavg-u-hxy-lnd.mon.glb",
+        "land.raRoot.tavg-u-hxy-lnd.mon.glb",
+        "land.raStem.tavg-u-hxy-lnd.mon.glb",
+        "land.residualFrac.tavg-u-hxy-u.mon.glb",
+        "land.rh.tavg-u-hxy-lnd.mon.glb",
+        "land.rh.tavg-u-hxy-ng.mon.glb",
+        "land.rh.tavg-u-hxy-shb.mon.glb",
+        "land.rh.tavg-u-hxy-tree.mon.glb",
+        "land.rhLitter.tavg-u-hxy-lnd.mon.glb",
+        "land.rhLut.tavg-u-hxy-multi.mon.glb",
+        "land.rhSoil.tavg-u-hxy-lnd.mon.glb",
+        "land.shrubFrac.tavg-u-hxy-u.mon.glb",
+        "land.tran.tavg-u-hxy-lnd.mon.glb",
+        "land.treeFracBdlDcd.tavg-u-hxy-u.mon.glb",
+        "land.treeFracBdlEvg.tavg-u-hxy-u.mon.glb",
+        "land.treeFracNdlDcd.tavg-u-hxy-u.mon.glb",
+        "land.treeFracNdlEvg.tavg-u-hxy-u.mon.glb",
+        "land.vegFrac.tavg-u-hxy-u.mon.glb",
+        "land.vegHeight.tavg-u-hxy-ng.mon.glb",
+        "land.vegHeight.tavg-u-hxy-shb.mon.glb",
+        "land.vegHeight.tavg-u-hxy-tree.mon.glb",
+        "land.vegHeight.tavg-u-hxy-veg.mon.glb",
+        "land.wetlandCH4.tavg-u-hxy-lnd.mon.glb",
+        "land.wetlandCH4cons.tavg-u-hxy-lnd.mon.glb",
+        "land.wetlandCH4prod.tavg-u-hxy-lnd.mon.glb",
+        "land.wetlandFrac.tavg-u-hxy-u.mon.glb"
+      ],
+      "action": "preserve_native_small_values",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 4585,
+          "function": "clip_small_negatives"
+        }
+      ]
+    },
+    {
+      "id": "F09",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Nitrogen deposition is erased by the clipping threshold",
+      "detail": "All 2400 sampled nonzero fNdep raw values lie between 4e-14 and 5.611e-11 kg N m-2 s-1, below the universal 1e-10 clipping threshold. The current conversion therefore turns these modeled positive deposition values into zero. This is not a missing native diagnostic.",
+      "products": [
+        "land.fNdep.tavg-u-hxy-lnd.mon.glb"
+      ],
+      "action": "preserve_native_small_values",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 4585,
+          "function": "clip_small_negatives"
+        },
+        {
+          "path": "lpj_guess/modules/CMIPoutput.cpp",
+          "line": 1576,
+          "excerpt": "outlimit_CMIP(out, cmip_fNdep, mfNdep[m] * mthtosec);"
+        }
+      ]
+    },
+    {
+      "id": "F10",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Daily snow heat content treats a height as a mass",
+      "detail": "m_snow is snow height per grid-cell area in metres, in both io_meandata and the archived header. The daily formula -Lf*m_snow/a_ice treats it as kg m-2 and omits snow density. Its area denominator also needs to follow the request, which describes grid-cell-area enthalpy.",
+      "products": [
+        "seaIce.sisnhc.tavg-u-hxy-si.day.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 899,
+          "function": "compute_sisnhc_from_msnow"
+        },
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 925,
+          "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'm_snow',   'snow height per unit area',      'm',      ice%data(3)%values(1:partit%myDim_nod2D),     io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F11",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Snow mass/heat/freeboard calculations use 330 instead of model 290 kg m-3",
+      "detail": "The installed FESOM source sets rhosno=290 kg m-3, with no runtime override in this namelist. The affected rules use 330. For the hemispheric snow masses this produces a factor 330/290=1.13793 relative to the model. Snow melt is a genuine thermal-melt rate in the coupled branch; its density factor is still wrong.",
+      "products": [
+        "seaIce.sifb.tavg-u-hxy-si.mon.glb",
+        "seaIce.sisnhc.tavg-u-hxy-si.mon.glb",
+        "seaIce.sisnmass.tavg-u-hm-si.day.nh",
+        "seaIce.sisnmass.tavg-u-hm-si.day.sh",
+        "seaIce.sisnmass.tavg-u-hm-si.mon.nh",
+        "seaIce.sisnmass.tavg-u-hm-si.mon.sh",
+        "seaIce.snm.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "corrected_snow_density",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/MOD_ICE.F90",
+          "line": 62,
+          "excerpt": "real(kind=WP) :: rhosno=290. , inv_rhosno=1./290. ! Snow density & inverse, AOMIP"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 399,
+          "excerpt": "hsnold = hsn"
+        }
+      ]
+    },
+    {
+      "id": "F12",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Snow amount uses freshwater density for physical snow height",
+      "detail": "The seaIce.snw rule multiplies m_snow by 1000. m_snow is physical snow height per grid-cell area, not liquid-water-equivalent height. The model uses 290 kg m-3 snow density, so the mass factor is too large by 1000/290=3.44828.",
+      "products": [
+        "seaIce.snw.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "corrected_snow_density",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 925,
+          "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'm_snow',   'snow height per unit area',      'm',      ice%data(3)%values(1:partit%myDim_nod2D),     io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        },
+        {
+          "path": "fesom-2.8/src/MOD_ICE.F90",
+          "line": 62,
+          "excerpt": "real(kind=WP) :: rhosno=290. , inv_rhosno=1./290. ! Snow density & inverse, AOMIP"
+        }
+      ]
+    },
+    {
+      "id": "F13",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Ice mass uses 917 instead of model 910 kg m-3",
+      "detail": "The current simass rule scales m_ice by 917. The model ice density is 910 kg m-3. The requested quantity is model ice mass, and the resulting constant discrepancy is about 0.769%.",
+      "products": [
+        "seaIce.simass.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "corrected_ice_density",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/MOD_ICE.F90",
+          "line": 61,
+          "excerpt": "real(kind=WP) :: rhoice=910. , inv_rhoice=1./910. ! Ice density & inverse, AOMIP"
+        }
+      ]
+    },
+    {
+      "id": "F14",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Ice enthalpy is normalized over ice rather than the whole grid cell",
+      "detail": "The request describes the heat content of all ice divided by grid-cell area. The formula uses h_ice, which the producer defines as thickness over the ice-covered fraction, without multiplying by ice concentration. It also reconstructs a linear sensible-heat profile rather than reading a native enthalpy state.",
+      "products": [
+        "seaIce.sihc.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 822,
+          "function": "compute_sihc"
+        },
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 929,
+          "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'h_ice',    'ice thickness over ice-covered fraction',   'm',     ice%h_ice(1:partit%myDim_nod2D), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F15",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Snow enthalpy requires a consistent thermal and area convention",
+      "detail": "The request includes latent and sensible heat and describes grid-cell-area storage. Monthly output uses h_snow over ice area; daily output divides m_snow by a_ice. Both use latent-only reconstructions. The represented zero-layer/slab thermodynamics and the Data Request area wording must be reconciled before claiming a full enthalpy diagnostic.",
+      "products": [
+        "seaIce.sisnhc.tavg-u-hxy-si.day.glb",
+        "seaIce.sisnhc.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 869,
+          "function": "compute_sisnhc"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 899,
+          "function": "compute_sisnhc_from_msnow"
+        }
+      ]
+    },
+    {
+      "id": "F16",
+      "verdict": "APPROXIMATION",
+      "title": "Conductive ice heat flux omits the snow thermal resistance",
+      "detail": "The postprocessor uses k_ice*(Tsurface-Tfreeze)/h_ice. The coupled model uses effective thickness h+hsnow*kice/ksnow and its own freezing-temperature relation and slab boundary conditions. The recipe is not an exact reconstruction of the modeled conductive surface flux.",
+      "products": [
+        "seaIce.siflcondtop.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 752,
+          "function": "compute_siflcondtop"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 308,
+          "excerpt": "heff = h + hsn*con/consn"
+        }
+      ]
+    },
+    {
+      "id": "F17",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Snow drainage conversion uses 1000 after the producer divided mass by 1025",
+      "detail": "In the active coupled branch fwsnw=-dhsngrowth*rhosno is a mass flux, then fwsnw=fwsnw/rhowat with rhowat=1025. The rule multiplies the archived fw_snw by 1000, giving 1000/1025 of the modeled snowmelt mass. Separately, snowmelt alone has not been shown to exhaust all ice-surface and melt-pond drainage requested by siflfwdrain.",
+      "products": [
+        "seaIce.siflfwdrain.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 573,
+          "excerpt": "fwsnw = fwsnw/rhowat"
+        },
+        {
+          "path": "fesom-2.8/src/MOD_ICE.F90",
+          "line": 59,
+          "excerpt": "real(kind=WP) :: rhowat=1025., inv_rhowat=1./1025.! Water density & inverse"
+        }
+      ]
+    },
+    {
+      "id": "F18",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Basal freshwater flux has a run-specific virtual-salt convention",
+      "detail": "The model uses linfs. Its fwice includes (S-Sice)/S in the virtual-salt branch and is divided by rhowat=1025. A generic multiply-by-1000 conversion has not established the requested physical fresh-water mass flux or its sea-ice area normalization.",
+      "products": [
+        "ocean.siflfwbot.tavg-u-hxy-sea.mon.glb",
+        "seaIce.siflfwbot.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 517,
+          "excerpt": "fwice = - dhgrowth*rhoice*(rsss-Sice)/rsss"
+        }
+      ]
+    },
+    {
+      "id": "F19",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Atmospheric ice drag is replaced by an unverified constant",
+      "detail": "sidragtop is set to 0.0012. This coupled experiment receives atmospheric stresses from OpenIFS; a fixed FESOM bulk-transfer value has not been established as the effective coefficient used by that atmospheric surface scheme. The constant field also has no no-ice masking step.",
+      "products": [
+        "seaIce.sidragtop.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1034,
+          "function": "compute_constant_field"
+        }
+      ]
+    },
+    {
+      "id": "F20",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Oceanic ice drag is filled over ice-free ocean",
+      "detail": "The configured ocean drag 0.0055 is a genuine model parameter, but compute_constant_field replaces every input value, including zero concentration, with that constant. The request conditions the diagnostic on sea ice. A matching constant does not establish the requested domain mask.",
+      "products": [
+        "seaIce.sidragbot.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "corrected_ice_mask",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1034,
+          "function": "compute_constant_field"
+        }
+      ]
+    },
+    {
+      "id": "F21",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Pond concentration uses absolute grid-cell pond area as per-ice area",
+      "detail": "meltpond_area caps apnd at 0.9*aice and describes apnd as FESOM absolute pond area. The requested concentration is the fraction of the sea-ice surface covered by ponds. The recipe only multiplies apnd by 100 and does not normalize by ice fraction. simpeffconc starts from the same unnormalized apnd.",
+      "products": [
+        "seaIce.simpconc.tavg-u-hxy-si.mon.glb",
+        "seaIce.simpeffconc.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_meltponds.F90",
+          "line": 204,
+          "excerpt": "apondn = min(sqrt(volpn * aice / pndaspect), aice * 0.9_WP)"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 1255,
+          "function": "compute_simpeffconc"
+        }
+      ]
+    },
+    {
+      "id": "F22",
+      "verdict": "APPROXIMATION",
+      "title": "Effective open-pond area is inferred from a thickness ratio",
+      "detail": "apnd*max(0,1-ipnd/hpnd) is an assumed relation between lid thickness and uncovered area. It is not the model open-pond area calculation. The model optical treatment switches pond albedo at ipnd>0.01 m; a thickness fraction is not itself an area fraction.",
+      "products": [
+        "seaIce.simpeffconc.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1255,
+          "function": "compute_simpeffconc"
+        },
+        {
+          "path": "fesom-2.8/src/ice_meltponds.F90",
+          "line": 262,
+          "excerpt": "if (ipnd > 0.01_WP) then"
+        }
+      ]
+    },
+    {
+      "id": "F23",
+      "verdict": "APPROXIMATION",
+      "title": "Ice-conditional time means lack demonstrated concentration weighting",
+      "detail": "The official description explicitly requests concentration-weighted averages of intensive sea-ice quantities. Native fields and masking after averaging do not in general give sum(A*q)/sum(A). This audit found generic time averaging or post-mean masking rather than a verified online concentration-weighted diagnostic for these routes.",
+      "products": [
+        "seaIce.prra.tavg-u-hxy-si.mon.glb",
+        "seaIce.rlds.tavg-u-hxy-si.mon.glb",
+        "seaIce.rlus.tavg-u-hxy-si.mon.glb",
+        "seaIce.rsds.tavg-u-hxy-si.day.glb",
+        "seaIce.rsds.tavg-u-hxy-si.mon.glb",
+        "seaIce.rsus.tavg-u-hxy-si.day.glb",
+        "seaIce.rsus.tavg-u-hxy-si.mon.glb",
+        "seaIce.sfdsi.tavg-u-hxy-si.mon.glb",
+        "seaIce.sicompstren.tavg-u-hxy-si.mon.glb",
+        "seaIce.sidragbot.tavg-u-hxy-si.mon.glb",
+        "seaIce.sidragtop.tavg-u-hxy-si.mon.glb",
+        "seaIce.sifb.tavg-u-hxy-si.mon.glb",
+        "seaIce.siflcondbot.tavg-u-hxy-si.mon.glb",
+        "seaIce.siflcondtop.tavg-u-hxy-si.mon.glb",
+        "seaIce.siflfwbot.tavg-u-hxy-si.mon.glb",
+        "seaIce.sifllattop.tavg-u-hxy-si.mon.glb",
+        "seaIce.siflsenstop.tavg-u-hxy-si.mon.glb",
+        "seaIce.simprefrozen.tavg-u-hxy-simp.mon.glb",
+        "seaIce.simpthick.tavg-u-hxy-simp.mon.glb",
+        "seaIce.sispeed.tavg-u-hxy-si.day.glb",
+        "seaIce.sispeed.tavg-u-hxy-si.mon.glb",
+        "seaIce.sistrxdtop.tavg-u-hxy-si.mon.glb",
+        "seaIce.sistrxubot.tavg-u-hxy-si.mon.glb",
+        "seaIce.sistrydtop.tavg-u-hxy-si.mon.glb",
+        "seaIce.sistryubot.tavg-u-hxy-si.mon.glb",
+        "seaIce.sitempbot.tavg-u-hxy-si.mon.glb",
+        "seaIce.sithick.tavg-u-hxy-si.day.glb",
+        "seaIce.sithick.tavg-u-hxy-si.mon.glb",
+        "seaIce.siu.tavg-u-hxy-si.day.glb",
+        "seaIce.siu.tavg-u-hxy-si.mon.glb",
+        "seaIce.siv.tavg-u-hxy-si.day.glb",
+        "seaIce.siv.tavg-u-hxy-si.mon.glb",
+        "seaIce.snd.tavg-u-hxy-sn.day.glb",
+        "seaIce.snd.tavg-u-hxy-sn.mon.glb",
+        "seaIce.ts.tavg-u-hxy-si.day.glb",
+        "seaIce.ts.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5480,
+          "function": "mask_where_no_seaice"
+        }
+      ]
+    },
+    {
+      "id": "F24",
+      "verdict": "APPROXIMATION",
+      "title": "Atmospheric aggregate fluxes are reused as ice-only fluxes",
+      "detail": "The route interpolates OpenIFS aggregate surface fields by nearest neighbor and masks where ice exists. This has not separated ice-tile upward radiation and turbulent fluxes from open-water contributions or reproduced the coupler remapping and conditional time weighting. Downward forcing interpolation is also an approximation.",
+      "products": [
+        "seaIce.rlds.tavg-u-hxy-si.mon.glb",
+        "seaIce.rlus.tavg-u-hxy-si.mon.glb",
+        "seaIce.rsds.tavg-u-hxy-si.day.glb",
+        "seaIce.rsds.tavg-u-hxy-si.mon.glb",
+        "seaIce.rsus.tavg-u-hxy-si.day.glb",
+        "seaIce.rsus.tavg-u-hxy-si.mon.glb",
+        "seaIce.sbl.tavg-u-hxy-si.mon.glb",
+        "seaIce.sifllattop.tavg-u-hxy-si.mon.glb",
+        "seaIce.siflsenstop.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5246,
+          "function": "regrid_oifs_to_fesom"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 5480,
+          "function": "mask_where_no_seaice"
+        }
+      ]
+    },
+    {
+      "id": "F25",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Ocean mass uses the wrong Boussinesq reference density",
+      "detail": "The Data Request explicitly requires reference density times volume for Boussinesq mass diagnostics. FESOM density_0 is 1030 kg m-3 in this clean source checkout whose installed binary matches the runtime executable. The rules use 1025, giving 1025/1030 of the specified mass before any geometry issue. The same reference-density correction also applies to the seven mass/salt transport formulas explicitly multiplying velocity/thickness by the Boussinesq reference density. Their separate geometric approximation findings remain unresolved.",
+      "products": [
+        "ocean.masscello.tavg-ol-hxy-sea.dec.glb",
+        "ocean.masscello.tavg-ol-hxy-sea.mon.glb",
+        "ocean.masscello.ti-ol-hxy-sea.fx.glb",
+        "ocean.masso.tavg-u-hm-sea.dec.glb",
+        "ocean.masso.tavg-u-hm-sea.mon.glb",
+        "ocean.sfx.tavg-ol-hxy-sea.mon.glb",
+        "ocean.sfx.tavg-u-hxy-sea.mon.glb",
+        "ocean.sfy.tavg-ol-hxy-sea.mon.glb",
+        "ocean.sfy.tavg-u-hxy-sea.mon.glb",
+        "ocean.umo.tavg-ol-hxy-sea.mon.glb",
+        "ocean.vmo.tavg-ol-hxy-sea.mon.glb",
+        "ocean.wmo.tavg-ol-hxy-sea.mon.glb"
+      ],
+      "action": "corrected_reference_density",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/oce_modules.F90",
+          "line": 36,
+          "excerpt": "real(kind=WP), parameter      :: density_0=1030.0_WP"
+        }
+      ]
+    },
+    {
+      "id": "F26",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Depth overturning converts Sv with an implicit density of 1000",
+      "detail": "The two depth-coordinate overturning routes multiply tripyview Sv by 1e9 to obtain kg s-1. For this model reference density 1030, the conversion is 1.03e9. The density-coordinate routines instead define _RHO0=1030; the two coordinate families therefore use inconsistent mass conventions.",
+      "products": [
+        "ocean.msftm.tavg-ol-hyb-sea.mon.glb",
+        "ocean.msftmmpa.tavg-ol-hyb-sea.mon.glb"
+      ],
+      "action": "corrected_Sv_mass_conversion",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5772,
+          "function": "compute_msftmz"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 6657,
+          "function": "compute_msftmmpa_depth"
+        },
+        {
+          "path": "fesom-2.8/src/oce_modules.F90",
+          "line": 36,
+          "excerpt": "real(kind=WP), parameter      :: density_0=1030.0_WP"
+        }
+      ]
+    },
+    {
+      "id": "F27",
+      "verdict": "APPROXIMATION",
+      "title": "Native face transports are replaced by characteristic-width estimates",
+      "detail": "Multiplying a velocity or tracer flux by sqrt(cell area), sqrt(triangle area), or a mean neighbor distance is not an exact conservative native face flux. Salt and ice transports additionally multiply temporally averaged quantities and can lose covariance. Native utemp/vtemp already include GM when enabled; it would be wrong to claim that those inputs are resolved-only, but their use does not establish all requested diffusive contributions.",
+      "products": [
+        "ocean.hfx.tavg-ol-hxy-sea.mon.glb",
+        "ocean.hfx.tavg-u-hxy-sea.day.glb",
+        "ocean.hfx.tavg-u-hxy-sea.mon.glb",
+        "ocean.hfy.tavg-ol-hxy-sea.mon.glb",
+        "ocean.hfy.tavg-u-hxy-sea.day.glb",
+        "ocean.hfy.tavg-u-hxy-sea.mon.glb",
+        "ocean.sfx.tavg-ol-hxy-sea.mon.glb",
+        "ocean.sfx.tavg-u-hxy-sea.mon.glb",
+        "ocean.sfy.tavg-ol-hxy-sea.mon.glb",
+        "ocean.sfy.tavg-u-hxy-sea.mon.glb",
+        "ocean.umo.tavg-ol-hxy-sea.mon.glb",
+        "ocean.vmo.tavg-ol-hxy-sea.mon.glb",
+        "ocean.wmo.tavg-ol-hxy-sea.mon.glb",
+        "seaIce.sidmasstranx.tavg-u-hxy-u.mon.glb",
+        "seaIce.sidmasstrany.tavg-u-hxy-u.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1396,
+          "function": "compute_heat_transport"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 2383,
+          "function": "compute_mass_transport"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 2492,
+          "function": "compute_salt_transport"
+        },
+        {
+          "path": "fesom-2.8/src/gen_modules_diag.F90",
+          "line": 426,
+          "excerpt": "tuv(1,nz,elem) = (UV(1,nz,elem) + fer_UV(1,nz, elem)) * sum(temp(nz,elnodes))/3._WP"
+        }
+      ]
+    },
+    {
+      "id": "F28",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Heat diagnostics use inconsistent heat-capacity conventions",
+      "detail": "Ocean prognostic heat conservation uses vcpw=4.2e6 J m-3 K-1. hfx/hfy use 4095900, phcint uses 4097273, and tripyview heat transport uses its own rho*cp convention. A reviewed convention is needed for consistency with the modeled heat budget.",
+      "products": [
+        "ocean.hfbasin.tavg-u-hyb-sea.mon.glb",
+        "ocean.hfx.tavg-ol-hxy-sea.mon.glb",
+        "ocean.hfx.tavg-u-hxy-sea.day.glb",
+        "ocean.hfx.tavg-u-hxy-sea.mon.glb",
+        "ocean.hfy.tavg-ol-hxy-sea.mon.glb",
+        "ocean.hfy.tavg-u-hxy-sea.day.glb",
+        "ocean.hfy.tavg-u-hxy-sea.mon.glb",
+        "ocean.phcint.tavg-op4-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/oce_modules.F90",
+          "line": 53,
+          "excerpt": "real(kind=WP), parameter      :: vcpw=4.2e6_WP   ![J/m^3/K] water heat cap"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 1396,
+          "function": "compute_heat_transport"
+        }
+      ]
+    },
+    {
+      "id": "F29",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Horizontal viscosity is read from vertical momentum viscosity",
+      "detail": "The official difmxylo definition is lateral Laplacian viscosity. The rule reads Av, which the source/XML identify as vertical momentum viscosity. Equal m2 s-1 units do not make these processes interchangeable.",
+      "products": [
+        "ocean.difmxylo.tavg-ol-hxy-sea.yr.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "AWI-ESM3-CC-LR-CMIP7-Spinup_v351_from2230/run_26200101-26241231/work/field_def_fesom.xml",
+          "line": 105,
+          "excerpt": "{\"id\": \"Av\", \"long_name\": \"vertical momentum viscosity\", \"unit\": \"m2 s-1\"} "
+        },
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 1956,
+          "excerpt": "call def_stream((/mesh%nl,   mesh%elem2D/), (/mesh%nl,   partit%myDim_elem2D/), 'Av',        'vertical viscosity Av',  'm2/s',      Av(:,:),                io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F30",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Surface pressure is inferred from sea level plus a constant atmosphere",
+      "detail": "The request defines pressure at the upper liquid-water boundary, including overlying air/ice. 101325+rho*g*SSH is not the actual time-varying atmospheric and ice load at that moving boundary. SSH alone cannot determine the requested surface pressure.",
+      "products": [
+        "ocean.pso.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1819,
+          "function": "compute_surface_pressure"
+        }
+      ]
+    },
+    {
+      "id": "F31",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Bottom-pressure producer omits atmospheric and ice overburden",
+      "detail": "The selected pbo is computed as a water-column hydrostatic integral plus the linfs SSH contribution. The producer shown here adds no atmospheric pressure or ice overburden term, whereas the official definition includes overlying air, ice and other media. This is a producer-to-request definition mismatch, not a unit conversion problem.",
+      "products": [
+        "ocean.pbo.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/gen_modules_cmor_diag.F90",
+          "line": 233,
+          "excerpt": "pbo(n2) = pbo(n2) + g * dz * dens_val"
+        }
+      ]
+    },
+    {
+      "id": "F32",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Absolute-salinity content is computed identically to practical-salinity content",
+      "detail": "absscint reads the same practical-salinity field and applies the same integral and constant as scint. No conversion to Absolute Salinity or native Absolute Salinity diagnostic is used. The Data Request distinguishes these two physical quantities.",
+      "products": [
+        "ocean.absscint.tavg-op4-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 2741,
+          "function": "integrate_over_pressure_layers"
+        }
+      ]
+    },
+    {
+      "id": "F33",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Four pressure-layer bounds were inferred rather than supplied by the request",
+      "detail": "The implementation infers disjoint 0-300, 300-700, 700-2000 and >2000 m layers from coordinate midpoints. The cited ocean-request discussion also names cumulative depth ranges. The official coordinate/variable definitions must settle this ambiguity; midpoint arithmetic alone does not authorize a scientific interpretation.",
+      "products": [
+        "ocean.absscint.tavg-op4-hxy-sea.mon.glb",
+        "ocean.phcint.tavg-op4-hxy-sea.mon.glb",
+        "ocean.scint.tavg-op4-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 2741,
+          "function": "integrate_over_pressure_layers"
+        }
+      ]
+    },
+    {
+      "id": "F34",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Grid-cell volumes use a static area instead of the model depth-dependent area",
+      "detail": "volcello multiplies hnode (or fixed layer thickness) by static cell_area. Native FESOM volume uses mesh%areasvol at each level. In the first 2615 monthly frame the recipe reconstruction is 4.7068% above native volo; using depth-dependent nod_area reproduces it within 0.00253%. The small remaining difference still needs run-specific geometry reconciliation.",
+      "products": [
+        "ocean.volcello.tavg-ol-hxy-sea.dec.glb",
+        "ocean.volcello.tavg-ol-hxy-sea.mon.glb",
+        "ocean.volcello.ti-ol-hxy-sea.fx.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3254,
+          "function": "compute_volcello_time"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 3214,
+          "function": "compute_volcello_fx"
+        },
+        {
+          "path": "fesom-2.8/src/gen_modules_cmor_diag.F90",
+          "line": 99,
+          "excerpt": "volo_local = volo_local + mesh%areasvol(k, n2) * mesh%hnode(k, n2)"
+        }
+      ]
+    },
+    {
+      "id": "F35",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Thermosteric sea level resets its temperature reference every task year",
+      "detail": "Each task is annual, and compute_zostoga subtracts that task temperature mean as its reference. The reference therefore changes from year to year, removing the common baseline needed for a thermosteric-change time series. It also uses a simplified static geometry/pressure/salinity treatment rather than a fully verified model diagnostic.",
+      "products": [
+        "ocean.zostoga.tavg-u-hm-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 2609,
+          "function": "compute_zostoga"
+        }
+      ]
+    },
+    {
+      "id": "F36",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Physical basal salt exchange is replaced by virtual freshwater dilution",
+      "detail": "The official sfdsi description explicitly calls this physical salt transfer arising from nonzero ice salinity. The recipe -rho*SSS*fw_ice is the virtual-salt effect of freshwater exchange: it remains nonzero for pure freshwater ice (Sice=0). That is a different quantity from the physical salt carried by freezing/melting saline ice.",
+      "products": [
+        "ocean.sfdsi.tavg-u-hxy-sea.mon.glb",
+        "seaIce.sfdsi.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 2073,
+          "function": "compute_sfdsi_from_fw_ice"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 515,
+          "excerpt": "rsf   = fwice*Sice/rhowat"
+        }
+      ]
+    },
+    {
+      "id": "F37",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Ice-only virtual salt flux reads the total freshwater virtual-salt term",
+      "detail": "vsfsit reads virtsalt, which the model computes from total water_flux and then globally balances. That includes precipitation, evaporation and runoff as well as ice effects, while the request is ice-thermodynamic-only. Its m s-1 psu units also require a reviewed mass conversion; scale=1 does not provide that.",
+      "products": [
+        "ocean.vsfsit.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_oce_coupling.F90",
+          "line": 388,
+          "excerpt": "virtual_salt(n)=rsss*water_flux(n)"
+        }
+      ]
+    },
+    {
+      "id": "F38",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Total/restoring virtual salt flux mass conversion is inconsistent with the model",
+      "detail": "Native virtsalt and relaxsalt are m s-1 psu. The total vsf route has no explicit physical density conversion; vsfcorr uses 1.025, while the ocean reference density is 1030. A dimensional/source-budget review is needed, including the distinction between the ocean reference density and coupling-water density.",
+      "products": [
+        "ocean.vsf.tavg-u-hxy-sea.mon.glb",
+        "ocean.vsfcorr.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 1152,
+          "excerpt": "call def_stream(mesh%nod2D , partit%myDim_nod2D , 'virtsalt' , 'virtual salt flux'          , 'm/s*psu', virtual_salt(:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F39",
+      "verdict": "APPROXIMATION",
+      "title": "Global fire-species emissions use one savanna/grassland emission-factor set",
+      "detail": "The seven species fields are estimates from total fire carbon, a fixed carbon fraction and one biome emission-factor set. They are not explicit model species diagnostics. Applying one biome globally needs a documented scientific acceptance and uncertainty assessment.",
+      "products": [
+        "aerosol.emibbbc.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibbch4.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibbco.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibbdms.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibboa.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibbso2.tavg-u-hxy-u.mon.glb",
+        "aerosol.emibbvoc.tavg-u-hxy-u.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 4454,
+          "function": "compute_fire_emission"
+        }
+      ]
+    },
+    {
+      "id": "F40",
+      "verdict": "APPROXIMATION",
+      "title": "PFT-specific soil respiration is apportioned by GPP share",
+      "detail": "The producer writes grass/shrub/tree rh as total rh times that vegetation group GPP divided by total GPP. This is an allocation proxy, not a separately accumulated soil-respiration budget for those vegetation groups.",
+      "products": [
+        "land.rh.tavg-u-hxy-ng.mon.glb",
+        "land.rh.tavg-u-hxy-shb.mon.glb",
+        "land.rh.tavg-u-hxy-tree.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "lpj_guess/modules/CMIPoutput.cpp",
+          "line": 1643,
+          "excerpt": "outlimit_CMIP(out, cmip_rhGrass, mrh[m] * mgppGrass[m] / mgpp[m] * mthtosec);"
+        }
+      ]
+    },
+    {
+      "id": "F41",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Soil field-capacity lookup differs materially from the active model",
+      "detail": "The hard-coded lookup is not the LEVGEN Van Genuchten field-capacity calculation in this source. Recalculation gives recipe errors of approximately -42.65%, -44.07% and +21.41% for soil types 5, 6 and 7. Types 1-4 happen to be close, which does not validate the complete lookup.",
+      "products": [
+        "land.mrsofc.ti-u-hxy-lnd.fx.glb"
+      ],
+      "action": "reconstructed_active_model_field_capacity",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5112,
+          "function": "compute_mrsofc"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/sussoil_mod.F90",
+          "line": 356,
+          "excerpt": "ZWCAPM(JS)=ZWRES(JS)+(ZWSATM(JS)-ZWRES(JS)) &"
+        }
+      ]
+    },
+    {
+      "id": "F42",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Effective tabulated root depth is not the requested maximum reachable depth",
+      "detail": "The request asks for the maximum depth from which roots can extract moisture. The rule uses an effective/95%-style vegetation lookup. OpenIFS instead computes a multi-layer root distribution with nonzero roots in the bottom layer for vegetated types; LPJ-GUESS has a separate root/soil system. The lookup is not the maximum depth defined by either demonstrated model system.",
+      "products": [
+        "land.rootd.ti-u-hxy-lnd.fx.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5174,
+          "function": "compute_rootd"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/srfrootfr_mod.F90",
+          "line": 169,
+          "excerpt": "PROOTF(KLEVS,JT)=1.-SUM(PROOTF(1:KLEVS-1,JT))"
+        }
+      ]
+    },
+    {
+      "id": "F43",
+      "verdict": "APPROXIMATION",
+      "title": "Snow cover uses an assumed SWE depletion curve",
+      "detail": "The recipe min(100,SWE/0.015*100) is not the active model snow-cover parameterization, which uses snow depth/density and potentially configured depletion options. It may be a proxy, but has not been established as the modeled snow-covered fraction.",
+      "products": [
+        "landIce.snc.tavg-u-hxy-lnd.day.glb",
+        "landIce.snc.tavg-u-hxy-lnd.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3823,
+          "function": "compute_snc"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/surfbc_ctl_mod.F90",
+          "line": 339,
+          "excerpt": "ZCVS(JL)=MAX(0._JPRB,MIN(1.0_JPRB,(100.0_JPRB*SUM(PSNM1M(JL,:)/MAX(PRSNM1M(JL,:),1.E-12_JPRB))*RQSNCR)))"
+        }
+      ]
+    },
+    {
+      "id": "F44",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Soil wetness has a field-capacity/saturation definition ambiguity",
+      "detail": "The official record describes relative_soil_moisture_content_above_field_capacity and assigns a field-capacity CF standard name. The recipe instead divides column moisture by a uniform saturation porosity 0.472 and clips it to [0,1]. Both the Data Request wording and the model-specific denominator need resolution; this audit does not invent an intended formula.",
+      "products": [
+        "land.mrsow.tavg-u-hxy-lnd.day.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 5008,
+          "function": "compute_mrsow"
+        }
+      ]
+    },
+    {
+      "id": "F45",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "The land-water bundle mixes two independently simulated soil systems",
+      "detail": "Total water/soil-water changes and static soil thickness use 4-layer 2.89 m OpenIFS hydrology. Layered monthly soil water/temperature and land-use-tile products use 15-layer 1.5 m LPJ-GUESS hydrology with useifssoilmoist=0. Individual diagnostics can be meaningful, but they cannot be assumed to form one vertically consistent soil-water/energy budget. Layered soil temperature remains LPJG-generated; the received OpenIFS 25 cm temperature can separately drive the respiration temperature response when useifssoiltemp is enabled. Keeping a received driver does not mean replacing every patch state.",
+      "products": [
+        "land.dslw.tavg-u-hxy-lnd.day.glb",
+        "land.dsw.tavg-u-hxy-lnd.day.glb",
+        "land.mrsfl.tavg-sl-hxy-lnd.day.glb",
+        "land.mrsfl.tavg-sl-hxy-lnd.mon.glb",
+        "land.mrsll.tavg-sl-hxy-lnd.day.glb",
+        "land.mrsll.tavg-sl-hxy-lnd.mon.glb",
+        "land.mrso.tavg-u-hxy-lnd.day.glb",
+        "land.mrso.tavg-u-hxy-lnd.mon.glb",
+        "land.mrsofc.ti-u-hxy-lnd.fx.glb",
+        "land.mrsol.tavg-d100cm-hxy-lnd.3hr.glb",
+        "land.mrsol.tavg-d10cm-hxy-lnd.day.glb",
+        "land.mrsol.tavg-d10cm-hxy-lnd.mon.glb",
+        "land.mrsol.tavg-sl-hxy-lnd.day.glb",
+        "land.mrsol.tavg-sl-hxy-lnd.mon.glb",
+        "land.mrsol.tpt-d10cm-hxy-lnd.3hr.glb",
+        "land.mrsolLut.tavg-d10cm-hxy-multi.mon.glb",
+        "land.mrsow.tavg-u-hxy-lnd.day.glb",
+        "land.mrtws.tavg-u-hxy-lnd.day.glb",
+        "land.rootd.ti-u-hxy-lnd.fx.glb",
+        "land.slthick.ti-sl-hxy-lnd.fx.glb",
+        "land.tsl.tavg-sl-hxy-lnd.day.glb",
+        "land.tsl.tavg-sl-hxy-lnd.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "lpj_guess/framework/guess.h",
+          "line": 196,
+          "excerpt": "const double SOILDEPTH_LOWER = 1000.0;"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/sussoil_mod.F90",
+          "line": 189,
+          "excerpt": "IF (NCSS >= 4) YDSOIL%RDAT(4)=1.89_JPRB"
+        }
+      ]
+    },
+    {
+      "id": "F46",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Annual point fields are timestamped at mid-year without a demonstrated state date",
+      "detail": "The annual Lut loader labels values July 1, while the producer emits them through its year-end output path. The request marks these as time points. A representative mid-year label for an annual number has not established the actual physical sampling date of a state.",
+      "products": [
+        "land.cLitterLut.tpt-u-hxy-multi.yr.glb",
+        "land.cProductLut.tpt-u-hxy-multi.yr.glb",
+        "land.cSoilLut.tpt-u-hxy-multi.yr.glb",
+        "land.cVegLut.tpt-u-hxy-multi.yr.glb",
+        "land.fracLut.tpt-u-hxy-u.yr.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 4657,
+          "function": "load_lpjguess_yearly_lut"
+        }
+      ]
+    },
+    {
+      "id": "F47",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Iron source flux contains only atmospheric deposition",
+      "detail": "The requested fsfe includes deposition, runoff, coasts and sediment dissolution. The recipe reads only AtmFeInput/aFe. Rivers are disabled here, but the active benthos model has an iron return pathway. The total external source budget has not been demonstrated to equal atmospheric deposition alone.",
+      "products": [
+        "ocnBgchem.fsfe.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 1239,
+          "excerpt": "call def_stream(mesh%nod2D,  partit%myDim_nod2D,   'aFe','Atmospheric iron input','umolFe/m2/s', AtmFeInput(:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        },
+        {
+          "path": "fesom-2.8/src/recom/recom_sinking.F90",
+          "line": 449,
+          "excerpt": "use recom_config, only: ciso, use_MEDUSA, sedflx_num, redO2C, Fe2N_benthos"
+        }
+      ]
+    },
+    {
+      "id": "F48",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Nitrogen source completeness needs a run-specific budget check",
+      "detail": "The requested fsn includes deposition, fixation and runoff. The recipe uses aN only. Rivers are explicitly disabled, which removes one possible missing source, but the absence/applicability of every other external N pathway must be documented before calling the sum complete.",
+      "products": [
+        "ocnBgchem.fsn.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 1244,
+          "excerpt": "call def_stream(mesh%nod2D,  partit%myDim_nod2D,   'aN','Atmospheric DIN input','mmolN/m2/s', AtmNInput(:), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit,  mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F49",
+      "verdict": "APPROXIMATION",
+      "title": "Barotropic streamfunction is a local geostrophic SSH approximation",
+      "detail": "The request permits an approximation for free-surface models, but rho*g*H*eta/f is not a general transport-integrated streamfunction over varying bathymetry and f, and it masks a broad equatorial band. Its applicability has not been justified for this native mesh and coupled circulation.",
+      "products": [
+        "ocean.msftbarot.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1847,
+          "function": "compute_msftbarot"
+        }
+      ]
+    },
+    {
+      "id": "F50",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Basin heat/salt transports require full process and convention review",
+      "detail": "The basin methods use native tracer-velocity products and actual mesh integration, which is stronger than a characteristic-width proxy. However the request process coverage, native/coupler rotation, parameterized/diffusive terms and heat-capacity convention still need a complete budget comparison. Density MOC mappings do include their pinned bolus partner; they are not labeled resolved-only here.",
+      "products": [
+        "ocean.hfbasin.tavg-u-hyb-sea.mon.glb",
+        "ocean.sltbasin.tavg-u-hyb-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 6001,
+          "function": "compute_hfbasin_tripyview"
+        },
+        {
+          "path": "custom_steps.py",
+          "line": 6205,
+          "function": "compute_sltbasin_tripyview"
+        }
+      ]
+    },
+    {
+      "id": "F51",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Single-hour specific humidity combines point Td and mean-labelled pressure",
+      "detail": "The hourly point route reads instantaneous Td and hourly mean-labelled pressure, then assigns the time coordinate. There is one recorded sample per hour, so the numerical values may be synchronous, but that phase equivalence has not been established from timestamps alone.",
+      "products": [
+        "atmos.huss.tpt-h2m-hxy-u.1hr.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3756,
+          "function": "compute_huss"
+        }
+      ]
+    },
+    {
+      "id": "F52",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Column temperature/salinity contents use 1027 instead of reference density 1030",
+      "detail": "The official opottempmint and somint descriptions explicitly require the Boussinesq reference density. Their selected scale_factor is 1027, whereas this model defines density_0=1030. The resulting factor is 1027/1030, about 0.2913% low, independently of vertical-integration details.",
+      "products": [
+        "ocean.opottempmint.tavg-u-hxy-sea.yr.glb",
+        "ocean.somint.tavg-u-hxy-sea.yr.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3036,
+          "function": "vertical_integrate"
+        },
+        {
+          "path": "fesom-2.8/src/oce_modules.F90",
+          "line": 36,
+          "excerpt": "real(kind=WP), parameter      :: density_0=1030.0_WP"
+        }
+      ]
+    },
+    {
+      "id": "F53",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Total evaporation plus sublimation is reused for incompatible surface components",
+      "detail": "In the compiled OpenIFS-coupled native-ice branch, evaporation(inod)=evap+subli after evap is weighted by (1-A) and subli by A. The ocean evspsbl request specifies ice-free-ocean evaporation; the seaIce evspsbl request specifies ice mass loss and gives explicit snow-covered-ice handling. Reading this same combined evap field cannot provide either requested partition. Masking the combined field where ice exists does not isolate ice sublimation.",
+      "products": [
+        "ocean.evspsbl.tavg-u-hxy-ifs.mon.glb",
+        "seaIce.evspsbl.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 247,
+          "excerpt": "evaporation(inod)    = evap + subli"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 361,
+          "excerpt": "subli  = A*subli"
+        }
+      ]
+    },
+    {
+      "id": "F54",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Sea-ice speed is computed after daily component averaging",
+      "detail": "The archived uice and vice inputs are daily time means. compute_sispeed takes their vector magnitude, producing the speed of the daily mean drift rather than the requested mean speed. Opposing within-day motions cancel in the input components. The monthly route also starts with these daily means, so monthly resampling cannot restore the lost variability.",
+      "products": [
+        "seaIce.sispeed.tavg-u-hxy-si.day.glb",
+        "seaIce.sispeed.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 1962,
+          "function": "compute_sispeed"
+        }
+      ]
+    },
+    {
+      "id": "F55",
+      "verdict": "APPROXIMATION",
+      "title": "Basal ice temperature uses a different freezing-point formula from the model",
+      "detail": "compute_sitempbot applies -0.054*SSS+273.15. The coupled model instead uses the nonlinear salinity freezing-point relation containing S, S**1.5 and S**2. This is an approximation to the basal boundary temperature, with additional sampling and concentration-weighting limitations.",
+      "products": [
+        "seaIce.sitempbot.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 983,
+          "function": "compute_sitempbot"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 213,
+          "excerpt": "ice_temp(inod) = -0.0575_WP*S_oc_array(inod) + 1.7105e-3_WP*sqrt(S_oc_array(inod)**3) -2.155e-4_WP*(S_oc_array(inod)**2)+273.15_WP"
+        }
+      ]
+    },
+    {
+      "id": "F56",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Snowfall onto ice is not weighted by the ice-covered area",
+      "detail": "The requested sea-ice snow-mass gain is divided by full grid-cell area. The native snow output is prec_snow, whereas the ice snow update uses A*snow. The selected rule multiplies snow by 1000 and only applies a nonzero-ice mask; it does not multiply by A. For partial ice coverage this is the precipitation rate rather than the requested grid-cell snow-mass increment. Multiplication by averaged A would itself need a covariance assessment.",
+      "products": [
+        "seaIce.prsn.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 364,
+          "excerpt": "PmEice = A*snow + subli"
+        },
+        {
+          "path": "fesom-2.8/src/io_meandata.F90",
+          "line": 1129,
+          "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'snow',     'precipitation snow',              'm/s',    prec_snow(:),              io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
+        }
+      ]
+    },
+    {
+      "id": "F57",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Rain routed directly to ocean is reported as rainfall retained on sea ice",
+      "detail": "The request explicitly says rain put directly into the ocean should not be counted toward sipr (seaIce.prra). The active ice_growth budget adds rain to PmEocn and not to the ice/snow storage budget. The rule instead reports prec_rain wherever mean ice concentration is nonzero. The conditional mask does not change that modeled routing.",
+      "products": [
+        "seaIce.prra.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 365,
+          "excerpt": "PmEocn = evap + rain + (1._WP-A)*snow + runo"
+        }
+      ]
+    },
+    {
+      "id": "F58",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Snow sublimation is not partitioned from bare-ice sublimation",
+      "detail": "The requested seaIce.sbl describes loss of snow mass and says to assign combined sublimation there only while ice is snow covered. The producer ice_sublimation is subli, the potential ice-tile flux, before a separate snow-versus-ice budget partition is written. The current map has no snow-presence conditioning. A source/header match alone therefore does not establish the requested snow-only quantity.",
+      "products": [
+        "seaIce.sbl.tavg-u-hxy-si.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 248,
+          "excerpt": "ice_sublimation(inod)= subli"
+        },
+        {
+          "path": "fesom-2.8/src/ice_thermo_cpl.F90",
+          "line": 382,
+          "excerpt": "!---- subtract sublimation from ice thickness (PmEice <= 0)"
+        }
+      ]
+    },
+    {
+      "id": "F59",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "River flux reads a coupled liquid-plus-solid discharge bundle",
+      "detail": "In the OpenIFS branch the runoff producer adds solid discharge (excess glacier snow/calving) to the liquid runoff. The friver request is river water entering the ocean, and a separate ficeberg route sums explicit iceberg melt diagnostics. The land-ice, solid-discharge, river and iceberg partition must be documented to show the intended source budget and prevent omissions or overlap. This audit does not assert that every solid-discharge convention is forbidden.",
+      "products": [
+        "ocean.ficeberg.tavg-u-hxy-sea.mon.glb",
+        "ocean.friver.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/gen_forcing_couple.F90",
+          "line": 517,
+          "excerpt": "runoff(:)            = runoff_liquid(:) + runoff_solid(:)                      ! Add solid runoff to the liquid runoff. Heatflux goes into enthalpyoffuse."
+        }
+      ]
+    },
+    {
+      "id": "F60",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Dynamic sea level needs its global-mean and loading conventions demonstrated",
+      "detail": "The request describes effective dynamic sea level with zero global area mean and states special sea-ice/snow loading conventions. The selected route copies ssh with temporal averaging only. A bounded first-three-day static-area probe gives global means near 2.8 mm, but native open-surface/cavity geometry and the effective loading convention must be reconciled before declaring the residual a conversion error.",
+      "products": [
+        "ocean.zos.tavg-u-hxy-sea.day.glb",
+        "ocean.zos.tavg-u-hxy-sea.mon.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "additional_probes.json",
+          "excerpt": "First three daily ssh frames, alternative surface-area/cavity masks and global means."
+        }
+      ]
+    },
+    {
+      "id": "F61",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Column integrals infer layer thickness from differences of layer midpoints",
+      "detail": "The selected temperature/salinity input contains nz midpoints but no nz bounds or thickness coordinate, and the rule loads no hnode/thkcello field. vertical_integrate therefore falls back to adjacent midpoint differences and repeats the final difference. Those are not the actual FESOM layer-interface thicknesses on this irregular vertical grid. This is separate from the wrong reference-density factor.",
+      "products": [
+        "ocean.opottempmint.tavg-u-hxy-sea.yr.glb",
+        "ocean.somint.tavg-u-hxy-sea.yr.glb"
+      ],
+      "action": "blocked_invalid_mapping",
+      "evidence": [
+        {
+          "path": "custom_steps.py",
+          "line": 3036,
+          "function": "vertical_integrate"
+        },
+        {
+          "path": "additional_probes.json",
+          "excerpt": "column_integration_thickness: actual mesh interface differences versus the recipe midpoint fallback."
+        }
+      ]
+    },
+    {
+      "id": "F62",
+      "verdict": "REVIEW_REQUIRED",
+      "title": "Reported static surface area and native integration area are inconsistent",
+      "detail": "areacello reads static mesh.nc cell_area. Other conversions/global integrations use native mesh.diag nod_area, which comes from mesh%areasvol. Even after excluding cavity nodes their first-level total areas differ (approximately 3.67445e14 versus 3.65329e14 m2). Some of the difference may involve cavity-boundary face versus scalar-volume geometry, so it is not safe to declare either file universally correct. Exact global-flux integration with the reported areacello must be demonstrated against the model control areas.",
+      "products": [
+        "ocean.areacello.ti-u-hxy-u.fx.glb"
+      ],
+      "action": "review_required",
+      "evidence": [
+        {
+          "path": "fesom-2.8/src/io_mesh_info.F90",
+          "line": 351,
+          "excerpt": "call gather_nod(mesh%areasvol(k, :), rbuffer, partit)"
+        },
+        {
+          "path": "additional_probes.json",
+          "excerpt": "surface_area_consistency"
+        }
+      ]
+    },
+    {
+      "id": "F63",
+      "verdict": "CONFIRMED_MISMATCH",
+      "title": "Annual ocean means give equal weight to unequal-length months",
+      "detail": "These routes load twelve native monthly means and call the generic timeavg reducer, whose MEAN branch uses an unweighted resample.mean. A time mean over the year must account for the durations of the monthly input intervals; February and July do not represent equal durations in this Gregorian run. The separate decadal path already supplies explicit month-length weights and is not included in this finding.",
+      "products": [
+        "ocean.difmxylo.tavg-ol-hxy-sea.yr.glb",
+        "ocean.difvho.tavg-ol-hxy-sea.yr.glb",
+        "ocean.difvso.tavg-ol-hxy-sea.yr.glb",
+        "ocean.opottempmint.tavg-u-hxy-sea.yr.glb",
+        "ocean.rsdoabsorb.tavg-ol-hxy-sea.yr.glb",
+        "ocean.somint.tavg-u-hxy-sea.yr.glb"
+      ],
+      "action": "duration_weighted_annual_mean",
+      "evidence": [
+        {
+          "path": "timeaverage.py",
+          "line": 470,
+          "excerpt": "ds = da.resample(time=frequency_str).mean(**_resample_kw)"
+        }
+      ]
+    }
+  ],
+  "compatible_profiles": {
+    "awiesm3-v3.5.2-cc-94377dfc": {
+      "fesom_sha256": "94377dfcbf82fc6b739413054f63b464af1f510fbb00c5f9eaa06f4d7fb5cc04",
+      "source_revision": "8a1af1c67c05dadef601d092b23de8a8c89523a2",
+      "vector_frame": "geographic",
+      "evidence": [
+        "Runtime and installed build libfesom.so hashes match in both selected legs; clean FESOM checkout.",
+        "oce_modules.F90 density_0=1030; MOD_ICE.F90 rhoice=910, rhosno=290, rhowat=1025.",
+        "Runtime compute log and io_meandata.F90 explicitly rotate u/v, ice, stress and transport pairs to geographic before XIOS sending.",
+        "LPJG CMIPoutput.cpp and OpenIFS sussoil_mod.F90 match the earlier audited source bytes.",
+        "Previous invalid proxy mappings remain withheld until replacement routes are reviewed."
+      ]
+    }
+  }
+}

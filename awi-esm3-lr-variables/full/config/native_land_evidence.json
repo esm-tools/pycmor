@@ -1,0 +1,27 @@
+{
+  "component": "LPJ-GUESS",
+  "reviewed_source_revision": "cb41d15f6890f6b635d274443aa11a2128c10463",
+  "producer": "modules/CMIPoutput.cpp",
+  "sha256": "7daa9ee32c638ea0d8aa5dcec75c79410d6c222d95bdd7ca1d1854fc6e5a19fe",
+  "evidence": [
+    {
+      "lines": "1968-1972",
+      "meaning": "Total soil-layer water contains liquid above and below pwp plus ice; liquid soil-layer water contains both liquid fractions. Layered frozen water is their difference."
+    },
+    {
+      "lines": "2043-2044",
+      "meaning": "Native daily LAI is dimensionless; native daily potential evapotranspiration has already been multiplied by daytosec to give kg m-2 s-1."
+    }
+  ],
+  "official_request_urls": [
+    "https://cmip-data-request.github.io/cmip7-dreq-webview/v1.2.2.5/u/8b7ff4ea-4a5b-11e6-9cd2-ac72891c3257.html",
+    "https://cmip-data-request.github.io/cmip7-dreq-webview/v1.2.2.5/u/d228380a-4a9f-11e6-b84e-ac72891c3257.html",
+    "https://cmip-data-request.github.io/cmip7-dreq-webview/v1.2.2.5/u/8b800566-4a5b-11e6-9cd2-ac72891c3257.html"
+  ],
+  "limitations": [
+    "Native text precision limits derived frozen-water precision.",
+    "LPJG and OpenIFS soil systems are independent; their outputs cannot form one vertically closed soil budget.",
+    "The source revision is recorded by the contemporaneous audit, not an embedded compiler manifest.",
+    "Received OpenIFS soil temperature has an optional respiration-response use in the checked source; layered T_soil output remains LPJG-generated. Verify useifssoiltemp for the specific run."
+  ]
+}

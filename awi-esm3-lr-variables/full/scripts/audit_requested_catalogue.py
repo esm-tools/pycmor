@@ -120,7 +120,11 @@ def load_shared_rules(workflow_root, repo, config):
     spec.loader.exec_module(module)
     module.configure(workflow_root, repo, '/unused-read-only-catalogue-audit',
                      '20000101-20041231', config)
-    return list(module.recom_rules()), list(module.co2_rules())
+    from iceberg_support import rules as iceberg_rules
+    return {'shared_recom': list(module.recom_rules()), 'shared_co2': list(module.co2_rules()),
+            'shared_daily_land': list(module.daily_land_rules()),
+            'shared_ocean_fixed': list(module.ocean_fixed_rules()),
+            'shared_iceberg': list(iceberg_rules(workflow_root / 'rules'))}
 
 
 def campaign_coverage(campaign):
@@ -234,12 +238,24 @@ def audit(config_file=None, campaign=None):
         provenance.add(path)
         for rule in yaml.safe_load(path.read_text())['rules']:
             add_rule(rule, 'raw_profile', path, path.parent.name)
-    recom, co2 = load_shared_rules(WORKFLOW_ROOT, repo, config)
-    for group, rules in [('shared_recom', recom), ('shared_co2', co2)]:
+    shared = load_shared_rules(WORKFLOW_ROOT, repo, config)
+    for group, rules in shared.items():
         for rule in rules:
             add_rule(rule, group, WORKFLOW_ROOT / 'rules/raw_adapter.py', rule.get('lr_group', ''))
-    implemented = set().union(*(groups[g] for g in
-                               ('full_cmip7xml', 'raw_profile', 'shared_recom', 'shared_co2')))
+    implemented = set().union(*(groups[g] for g in ('full_cmip7xml', 'raw_profile', *shared)))
+    for path in sorted(base.glob('*/cmip7_awiesm3-lr*.yaml')):
+        for rule in yaml.safe_load(path.read_text()).get('not_enabled', []):
+            sources[rule['compound_name']].append(dict(kind='explicitly_disabled', path=str(path),
+                reason=rule.get('reason', 'Disabled scientific mapping')))
+            groups['explicitly_disabled'].add(rule['compound_name'])
+            counts['explicitly_disabled'] += 1
+    if config.get('data_request_file'):
+        from data_request_coverage import load_request
+        requested, _ = load_request(config['data_request_file'], config.get('data_request_experiment', 'piControl'), metadata)
+        for compound, priority in requested.items():
+            sources[compound].append(dict(kind='official_experiment_request', path=config['data_request_file'], priority=priority))
+            groups['official_experiment_request'].add(compound)
+            counts['official_experiment_request'] += 1
     skipped_csvs = []
     for category in CSV_CATEGORIES:
         group = 'csv_' + category
@@ -288,8 +304,8 @@ def audit(config_file=None, campaign=None):
             gaps.append('UNMAPPED: no implemented rule')
         if compound not in metadata:
             gaps.append('UNRESOLVED_DREQ: absent from pinned metadata')
-        if compound.split('.')[-2] == 'dec':
-            gaps.append('DEFERRED_WINDOW: workflow defers decadal products')
+        if compound.split('.')[-2] == 'dec' and not entries:
+            gaps.append('WINDOW_REVIEW: decadal conversion needs its explicit ten-year input window')
         if campaign is not None and not entries:
             gaps.append('NOT_IN_CAMPAIGN_COVERAGE')
         records.append({

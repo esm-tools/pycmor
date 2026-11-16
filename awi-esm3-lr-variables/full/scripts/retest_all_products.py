@@ -27,7 +27,15 @@ import full_cmorization as f
 REGRESSION_FIRST={
     f'land.{name}.tavg-u-hxy-lnd.day.glb' for name in ('dcw','dsn','dslw','dsw')
 } | {f'ocean.{name}.tavg-u-hxy-sea.day.glb' for name in ('hfx','hfy')} | {
-    f'seaIce.sivol.tavg-u-hm-u.day.{hemisphere}' for hemisphere in ('nh','sh')}
+    f'seaIce.sivol.tavg-u-hm-u.day.{hemisphere}' for hemisphere in ('nh','sh')} | {
+    f'land.{name}.tavg-sl-hxy-lnd.day.glb' for name in ('mrsol','mrsll','tsl','mrsfl')
+} | {'land.mrsfl.tavg-sl-hxy-lnd.mon.glb', 'land.lai.tavg-u-hxy-lnd.day.glb',
+     'land.evspsblpot.tavg-u-hxy-lnd.day.glb', 'ocean.hfgeou.ti-u-hxy-sea.fx.glb',
+     'land.fNdep.tavg-u-hxy-lnd.mon.glb', 'land.mrsofc.ti-u-hxy-lnd.fx.glb'} | {
+    f'ocean.{name}.tavg-ol-hxy-sea.yr.glb' for name in ('difvho','difvso','rsdoabsorb')
+} | {
+    f'atmos.{name}.tavg-{height}-hxy-u.{frequency}.glb'
+    for name,height in [('hurs','h2m'),('sfcWind','h10m')] for frequency in ('day','mon')}
 
 
 def representatives(tasks):

@@ -21,7 +21,54 @@ def native_table(paths):
     return frame.set_index(keys)
 
 
-def sample_lpj(rule,year,month,lon,lat,tile=0):
+@lru_cache(maxsize=2)
+def native_daily_table(paths, year):
+    """Independent annual raw lookup; do not reuse the conversion reader."""
+    import pandas as pd
+    chunks=[]
+    for path in paths:
+        for chunk in pd.read_csv(path,sep=r'\s+',chunksize=100000):
+            selected=chunk[chunk.Year==year]
+            if len(selected): chunks.append(selected)
+    if not chunks: raise ValueError('No native daily records for independent comparison')
+    frame=pd.concat(chunks,ignore_index=True)
+    coordinates=frame[['Lon','Lat']].drop_duplicates()
+    coordinates['lon_key']=(coordinates.Lon%360).round(3)
+    coordinates['lat_key']=coordinates.Lat.round(3)
+    assert not coordinates.duplicated(['lon_key','lat_key']).any(), 'Ambiguous native coordinate lookup'
+    frame['lon_key']=(frame.Lon%360).round(3)
+    frame['lat_key']=frame.Lat.round(3)
+    keys=['lon_key','lat_key','Day']
+    assert not frame.duplicated(keys).any(), 'Duplicate native daily records'
+    return frame.set_index(keys)
+
+
+def sample_lpj(rule,year,month,lon,lat,tile=0,day=None,level=0):
+    if rule.get('lr_lpj_daily'):
+        start=cftime.DatetimeProlepticGregorian(year,1,1)
+        if rule.get('lr_native_monthly_mean'):
+            first=cftime.DatetimeProlepticGregorian(year,month,1)
+            stop=cftime.DatetimeProlepticGregorian(year+(month==12),month%12+1,1)
+            ordinals=list(range((first-start).days+1,(stop-start).days+1))
+        else:
+            ordinals=[(cftime.DatetimeProlepticGregorian(year,month,day)-start).days+1]
+        def source_values(paths):
+            frame=native_daily_table(tuple(paths),year)
+            columns=[c for c in frame.columns if c.startswith('Depth')] or [rule.get('lr_lpj_value_column','Total')]
+            coordinates=frame[['Lon','Lat']].drop_duplicates()
+            delta=(coordinates.Lon.to_numpy()-lon+180)%360-180
+            distance=np.hypot(delta*np.cos(np.deg2rad(lat)),coordinates.Lat.to_numpy()-lat)
+            nearest=coordinates.iloc[int(np.argmin(distance))]
+            assert float(distance.min())<1e-5, 'Sample is not a simulated LPJG cell'
+            key=(round(float(nearest.Lon)%360,3),round(float(nearest.Lat),3))
+            rows=frame.loc[[key+(ordinal,) for ordinal in ordinals]]
+            delta_lon=(rows.Lon.to_numpy()-lon+180)%360-180
+            assert np.all(np.hypot(delta_lon*np.cos(np.deg2rad(lat)),rows.Lat.to_numpy()-lat)<1e-5), 'Native coordinate precision mismatch'
+            return rows[columns[level]].to_numpy(dtype=float)
+        values=source_values(rule['lr_source_files'])
+        if rule.get('lr_soil_liquid_source_files'):
+            values=values-source_values(rule['lr_soil_liquid_source_files'])
+        return float(values.mean())
     frame=native_table(tuple(rule['lr_source_files']))
     key=(round(lon%360,4),round(lat,4),year)
     if 'lr_lpj_lut' in rule['pipelines']:
@@ -31,6 +78,37 @@ def sample_lpj(rule,year,month,lon,lat,tile=0):
     else:
         value=frame.loc[key,'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()[month-1]]
     return value
+
+
+def native_output_cells(rule,year,output):
+    """Locate actual simulated cells on the expanded global output grid."""
+    frame=native_daily_table(tuple(rule['lr_source_files']),year)
+    coordinates=frame[['Lon','Lat']].drop_duplicates()
+    lon=np.asarray(next(output[n] for n in ('longitude','lon') if n in output.variables)[:],dtype=float)
+    lat=np.asarray(next(output[n] for n in ('latitude','lat') if n in output.variables)[:],dtype=float)
+    assert lon.ndim==lat.ndim==1 and lon.shape==lat.shape, 'Expected native unstructured land grid'
+    from scipy.spatial import cKDTree
+    def xyz(x,y):
+        x,y=np.deg2rad(x),np.deg2rad(y)
+        return np.column_stack([np.cos(y)*np.cos(x),np.cos(y)*np.sin(x),np.sin(y)])
+    distance,indices=cKDTree(xyz(lon,lat)).query(xyz(coordinates.Lon.to_numpy(),coordinates.Lat.to_numpy()))
+    assert distance.max()<np.deg2rad(1e-5), 'Output grid omits simulated land cells'
+    assert len(set(indices))==len(indices), 'Ambiguous source/full-grid coordinate match'
+    delta_lon=(lon[indices]-coordinates.Lon.to_numpy()+180)%360-180
+    assert np.all(np.hypot(delta_lon*np.cos(np.deg2rad(lat[indices])),lat[indices]-coordinates.Lat.to_numpy())<1e-5), 'Native/full-grid coordinate precision mismatch'
+    return np.sort(indices)
+
+
+def verify_unsimulated_mask(output,variable,native_cells):
+    horizontal=next(d for d in variable.dimensions if d in ('nod2','ncells','cell','landpoints'))
+    outside=np.setdiff1d(np.arange(len(output.dimensions[horizontal])),native_cells)
+    other_dims=[d for d in variable.dimensions if d!='time']
+    axis=other_dims.index(horizontal)
+    for ti in range(len(output.dimensions['time'])):
+        selection=tuple(ti if d=='time' else slice(None) for d in variable.dimensions)
+        values=np.ma.masked_invalid(variable[selection])
+        assert np.take(np.ma.getmaskarray(values),outside,axis=axis).all(), 'Values invented outside simulated LPJG footprint'
+        assert not np.take(np.ma.getmaskarray(values),native_cells,axis=axis).any(), 'Simulated LPJG values lost during grid expansion'
 
 
 def unit_factor(source, target):
@@ -148,10 +226,21 @@ def validate(recipe):
             assert name in ds.variables, f'Missing data variable {name}'
             v=ds[name]
             native_indices=regional_native_indices(rule,ds) if rule.get('lr_region') else None
+            land_cells=native_output_cells(rule,years.start,ds) if rule.get('lr_lpj_daily') else None
+            if land_cells is not None:verify_unsimulated_mask(ds,v,land_cells)
             assert hasattr(v,'units'), 'Missing units'
             assert ds.getncattr('source_id')=='LR-SPINUP-TEST', 'Wrong experiment identity'
             assert hasattr(ds,'tracking_id'), 'Missing tracking_id'
             if expected_frequency=='fx':
+                if rule.get('lr_geothermal_zero'):
+                    with netCDF4.Dataset(rule['grid_file']) as grid:
+                        wet=np.asarray(grid['depth_lev'][:])>0
+                    actual=np.ma.masked_invalid(v[:]).reshape(-1)
+                    assert actual.shape==wet.shape, 'Geothermal wet-column shape mismatch'
+                    assert not np.ma.getmaskarray(actual)[wet].any(), 'Missing represented geothermal boundary'
+                    assert np.equal(np.asarray(actual)[wet],0.).all(), 'Nonzero field contradicts reviewed zero boundary'
+                    assert np.ma.getmaskarray(actual)[~wet].all(), 'Non-ocean geothermal values must be missing'
+                    compared_samples+=int(wet.sum())
                 checks.append({'file':str(path),'check':'fixed field header'});continue
             t=ds['time']; decoded=netCDF4.num2date(t[:],t.units,getattr(t,'calendar','standard'))
             calendars.add(decoded[0].calendar)
@@ -175,7 +264,14 @@ def validate(recipe):
                 samples.update(i for i,d in enumerate(decoded) if d.month==2 and d.day==29)
             for ti in sorted(samples):
                 level_values=[0]
-                zd=next((d for d in v.dimensions if d in ('olevel','plev19','plev','lev','depth','nz','nz1')),None)
+                zd=next((d for d in v.dimensions if d in ('olevel','plev19','plev','lev','depth','sdepth','nz','nz1')),None)
+                if rule.get('lr_lpj_daily') and zd:
+                    with Path(rule['lr_source_files'][0]).open() as source:
+                        bottoms=np.array([float(n[5:]) for n in source.readline().split() if n.startswith('Depth')])
+                    depth=ds[zd]
+                    assert np.allclose(depth[:],bottoms-.05,atol=1e-7), 'Incorrect soil layer centres'
+                    assert getattr(depth,'bounds','') in ds.variables, 'Missing soil layer bounds'
+                    assert np.allclose(ds[depth.bounds][:],np.column_stack([bottoms-.1,bottoms]),atol=1e-7), 'Incorrect soil layer bounds'
                 if zd: level_values.append(len(ds.dimensions[zd])//2)
                 for level in sorted(set(level_values)):
                     for fraction in (0.031,0.27,0.51,0.79,0.97):
@@ -184,7 +280,9 @@ def validate(recipe):
                             if d=='time': ix.append(ti)
                             elif d==zd: ix.append(level)
                             elif d in ('nod2','ncells','cell','landpoints'):
-                                j=int(fraction*(len(ds.dimensions[d])-1));ix.append(j)
+                                j=(int(land_cells[int(fraction*(len(land_cells)-1))]) if land_cells is not None
+                                   else int(fraction*(len(ds.dimensions[d])-1)))
+                                ix.append(j)
                                 source_indices['nod2']=int(native_indices[j]) if native_indices is not None else j
                                 cell_index=j
                             elif d in ('lat','latitude'):
@@ -210,7 +308,8 @@ def validate(recipe):
                         elif rule.get('lr_source_files') and all(p.endswith('.out') for p in rule['lr_source_files']):
                             lon=next(ds[n] for n in ('longitude','lon') if n in ds.variables)[cell_index]
                             lat=next(ds[n] for n in ('latitude','lat') if n in ds.variables)[cell_index]
-                            src=sample_lpj(rule,decoded[ti].year,decoded[ti].month,float(lon),float(lat))
+                            src=sample_lpj(rule,decoded[ti].year,decoded[ti].month,float(lon),float(lat),
+                                           day=decoded[ti].day,level=level)
                             factor,offset=unit_factor(rule.get('lr_units',rule['source_units']),v.units)
                             src=src*factor+offset
                             assert not np.ma.is_masked(value), 'Native finite LPJG record became missing'

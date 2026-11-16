@@ -1046,6 +1046,10 @@ def compute_constant_field(data, rule):
     if value is None:
         raise ValueError("Rule must specify 'constant_value'")
     result = xr.full_like(data, value)
+    if rule.get("constant_where_positive", False):
+        result = result.where(data > 0)
+    else:
+        result = result.where(data.notnull())
     result.attrs = data.attrs.copy()
     constant_units = rule.get("constant_units")
     if constant_units:
@@ -3656,7 +3660,8 @@ def compute_hurs(data, rule):
     Compute near-surface relative humidity from temperature and dewpoint.
 
     Uses CMIP7 phase-dependent saturation vapour pressure: over water for
-    T >= 0°C, over ice for T < 0°C. RH is e_sat(Td) / e_sat(T).
+    T >= 0°C, over ice for T < 0°C. OpenIFS dewpoint is defined over water,
+    so its vapour pressure uses water saturation at all dewpoint temperatures.
 
     Primary input (data) is 2t (2m temperature, K).
     Dewpoint is loaded from rule attributes.
@@ -3669,10 +3674,14 @@ def compute_hurs(data, rule):
     td_K = _load_secondary_mf(rule, "second_input_path", "second_input_pattern", "second_variable")
 
     # Phase reference follows ambient T (not Td) per CMIP/CF convention.
-    e = _e_sat_cmip(td_K)
+    # OpenIFS PD2 is a dew point with respect to liquid water, including
+    # subfreezing values; it is not a frost point. Only the denominator
+    # follows the ambient-temperature phase convention.
+    td_C = td_K - 273.15
+    e = 611.2 * np.exp(17.625 * td_C / (td_C + 243.04))
     e_sat = _e_sat_cmip(data)
     result = 100.0 * e / e_sat
-    result = result.clip(0, 100)
+    # Preserve physically possible supersaturation with respect to ice.
 
     result.attrs = {
         "units": "%",
@@ -4584,22 +4593,23 @@ def load_lpjguess_yearly(data, rule):
 
 def clip_small_negatives(data, rule):
     """
-    Set values in [-threshold, +threshold] to zero.
+    Set explicitly selected tiny negative roundoff values to zero.
 
     Clears tiny-negative numerical noise (~1e-12 to 1e-10) that the
     underlying model produces and that propagates through the pipeline
     untouched. Threshold defaults to 1e-10; override via rule.clip_threshold.
 
-    Reviewer claim (Laszlo): for fNnetmin / fVegLitterMortality / fNloss /
-    gpp / gppLut / mrtws / wetlandCH4, raw .out files already contain the
-    same tiny-negative band — this is not a pycmor bug to chase upstream
-    but to silence in the rule. LPJ-GUESS land variables have no legit
-    signal below 1e-10, so this is safe to apply broadly.
+    Positive values and missingness are always preserved. In particular,
+    nitrogen deposition commonly has a valid signal below 1e-10 in SI units.
+    The reviewed LR profile preserves all native small values, including
+    signed fluxes; generic clipping is not a scientific unit conversion.
     """
     threshold = float(rule.get("clip_threshold", 1e-10))
+    if rule.get('preserve_native_small_values',False):
+        return data
     for var_name in list(data.data_vars):
         da = data[var_name]
-        data[var_name] = da.where((da > threshold) | (da < -threshold), 0.0)
+        data[var_name] = xr.where((da<0)&(da>=-threshold),0.0,da,keep_attrs=True)
     return data
 
 
@@ -4616,7 +4626,7 @@ def clip_floor_zero(data, rule):
     """
     for var_name in list(data.data_vars):
         da = data[var_name]
-        data[var_name] = da.where(da >= 0.0, 0.0)
+        data[var_name] = da.where((da >= 0.0) | da.isnull(), 0.0)
     return data
 
 
@@ -5097,7 +5107,8 @@ def compute_sftgif(data, rule):
 
 # HTESSEL field capacity lookup table (Van Genuchten parameters per soil type)
 # Soil types 1-7 from IFS documentation, field capacity as volumetric fraction
-# Source: HTESSEL sussoil_mod.F90, Van Genuchten parameters → theta at pF=2.5
+# Legacy approximate table. Reviewed LR recipes supply the actual model-derived
+# Van Genuchten field capacity instead of using these generic values.
 _HTESSEL_FIELD_CAPACITY = {
     1: 0.242,  # Coarse (sand)
     2: 0.346,  # Medium (loam)
@@ -5113,9 +5124,10 @@ def compute_mrsofc(data, rule):
     """
     Compute soil field capacity from IFS soil type.
 
-    HTESSEL has 7 soil types with known Van Genuchten parameters.
-    Field capacity (theta at pF=2.5) is looked up per soil type,
-    then integrated over the full soil column (2.89 m).
+    Reviewed LR recipes supply field-capacity fractions reconstructed from
+    the active HTESSEL parameters, plus the actual soil-column depth.
+    Categorical soil types must remain integers. Other recipes retain the
+    legacy approximate lookup until their model parameters are reviewed.
 
     mrsofc = theta_fc * total_depth * rho_water
            = theta_fc * 2.89 * 1000 (kg m-2)
@@ -5123,11 +5135,18 @@ def compute_mrsofc(data, rule):
     Input data should contain 'slt' (soil type, integer 1-7).
     """
     slt = data["slt"]
-    total_depth = 0.07 + 0.21 + 0.72 + 1.89  # 2.89 m
+    total_depth = float(rule.get("soil_column_depth_m",0.07 + 0.21 + 0.72 + 1.89))
+    reviewed=rule.get("field_capacity_theta_by_soil_type")
+    table=({int(k):float(v) for k,v in reviewed.items()} if reviewed is not None else _HTESSEL_FIELD_CAPACITY)
+    if reviewed is not None:
+        if bool((slt.notnull() & (abs(slt-np.round(slt))>1e-6)).any()):
+            raise ValueError("Categorical soil types were interpolated; field capacity cannot be reconstructed by rounding")
+        if bool((slt.notnull() & ~np.round(slt).isin(list(table))).any()):
+            raise ValueError("Unreviewed soil type in field-capacity source")
 
     # Map soil type to field capacity
-    theta_fc = xr.zeros_like(slt, dtype=float)
-    for stype, fc in _HTESSEL_FIELD_CAPACITY.items():
+    theta_fc = xr.full_like(slt,np.nan,dtype=float) if reviewed is not None else xr.zeros_like(slt,dtype=float)
+    for stype, fc in table.items():
         theta_fc = xr.where(np.round(slt) == stype, fc, theta_fc)
 
     result = theta_fc * total_depth * 1000.0  # m3/m3 * m * kg/m3 → kg/m2
@@ -5881,8 +5900,8 @@ def compute_msftmz(data, rule):
         else:
             out[:, :, j, :] = vals
 
-    # tripyview zmoc is in Sv; convert to kg s-1 (1 Sv = 1e9 kg s-1 since ρ₀~1000)
-    out_kg = out * 1.0e9
+    # 1 Sv is 1e6 m3 s-1; use the explicitly reviewed model reference density.
+    out_kg = out * (1.0e6 * float(rule.get("overturning_reference_density", 1000.0)))
 
     time_coord = data["time"].values if isinstance(data, xr.Dataset) and "time" in data.coords else np.arange(ntime)
     # If tripyview collapsed the time dim (because input had none), use 1-element
@@ -6692,7 +6711,7 @@ def compute_msftmmpa_depth(data, rule):
     per_basin = _zmoc_basin_loop(mesh, w, diagpath)
     da_sv = _align_zmoc_to_cmip(per_basin, mesh, time_coord_source=data)
     da_out = (
-        (da_sv * 1.0e9)
+        (da_sv * (1.0e6 * float(rule.get("overturning_reference_density", 1000.0))))
         .rename(rule.model_variable)
         .assign_attrs(
             units="kg s-1",
@@ -7254,11 +7273,11 @@ def clip_negative_to_zero(data, rule):
         for v in out.data_vars:
             if out[v].dtype.kind in ("f", "i"):
                 attrs = out[v].attrs
-                out[v] = out[v].where(out[v] >= 0, 0)
+                out[v] = out[v].where((out[v] >= 0) | out[v].isnull(), 0)
                 out[v].attrs = attrs
         return out
     attrs = data.attrs.copy()
-    out = data.where(data >= 0, 0)
+    out = data.where((data >= 0) | data.isnull(), 0)
     out.attrs = attrs
     return out
 

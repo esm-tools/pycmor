@@ -90,7 +90,7 @@ def static_audit(exp,period,config,repo):
         linked['loaded_hdf5_libraries']=sorted(set(line.split()[-1] for line in maps.splitlines() if 'libhdf5' in line))
     except Exception as e:linked['error']=str(e)
     checks=[dict(id='source_identity',status='REVIEW_REQUIRED',
-                 detail='Actual v3.5.1 coupled spinup; retain LR-SPINUP-TEST until registered source/experiment/parent are reviewed.'),
+                 detail=f'Actual coupled experiment {exp.name}; retain LR-SPINUP-TEST until registered source/experiment/parent are reviewed.'),
             dict(id='dreq',status='PASS' if digest(config['metadata'])=='eccf9f9296488581939310a37c60849501f77c9c9dd27faf8585b2345c18b9e3' else 'REVIEW_REQUIRED',
                  detail={'path':config['metadata'],'sha256':digest(config['metadata']),
                          'missing_catalogue_compounds':sorted(set(catalog)-metadata['Compound Name'].keys())}),
@@ -118,7 +118,7 @@ def static_audit(exp,period,config,repo):
         ('regional_cmor_tables','AICC does not prove requested region is valid; compare exact compound with pinned DReq.')]:
         checks.append(dict(id=ident,status='REVIEW_REQUIRED',detail=detail))
     return dict(environment=env,checks=checks,xml_streams=xml,
-                archived_config_files={str(p):digest(p) for p in work.iterdir()
+                archived_config_files={str(p):digest(p) for p in (work.iterdir() if work.is_dir() else [])
                     if p.is_file() and (p.suffix in ('.xml','.ins') or p.name.startswith('namelist'))},
                 caveat='PASS records describe the named check only, not the entire product or publication readiness.')
 

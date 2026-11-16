@@ -156,6 +156,22 @@ class Tests(unittest.TestCase):
         b=hashlib.sha256(b'/two/experiment').hexdigest()[:8]
         self.assertNotEqual(a,b)
 
+    def test_conversion_completion_is_separate_from_request_gaps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);output=base/'output.nc';output.write_bytes(b'validated output')
+            f.write(base/'coverage.json',[
+                dict(compound='ocean.tos.x.mon.glb',year=2000,status='READY',key='task',reason=''),
+                dict(compound='ocean.missing.x.mon.glb',year=2000,status='BLOCKED',reason='not archived')])
+            f.write(base/'status/task.json',dict(key='task',status='PASS',validation=dict(
+                files=[str(output)],output_state=f.file_state([str(output)]))))
+            self.assertEqual(f.report(base),0)
+            summary=f.read(base/'report/summary.json')
+            self.assertEqual(summary['conversion_status'],'COMPLETE')
+            self.assertEqual(summary['requested_scope_status'],'INCOMPLETE')
+            output.unlink()
+            self.assertEqual(f.report(base),1)
+            self.assertEqual(f.read(base/'report/summary.json')['counts']['FAILED'],1)
+
     def test_production_validation_requires_depth_metadata(self):
         compound = 'ocean.thetao.tavg-ol-hxy-sea.fx.glb'
         with tempfile.TemporaryDirectory() as directory:
@@ -197,7 +213,19 @@ class Tests(unittest.TestCase):
             cmd=mock.call_args.args[0]
             self.assertIn('--dependency=afterok:999',cmd)
             self.assertIn('--qos=boost',cmd)
-            self.assertEqual(cmd[-2:],['--wrap','true'])
+            self.assertEqual(cmd[-2],'--wrap')
+            self.assertTrue(cmd[-1].endswith(' true'))
+            self.assertIn('OMP_NUM_THREADS=1',cmd[-1])
+
+    def test_planner_and_workers_receive_the_pinned_native_environment(self):
+        config=dict(account='account',partition='smp',memory='1G',walltime='00:01:00',repo='/frozen/repo',
+                    native_io=dict(plugin_path='/plugins',hdf5_prefix='/hdf5',netcdf_prefix='/netcdf'))
+        with patch.object(f.subprocess,'check_output',return_value='123\n') as call:
+            f.batch(config,'python process.py','/tmp/out','test')
+        command=call.call_args.args[0][-1]
+        self.assertIn('PYTHONPATH=/frozen/repo/src:',command)
+        self.assertIn('HDF5_PLUGIN_PATH=/plugins',command)
+        self.assertIn('LD_LIBRARY_PATH=/hdf5/lib:/netcdf/lib:',command)
 
 
 class PortableConfigTests(unittest.TestCase):

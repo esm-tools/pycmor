@@ -1,6 +1,10 @@
 Full-catalog LR conversion and retesting
 =======================================
 
+See ``REVIEWED_WORKFLOW.rst`` for official experiment-request coverage,
+run-specific scientific repairs and disabled invalid proxies, native daily
+soil diagnostics, archived-leg provenance, and checker compatibility.
+
 This opt-in extension inventories the full LR CMIP7 rule catalog, raw-monthly
 fallbacks, REcoM and atmospheric CO2 additions, and explicitly unmapped requests.
 This is the single operational LR workflow, including REcoM and atmospheric

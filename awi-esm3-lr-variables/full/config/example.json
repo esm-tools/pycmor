@@ -26,6 +26,12 @@
   "vector_frame": "auto",
   "known_rotated_fesom_sha256": [],
   "carbon_profile": null,
+  "data_request_file": null,
+  "data_request_experiment": "piControl",
+  "scientific_profile": null,
+  "field_capacity_context": null,
+  "archived_contexts": {},
+  "geothermal_context": null,
   "carbon_context": {
     "external_emissions_reader": null,
     "wetland_ch4_routed_to_co2": null,
