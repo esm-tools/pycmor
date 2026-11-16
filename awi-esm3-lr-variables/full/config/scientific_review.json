@@ -861,7 +861,10 @@
           "line": 1819,
           "function": "compute_surface_pressure"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.pso.tavg-u-hxy-sea.mon.glb": "pso = monthly OpenIFS surface pressure (hourly sp on TCo95, nearest node) + g*(910*m_ice + 290*m_snow) + density_0*g*ceiling depth under ice shelves; no SSH term and no constant atmosphere."
+      }
     },
     {
       "id": "F31",
@@ -878,7 +881,10 @@
           "line": 233,
           "excerpt": "pbo(n2) = pbo(n2) + g * dz * dens_val"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.pbo.tavg-u-hxy-sea.mon.glb": "Native pbo plus the overburden: monthly OpenIFS surface pressure (hourly sp on TCo95, mapped nearest-neighbour onto the nodes), g*(910*m_ice + 290*m_snow) for sea ice and snow, and density_0*g*ceiling depth for the floating ice shelf on cavity nodes (FESOM's own cavity pressure boundary). All terms are linear in monthly means."
+      }
     },
     {
       "id": "F32",

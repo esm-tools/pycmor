@@ -3523,6 +3523,101 @@ def keep_ice_shelf_cavity_nodes(data, rule):
     return result
 
 
+def _bilinear_periodic(field, node_lon, node_lat):
+    """Bilinear interpolation of a regular lat/lon field to points, periodic in longitude.
+
+    Latitudes beyond the outermost grid rows take the row value.
+    """
+    from scipy.interpolate import RegularGridInterpolator
+
+    lat_name = next(n for n in ("lat", "latitude") if n in field.dims)
+    lon_name = next(n for n in ("lon", "longitude") if n in field.dims)
+    field = field.transpose(lat_name, lon_name).sortby(lat_name)
+    lat = np.asarray(field[lat_name].values, dtype=float)
+    lon = np.asarray(field[lon_name].values, dtype=float) % 360.0
+    order = np.argsort(lon)
+    lon, values = lon[order], np.asarray(field.values, dtype=float)[:, order]
+    lon = np.concatenate([[lon[-1] - 360.0], lon, [lon[0] + 360.0]])
+    values = np.concatenate([values[:, -1:], values, values[:, :1]], axis=1)
+    interp = RegularGridInterpolator((lat, lon), values, method="linear")
+    return interp(np.column_stack([np.clip(node_lat, lat[0], lat[-1]), node_lon % 360.0]))
+
+
+def compute_overburden_pressure(data, rule):
+    """Pressure of everything above the liquid ocean, per node and month (Pa).
+
+        p_over = p_atm + g * (rhoice * m_ice + rhosno * m_snow) + p_shelf
+
+    - p_atm: OpenIFS mean sea-level pressure, the monthly mean on the remapped
+      regular grid (``atm_pressure_path`` / ``atm_pressure_pattern``,
+      atm_remapped_1m_msl), interpolated bilinearly onto the nodes with a
+      periodic longitude. The ocean surface is at sea level, so over open
+      water msl equals the surface pressure ``sp``; ``sp`` mapped from TCo95
+      by nearest neighbour picks land cells at coastal nodes (777 hPa off
+      Greenland) and is not used. Over ice shelves the shelf-top elevation
+      (tens of metres, a few hPa) is neglected.
+    - sea ice and snow: ``m_ice`` / ``m_snow`` are heights per grid-cell area
+      (io_meandata.F90), so their load is g*rho*m with the model densities
+      rhoice = 910 and rhosno = 290 (MOD_ICE.F90:61-62). With
+      use_floatice=.false. FESOM does not apply this load itself.
+    - ice shelves: under a cavity the ceiling carries the floating shelf. FESOM
+      sets its pressure boundary there by filling the cavity with water of the
+      ice-base density (oce_ale_pressure_bv.F90:194-240); here that load is
+      density_0 * g * ceiling depth (density_0 = 1030, ``reference_density``).
+
+    All terms are linear, so monthly means of the inputs give the monthly mean.
+    ``overburden_mode``: ``surface`` returns p_over (pso; ``data`` only supplies
+    the monthly axis), ``bottom`` adds p_over to ``data`` (native pbo, which
+    holds the water column and the linfs SSH term only).
+    """
+    g = float(rule.get("gravity", 9.81))
+    rho_ice = float(rule.get("rho_ice", 910.0))
+    rho_snow = float(rule.get("rho_snow", 290.0))
+    rho_0 = float(rule.get("reference_density", 1030.0))
+    node_dim = next(d for d in data.dims if d != "time")
+
+    def monthly(path_key, pattern_key, variable_key):
+        field = _load_secondary_mf(rule, path_key, pattern_key, variable_key)
+        return _mean_on_time_axis_of(field, data)
+
+    def on_nodes(field):
+        return field.drop_vars([c for c in field.coords if c not in field.dims], errors="ignore").rename(
+            {d: node_dim for d in field.dims if d != "time"}
+        )
+
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        node_lon = np.asarray(mesh["lon"].values, dtype=float)
+        node_lat = np.asarray(mesh["lat"].values, dtype=float)
+    msl = monthly("atm_pressure_path", "atm_pressure_pattern", "atm_pressure_variable")
+    sp = xr.DataArray(
+        [_bilinear_periodic(msl.isel(time=t), node_lon, node_lat) for t in range(msl.sizes["time"])],
+        dims=("time", node_dim),
+        coords={"time": data["time"].values},
+    )
+    # FESOM writes no sea ice or snow under ice shelves (NaN there): no load.
+    load = g * (rho_ice * on_nodes(monthly("mice_path", "mice_pattern", "mice_variable")).fillna(0.0)
+                + rho_snow * on_nodes(monthly("msnow_path", "msnow_pattern", "msnow_variable")).fillna(0.0))
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        bounds = np.asarray(mesh["depth_bnds"].values, dtype=float)
+        level = np.nan_to_num(np.asarray(mesh["cav_nod_lev"].values, dtype=float)).astype(int)
+    shelf = xr.DataArray(rho_0 * g * np.where(level > 0, bounds[level], 0.0), dims=(node_dim,))
+    over = on_nodes(sp) + load + shelf
+    mode = rule.get("overburden_mode")
+    if mode == "surface":
+        result = over
+    elif mode == "bottom":
+        result = data + over
+    else:
+        raise ValueError(f"overburden_mode must be surface or bottom, not {mode!r}")
+    result = result.transpose(*data.dims)
+    result.attrs = dict(data.attrs, units="Pa")
+    result.attrs["processing_note"] = (
+        f"{'native pbo + ' if mode == 'bottom' else ''}OpenIFS msl (bilinear) + g*({rho_ice:g}*m_ice + "
+        f"{rho_snow:g}*m_snow) + ice-shelf load {rho_0:g}*g*ceiling depth under cavities"
+    )
+    result.name = data.name
+    return result
+
 # ============================================================
 # Atmosphere derived-variable steps
 # These compute CMOR variables that require combining two or

@@ -317,5 +317,44 @@ class Teos10Tests(unittest.TestCase):
                 self.assertAlmostEqual(rule['scale_factor'] / (4111624. if 'chcint' in compound else 1.03), 1., 6)
 
 
+class OverburdenTests(unittest.TestCase):
+    def test_surface_and_bottom_pressure(self):
+        _, months = daily_and_monthly()
+        days, _ = daily_and_monthly()
+        # Regular-grid monthly msl, periodic in longitude: 1e5 + 100*lat at the nodes.
+        lat, lon = np.array([-80., -40.]), np.array([5., 185.])
+        field = 1.0e5 + 100. * lat[:, None] + 0. * lon[None, :]
+        sp = xr.DataArray(np.stack([field, field]), dims=('time', 'lat', 'lon'),
+                          coords={'time': [cftime.DatetimeGregorian(2001, 1, 16), cftime.DatetimeGregorian(2001, 2, 14)],
+                                  'lat': lat, 'lon': lon})
+        m_ice = xr.DataArray([[1.0, 0.0], [2.0, 0.0]], dims=('time', 'nod2'), coords={'time': months})
+        m_snow = xr.DataArray(np.r_[np.full((31, 2), 0.2), np.zeros((28, 2))] * [1., 0.], dims=('time', 'nod2'),
+                              coords={'time': days})
+        pbo = xr.DataArray([[4.0e7, 1.0e6], [4.0e7, 1.0e6]], dims=('time', 'nod2'), coords={'time': months},
+                           name='pbo', attrs={'units': 'Pa'})
+        loads = {'atm_pressure_path': sp, 'mice_path': m_ice, 'msnow_path': m_snow}
+        with tempfile.TemporaryDirectory() as tmp:
+            mesh, _ = mesh_files(tmp)
+            with patch.object(CUSTOM, '_load_secondary_mf', side_effect=lambda rule, key, *a: loads[key]):
+                surface = CUSTOM.compute_overburden_pressure(pbo, Rule(grid_file=str(mesh), overburden_mode='surface'))
+                bottom = CUSTOM.compute_overburden_pressure(pbo, Rule(grid_file=str(mesh), overburden_mode='bottom'))
+        g = 9.81
+        atm = 1e5 + 100. * np.array([-50., -75.])
+        expected = np.array([[atm[0] + g * (910 * 1.0 + 290 * 0.2), atm[1] + 1030 * g * 10.],
+                             [atm[0] + g * 910 * 2.0, atm[1] + 1030 * g * 10.]])
+        np.testing.assert_allclose(surface.values, expected)
+        np.testing.assert_allclose(bottom.values, expected + pbo.values)
+        self.assertEqual(surface.attrs['units'], 'Pa')
+
+    def test_catalogue_rules(self):
+        for compound, mode, finding in (('ocean.pso.tavg-u-hxy-sea.mon.glb', 'surface', 'F30'),
+                                        ('ocean.pbo.tavg-u-hxy-sea.mon.glb', 'bottom', 'F31')):
+            with self.subTest(compound=compound):
+                rule = reviewed(compound)
+                self.assertEqual(rule['overburden_mode'], mode)
+                self.assertEqual({r['id']: r['action'] for r in rule['lr_scientific_review']}[finding],
+                                 'repaired_recipe')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -553,6 +553,26 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Atmosphere + sea ice/snow + ice-shelf load on the ocean surface (pso) or
+  # added to the native water-column pbo (compute_overburden_pressure).
+  - name: overburden_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_overburden_pressure
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Ice-shelf cavities (use_cavity=.true.): static cav_nod_mask from mesh.nc.
   - name: fx_sftflf_pipeline
     steps:
@@ -657,13 +677,32 @@ rules:
   # EASY: Direct mapping from ldiag_cmor or existing namelist.io
   # ============================================================
 
-  # pbo — sea water pressure at sea floor (from ldiag_cmor=.true.)
+  # pbo — sea water pressure at sea floor. The native ldiag_cmor pbo is the
+  # water column plus the linfs SSH term (gen_modules_cmor_diag.F90:229-233);
+  # the request includes overlying air and ice, so compute_overburden_pressure
+  # adds OpenIFS mean sea-level pressure (equal to sp at the ocean surface;
+  # sp itself maps land cells onto coastal nodes), the sea-ice/snow load and
+  # the ice-shelf load.
   - name: pbo
     inputs:
       - path: *dp
         pattern: pbo\.fesom\.\d{4}\.nc
     compound_name: ocean.pbo.tavg-u-hxy-sea.mon.glb
     model_variable: pbo
+    overburden_mode: bottom
+    atm_pressure_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/oifs
+    atm_pressure_pattern: atm_remapped_1m_msl_.*\.nc
+    atm_pressure_variable: msl
+    mice_path: *dp
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    mice_variable: m_ice
+    msnow_path: *dp
+    msnow_pattern: m_snow\.fesom\.\d{4}\.nc
+    msnow_variable: m_snow
+    reference_density: 1030.0
+    scientific_repairs: [F31]
+    pipelines:
+      - overburden_pipeline
 
   # volo — sea water volume (from ldiag_cmor=.true., global scalar)
   - name: volo
@@ -958,16 +997,30 @@ rules:
   # MEDIUM: Computed from existing output
   # ============================================================
 
-  # pso — surface pressure from SSH
+  # pso — pressure at the top of the liquid ocean: OpenIFS sea-level pressure
+  # plus sea ice and snow (g*(910*m_ice + 290*m_snow)) plus the ice-shelf load
+  # under cavities. Not 101325 + rho*g*SSH: SSH is water below that surface.
+  # m_ice only supplies the monthly axis here.
   - name: pso
     inputs:
       - path: *dp
-        pattern: ssh\.fesom\.\d{4}\.nc
+        pattern: m_ice\.fesom\.\d{4}\.nc
     compound_name: ocean.pso.tavg-u-hxy-sea.mon.glb
-    model_variable: ssh
-    reference_density: 1025.0
+    model_variable: m_ice
+    overburden_mode: surface
+    atm_pressure_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/oifs
+    atm_pressure_pattern: atm_remapped_1m_msl_.*\.nc
+    atm_pressure_variable: msl
+    mice_path: *dp
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    mice_variable: m_ice
+    msnow_path: *dp
+    msnow_pattern: m_snow\.fesom\.\d{4}\.nc
+    msnow_variable: m_snow
+    reference_density: 1030.0
+    scientific_repairs: [F30]
     pipelines:
-      - surface_pressure_pipeline
+      - overburden_pipeline
 
   # masso — global sea water mass (rho_0 × volo)
   # Approximation: masso = rho_0 × volo (Boussinesq)
