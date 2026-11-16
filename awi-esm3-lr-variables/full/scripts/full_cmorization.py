@@ -553,6 +553,8 @@ def build_catalog(config, experiment, period, identity, campaign):
         return [p for p in source_index[component] if re.fullmatch(pattern,p.name)
                 and (component=='lpj_guess' or any(str(y) in p.name for y in raw.YEARS))]
     def raw_months(paths,variable,expected_units=None):
+        if not paths:
+            raise ValueError(f'MISSING_INPUT: {variable}')
         dates=[];shape=None
         for path in paths:
             header=nc_header(str(path))
@@ -566,7 +568,7 @@ def build_catalog(config, experiment, period, identity, campaign):
             shape=spatial
             dates.extend((d[0],d[1]) for d in header.get('dates',[]) if d[0] in raw.YEARS)
         if dates!=[(y,m) for y in raw.YEARS for m in range(1,13)]:
-            raise ValueError('Incomplete/duplicate monthly raw data')
+            raise ValueError(f'Incomplete/duplicate monthly raw data: {variable}, {len(dates)} records')
     raw.inputs=raw_inputs
     raw.check_months=raw_months
     grid = raw.grids()

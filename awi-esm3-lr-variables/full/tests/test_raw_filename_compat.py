@@ -143,6 +143,51 @@ class RawFilenameMaterializeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Incomplete/duplicate monthly coverage'):
             RAW.materialize(self.rule(), {})
 
+    def test_unwritten_term_stream_is_missing_input_not_incomplete(self):
+        # fco2nat in the v3.5.2 legs: co2fire is not in the CMIP7 file_def.
+        for variable in ('co2nbf', 'co2of'):
+            self.source(variable)
+        with self.assertRaisesRegex(ValueError, r'^MISSING_INPUT: co2fire \^atm_remapped_1m_co2fire_'):
+            RAW.materialize(self.rule(), {})
+
+    def test_planner_reports_unwritten_term_stream(self):
+        import full_cmorization as f
+        from unittest.mock import patch as mock_patch
+        for variable in ('co2nbf', 'co2of'):
+            self.source(variable)
+        period = '26050101-26051231'
+        base = RAW.EXP
+        (base/'outdata/fesom').mkdir()
+        (base/'outdata/lpj_guess'/period).mkdir(parents=True)
+        campaign = base/'campaign'
+        (campaign/'grids').mkdir(parents=True)
+        (campaign/'reproduce').mkdir()
+        (campaign/'grids/full_TCO95_grid.nc').touch()
+        compound = 'atmos.fco2nat.tavg-u-hxy-u.mon.glb'
+        metadata = base/'metadata.json'
+        f.write(metadata, {'Compound Name': {compound: {}}})
+        config = dict(repo=str(f.REPO), metadata=str(metadata), mesh_dir=str(base), ghg_dir=str(base),
+                      carbon_profile='awiesm3-v3.5.1-cc-raw-v1', carbon_context={'external_emissions_reader': False})
+        load_module = f.module
+        def module(path, name):
+            result = load_module(path, name)
+            if name == 'full_raw_rules':
+                result.grids = lambda: {}
+            return result
+        f.nc_header.cache_clear()
+        with mock_patch.object(f, 'module', side_effect=module):
+            coverage = f.build_catalog(config, base, period, {}, campaign)[1]
+        row = next(r for r in coverage if r['compound'] == compound)
+        self.assertEqual(row['status'], 'BLOCKED')
+        self.assertIn('MISSING_INPUT: co2fire ^atm_remapped_1m_co2fire_', row['reason'])
+        self.assertNotIn('Incomplete/duplicate', row['reason'])
+        # A written but incomplete stream keeps the coverage message.
+        self.source('co2fire', months=range(1, 12))
+        with mock_patch.object(f, 'module', side_effect=module):
+            coverage = f.build_catalog(config, base, period, {}, campaign)[1]
+        row = next(r for r in coverage if r['compound'] == compound)
+        self.assertIn('Incomplete/duplicate monthly raw data: co2fire, 11 records', row['reason'])
+
     def test_daily_files_do_not_supply_missing_monthly_sources(self):
         self.source('co2nbf', frequency='1d')
         with self.assertRaisesRegex(ValueError, 'Missing source:'):
