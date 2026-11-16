@@ -239,6 +239,23 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # zostoga against one fixed reference state for every task (see rule).
+  - name: zostoga_fixed_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_zostoga_fixed_reference
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -650,6 +667,11 @@ rules:
   # Computes steric height anomaly from temperature using gsw (TEOS-10)
   # ============================================================
 
+  # Thermosteric change relative to ONE reference state: the mean temperature
+  # of zostoga_reference_years (default: the first decade of the v3.5.2
+  # branch; the planner config key zostoga_reference_years overrides it).
+  # scientific_review turns the years into a frozen file pattern, so all
+  # tasks of all legs share the baseline. Volumes are hnode x nod_area.
   - name: zostoga
     inputs:
       - path: *dp
@@ -660,6 +682,11 @@ rules:
     salt_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    hnode_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    zostoga_reference_years: [2690, 2699]
+    scientific_repairs: [F35]
     pipelines:
-      - zostoga_pipeline
+      - zostoga_fixed_pipeline

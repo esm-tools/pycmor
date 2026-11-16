@@ -72,6 +72,14 @@ def review_document(doc, identity, config):
     if rule.get('lr_scientific_sampling_note'):
         attrs=rule.setdefault('variable_attributes',{})
         attrs['comment']=' '.join(filter(None,[attrs.get('comment'),rule['lr_scientific_sampling_note']]))
+    if any(r['id']=='F35' and finding_action(r,compound,rule)=='repaired_recipe' for r in findings):
+        # One fixed thermosteric reference for every task of every leg.
+        years=config.get('zostoga_reference_years',rule.get('zostoga_reference_years'))
+        if not years or len(years)!=2 or years[1]<years[0]:
+            raise ValueError('UNRESOLVED_ZOSTOGA_REFERENCE: configure zostoga_reference_years [first, last]')
+        rule['zostoga_reference_years']=[int(years[0]),int(years[1])]
+        rule['zostoga_reference_path']=rule['inputs'][0]['path']
+        rule['zostoga_reference_pattern']=(r'temp\.fesom\.(?:'+'|'.join(str(y) for y in range(int(years[0]),int(years[1])+1))+r')\.nc')
     rule['lr_scientific_review']=[dict(id=r['id'],action=finding_action(r,compound,rule),verdict=r['verdict'],
                                        **({'repair':r['repaired'][compound]}
                                           if finding_action(r,compound,rule)=='repaired_recipe' else {}))

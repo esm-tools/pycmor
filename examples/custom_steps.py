@@ -2709,6 +2709,86 @@ def compute_zostoga(data, rule):
     return zostoga
 
 
+def compute_zostoga_fixed_reference(data, rule):
+    """Global thermosteric sea level change against one fixed reference state.
+
+    For each month t, with the month's own Absolute Salinity SA_t:
+
+        zostoga(t) = -sum_k,n (rho(SA_t, CT_t) - rho(SA_t, CT_ref)) / rho(SA_t, CT_ref)
+                     * hnode * nod_area / sum_n nod_area(surface)
+
+    CT_ref comes from the potential temperature averaged over the reference
+    years in ``zostoga_reference_path`` / ``zostoga_reference_pattern``; the
+    planner sets those from ``zostoga_reference_years`` and freezes the files,
+    so every task of every leg subtracts the same state. ``compute_zostoga``
+    (HR) instead subtracts each task's own mean, which resets the baseline.
+    Thickness is the archived hnode, area the model's depth-dependent
+    nod_area (``volume_area_file``), pressure the TEOS-10 pressure of the
+    layer mid-depths. The area normalising the volume change is the ocean
+    surface open to the atmosphere (nod_area of the top layer).
+
+    Primary input: monthly potential temperature (time, nod2, nz).
+    Rule attributes: salt_path/salt_pattern/salt_variable,
+    hnode_path/hnode_pattern/hnode_variable, volume_area_file, grid_file
+    (lon/lat), zostoga_reference_path/zostoga_reference_pattern.
+    """
+    import gsw
+
+    temp = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    level_dim = next(d for d in ("nz1", "nz") if d in temp.dims)
+    node_dim = next(d for d in ("nod2", "ncells") if d in temp.dims)
+    temp = temp.transpose("time", node_dim, level_dim)
+    salt = _load_secondary_mf(rule, "salt_path", "salt_pattern", "salt_variable").transpose("time", node_dim, ...)
+    hnode = _load_secondary_mf(rule, "hnode_path", "hnode_pattern", "hnode_variable").transpose(
+        "time", node_dim, ...
+    )
+    nlev = temp.sizes[level_dim]
+    area = _depth_dependent_node_area(rule, nlev).values.T  # (node, level)
+    surface_area = float(area[:, 0].sum())
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        lon = np.asarray(mesh["lon"].values, dtype=float)[:, None]
+        lat = np.asarray(mesh["lat"].values, dtype=float)[:, None]
+    depth = np.asarray(temp[level_dim].values, dtype=float)[None, :]
+    pressure = gsw.p_from_z(-depth, lat)
+
+    path, pattern = rule.get("zostoga_reference_path"), rule.get("zostoga_reference_pattern")
+    regex = _re.compile(pattern)
+    files = sorted(_os.path.join(path, f) for f in _os.listdir(path) if regex.fullmatch(f))
+    if not files:
+        raise FileNotFoundError(f"No zostoga reference files matching {pattern!r} in {path}")
+    with xr.open_mfdataset(files, use_cftime=True) as ref:
+        variable = rule.get("zostoga_reference_variable", "temp")
+        ref_dims = ref[variable].dims
+        reference = ref[variable].transpose(*[d for d in ref_dims if d in ("time", "time_counter")], node_dim, ...)
+        reference = np.asarray(reference.mean(reference.dims[0]).values, dtype=float)
+    logger.info(f"zostoga: fixed reference from {len(files)} files ({files[0]} .. {files[-1]})")
+
+    values = []
+    for t in range(temp.sizes["time"]):
+        pt = np.asarray(temp.isel(time=t).values, dtype=float)
+        sa = gsw.SA_from_SP(np.asarray(salt.isel(time=t).values, dtype=float), pressure, lon, lat)
+        rho = gsw.rho(sa, gsw.CT_from_pt(sa, pt), pressure)
+        rho_ref = gsw.rho(sa, gsw.CT_from_pt(sa, reference), pressure)
+        h = np.asarray(hnode.isel(time=t).values, dtype=float)
+        dv = -(rho - rho_ref) / rho_ref * h * area
+        values.append(np.nansum(dv) / surface_area)
+    result = xr.DataArray(
+        np.asarray(values),
+        dims=("time",),
+        coords={"time": temp["time"].values},
+        name=rule.model_variable,
+        attrs={
+            "units": "m",
+            "standard_name": "global_average_thermosteric_sea_level_change",
+            "long_name": "Global Average Thermosteric Sea Level Change",
+            "processing_note": "relative to the fixed temperature state of "
+            f"{_os.path.basename(files[0])} .. {_os.path.basename(files[-1])} (time mean); "
+            "salinity held at each month's value; TEOS-10; hnode x nod_area volumes",
+        },
+    )
+    return result
+
+
 # ============================================================
 # Vertical integration step
 # ============================================================

@@ -965,7 +965,10 @@
           "line": 2609,
           "function": "compute_zostoga"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.zostoga.tavg-u-hm-sea.mon.glb": "compute_zostoga_fixed_reference: the reference is the mean temperature of fixed years (zostoga_reference_years, default 2690-2699, configurable), frozen as input files for every task; salinity held at each month's value; TEOS-10 density at layer mid-depth pressure; volumes from archived hnode times nod_area; normalised by the open ocean surface area."
+      }
     },
     {
       "id": "F36",

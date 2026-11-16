@@ -244,5 +244,49 @@ class OceanDerivedTests(unittest.TestCase):
                 self.assertTrue(reviewed(compound)['inputs'][0]['pattern'].startswith(stream))
 
 
+class ZostogaTests(unittest.TestCase):
+    def files(self, tmp, warming):
+        mesh, diag = mesh_files(tmp)
+        out = Path(tmp) / 'outdata'; out.mkdir()
+        times = [cftime.DatetimeGregorian(2001, m, 15) for m in (1, 2)]
+        def write(name, year, values, t=times):
+            xr.Dataset({name: (('time', 'nod2', 'nz'), values)},
+                       coords={'time': t, 'nz': [5., 20., 45.]}).to_netcdf(out / f'{name}.fesom.{year}.nc')
+        base = np.array([[10., 5., 2.], [np.nan, 0., -1.]])
+        write('temp', 1990, np.stack([base, base]), [cftime.DatetimeGregorian(1990, m, 15) for m in (1, 2)])
+        write('temp', 2001, np.stack([base, base + warming]))
+        write('salt', 2001, np.full((2, 2, 3), 35.))
+        write('hnode', 2001, np.stack([[[10., 20., 30.], [np.nan, 20., 30.]]] * 2))
+        rule = Rule(model_variable='zostoga', grid_file=str(mesh), volume_area_file=str(diag),
+                    salt_path=str(out), salt_pattern=r'salt\.fesom\.2001\.nc', salt_variable='salt',
+                    hnode_path=str(out), hnode_pattern=r'hnode\.fesom\.2001\.nc', hnode_variable='hnode',
+                    zostoga_reference_path=str(out), zostoga_reference_pattern=r'temp\.fesom\.(?:1990)\.nc$')
+        with xr.open_dataset(out / 'temp.fesom.2001.nc', use_cftime=True) as ds:
+            temp = ds['temp'].load()
+        return temp, rule
+
+    def test_fixed_reference_gives_zero_then_rise_on_warming(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            temp, rule = self.files(tmp, 1.0)
+            CUSTOM._load_secondary_mf_clear_cache()
+            out = CUSTOM.compute_zostoga_fixed_reference(temp, rule)
+        self.assertEqual(out.sizes['time'], 2)
+        self.assertAlmostEqual(float(out[0]), 0.0, places=12)
+        # Thermal expansion ~1.7e-4 per K at 10 C; the column (60 m) and area
+        # weights give a few millimetres for 1 K over the surface area of 9.
+        self.assertGreater(float(out[1]), 1e-3)
+        self.assertLess(float(out[1]), 5e-2)
+
+    def test_review_freezes_one_reference_for_all_tasks(self):
+        rule = reviewed('ocean.zostoga.tavg-u-hm-sea.mon.glb')
+        self.assertEqual(rule['zostoga_reference_years'], [2690, 2699])
+        self.assertTrue(rule['zostoga_reference_pattern'].startswith('temp\\.fesom\\.(?:2690|2691'))
+        self.assertIn('repaired_recipe', {r['action'] for r in rule['lr_scientific_review']})
+        path, raw = catalogue_rule('ocean.zostoga.tavg-u-hm-sea.mon.glb')
+        one = dict(yaml.safe_load(path.read_text()), rules=[copy.deepcopy(raw)])
+        out = review_document(one, IDENTITY, dict(CONFIG, zostoga_reference_years=[2840, 2849]))['rules'][0]
+        self.assertIn('2849', out['zostoga_reference_pattern'])
+
+
 if __name__ == '__main__':
     unittest.main()
