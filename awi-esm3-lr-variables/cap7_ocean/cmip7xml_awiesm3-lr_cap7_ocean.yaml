@@ -227,7 +227,8 @@ rules:
   # Part 2: Monthly volcello — time-varying ocean cell volume
   # ============================================================
   # Input: hnode (layer thickness) from FESOM, monthly averaged
-  # Pipeline: compute volcello from hnode × cell_area
+  # Pipeline: volcello = hnode × nod_area(nz, nod2), the depth-dependent
+  # model area FESOM uses for volo; reproduces native volo within 0.003%.
 
   - name: volcello_mon
     inputs:
@@ -235,6 +236,20 @@ rules:
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.volcello.tavg-ol-hxy-sea.mon.glb
     model_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    scientific_repairs: [F34]
+    lazy_write: true
+    pipelines:
+      - volcello_time_pipeline
+
+  # Annual mean of the same field (Oyr); under linfs equal to the fx volume.
+  - name: volcello_yr
+    inputs:
+      - path: *dp
+        pattern: hnode\.fesom\.\d{4}\.nc
+    compound_name: ocean.volcello.tavg-ol-hxy-sea.yr.glb
+    model_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
     lazy_write: true
     pipelines:
       - volcello_time_pipeline

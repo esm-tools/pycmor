@@ -61,6 +61,28 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # As ocean_oplayer4_pipeline, after converting to a TEOS-10 variable
+  # (convert_to_teos10: SA, S* or CT through gsw at layer mid-depth pressure).
+  - name: ocean_oplayer4_teos10_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:convert_to_teos10
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_pressure_layers
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: ocean_vertical_integration_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
@@ -239,6 +261,23 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # zostoga against one fixed reference state for every task (see rule).
+  - name: zostoga_fixed_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_zostoga_fixed_reference
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -342,6 +381,31 @@ rules:
       - scale_pipeline
     # MLD3 = Griffies 2016 (sigma_t=0.03 kg/m3) = CMIP-compliant mlotst
 
+  # Monthly maximum and minimum of the daily-mean MLD3 (timeavg reduces with
+  # max/min from the DReq cell_methods). Taken from daily means, so extremes
+  # within a day are not seen.
+  - name: mlotst_tmax
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tmax-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    scale_factor: -1.0
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+
+  - name: mlotst_tmin
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tmin-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    scale_factor: -1.0
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+
   - name: tauuo
     grid_label: __LR_GRID_OCEAN_ELEM__
     grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
@@ -363,6 +427,27 @@ rules:
     compound_name: ocean.tauvo.tavg-u-hxy-sea.mon.glb
     model_variable: ty_sur
     # NOTE: Same elem grid caveat as tauuo.
+
+  # 3-hourly means of the same stresses (tx_sur_3h/ty_sur_3h aliases,
+  # io_meandata def_xios_aliases). FESOM rotates the alias pair to geographic
+  # like the monthly fields, so the rule is the monthly one on the 3h stream.
+  - name: tauuo_3hr
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
+    inputs:
+      - path: *dp
+        pattern: tx_sur_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauuo.tavg-u-hxy-sea.3hr.glb
+    model_variable: tx_sur
+
+  - name: tauvo_3hr
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
+    inputs:
+      - path: *dp
+        pattern: ty_sur_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauvo.tavg-u-hxy-sea.3hr.glb
+    model_variable: ty_sur
 
   # ============================================================
   # Monthly 3D variables (Omon) — DefaultPipeline
@@ -426,9 +511,12 @@ rules:
   # Depth-integrated variables — ocean_vertical_integration_pipeline
   # ============================================================
 
-  # absscint = depth-integrated salt mass content (kg m-2), absolute salinity.
-  # vertical_integrate emits ∫(salt[psu] * dz); FESOM salt units are "1e-3"
-  # (psu = g/kg) so the factor needed to convert psu·m to kg/m² is rho_0 * 1e-3.
+  # TEOS-10 content integrals over the four oplayer4 layers. FESOM carries
+  # practical salinity and potential temperature (JM EOS) and no Absolute
+  # Salinity anomaly, so gsw converts them with its global atlas first
+  # (convert_to_teos10). Constants use the model's density_0 = 1030
+  # (oce_modules.F90:36); heat content uses the TEOS-10 cp0 = 3991.868 J/kg/K,
+  # the heat capacity that defines Conservative Temperature.
   - name: absscint
     inputs:
       - path: *dp
@@ -436,14 +524,57 @@ rules:
     compound_name: ocean.absscint.tavg-op4-hxy-sea.mon.glb
     model_variable: salt
     lazy_write: true
-    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    teos10_variable: absolute_salinity
+    scale_factor: 1.030          # rho_0 * 1e-3 (g/kg -> mass fraction)
     scaled_units: "kg m-2"
     integration_attrs:
       long_name: "Integral wrt depth of seawater absolute salinity expressed as salt mass content"
       standard_name: "integral_wrt_depth_of_sea_water_absolute_salinity_expressed_as_salt_mass_content"
-      units: "1e-3 m"            # raw integrate of (psu * dz); scale brings to kg m-2
+      units: "1e-3 m"            # raw integrate of (g/kg * dz); scale brings to kg m-2
+    scientific_repairs: [F32]
     pipelines:
-      - ocean_oplayer4_pipeline
+      - ocean_oplayer4_teos10_pipeline
+
+  # Preformed salinity: gsw.Sstar_from_SP. The model has no biogeochemical
+  # salinity anomaly, so this is the atlas-based TEOS-10 preformed salinity.
+  - name: pfscint
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.pfscint.tavg-op4-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+    teos10_variable: preformed_salinity
+    scale_factor: 1.030
+    scaled_units: "kg m-2"
+    integration_attrs:
+      long_name: "Integral wrt depth of seawater preformed salinity expressed as salt mass content"
+      standard_name: "integral_wrt_depth_of_sea_water_preformed_salinity_expressed_as_salt_mass_content"
+      units: "1e-3 m"
+    pipelines:
+      - ocean_oplayer4_teos10_pipeline
+
+  # Conservative-temperature heat content: rho_0 * cp0 * integral(CT dz),
+  # CT = gsw.CT_from_pt(SA, theta) with SA from the same month's salinity.
+  - name: chcint
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.chcint.tavg-op4-hxy-sea.mon.glb
+    model_variable: temp
+    lazy_write: true
+    teos10_variable: conservative_temperature
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    scale_factor: 4111624.0      # 1030 * 3991.868 J K-1 m-3
+    scaled_units: "J m-2"
+    integration_attrs:
+      long_name: "Depth Integrated Seawater Conservative Temperature Expressed As Heat Content"
+      standard_name: "integral_wrt_depth_of_sea_water_conservative_temperature_expressed_as_heat_content"
+      units: "K m"
+    pipelines:
+      - ocean_oplayer4_teos10_pipeline
 
   # ============================================================
   # Daily variables (Oday) — DefaultPipeline
@@ -604,6 +735,11 @@ rules:
   # Computes steric height anomaly from temperature using gsw (TEOS-10)
   # ============================================================
 
+  # Thermosteric change relative to ONE reference state: the mean temperature
+  # of zostoga_reference_years (default: the first decade of the v3.5.2
+  # branch; the planner config key zostoga_reference_years overrides it).
+  # scientific_review turns the years into a frozen file pattern, so all
+  # tasks of all legs share the baseline. Volumes are hnode x nod_area.
   - name: zostoga
     inputs:
       - path: *dp
@@ -614,6 +750,11 @@ rules:
     salt_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    hnode_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    hnode_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    zostoga_reference_years: [2690, 2699]
+    scientific_repairs: [F35]
     pipelines:
-      - zostoga_pipeline
+      - zostoga_fixed_pipeline

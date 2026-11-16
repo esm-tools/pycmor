@@ -51,6 +51,26 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Snow heat content from daily m_snow (snow height per grid-cell area):
+  # sisnhc = -rho_snow * L_f * m_snow, masked where a_ice == 0.
+  - name: sisnhc_mask_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sisnhc
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Tier-wide throttle: HDF5-write-lock parallel-save protection.
   # (cli45 veg_seaice died from an unrelated prefect sqlite race, but
@@ -96,20 +116,20 @@ inherit:
   parent_experiment_id: no parent
   calendar: proleptic_gregorian
 rules:
-  # Daily snow heat content: derived from daily m_snow and a_ice
-  # sisnhc = -L_f * m_snow / a_ice (latent heat dominates, sensible ≈ 0)
+  # Daily snow heat content per grid-cell area. m_snow is snow height per
+  # grid-cell area in metres (io_meandata.F90:925), so the mass is
+  # rhosno*m_snow with the model's rhosno = 290 (MOD_ICE.F90:62):
+  # sisnhc = -L_f * 290 * m_snow (latent heat; snow sensible heat neglected).
   - name: sisnhc_day
     inputs:
       - path: *dp
         pattern: m_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnhc.tavg-u-hxy-si.day.glb
     model_variable: m_snow
-    second_input_path: *dp
-    second_input_pattern: a_ice\.fesom\.\d{4}\.nc
-    second_variable: a_ice
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
-    rho_snow: 330.0
+    rho_snow: 290.0
     L_f: 334000.0
+    scientific_repairs: [F10]
     pipelines:
-      - sisnhc_from_msnow_pipeline
+      - sisnhc_mask_pipeline

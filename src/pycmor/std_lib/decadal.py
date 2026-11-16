@@ -116,6 +116,9 @@ def decadal_gate(data, rule):
 def explicit_decadal_mean(data, rule):
     """Duration-weighted mean of 120 verified monthly means, evaluated lazily.
 
+    With ``decadal_static_fill_years`` (planner-verified linfs geometry) only the
+    archived months are present; they must be identical and stand for the decade.
+
     The full workflow freezes exact monthly bounds and timestamps before job
     submission. Retain missing values instead of silently renormalizing a
     truncated time series, and place the sole output at the exact midpoint.
@@ -128,8 +131,10 @@ def explicit_decadal_mean(data, rule):
     if not rule.get("explicit_decadal_window", False):
         raise ValueError("explicit_decadal_mean requires a verified explicit window")
     first, last = int(rule.get("year_start")), int(rule.get("year_end"))
-    if last - first != 9 or "time" not in data.dims or data.sizes["time"] != 120:
-        raise ValueError("explicit_decadal_mean requires exactly 120 monthly means")
+    filled = list(rule.get("decadal_static_fill_years") or [])
+    months = 120 - 12 * len(filled)
+    if last - first != 9 or "time" not in data.dims or data.sizes["time"] != months:
+        raise ValueError(f"explicit_decadal_mean requires exactly {months} monthly means")
     observed = list(
         zip(
             *(
@@ -142,14 +147,25 @@ def explicit_decadal_mean(data, rule):
     if observed != expected:
         raise ValueError("explicit_decadal_mean: runtime time coordinates differ from the plan")
     weights = np.asarray(rule.get("decadal_month_weights", []), dtype=float)
-    if weights.shape != (120,) or not np.all(np.isfinite(weights)) or not np.all(weights > 0):
+    if weights.shape != (months,) or not np.all(np.isfinite(weights)) or not np.all(weights > 0):
         raise ValueError("explicit_decadal_mean: invalid monthly-duration weights")
     calendar = rule.get("decadal_calendar", "standard")
     hi = cftime.datetime(last + 1, 1, 1, calendar=calendar)
     units = f"days since {first:04d}-01-01"
     end = float(cftime.date2num(hi, units, calendar))
-    if not np.isclose(weights.sum(), end, rtol=0, atol=1e-8):
+    archived = end - sum(
+        float(cftime.date2num(cftime.datetime(y + 1, 1, 1, calendar=calendar), units, calendar))
+        - float(cftime.date2num(cftime.datetime(y, 1, 1, calendar=calendar), units, calendar))
+        for y in filled
+    )
+    if not np.isclose(weights.sum(), archived, rtol=0, atol=1e-8):
         raise ValueError("explicit_decadal_mean: weights do not span the full decade")
+    if filled and not np.array_equal(
+        np.asarray(data.isel(time=0).values), np.asarray(data.isel(time=-1).values), equal_nan=True
+    ):
+        # The planner allows the fill only under linfs (fixed thickness and
+        # volume); the archived months must then be bit-identical.
+        raise ValueError("explicit_decadal_mean: static fill requested but the archived geometry varies in time")
     midpoint = cftime.num2date(end / 2, units, calendar, only_use_cftime_datetimes=True)
     w = xr.DataArray(weights, dims=("time",), coords={"time": data.time})
     # Weighted reduction also performs internal arithmetic. In xarray 2025.6
@@ -159,6 +175,10 @@ def explicit_decadal_mean(data, rule):
     # Scope the option locally so unrelated pipelines keep their own policy.
     with xr.set_options(keep_attrs=True):
         result = data.weighted(w).mean("time", skipna=False, keep_attrs=True)
+    if filled:
+        # Constant field: the mean of the archived months is the static value
+        # of the missing ones too, so the decade mean needs no renormalising.
+        result.attrs["comment"] = " ".join(filter(None, [result.attrs.get("comment"), rule.get("decadal_static_fill_note")]))
     result = result.expand_dims(time=[midpoint])
     result.time.attrs = {k: v for k, v in data.time.attrs.items() if k not in ("bounds", "units", "calendar")}
     result.time.encoding.update(calendar=calendar, units=units)

@@ -10,5 +10,6 @@ CMIP7_data_request_api==1.5.1
 pyfesom2==0.4.1
 tripyview @ git+https://github.com/JanStreffing/tripyview.git@b95b5ce20d8c11948b87b6236323d7838dd91ddb
 scipy==1.15.3
+gsw==3.6.20
 matplotlib==3.10.9
 cc-plugin-aicc @ git+https://github.com/sol1105/cc-plugin-aicc@8fe3f2d00d85a68f521c06d560b09c7d396dd055

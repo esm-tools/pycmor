@@ -265,6 +265,53 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'OUTPUT_WINDOW'):
             d.validate_decadal_output([output], 2000, 2009)
 
+    def linfs_experiment(self, which_ale='linfs'):
+        fesom = self.base / 'experiment/outdata/fesom'
+        fesom.mkdir(parents=True)
+        for leg in ('20000101-20041231', '20050101-20091231'):
+            work = self.base / f'experiment/run_{leg}/work'
+            work.mkdir(parents=True)
+            (work / 'namelist.config').write_text(f"&ale_def\n    which_ale = '{which_ale}'\n/\n")
+        for year in range(2005, 2010):
+            path = create_year(fesom, year, variable='hnode')
+            with netCDF4.Dataset(path, 'a') as ds:
+                ds['hnode'][:] = 7.0
+        doc = document(fesom, 'hnode')
+        doc['rules'][0]['decadal_static_fill'] = 'linfs'
+        return fesom, doc
+
+    def test_static_fill_requires_opt_in(self):
+        fesom, doc = self.linfs_experiment()
+        doc['rules'][0].pop('decadal_static_fill')
+        with self.assertRaisesRegex(ValueError, 'DECADAL_INCOMPLETE_MONTHS'):
+            d.configure_decadal_doc(doc, 2000, 2009)
+
+    def test_static_fill_requires_linfs_in_every_leg(self):
+        _, doc = self.linfs_experiment(which_ale='zstar')
+        with self.assertRaisesRegex(ValueError, 'which_ale=linfs'):
+            d.configure_decadal_doc(doc, 2000, 2009)
+
+    def test_static_fill_of_unarchived_years_under_linfs(self):
+        fesom, doc = self.linfs_experiment()
+        selected = d.configure_decadal_doc(doc, 2000, 2009)
+        rule = doc['rules'][0]
+        self.assertEqual(rule['decadal_static_fill_years'], [2000, 2001, 2002, 2003, 2004])
+        self.assertEqual(len(rule['decadal_dates']), 60)
+        self.assertEqual(sum(1 for p in selected if p.name == 'namelist.config'), 2)
+        self.assertIn('linfs', rule['decadal_static_fill_note'])
+        dates = [cftime.datetime(*t, calendar=rule['decadal_calendar']) for t in rule['decadal_dates']]
+        data = xr.DataArray(np.full((60, 2), 7.0), dims=('time', 'node'), coords={'time': dates},
+                            name='hnode', attrs={'units': 'm'})
+        runtime = Rule(**rule)
+        result = explicit_decadal_mean(data, runtime)
+        np.testing.assert_allclose(result.values, [[7.0, 7.0]])
+        midpoint = cftime.date2num(result.time.values[0], 'days since 2000-01-01', rule['decadal_calendar'])
+        self.assertEqual(midpoint, 3653 / 2)
+        self.assertIn('not archived', result.attrs['comment'])
+        data[-1, 0] = 8.0
+        with self.assertRaisesRegex(ValueError, 'geometry varies'):
+            explicit_decadal_mean(data, runtime)
+
 
 if __name__ == '__main__':
     unittest.main()

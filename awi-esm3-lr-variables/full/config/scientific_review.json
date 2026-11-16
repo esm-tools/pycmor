@@ -347,7 +347,10 @@
           "line": 925,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'm_snow',   'snow height per unit area',      'm',      ice%data(3)%values(1:partit%myDim_nod2D),     io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.sisnhc.tavg-u-hxy-si.day.glb": "sisnhc = -L_f * rhosno * m_snow with the model rhosno=290 kg m-3; m_snow is the snow height per grid-cell area, so no division by a_ice. Masked where a_ice is 0."
+      }
     },
     {
       "id": "F11",
@@ -436,7 +439,10 @@
           "line": 929,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'h_ice',    'ice thickness over ice-covered fraction',   'm',     ice%h_ice(1:partit%myDim_nod2D), io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.sihc.tavg-u-hxy-sea.mon.glb": "Uses daily m_ice (ice volume per grid-cell area, m_ice_day) instead of h_ice, so the heat content is per grid-cell area. The sensible part still comes from the 0-layer linear profile between ist and the freezing point of sss; FESOM has no enthalpy state to read."
+      }
     },
     {
       "id": "F15",
@@ -578,7 +584,10 @@
           "line": 1255,
           "function": "compute_simpeffconc"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.simpconc.tavg-u-hxy-si.mon.glb": "simpconc = mean(apnd)/mean(a_ice)*100 per month (a_ice the monthly mean of daily values), NaN where a_ice is 0. With SIMIP ice-area weighting this equals sum(A*apnd/A)/sum(A) exactly. simpeffconc is not repaired."
+      }
     },
     {
       "id": "F22",
@@ -852,7 +861,10 @@
           "line": 1819,
           "function": "compute_surface_pressure"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.pso.tavg-u-hxy-sea.mon.glb": "pso = monthly OpenIFS surface pressure (hourly sp on TCo95, nearest node) + g*(910*m_ice + 290*m_snow) + density_0*g*ceiling depth under ice shelves; no SSH term and no constant atmosphere."
+      }
     },
     {
       "id": "F31",
@@ -869,7 +881,10 @@
           "line": 233,
           "excerpt": "pbo(n2) = pbo(n2) + g * dz * dens_val"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.pbo.tavg-u-hxy-sea.mon.glb": "Native pbo plus the overburden: monthly OpenIFS surface pressure (hourly sp on TCo95, mapped nearest-neighbour onto the nodes), g*(910*m_ice + 290*m_snow) for sea ice and snow, and density_0*g*ceiling depth for the floating ice shelf on cavity nodes (FESOM's own cavity pressure boundary). All terms are linear in monthly means."
+      }
     },
     {
       "id": "F32",
@@ -886,7 +901,10 @@
           "line": 2741,
           "function": "integrate_over_pressure_layers"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.absscint.tavg-op4-hxy-sea.mon.glb": "Practical salinity is converted to Absolute Salinity with gsw.SA_from_SP at layer mid-depth pressure before the oplayer4 integral (convert_to_teos10), and the constant is rho_0*1e-3 with the model density_0=1030."
+      }
     },
     {
       "id": "F33",
@@ -934,7 +952,12 @@
           "line": 99,
           "excerpt": "volo_local = volo_local + mesh%areasvol(k, n2) * mesh%hnode(k, n2)"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.volcello.tavg-ol-hxy-sea.dec.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe.",
+        "ocean.volcello.tavg-ol-hxy-sea.mon.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe.",
+        "ocean.volcello.ti-ol-hxy-sea.fx.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe."
+      }
     },
     {
       "id": "F35",
@@ -951,7 +974,10 @@
           "line": 2609,
           "function": "compute_zostoga"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.zostoga.tavg-u-hm-sea.mon.glb": "compute_zostoga_fixed_reference: the reference is the mean temperature of fixed years (zostoga_reference_years, default 2690-2699, configurable), frozen as input files for every task; salinity held at each month's value; TEOS-10 density at layer mid-depth pressure; volumes from archived hnode times nod_area; normalised by the open ocean surface area."
+      }
     },
     {
       "id": "F36",
@@ -1403,7 +1429,10 @@
           "line": 1129,
           "excerpt": "call def_stream(mesh%nod2D, partit%myDim_nod2D, 'snow',     'precipitation snow',              'm/s',    prec_snow(:),              io_list(i)%freq, io_list(i)%unit, io_list(i)%precision, partit, mesh)"
         }
-      ]
+      ],
+      "repaired": {
+        "seaIce.prsn.tavg-u-hxy-si.mon.glb": "prsn = prec_snow * a_ice * 1000, a_ice the monthly mean of daily values, NaN where it is 0. prec_snow is only archived monthly, so the covariance of snowfall and ice cover within the month is lost; the exact sisn_snf stream is not written."
+      }
     },
     {
       "id": "F57",

@@ -553,6 +553,94 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Overturning / gyre / GM-bolus parts of the basin transports on the same
+  # edge path as hfbasin and sltbasin (compute_basin_transport_component).
+  - name: basin_transport_component_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_basin_transport_component
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Atmosphere + sea ice/snow + ice-shelf load on the ocean surface (pso) or
+  # added to the native water-column pbo (compute_overburden_pressure).
+  - name: overburden_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_overburden_pressure
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Ice-shelf cavities (use_cavity=.true.): static cav_nod_mask from mesh.nc.
+  - name: fx_sftflf_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_gridfile
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_shelf_area_percent
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: sftflf_time_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_ice_shelf_area_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Field on ice-shelf cavity nodes only (0 elsewhere), then scaled.
+  - name: ice_shelf_scale_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:keep_ice_shelf_cavity_nodes
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Write-perf defaults rolled out from HR atm core bench:
   netcdf_write_scheduler: synchronous
@@ -604,13 +692,32 @@ rules:
   # EASY: Direct mapping from ldiag_cmor or existing namelist.io
   # ============================================================
 
-  # pbo — sea water pressure at sea floor (from ldiag_cmor=.true.)
+  # pbo — sea water pressure at sea floor. The native ldiag_cmor pbo is the
+  # water column plus the linfs SSH term (gen_modules_cmor_diag.F90:229-233);
+  # the request includes overlying air and ice, so compute_overburden_pressure
+  # adds OpenIFS mean sea-level pressure (equal to sp at the ocean surface;
+  # sp itself maps land cells onto coastal nodes), the sea-ice/snow load and
+  # the ice-shelf load.
   - name: pbo
     inputs:
       - path: *dp
         pattern: pbo\.fesom\.\d{4}\.nc
     compound_name: ocean.pbo.tavg-u-hxy-sea.mon.glb
     model_variable: pbo
+    overburden_mode: bottom
+    atm_pressure_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/oifs
+    atm_pressure_pattern: atm_remapped_1m_msl_.*\.nc
+    atm_pressure_variable: msl
+    mice_path: *dp
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    mice_variable: m_ice
+    msnow_path: *dp
+    msnow_pattern: m_snow\.fesom\.\d{4}\.nc
+    msnow_variable: m_snow
+    reference_density: 1030.0
+    scientific_repairs: [F31]
+    pipelines:
+      - overburden_pipeline
 
   # volo — sea water volume (from ldiag_cmor=.true., global scalar)
   - name: volo
@@ -905,16 +1012,30 @@ rules:
   # MEDIUM: Computed from existing output
   # ============================================================
 
-  # pso — surface pressure from SSH
+  # pso — pressure at the top of the liquid ocean: OpenIFS sea-level pressure
+  # plus sea ice and snow (g*(910*m_ice + 290*m_snow)) plus the ice-shelf load
+  # under cavities. Not 101325 + rho*g*SSH: SSH is water below that surface.
+  # m_ice only supplies the monthly axis here.
   - name: pso
     inputs:
       - path: *dp
-        pattern: ssh\.fesom\.\d{4}\.nc
+        pattern: m_ice\.fesom\.\d{4}\.nc
     compound_name: ocean.pso.tavg-u-hxy-sea.mon.glb
-    model_variable: ssh
-    reference_density: 1025.0
+    model_variable: m_ice
+    overburden_mode: surface
+    atm_pressure_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/oifs
+    atm_pressure_pattern: atm_remapped_1m_msl_.*\.nc
+    atm_pressure_variable: msl
+    mice_path: *dp
+    mice_pattern: m_ice\.fesom\.\d{4}\.nc
+    mice_variable: m_ice
+    msnow_path: *dp
+    msnow_pattern: m_snow\.fesom\.\d{4}\.nc
+    msnow_variable: m_snow
+    reference_density: 1030.0
+    scientific_repairs: [F30]
     pipelines:
-      - surface_pressure_pipeline
+      - overburden_pipeline
 
   # masso — global sea water mass (rho_0 × volo)
   # Approximation: masso = rho_0 × volo (Boussinesq)
@@ -1011,13 +1132,17 @@ rules:
       - ocean_vertical_integration_pipeline
 
   # volcello (fx) — static ocean grid-cell volume
-  # cell_area × layer_thickness from mesh
+  # Layer thickness from mesh times the model's depth-dependent node area
+  # nod_area(nz, nod2), which is what FESOM integrates for volo
+  # (areasvol*hnode). The static cell_area overstated the CORE3 volume by 4.7%.
   - name: volcello_fx
     inputs:
       - path: *mp
         pattern: mesh.nc
     compound_name: ocean.volcello.ti-ol-hxy-sea.fx.glb
     model_variable: volcello
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    scientific_repairs: [F34]
     lazy_write: true
     pipelines:
       - volcello_fx_pipeline
@@ -1119,6 +1244,10 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.thkcello.tavg-ol-hxy-sea.dec.glb
+    # hnode/volo were not written before 2840. Under linfs they are constant,
+    # so a decade with unarchived years is filled from the static geometry
+    # (decadal_support.linfs_static_years, checked against each leg namelist).
+    decadal_static_fill: linfs
     model_variable: hnode
     lazy_write: true
 
@@ -1129,6 +1258,7 @@ rules:
       - path: *dp
         pattern: volo\.fesom\.\d{4}\.nc
     compound_name: ocean.volo.tavg-u-hm-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
 
@@ -1137,6 +1267,7 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.masscello.tavg-ol-hxy-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     model_variable: hnode
     scale_factor: 1025.0
     scaled_units: "kg m-2"
@@ -1149,7 +1280,10 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.volcello.tavg-ol-hxy-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     model_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    scientific_repairs: [F34]
     lazy_write: true
     pipelines:
       - decadal_volcello_time_pipeline
@@ -1159,6 +1293,7 @@ rules:
       - path: *dp
         pattern: volo\.fesom\.\d{4}\.nc
     compound_name: ocean.masso.tavg-u-hm-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
     scale_factor: 1025.0
@@ -1464,3 +1599,212 @@ rules:
     usalt_variable: usalt
     pipelines:
       - sltbasin_pipeline
+
+  # ============================================================
+  # Ice-shelf cavities (CORE3, use_cavity=.true.)
+  # ============================================================
+  # cav_nod_mask in mesh.nc is 1 on the 10047 cavity nodes (64.5S-85.4S, all
+  # with cav_nod_lev > 0); its long_name has the two values the wrong way
+  # round. compute_ice_shelf_area_percent refuses a value that is not
+  # Antarctic or disagrees with cav_nod_lev. The geometry is fixed in time.
+  - name: sftflf_fx
+    inputs:
+      - path: *mp
+        pattern: mesh.nc
+    compound_name: landIce.sftflf.ti-u-hxy-u.fx.glb
+    model_variable: sftflf
+    pipelines:
+      - fx_sftflf_pipeline
+
+  # Monthly copy of the fixed mask; fw supplies the year's monthly time axis.
+  - name: sftflf_mon
+    inputs:
+      - path: *dp
+        pattern: fw\.fesom\.\d{4}\.nc
+    compound_name: landIce.sftflf.tavg-u-hxy-u.mon.glb
+    model_variable: fw
+    pipelines:
+      - sftflf_time_pipeline
+
+  # Water flux from land ice: under a cavity FESOM's fw is the ice-shelf
+  # basal melt flux (cavity_param.F90:308, positive out of the ocean, m/s of
+  # freshwater at 1000 kg m-3), so flandice = -1000 * fw on cavity nodes and 0
+  # elsewhere. Glacier and ice-sheet runoff reach the ocean inside the river
+  # runoff and cannot be separated from it, so they are not included.
+  - name: flandice
+    inputs:
+      - path: *dp
+        pattern: fw\.fesom\.\d{4}\.nc
+    compound_name: ocean.flandice.tavg-u-hxy-sea.mon.glb
+    model_variable: fw
+    scale_factor: -1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - ice_shelf_scale_pipeline
+
+  - name: flandice_3hr
+    inputs:
+      - path: *dp
+        pattern: fw_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.flandice.tavg-u-hxy-sea.3hr.glb
+    model_variable: fw
+    scale_factor: -1000.0
+    scaled_units: "kg m-2 s-1"
+    pipelines:
+      - ice_shelf_scale_pipeline
+
+  # ============================================================
+  # Decomposed basin transports. Overturning = zonal-mean velocity (resolved
+  # + GM bolus) times zonal-mean tracer along the hfbasin edge path, layer by
+  # layer; gyre = online u*T total (the hfbasin/sltbasin integrand) minus
+  # overturning; padv/pmadv = GM bolus velocity times tracer. v and T are
+  # monthly means, so their sub-monthly covariance falls into the gyre part
+  # and is missing from the bolus part. The edge integral reproduces the
+  # tripyview hfbasin exactly (2845-01: 2.494 PW at 26.5N global).
+  # ============================================================
+
+  - name: htovovrt
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.htovovrt.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: overturning
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: htovgyre
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.htovgyre.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: gyre
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    tracer_u_path: *dp
+    tracer_u_pattern: utemp\.fesom\.\d{4}\.nc
+    tracer_u_variable: utemp
+    tracer_v_path: *dp
+    tracer_v_pattern: vtemp\.fesom\.\d{4}\.nc
+    tracer_v_variable: vtemp
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: sltovovrt
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sltovovrt.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: salt
+    transport_tracer: salt
+    transport_component: overturning
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: sltovgyre
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.sltovgyre.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: salt
+    transport_tracer: salt
+    transport_component: gyre
+    u_path: *dp
+    u_pattern: u\.fesom\.\d{4}\.nc
+    u_variable: u
+    v_path: *dp
+    v_pattern: v\.fesom\.\d{4}\.nc
+    v_variable: v
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    tracer_u_path: *dp
+    tracer_u_pattern: usalt\.fesom\.\d{4}\.nc
+    tracer_u_variable: usalt
+    tracer_v_path: *dp
+    tracer_v_pattern: vsalt\.fesom\.\d{4}\.nc
+    tracer_v_variable: vsalt
+    pipelines:
+      - basin_transport_component_pipeline
+
+  - name: hfbasinpadv
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfbasinpadv.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: bolus
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline
+
+  # GM (fer_gm=.true.) is the only parameterised eddy advection in this
+  # FESOM setup (no submesoscale scheme), so pmadv equals padv.
+  - name: hfbasinpmadv
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.hfbasinpmadv.tavg-u-hyb-sea.mon.glb
+    grid_label: g239
+    model_variable: temp
+    transport_tracer: temp
+    transport_component: bolus
+    bolus_u_path: *dp
+    bolus_u_pattern: bolus_u\.fesom\.\d{4}\.nc
+    bolus_u_variable: bolus_u
+    bolus_v_path: *dp
+    bolus_v_pattern: bolus_v\.fesom\.\d{4}\.nc
+    bolus_v_variable: bolus_v
+    pipelines:
+      - basin_transport_component_pipeline

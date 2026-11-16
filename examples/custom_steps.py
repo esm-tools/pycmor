@@ -941,6 +941,56 @@ def compute_sisnhc_from_msnow(data, rule):
     return result
 
 
+def compute_sitempsnic(data, rule):
+    """Temperature at the snow-ice interface from FESOM's 0-layer conduction (K).
+
+    The 0-layer model (ice_thermo_cpl.F90, ice_surftemp) carries one linear
+    conductive flux through snow and ice, with the ice base at the freezing
+    point Tf(S) and conductivities con = 2.1656, consn = 0.31 (MOD_ICE.F90:79):
+
+        T_si = Tf + (ist - Tf) * h / (h + con/consn * hsn)
+
+    which is ``ist`` where there is no snow. h = h_ice and hsn = h_snow are
+    thicknesses over the ice-covered part; Tf uses FESOM's TFrezs formula.
+    Inputs are daily means, so this is the interface temperature of the daily
+    mean state, not the mean of the per-step values. NaN where h_ice is 0.
+
+    Primary input: ist (K). Rule attributes: hice_path/hice_pattern,
+    hsnow_path/hsnow_pattern, sss_path/sss_pattern (+ *_variable).
+    """
+    con = float(rule.get("con", 2.1656))
+    consn = float(rule.get("consn", 0.31))
+    h = _load_secondary_mf(rule, "hice_path", "hice_pattern", "hice_variable")
+    hsn = _load_secondary_mf(rule, "hsnow_path", "hsnow_pattern", "hsnow_variable")
+    sss = _load_secondary_mf(rule, "sss_path", "sss_pattern", "sss_variable")
+    tf = -0.0575 * sss + 1.7105e-3 * np.sqrt(sss**3) - 2.155e-4 * sss**2 + 273.15
+    result = tf + (data - tf) * h / (h + con / consn * hsn)
+    result = result.where(h > 0)
+    result.attrs = {
+        "units": "K",
+        "standard_name": "sea_ice_surface_temperature",
+        "processing_note": f"0-layer linear conduction from daily ist, h_ice, h_snow, sss; con={con}, consn={consn}",
+    }
+    result.name = data.name
+    return result
+
+
+def compute_snow_cover_percent(data, rule):
+    """Snow-covered percentage of the sea-ice surface: 100 where h_snow exceeds a threshold.
+
+    FESOM has no fractional snow cover: with h_snowscale = 0 (the run's
+    namelist.ice) the surface albedo switches to snow above 1 mm of snow
+    (ice_thermo_cpl.F90 legacy step, ice_meltponds.F90:256), so each record is
+    0 or 100 and the time mean is the fraction of time with snow.
+    ``snow_cover_threshold`` (m, default 0.001).
+    """
+    threshold = float(rule.get("snow_cover_threshold", 0.001))
+    result = xr.where(data > threshold, 100.0, 0.0).where(data.notnull())
+    result.attrs = {"units": "%", "standard_name": "surface_snow_area_fraction",
+                    "processing_note": f"100 where h_snow > {threshold} m (FESOM binary snow cover)"}
+    result.name = data.name
+    return result
+
 def compute_snd_from_msnow(data, rule):
     """
     Compute daily snow depth on sea ice from m_snow and a_ice.
@@ -2746,6 +2796,86 @@ def compute_zostoga(data, rule):
     return zostoga
 
 
+def compute_zostoga_fixed_reference(data, rule):
+    """Global thermosteric sea level change against one fixed reference state.
+
+    For each month t, with the month's own Absolute Salinity SA_t:
+
+        zostoga(t) = -sum_k,n (rho(SA_t, CT_t) - rho(SA_t, CT_ref)) / rho(SA_t, CT_ref)
+                     * hnode * nod_area / sum_n nod_area(surface)
+
+    CT_ref comes from the potential temperature averaged over the reference
+    years in ``zostoga_reference_path`` / ``zostoga_reference_pattern``; the
+    planner sets those from ``zostoga_reference_years`` and freezes the files,
+    so every task of every leg subtracts the same state. ``compute_zostoga``
+    (HR) instead subtracts each task's own mean, which resets the baseline.
+    Thickness is the archived hnode, area the model's depth-dependent
+    nod_area (``volume_area_file``), pressure the TEOS-10 pressure of the
+    layer mid-depths. The area normalising the volume change is the ocean
+    surface open to the atmosphere (nod_area of the top layer).
+
+    Primary input: monthly potential temperature (time, nod2, nz).
+    Rule attributes: salt_path/salt_pattern/salt_variable,
+    hnode_path/hnode_pattern/hnode_variable, volume_area_file, grid_file
+    (lon/lat), zostoga_reference_path/zostoga_reference_pattern.
+    """
+    import gsw
+
+    temp = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    level_dim = next(d for d in ("nz1", "nz") if d in temp.dims)
+    node_dim = next(d for d in ("nod2", "ncells") if d in temp.dims)
+    temp = temp.transpose("time", node_dim, level_dim)
+    salt = _load_secondary_mf(rule, "salt_path", "salt_pattern", "salt_variable").transpose("time", node_dim, ...)
+    hnode = _load_secondary_mf(rule, "hnode_path", "hnode_pattern", "hnode_variable").transpose(
+        "time", node_dim, ...
+    )
+    nlev = temp.sizes[level_dim]
+    area = _depth_dependent_node_area(rule, nlev).values.T  # (node, level)
+    surface_area = float(area[:, 0].sum())
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        lon = np.asarray(mesh["lon"].values, dtype=float)[:, None]
+        lat = np.asarray(mesh["lat"].values, dtype=float)[:, None]
+    depth = np.asarray(temp[level_dim].values, dtype=float)[None, :]
+    pressure = gsw.p_from_z(-depth, lat)
+
+    path, pattern = rule.get("zostoga_reference_path"), rule.get("zostoga_reference_pattern")
+    regex = _re.compile(pattern)
+    files = sorted(_os.path.join(path, f) for f in _os.listdir(path) if regex.fullmatch(f))
+    if not files:
+        raise FileNotFoundError(f"No zostoga reference files matching {pattern!r} in {path}")
+    with xr.open_mfdataset(files, use_cftime=True) as ref:
+        variable = rule.get("zostoga_reference_variable", "temp")
+        ref_dims = ref[variable].dims
+        reference = ref[variable].transpose(*[d for d in ref_dims if d in ("time", "time_counter")], node_dim, ...)
+        reference = np.asarray(reference.mean(reference.dims[0]).values, dtype=float)
+    logger.info(f"zostoga: fixed reference from {len(files)} files ({files[0]} .. {files[-1]})")
+
+    values = []
+    for t in range(temp.sizes["time"]):
+        pt = np.asarray(temp.isel(time=t).values, dtype=float)
+        sa = gsw.SA_from_SP(np.asarray(salt.isel(time=t).values, dtype=float), pressure, lon, lat)
+        rho = gsw.rho(sa, gsw.CT_from_pt(sa, pt), pressure)
+        rho_ref = gsw.rho(sa, gsw.CT_from_pt(sa, reference), pressure)
+        h = np.asarray(hnode.isel(time=t).values, dtype=float)
+        dv = -(rho - rho_ref) / rho_ref * h * area
+        values.append(np.nansum(dv) / surface_area)
+    result = xr.DataArray(
+        np.asarray(values),
+        dims=("time",),
+        coords={"time": temp["time"].values},
+        name=rule.model_variable,
+        attrs={
+            "units": "m",
+            "standard_name": "global_average_thermosteric_sea_level_change",
+            "long_name": "Global Average Thermosteric Sea Level Change",
+            "processing_note": "relative to the fixed temperature state of "
+            f"{_os.path.basename(files[0])} .. {_os.path.basename(files[-1])} (time mean); "
+            "salinity held at each month's value; TEOS-10; hnode x nod_area volumes",
+        },
+    )
+    return result
+
+
 # ============================================================
 # Vertical integration step
 # ============================================================
@@ -2857,6 +2987,55 @@ def integrate_over_pressure_layers(data: xr.DataArray, rule) -> xr.Dataset:
     result.name = rule.model_variable
     return result
 
+
+def convert_to_teos10(data, rule):
+    """Convert FESOM practical salinity / potential temperature to a TEOS-10 variable.
+
+    FESOM uses the JM equation of state with practical salinity and potential
+    temperature (oce_modules.F90) and carries no Absolute Salinity anomaly. The
+    conversion therefore goes through gsw with its global atlas, before the
+    oplayer4 integral, at the pressure of each layer mid-depth:
+
+      - ``absolute_salinity``: SA = gsw.SA_from_SP(SP, p, lon, lat)
+      - ``preformed_salinity``: S* = gsw.Sstar_from_SP(SP, p, lon, lat)
+      - ``conservative_temperature``: CT = gsw.CT_from_pt(SA, pt), SA from the
+        practical salinity in ``salt_path`` / ``salt_pattern`` / ``salt_variable``
+
+    ``teos10_variable`` selects the output. ``grid_file`` supplies lon/lat.
+    """
+    import gsw
+
+    target = rule.get("teos10_variable")
+    level_dim = next(d for d in ("nz", "nz1", "depth", "lev") if d in data.dims)
+    node_dim = next(d for d in ("nod2", "ncells") if d in data.dims)
+    with xr.open_dataset(rule.get("grid_file"), decode_times=False) as mesh:
+        lon = xr.DataArray(np.asarray(mesh["lon"].values, dtype=float), dims=(node_dim,))
+        lat = xr.DataArray(np.asarray(mesh["lat"].values, dtype=float), dims=(node_dim,))
+    depth = xr.DataArray(np.asarray(data[level_dim].values, dtype=float), dims=(level_dim,))
+    pressure = xr.apply_ufunc(gsw.p_from_z, -depth, lat)
+
+    def ufunc(function, *args):
+        return xr.apply_ufunc(function, *args, dask="parallelized", output_dtypes=[float])
+
+    if target == "absolute_salinity":
+        result = ufunc(gsw.SA_from_SP, data, pressure, lon, lat)
+        attrs = {"units": "g kg-1", "long_name": "Sea Water Absolute Salinity"}
+    elif target == "preformed_salinity":
+        result = ufunc(gsw.Sstar_from_SP, data, pressure, lon, lat)
+        attrs = {"units": "g kg-1", "long_name": "Sea Water Preformed Salinity"}
+    elif target == "conservative_temperature":
+        salt = _load_secondary_mf(rule, "salt_path", "salt_pattern", "salt_variable")
+        salt = salt.drop_vars([c for c in salt.coords if c not in salt.dims])
+        absolute = ufunc(gsw.SA_from_SP, salt, pressure, lon, lat)
+        result = ufunc(gsw.CT_from_pt, absolute, data)
+        attrs = {"units": "degC", "long_name": "Sea Water Conservative Temperature"}
+    else:
+        raise ValueError(f"teos10_variable must be absolute_salinity, preformed_salinity or "
+                         f"conservative_temperature, not {target!r}")
+    result = result.transpose(*data.dims)
+    result.attrs = dict(attrs, processing_note=f"TEOS-10 {target} from FESOM output via gsw at layer mid-depth pressure")
+    result.name = data.name
+    return result
 
 # Used only when neither the rule nor the environment names a state directory.
 # A campaign exports PYCMOR_CLIMATOLOGY_STATE_DIR=<campaign>/climatologies, so
@@ -3252,6 +3431,25 @@ def vertical_integrate(
 # ============================================================
 
 
+def _depth_dependent_node_area(rule, nlev):
+    """Model area of each layer at each node, ``nod_area(nz, nod2)`` from ``fesom.mesh.diag.nc``.
+
+    FESOM's own volume is ``sum(areasvol(k, n) * hnode(k, n))`` (gen_modules_cmor_diag.F90).
+    ``areasvol`` shrinks with depth along the coast and is zero above an ice-shelf cavity
+    ceiling, so the static surface ``cell_area`` overstates the CORE3 ocean volume by about
+    4.7%. The diag file stores one row per interface (48 on CORE3); row k is the area of
+    layer k, so the first ``nlev`` rows are used. Rules opt in with ``volume_area_file``;
+    without it the cell-area recipe applies, so HR output does not change.
+    """
+    with xr.open_dataset(rule.get("volume_area_file")) as diag:
+        area = diag[rule.get("volume_area_variable", "nod_area")].load()
+    level_dim, node_dim = area.dims
+    if area.sizes[level_dim] < nlev:
+        raise ValueError(f"nod_area has {area.sizes[level_dim]} levels, fewer than the {nlev} model layers")
+    area = area.isel({level_dim: slice(0, nlev)}).fillna(0.0)
+    return xr.DataArray(area.values, dims=("lev", "ncells"))
+
+
 def compute_volcello_fx(data, rule):
     """
     Compute static ocean grid-cell volume from mesh geometry.
@@ -3264,6 +3462,8 @@ def compute_volcello_fx(data, rule):
 
     Rule attributes:
       - (none required beyond grid_file already used by load_gridfile)
+      - volume_area_file: optional fesom.mesh.diag.nc; uses the model's
+        depth-dependent nod_area instead of cell_area
     """
     if "cell_area" in data:
         cell_area = data["cell_area"]
@@ -3286,7 +3486,12 @@ def compute_volcello_fx(data, rule):
         rule.model_variable,
         rule,
     )
-    result = result * np.asarray(cell_area.values, dtype=np.float32)[None, :]
+    if rule.get("volume_area_file"):
+        area = _depth_dependent_node_area(rule, thickness.size)
+        result = result * area
+        result = result.where(area > 0)
+    else:
+        result = result * np.asarray(cell_area.values, dtype=np.float32)[None, :]
     result.attrs = {"units": "m3", "standard_name": "ocean_volume", "long_name": "Ocean Grid-Cell Volume"}
     result.name = rule.model_variable
     return _attach_level_coord(result, depth)
@@ -3303,7 +3508,20 @@ def compute_volcello_time(data, rule):
 
     Rule attributes:
       - grid_file: path to mesh file (for cell_area)
+      - volume_area_file: optional fesom.mesh.diag.nc; uses the model's
+        depth-dependent nod_area instead (see _depth_dependent_node_area)
     """
+    if rule.get("volume_area_file"):
+        node_dim = next(d for d in ("nod2", "ncells") if d in data.dims)
+        level_dim = next(d for d in ("nz1", "nz", "lev") if d in data.dims)
+        area = _depth_dependent_node_area(rule, data.sizes[level_dim])
+        area = xr.DataArray(area.values, dims=(level_dim, node_dim))
+        result = (data * area).where(area > 0)
+        result.attrs = data.attrs.copy()
+        result.attrs.update(units="m3", standard_name="ocean_volume", long_name="Ocean Grid-Cell Volume")
+        result.name = data.name
+        return result
+
     grid_file = rule.get("grid_file")
     if grid_file is None:
         raise ValueError("Rule must specify 'grid_file' for compute_volcello_time")
@@ -3330,6 +3548,162 @@ def compute_volcello_time(data, rule):
     result.name = data.name
     return result
 
+
+# ============================================================
+# Ice-shelf cavity steps (CORE3 with use_cavity)
+# ============================================================
+
+
+def _ice_shelf_cavity_nodes(rule):
+    """Boolean ice-shelf cavity mask per node from the mesh's ``cav_nod_mask``.
+
+    The CORE3 ``mesh.nc`` long_name says 1 is "ocean topped by atmosphere", but
+    the 10047 nodes with value 1 are exactly those with ``cav_nod_lev > 0`` and
+    lie between 64.5S and 85.4S, so 1 marks the cavity. ``cavity_mask_value``
+    selects the value (default 1); the latitude and ``cav_nod_lev`` checks
+    below refuse a mesh where the chosen value does not mark cavities.
+    """
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        mask = np.asarray(mesh["cav_nod_mask"].values, dtype=float)
+        lat = np.asarray(mesh["lat"].values, dtype=float)
+        level = np.asarray(mesh["cav_nod_lev"].values, dtype=float) if "cav_nod_lev" in mesh else None
+    cavity = mask == float(rule.get("cavity_mask_value", 1))
+    if not cavity.any() or lat[cavity].max() > -60.0:
+        raise ValueError("cav_nod_mask: selected value does not mark Antarctic ice-shelf cavities")
+    if level is not None and not np.array_equal(cavity, np.nan_to_num(level) > 0):
+        raise ValueError("cav_nod_mask disagrees with cav_nod_lev")
+    return cavity
+
+
+def compute_ice_shelf_area_percent(data, rule):
+    """Floating ice-shelf area percentage (sftflf) on the ocean mesh nodes.
+
+    100 on ice-shelf cavity nodes, 0 elsewhere. The cavity geometry is fixed,
+    so a time-dependent input only supplies the time axis to broadcast onto.
+    """
+    cavity = _ice_shelf_cavity_nodes(rule)
+    attrs = {"units": "%", "standard_name": "floating_ice_shelf_area_fraction"}
+    if isinstance(data, xr.Dataset) and "time" not in data.dims:
+        result = data["cav_nod_mask"].copy(data=np.where(cavity, 100.0, 0.0))
+        result.attrs = attrs
+        result.name = rule.model_variable
+        return result
+    template = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    node_dim = next(d for d in template.dims if d != "time")
+    result = xr.zeros_like(template, dtype=float) + xr.DataArray(np.where(cavity, 100.0, 0.0), dims=(node_dim,))
+    result.attrs = attrs
+    result.name = template.name
+    return result
+
+
+def keep_ice_shelf_cavity_nodes(data, rule):
+    """Keep ``data`` on ice-shelf cavity nodes and set it to 0 everywhere else.
+
+    Under a cavity FESOM's water_flux is the basal-melt flux of
+    cavity_heat_water_fluxes_3eq (cavity_param.F90:308); the global freshwater
+    balancing is not added there (ice_oce_coupling.F90:600-604).
+    """
+    cavity = xr.DataArray(_ice_shelf_cavity_nodes(rule), dims=(next(d for d in data.dims if d != "time"),))
+    result = data.where(cavity, 0.0)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    return result
+
+
+def _bilinear_periodic(field, node_lon, node_lat):
+    """Bilinear interpolation of a regular lat/lon field to points, periodic in longitude.
+
+    Latitudes beyond the outermost grid rows take the row value.
+    """
+    from scipy.interpolate import RegularGridInterpolator
+
+    lat_name = next(n for n in ("lat", "latitude") if n in field.dims)
+    lon_name = next(n for n in ("lon", "longitude") if n in field.dims)
+    field = field.transpose(lat_name, lon_name).sortby(lat_name)
+    lat = np.asarray(field[lat_name].values, dtype=float)
+    lon = np.asarray(field[lon_name].values, dtype=float) % 360.0
+    order = np.argsort(lon)
+    lon, values = lon[order], np.asarray(field.values, dtype=float)[:, order]
+    lon = np.concatenate([[lon[-1] - 360.0], lon, [lon[0] + 360.0]])
+    values = np.concatenate([values[:, -1:], values, values[:, :1]], axis=1)
+    interp = RegularGridInterpolator((lat, lon), values, method="linear")
+    return interp(np.column_stack([np.clip(node_lat, lat[0], lat[-1]), node_lon % 360.0]))
+
+
+def compute_overburden_pressure(data, rule):
+    """Pressure of everything above the liquid ocean, per node and month (Pa).
+
+        p_over = p_atm + g * (rhoice * m_ice + rhosno * m_snow) + p_shelf
+
+    - p_atm: OpenIFS mean sea-level pressure, the monthly mean on the remapped
+      regular grid (``atm_pressure_path`` / ``atm_pressure_pattern``,
+      atm_remapped_1m_msl), interpolated bilinearly onto the nodes with a
+      periodic longitude. The ocean surface is at sea level, so over open
+      water msl equals the surface pressure ``sp``; ``sp`` mapped from TCo95
+      by nearest neighbour picks land cells at coastal nodes (777 hPa off
+      Greenland) and is not used. Over ice shelves the shelf-top elevation
+      (tens of metres, a few hPa) is neglected.
+    - sea ice and snow: ``m_ice`` / ``m_snow`` are heights per grid-cell area
+      (io_meandata.F90), so their load is g*rho*m with the model densities
+      rhoice = 910 and rhosno = 290 (MOD_ICE.F90:61-62). With
+      use_floatice=.false. FESOM does not apply this load itself.
+    - ice shelves: under a cavity the ceiling carries the floating shelf. FESOM
+      sets its pressure boundary there by filling the cavity with water of the
+      ice-base density (oce_ale_pressure_bv.F90:194-240); here that load is
+      density_0 * g * ceiling depth (density_0 = 1030, ``reference_density``).
+
+    All terms are linear, so monthly means of the inputs give the monthly mean.
+    ``overburden_mode``: ``surface`` returns p_over (pso; ``data`` only supplies
+    the monthly axis), ``bottom`` adds p_over to ``data`` (native pbo, which
+    holds the water column and the linfs SSH term only).
+    """
+    g = float(rule.get("gravity", 9.81))
+    rho_ice = float(rule.get("rho_ice", 910.0))
+    rho_snow = float(rule.get("rho_snow", 290.0))
+    rho_0 = float(rule.get("reference_density", 1030.0))
+    node_dim = next(d for d in data.dims if d != "time")
+
+    def monthly(path_key, pattern_key, variable_key):
+        field = _load_secondary_mf(rule, path_key, pattern_key, variable_key)
+        return _mean_on_time_axis_of(field, data)
+
+    def on_nodes(field):
+        return field.drop_vars([c for c in field.coords if c not in field.dims], errors="ignore").rename(
+            {d: node_dim for d in field.dims if d != "time"}
+        )
+
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        node_lon = np.asarray(mesh["lon"].values, dtype=float)
+        node_lat = np.asarray(mesh["lat"].values, dtype=float)
+    msl = monthly("atm_pressure_path", "atm_pressure_pattern", "atm_pressure_variable")
+    sp = xr.DataArray(
+        [_bilinear_periodic(msl.isel(time=t), node_lon, node_lat) for t in range(msl.sizes["time"])],
+        dims=("time", node_dim),
+        coords={"time": data["time"].values},
+    )
+    # FESOM writes no sea ice or snow under ice shelves (NaN there): no load.
+    load = g * (rho_ice * on_nodes(monthly("mice_path", "mice_pattern", "mice_variable")).fillna(0.0)
+                + rho_snow * on_nodes(monthly("msnow_path", "msnow_pattern", "msnow_variable")).fillna(0.0))
+    with xr.open_dataset(rule.get("grid_file")) as mesh:
+        bounds = np.asarray(mesh["depth_bnds"].values, dtype=float)
+        level = np.nan_to_num(np.asarray(mesh["cav_nod_lev"].values, dtype=float)).astype(int)
+    shelf = xr.DataArray(rho_0 * g * np.where(level > 0, bounds[level], 0.0), dims=(node_dim,))
+    over = on_nodes(sp) + load + shelf
+    mode = rule.get("overburden_mode")
+    if mode == "surface":
+        result = over
+    elif mode == "bottom":
+        result = data + over
+    else:
+        raise ValueError(f"overburden_mode must be surface or bottom, not {mode!r}")
+    result = result.transpose(*data.dims)
+    result.attrs = dict(data.attrs, units="Pa")
+    result.attrs["processing_note"] = (
+        f"{'native pbo + ' if mode == 'bottom' else ''}OpenIFS msl (bilinear) + g*({rho_ice:g}*m_ice + "
+        f"{rho_snow:g}*m_snow) + ice-shelf load {rho_0:g}*g*ceiling depth under cavities"
+    )
+    result.name = data.name
+    return result
 
 # ============================================================
 # Atmosphere derived-variable steps
@@ -5616,6 +5990,105 @@ def mask_where_no_seaice(data, rule):
     return result
 
 
+def _mean_on_time_axis_of(field, target, time_dim="time"):
+    """Average ``field`` over each record period of ``target`` (daily a_ice onto monthly data).
+
+    Records are matched by calendar month (monthly target) or day (daily
+    target). A target record with no source record raises; nothing is filled.
+    """
+    if field.sizes.get(time_dim) == target.sizes.get(time_dim) and np.array_equal(
+        field[time_dim].values, target[time_dim].values
+    ):
+        return field
+    monthly = target.sizes[time_dim] <= 12 * len(set(target[time_dim].dt.year.values.tolist()))
+
+    def key(da):
+        year, month = da[time_dim].dt.year, da[time_dim].dt.month
+        return year * 100 + month if monthly else (year * 100 + month) * 100 + da[time_dim].dt.day
+
+    reduced = field.assign_coords(_period=key(field)).groupby("_period").mean(time_dim)
+    wanted = key(target).values
+    missing = set(wanted.tolist()) - set(reduced["_period"].values.tolist())
+    if missing:
+        raise ValueError(f"No sea-ice concentration for records {sorted(missing)[:3]}")
+    reduced = reduced.sel(_period=wanted).rename({"_period": time_dim})
+    return reduced.assign_coords({time_dim: target[time_dim].values})
+
+
+def combine_with_ice_concentration(data, rule):
+    """Multiply or divide a field by sea-ice concentration on the field's own time axis.
+
+    ``ice_concentration_operation``:
+      - ``multiply``: grid-cell mean of a flux that acts on the ice-covered part
+        only (snowfall onto ice, ``prec_snow * A``).
+      - ``divide``: fraction of the ice surface from a grid-cell fraction
+        (melt-pond area ``apnd / A``); NaN where A is 0.
+    With ``ice_concentration_mask`` the result is NaN where the period-mean A is
+    0 (cell_methods ``where sea_ice``). a_ice is read from ``aice_path`` /
+    ``aice_pattern`` and averaged to the field's records first, so a monthly
+    field is combined with the monthly mean of daily concentration.
+    """
+    op = rule.get("ice_concentration_operation")
+    a_ice = _mean_on_time_axis_of(_load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable"), data)
+    if op == "multiply":
+        result = data * a_ice
+    elif op == "divide":
+        result = data / a_ice.where(a_ice > 0)
+    else:
+        raise ValueError(f"ice_concentration_operation must be multiply or divide, not {op!r}")
+    if rule.get("ice_concentration_mask", False):
+        result = result.where(a_ice > 0)
+    result.attrs = data.attrs.copy()
+    result.attrs["processing_note"] = (
+        "multiplied by sea-ice concentration averaged to the same records; the product of two "
+        "means differs from the mean of the product by their covariance"
+        if op == "multiply"
+        else "divided by sea-ice concentration averaged to the same records: the ice-area weighted "
+        "mean of the per-ice fraction, sum(A*x/A)/sum(A) = mean(x)/mean(A)"
+    )
+    result.name = data.name
+    return result
+
+
+def reduce_to_ice_concentration_records(data, rule):
+    """Average a sub-daily field onto the (daily) records of the a_ice stream.
+
+    Used before regridding, so the averaging runs on the small source grid.
+    The result carries the a_ice timestamps.
+    """
+    a_ice = _load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable")
+    result = _mean_on_time_axis_of(data, a_ice)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    return result
+
+
+def open_water_weighted_monthly_mean(data, rule):
+    """Monthly mean over the ice-free part of the cell: sum((1-A)*x)/sum(1-A).
+
+    For cell_methods ``area: time: mean where ice_free_sea over sea``. ``data``
+    must be on the records of the a_ice stream (see
+    reduce_to_ice_concentration_records); NaN where the month never had open
+    water. One record per month, stamped with the month's middle record.
+    """
+    a_ice = _load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable")
+    if not np.array_equal(a_ice["time"].values, data["time"].values):
+        raise ValueError("open_water_weighted_monthly_mean: data is not on the a_ice records")
+    open_water = (1.0 - a_ice.drop_vars([c for c in a_ice.coords if c not in a_ice.dims])).clip(0.0, 1.0)
+    month = data["time"].dt.year * 100 + data["time"].dt.month
+    weight = open_water.assign_coords(_month=month).groupby("_month").sum("time")
+    total = (data * open_water).assign_coords(_month=month).groupby("_month").sum("time")
+    result = (total / weight.where(weight > 0)).rename({"_month": "time"})
+    keys = month.values
+    stamps = [data["time"].values[np.flatnonzero(keys == k)[len(np.flatnonzero(keys == k)) // 2]]
+              for k in result["time"].values]
+    result = result.assign_coords(time=stamps)
+    result.attrs = data.attrs.copy()
+    result.attrs["processing_note"] = "monthly mean weighted by the daily open-water fraction 1 - a_ice"
+    result.name = data.name
+    return result
+
+
 def extract_single_plevel(data, rule):
     """
     Extract a single pressure level from a multi-level dataset.
@@ -6257,6 +6730,175 @@ def compute_hfbasin_tripyview(data, rule):
     )
     return hfbasin.to_dataset()
 
+
+def _basin_edges_and_nodes(mesh, mdiag, box):
+    """Edge mask and node latitudes of a basin, as tripyview selects them (with a buffer layer)."""
+    import tripyview as _tpv
+
+    edges = mdiag["edges"].values
+    if isinstance(box, str):
+        return np.ones(edges.shape[1], dtype=bool), mesh.n_y
+    e_in = _tpv.sub_utility.do_boxmask(mesh, box, do_elem=True)
+    nodes = np.zeros(mesh.n2dn, dtype=bool)
+    nodes[np.unique(mesh.e_i[e_in, :])] = True
+    buffered = nodes.copy()
+    buffered[np.unique(mesh.e_i[nodes[mesh.e_i].max(axis=1), :])] = True
+    return buffered[edges].any(axis=0), mesh.n_y[nodes]
+
+
+def _basin_section_edges(mdiag, inside, lat):
+    """Edges cut by the latitude line ``lat`` inside a basin, with tripyview's signs.
+
+    Same selection and orientation as tripyview calc_mhflx_box_fast_lessmem
+    (edge direction flipped where the first node lies south of the line;
+    cross-edge vectors turned into normals), so a transport summed here
+    equals the one hfbasin integrates.
+    Returns (edge_tri (2, ne), dx (2, ne), dy (2, ne)) or None.
+    """
+    y = mdiag["edge_y"].values
+    cut = inside & ((y[0] - lat) * (y[1] - lat) <= 0.0)
+    if not cut.any():
+        return None
+    dx = mdiag["edge_dx_lr"].values[:, cut].copy()
+    dy = mdiag["edge_dy_lr"].values[:, cut].copy()
+    south = y[0, cut] <= lat
+    dx[:, south] *= -1.0
+    dy[:, south] *= -1.0
+    dx[0] *= -1.0
+    dy[1] *= -1.0
+    return mdiag["edge_tri"].values[:, cut], dx, dy
+
+
+def compute_basin_transport_component(data, rule):
+    """Overturning, gyre or GM-bolus part of the northward basin transport of heat or salt.
+
+    On each latitude line of each CMIP basin (the edge path hfbasin uses),
+    with per-layer transports F_s(z) = (u_s dy_s + v_s dx_s) dz of the two
+    element halves s of every cut edge:
+
+      - overturning: sum_z V(z) [T](z), V(z) = sum_s F_s(z) with the resolved
+        plus GM bolus velocity, [T](z) the zonal mean of the element tracer
+        along the path (weights |dx_s|, wet halves only);
+      - gyre: total minus overturning, the total being the online u*T, v*T
+        streams (utemp/vtemp or usalt/vsalt, which FESOM builds from
+        UV + fer_UV, gen_modules_diag.F90:429) integrated the same way, so
+        overturning + gyre = hfbasin / sltbasin;
+      - bolus: the GM bolus velocity times the element tracer.
+
+    Monthly means are used for v and T, so the overturning and bolus parts
+    miss their sub-monthly covariance (it ends up in the gyre part). Element
+    tracer = mean of its three nodes, as FESOM forms u*T. Heat uses tripyview's
+    rho0*cp = 1030*3850 and its sign (northward positive), salt rho0*1e-3.
+
+    Rule attributes: transport_component (overturning|gyre|bolus),
+    transport_tracer (temp|salt), mesh_path, grid_file, and *_path/*_pattern/
+    *_variable for u, v, bolus_u, bolus_v and (gyre) tracer_u, tracer_v.
+    The primary input is the tracer on nodes (temp or salt).
+    """
+    import os as _os
+    import shapefile as _shp
+    import tripyview as _tpv
+
+    component = rule.get("transport_component")
+    tracer_name = rule.get("transport_tracer", "temp")
+    if component not in ("overturning", "gyre", "bolus"):
+        raise ValueError(f"transport_component must be overturning, gyre or bolus, not {component!r}")
+    factor = -1030.0 * 3850.0 if tracer_name == "temp" else -1030.0 * 1e-3
+    mesh_path = rule.get("mesh_path")
+    mesh = _tpv.load_mesh_fesom2(mesh_path, do_pickle=True, do_info=False)
+    mdiag = _build_tripyview_mdiag(mesh, _os.path.join(mesh_path, "fesom.mesh.diag.nc"))
+    mdiag["edge_y"] = (("n2", "edg_n"), mesh.n_y[mdiag["edges"].values])
+    tri = np.asarray(mesh.e_i, dtype=np.int64)
+
+    tracer = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    level = next(d for d in ("nz", "nz1") if d in tracer.dims)
+    tracer = tracer.transpose("time", next(d for d in tracer.dims if d not in ("time", level)), level)
+    with xr.open_dataset(rule.get("grid_file") or _os.path.join(mesh_path, "mesh.nc")) as m:
+        dz = np.diff(np.asarray(m["depth_bnds"].values, dtype=float))[: tracer.sizes[level]]
+
+    def element_field(key):
+        da = _load_secondary_mf(rule, f"{key}_path", f"{key}_pattern", f"{key}_variable")
+        return da.transpose("time", "elem", ...)
+
+    fields = {}
+    if component in ("overturning", "gyre"):
+        fields.update(u=element_field("u"), v=element_field("v"))
+    fields.update(bu=element_field("bolus_u"), bv=element_field("bolus_v"))
+    if component == "gyre":
+        fields.update(tu=element_field("tracer_u"), tv=element_field("tracer_v"))
+
+    shp_dir = rule.get("basin_shapefile_dir") or _os.path.join(
+        _os.path.dirname(_tpv.__file__), "shapefiles", "moc_basins"
+    )
+    basins = [
+        ("atlantic_arctic_ocean", _shp.Reader(_os.path.join(shp_dir, "Atlantic_MOC.shp"))),
+        ("indian_pacific_ocean", _shp.Reader(_os.path.join(shp_dir, "IndoPacific_MOC.shp"))),
+        ("global_ocean", "global"),
+    ]
+    glob_lat = _global_lat_centers(1.0)
+    sections = {}
+    ocean_lat = None
+    for name, box in basins:
+        inside, lat_nodes = _basin_edges_and_nodes(mesh, mdiag, box)
+        lats = np.arange(np.ceil(lat_nodes.min()) + 0.5, np.floor(lat_nodes.max()) - 0.5, 1.0)
+        sections[name] = {j: _basin_section_edges(mdiag, inside, lat) for j, lat in
+                          ((int(np.argmin(np.abs(glob_lat - lat))), lat) for lat in lats)}
+        if isinstance(box, str):
+            ocean_lat = np.zeros(glob_lat.size, dtype=bool)
+            ocean_lat[list(sections[name])] = True
+
+    out = np.full((tracer.sizes["time"], len(basins), glob_lat.size), np.nan)
+    for t in range(tracer.sizes["time"]):
+        node_tracer = np.asarray(tracer.isel(time=t).values, dtype=float)
+        elem_tracer = node_tracer[tri].mean(axis=1)  # (elem, nz), NaN below the bottom
+        f = {k: np.asarray(v.isel(time=t).values, dtype=float) for k, v in fields.items()}
+        for bi, (name, _) in enumerate(basins):
+            out[t, bi, ocean_lat] = 0.0
+            for j, section in sections[name].items():
+                if section is None:
+                    continue
+                etri, dx, dy = section
+                right = etri[1] >= 0
+                idx = np.where(right, etri, 0)
+                idx[0] = etri[0]
+
+                def halves(field):
+                    values = np.nan_to_num(field[idx])  # (2, ne, nz)
+                    values[1, ~right] = 0.0
+                    return values
+
+                def transport(fx, fy):
+                    return (halves(fx) * dy[..., None] + halves(fy) * dx[..., None]) * dz[None, None, :]
+
+                trc = elem_tracer[idx]
+                if component == "bolus":
+                    value = np.nansum(transport(f["bu"], f["bv"]) * np.nan_to_num(trc))
+                else:
+                    flux = transport(f["u"] + f["bu"], f["v"] + f["bv"])
+                    weight = np.abs(dx)[..., None] * np.isfinite(trc)
+                    weight[1, ~right] = 0.0
+                    wsum = weight.sum(axis=(0, 1))
+                    mean_tracer = np.where(wsum > 0, np.nansum(weight * np.nan_to_num(trc), axis=(0, 1))
+                                           / np.where(wsum > 0, wsum, 1.0), 0.0)
+                    value = np.sum(flux.sum(axis=(0, 1)) * mean_tracer)
+                    if component == "gyre":
+                        value = np.sum(transport(f["tu"], f["tv"])) - value
+                out[t, bi, j] = factor * value
+        logger.info(f"{rule.model_variable}: {component} {tracer_name} transport for record {t + 1}")
+
+    result = xr.DataArray(
+        out,
+        dims=("time", "basin", "lat"),
+        coords={"time": tracer["time"].values, "sector": ("basin", _label_values([n for n, _ in basins])),
+                "lat": glob_lat},
+        name=rule.model_variable,
+        attrs={"units": "W" if tracer_name == "temp" else "kg s-1",
+               "processing_note": f"{component} part of the basin {tracer_name} transport from monthly means "
+                                  "along the hfbasin edge path"},
+    )
+    result["lat"].attrs.update(standard_name="latitude", long_name="Latitude", units="degrees_north", axis="Y")
+    result["sector"].attrs.update(standard_name="region", long_name="Ocean Basin")
+    return result.to_dataset()
 
 def compute_sltbasin_tripyview(data, rule):
     """Northward Ocean Salt Transport per basin via tripyview's edge-crossing

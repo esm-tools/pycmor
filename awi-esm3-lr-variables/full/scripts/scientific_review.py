@@ -9,6 +9,18 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
+def finding_action(finding, compound, rule=None):
+    """A repaired product keeps its finding on record but is no longer blocked by it.
+
+    Only the corrected recipe is released: it names the finding in its
+    ``scientific_repairs``. Other routes to the same product stay blocked.
+    """
+    repaired=compound in finding.get('repaired',{})
+    if rule is not None:
+        repaired=repaired and finding['id'] in rule.get('scientific_repairs',[])
+    return 'repaired_recipe' if repaired else finding['action']
+
+
 def review_document(doc, identity, config):
     profile=config.get('scientific_profile')
     if not profile:
@@ -23,7 +35,7 @@ def review_document(doc, identity, config):
         raise ValueError('UNREVIEWED_SCIENTIFIC_PROFILE: reviewed model build does not match this leg')
     rule=doc['rules'][0];compound=rule['compound_name']
     findings=[r for r in review['findings'] if compound in r['products']]
-    blocked=[r for r in findings if r['action']=='blocked_invalid_mapping']
+    blocked=[r for r in findings if finding_action(r,compound,rule)=='blocked_invalid_mapping']
     if blocked:
         raise ValueError('SCIENTIFIC_MAPPING_DISABLED: '+' | '.join(r['id']+': '+r['detail'] for r in blocked))
     name=compound.split('.')[1]
@@ -60,7 +72,18 @@ def review_document(doc, identity, config):
     if rule.get('lr_scientific_sampling_note'):
         attrs=rule.setdefault('variable_attributes',{})
         attrs['comment']=' '.join(filter(None,[attrs.get('comment'),rule['lr_scientific_sampling_note']]))
-    rule['lr_scientific_review']=[dict(id=r['id'],action=r['action'],verdict=r['verdict']) for r in findings]
+    if any(r['id']=='F35' and finding_action(r,compound,rule)=='repaired_recipe' for r in findings):
+        # One fixed thermosteric reference for every task of every leg.
+        years=config.get('zostoga_reference_years',rule.get('zostoga_reference_years'))
+        if not years or len(years)!=2 or years[1]<years[0]:
+            raise ValueError('UNRESOLVED_ZOSTOGA_REFERENCE: configure zostoga_reference_years [first, last]')
+        rule['zostoga_reference_years']=[int(years[0]),int(years[1])]
+        rule['zostoga_reference_path']=rule['inputs'][0]['path']
+        rule['zostoga_reference_pattern']=(r'temp\.fesom\.(?:'+'|'.join(str(y) for y in range(int(years[0]),int(years[1])+1))+r')\.nc')
+    rule['lr_scientific_review']=[dict(id=r['id'],action=finding_action(r,compound,rule),verdict=r['verdict'],
+                                       **({'repair':r['repaired'][compound]}
+                                          if finding_action(r,compound,rule)=='repaired_recipe' else {}))
+                                  for r in findings]
     return doc
 
 
@@ -75,14 +98,15 @@ def write_report(campaign, rows):
     records=[]
     for compound, tasks in sorted(grouped.items()):
         findings=index[compound]
-        blocked=any(r['action']=='blocked_invalid_mapping' for r in findings)
-        unresolved=any(r['action']=='review_required' for r in findings)
+        actions={finding_action(r,compound) for r in findings}
+        blocked='blocked_invalid_mapping' in actions
+        unresolved='review_required' in actions
         state=('DISABLED_INVALID_MAPPING' if blocked else 'UNRESOLVED_REVIEW_OR_APPROXIMATION' if unresolved
                else 'REPAIRS_APPLIED' if findings else 'NO_RECORDED_FINDING_NOT_CERTIFIED')
         records.append(dict(compound=compound, scientific_status=state,
             written=all(r['status']=='PASS' for r in tasks),
             findings='; '.join(r['id']+': '+r['title'] for r in findings),
-            actions='; '.join(sorted({r['action'] for r in findings}))))
+            actions='; '.join(sorted(actions))))
     target=Path(campaign)/'report'
     with (target/'scientific_review.csv').open('w',newline='') as stream:
         writer=csv.DictWriter(stream,fieldnames=list(records[0]));writer.writeheader();writer.writerows(records)

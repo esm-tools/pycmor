@@ -167,6 +167,94 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Per-ice fraction from a grid-cell fraction: divide by the monthly mean
+  # of daily a_ice (NaN without ice), then express in percent.
+  - name: ice_concentration_percent_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:combine_with_ice_concentration
+      - script://$PYCMOR_HOME/examples/custom_steps.py:fraction_to_percent
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Mean over the ice-free part of each cell: hourly OpenIFS field to daily
+  # means on its native grid, nearest-neighbour onto the FESOM nodes, then
+  # sum((1-A)*x)/sum(1-A) per month with daily a_ice.
+  - name: regrid_atm_open_water_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:reduce_to_ice_concentration_records
+      - script://$PYCMOR_HOME/examples/custom_steps.py:regrid_oifs_to_fesom
+      - script://$PYCMOR_HOME/examples/custom_steps.py:open_water_weighted_monthly_mean
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  # Daily diagnostics from the 0-layer ice state, masked without ice, then
+  # averaged (sitempsnic, snc).
+  - name: sitempsnic_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sitempsnic
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
+  - name: snow_cover_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_snow_cover_percent
+      - script://$PYCMOR_HOME/examples/custom_steps.py:mask_where_no_seaice
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: scale_mask_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -1083,13 +1171,18 @@ rules:
     pipelines:
       - siflcondtop_pipeline
 
-  # Sea ice heat content
+  # Sea ice heat content per grid-cell area: daily m_ice (ice volume per
+  # cell area, io_meandata m_ice_day alias) times rho_ice*(c_ice*(T_mean -
+  # 273.15) - L_f), T_mean the mid-point of the 0-layer linear profile
+  # between ist and the freezing point of sss. The 0-layer model has no
+  # enthalpy state; the sensible term is this profile's approximation.
   - name: sihc
     inputs:
       - path: *dp
-        pattern: h_ice\.fesom\.\d{4}\.nc
+        pattern: m_ice_day\.fesom\.\d{4}\.nc
     compound_name: seaIce.sihc.tavg-u-hxy-sea.mon.glb
-    model_variable: h_ice
+    model_variable: m_ice
+    scientific_repairs: [F14]
     ist_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     ist_pattern: ist\.fesom\.\d{4}\.nc
     sss_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
@@ -1220,8 +1313,12 @@ rules:
     model_variable: apnd
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    # apnd is pond area per grid cell (capped at 0.9*aice, ice_meltponds.F90:204).
+    # Per-ice fraction with SIMIP ice-area weighting: mean(apnd)/mean(a_ice).
+    ice_concentration_operation: divide
+    scientific_repairs: [F21]
     pipelines:
-      - fraction_to_percent_mask_pipeline
+      - ice_concentration_percent_pipeline
 
   - name: simpthick
     inputs:
@@ -1448,6 +1545,23 @@ rules:
     pipelines:
       - regrid_atm_to_fesom_seaice_mask_pipeline
 
+  # Downwelling shortwave over the ice-free ocean (ocean.rsds ifs). FESOM's
+  # own qsr output is zero in the coupled model (qsr_c is never set), so the
+  # OpenIFS grid-cell rsds is used, weighted by the open-water fraction. It
+  # is the grid-cell mean in air; OpenIFS writes no per-tile rsds.
+  - name: rsds_ifs
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsds_.*\.nc
+    compound_name: ocean.rsds.tavg-u-hxy-ifs.mon.glb
+    model_variable: rsds
+    time_dimname: time_counter
+    aice_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_open_water_pipeline
+
   - name: rsds_seaice_day
     inputs:
       - path: *odp
@@ -1659,3 +1773,40 @@ rules:
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline
+
+  # Snow-ice interface temperature from FESOM's 0-layer conduction:
+  # Tf + (ist - Tf) * h/(h + con/consn*hsn), with daily ist, h_ice, h_snow and
+  # sss. From daily means, not per-step values.
+  - name: sitempsnic
+    inputs:
+      - path: *dp
+        pattern: ist\.fesom\.\d{4}\.nc
+    compound_name: seaIce.sitempsnic.tavg-u-hxy-si.mon.glb
+    model_variable: ist
+    hice_path: *dp
+    hice_pattern: h_ice\.fesom\.\d{4}\.nc
+    hice_variable: h_ice
+    hsnow_path: *dp
+    hsnow_pattern: h_snow\.fesom\.\d{4}\.nc
+    hsnow_variable: h_snow
+    sss_path: *dp
+    sss_pattern: sss\.fesom\.\d{4}\.nc
+    sss_variable: sss
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - sitempsnic_pipeline
+
+  # Snow cover of the ice: FESOM's snow is all or nothing above 1 mm
+  # (h_snowscale = 0), so daily values are 0 or 100 and the monthly mean is
+  # the share of ice-covered days with snow.
+  - name: snc_seaice
+    inputs:
+      - path: *dp
+        pattern: h_snow\.fesom\.\d{4}\.nc
+    compound_name: seaIce.snc.tavg-u-hxy-si.mon.glb
+    model_variable: h_snow
+    aice_path: *dp
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    pipelines:
+      - snow_cover_pipeline
