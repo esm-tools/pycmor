@@ -1011,13 +1011,17 @@ rules:
       - ocean_vertical_integration_pipeline
 
   # volcello (fx) — static ocean grid-cell volume
-  # cell_area × layer_thickness from mesh
+  # Layer thickness from mesh times the model's depth-dependent node area
+  # nod_area(nz, nod2), which is what FESOM integrates for volo
+  # (areasvol*hnode). The static cell_area overstated the CORE3 volume by 4.7%.
   - name: volcello_fx
     inputs:
       - path: *mp
         pattern: mesh.nc
     compound_name: ocean.volcello.ti-ol-hxy-sea.fx.glb
     model_variable: volcello
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    scientific_repairs: [F34]
     lazy_write: true
     pipelines:
       - volcello_fx_pipeline
@@ -1150,6 +1154,8 @@ rules:
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.volcello.tavg-ol-hxy-sea.dec.glb
     model_variable: hnode
+    volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    scientific_repairs: [F34]
     lazy_write: true
     pipelines:
       - decadal_volcello_time_pipeline

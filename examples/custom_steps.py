@@ -3215,6 +3215,25 @@ def vertical_integrate(
 # ============================================================
 
 
+def _depth_dependent_node_area(rule, nlev):
+    """Model area of each layer at each node, ``nod_area(nz, nod2)`` from ``fesom.mesh.diag.nc``.
+
+    FESOM's own volume is ``sum(areasvol(k, n) * hnode(k, n))`` (gen_modules_cmor_diag.F90).
+    ``areasvol`` shrinks with depth along the coast and is zero above an ice-shelf cavity
+    ceiling, so the static surface ``cell_area`` overstates the CORE3 ocean volume by about
+    4.7%. The diag file stores one row per interface (48 on CORE3); row k is the area of
+    layer k, so the first ``nlev`` rows are used. Rules opt in with ``volume_area_file``;
+    without it the cell-area recipe applies, so HR output does not change.
+    """
+    with xr.open_dataset(rule.get("volume_area_file")) as diag:
+        area = diag[rule.get("volume_area_variable", "nod_area")].load()
+    level_dim, node_dim = area.dims
+    if area.sizes[level_dim] < nlev:
+        raise ValueError(f"nod_area has {area.sizes[level_dim]} levels, fewer than the {nlev} model layers")
+    area = area.isel({level_dim: slice(0, nlev)}).fillna(0.0)
+    return xr.DataArray(area.values, dims=("lev", "ncells"))
+
+
 def compute_volcello_fx(data, rule):
     """
     Compute static ocean grid-cell volume from mesh geometry.
@@ -3227,6 +3246,8 @@ def compute_volcello_fx(data, rule):
 
     Rule attributes:
       - (none required beyond grid_file already used by load_gridfile)
+      - volume_area_file: optional fesom.mesh.diag.nc; uses the model's
+        depth-dependent nod_area instead of cell_area
     """
     if "cell_area" in data:
         cell_area = data["cell_area"]
@@ -3249,7 +3270,12 @@ def compute_volcello_fx(data, rule):
         rule.model_variable,
         rule,
     )
-    result = result * np.asarray(cell_area.values, dtype=np.float32)[None, :]
+    if rule.get("volume_area_file"):
+        area = _depth_dependent_node_area(rule, thickness.size)
+        result = result * area
+        result = result.where(area > 0)
+    else:
+        result = result * np.asarray(cell_area.values, dtype=np.float32)[None, :]
     result.attrs = {"units": "m3", "standard_name": "ocean_volume", "long_name": "Ocean Grid-Cell Volume"}
     result.name = rule.model_variable
     return _attach_level_coord(result, depth)
@@ -3266,7 +3292,20 @@ def compute_volcello_time(data, rule):
 
     Rule attributes:
       - grid_file: path to mesh file (for cell_area)
+      - volume_area_file: optional fesom.mesh.diag.nc; uses the model's
+        depth-dependent nod_area instead (see _depth_dependent_node_area)
     """
+    if rule.get("volume_area_file"):
+        node_dim = next(d for d in ("nod2", "ncells") if d in data.dims)
+        level_dim = next(d for d in ("nz1", "nz", "lev") if d in data.dims)
+        area = _depth_dependent_node_area(rule, data.sizes[level_dim])
+        area = xr.DataArray(area.values, dims=(level_dim, node_dim))
+        result = (data * area).where(area > 0)
+        result.attrs = data.attrs.copy()
+        result.attrs.update(units="m3", standard_name="ocean_volume", long_name="Ocean Grid-Cell Volume")
+        result.name = data.name
+        return result
+
     grid_file = rule.get("grid_file")
     if grid_file is None:
         raise ValueError("Rule must specify 'grid_file' for compute_volcello_time")

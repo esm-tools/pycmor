@@ -934,7 +934,12 @@
           "line": 99,
           "excerpt": "volo_local = volo_local + mesh%areasvol(k, n2) * mesh%hnode(k, n2)"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.volcello.tavg-ol-hxy-sea.dec.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe.",
+        "ocean.volcello.tavg-ol-hxy-sea.mon.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe.",
+        "ocean.volcello.ti-ol-hxy-sea.fx.glb": "volcello = layer thickness (hnode, or the mesh profile for fx) times the depth-dependent model area nod_area(nz,nod2) from fesom.mesh.diag.nc via volume_area_file; reproduces native volo within 0.0025%. The annual product uses the same recipe."
+      }
     },
     {
       "id": "F35",
