@@ -170,6 +170,28 @@ pipelines:
   - name: areacella_pipeline
     uses: pycmor.core.pipeline.AreacellaFxPipeline
 
+  # alevel_pipeline plus the rule's variable_attributes (a comment that
+  # states how the product maps onto the model) on the written variable.
+  - name: alevel_comment_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - pycmor.std_lib.add_vertical_bounds
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:apply_variable_attributes
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - script://$PYCMOR_HOME/examples/custom_steps.py:add_hybrid_sigma_coordinate
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
 inherit:
   # Tier-wide throttle: protect against the HDF5-write-lock parallel-save
   # wedge that timed out core_atm_3 in cli52 and reproduced under cli52
@@ -883,6 +905,56 @@ rules:
     compound_name: atmos.clw.tavg-al-hxy-u.mon.glb
     model_variable: clw
     lazy_write: true
+
+  # Stratiform cloud (cls, clis, clws). IFS has one prognostic cloud scheme;
+  # convection feeds it by detrainment and has no cloud fraction of its own
+  # (cldpp.F90:71, convective cloud cover "0. at the moment"). Stratiform
+  # cloud is therefore the total cloud of cl, cli and clw, from the same
+  # sources. The same statement belongs in the EMD cloud description.
+  - name: cls
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_day_ml_cl_.*\.nc
+    compound_name: atmos.cls.tavg-al-hxy-u.mon.glb
+    model_variable: cl
+    lazy_write: true
+    variable_attributes:
+      comment: "Identical to cl: OpenIFS has a single prognostic cloud scheme that convection feeds by detrainment, and no separate convective cloud fraction (cldpp.F90, convective cloud cover is zero)."
+
+  - name: clis
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_cli_.*\.nc
+    compound_name: atmos.clis.tavg-al-hxy-u.mon.glb
+    model_variable: cli
+    lazy_write: true
+    variable_attributes:
+      comment: "Identical to cli: OpenIFS has a single prognostic cloud scheme that convection feeds by detrainment, and no separate convective cloud condensate (cldpp.F90, convective cloud cover is zero)."
+
+  - name: clws
+    ps_path: *dp
+    ps_pattern: atmos_6h_pt_sp_.*\.nc
+    ps_variable: sp
+    pipelines:
+      - alevel_pipeline
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_ml_clw_.*\.nc
+    compound_name: atmos.clws.tavg-al-hxy-u.mon.glb
+    model_variable: clw
+    lazy_write: true
+    variable_attributes:
+      comment: "Identical to clw: OpenIFS has a single prognostic cloud scheme that convection feeds by detrainment, and no separate convective cloud condensate (cldpp.F90, convective cloud cover is zero)."
 
   # ============================================================
   # 3-hourly instantaneous surface (3hrPt)

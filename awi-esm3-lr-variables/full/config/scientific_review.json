@@ -1109,7 +1109,8 @@
       "products": [
         "land.rootd.ti-u-hxy-lnd.fx.glb"
       ],
-      "action": "blocked_invalid_mapping",
+      "action": "reconstructed_htessel_root_layer_depth",
+      "repair": "compute_rootd now gives the depth of the deepest HTESSEL soil layer with a nonzero root fraction: 2.89 m where a low or high vegetation tile of the input year has nonzero cover and a type rooted in layer 4, 0.07 m (layer 1 only: types 8, 12, 14, 15, 20, and cells without a vegetated tile) elsewhere on land, missing where slt is 0.",
       "evidence": [
         {
           "path": "custom_steps.py",
@@ -1120,6 +1121,11 @@
           "path": "oifs-48r1/ifs-source/surf/module/srfrootfr_mod.F90",
           "line": 169,
           "excerpt": "PROOTF(KLEVS,JT)=1.-SUM(PROOTF(1:KLEVS-1,JT))"
+        },
+        {
+          "path": "oifs-48r1/ifs-source/surf/module/srfrootfr_mod.F90",
+          "line": 177,
+          "excerpt": "PROOTF(1,8) =1.0_JPRB ... PROOTF(1,20)=1.0_JPRB (types 8, 12, 14, 15, 20 root in layer 1 only)"
         }
       ]
     },

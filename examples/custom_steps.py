@@ -46,7 +46,10 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
 
   Atmosphere
     compute_surface_pressure, compute_sfcwind, compute_hurs, compute_hur_ml,
-    compute_huss, compute_clwvi, compute_snc, compute_areacella, compute_rtmt
+    compute_huss, compute_clwvi, compute_snc, compute_areacella, compute_rtmt,
+    apply_variable_attributes, sum_variables, oifs_pextra_tendency,
+    select_lowest_model_level, select_climatology_window, oifs_half_level_pressure,
+    oifs_ghg_climatology_field, as_monthly_climatology
 
   Land / LPJ-GUESS
     compute_fire_emission, compute_mrtws, compute_snd,
@@ -5575,54 +5578,58 @@ def compute_mrsofc(data, rule):
     return ds
 
 
-# HTESSEL root depth by vegetation type (Zeng et al. 1998 effective depth)
-# IFS BATS vegetation types with 95% cumulative root fraction depth (m)
-_HTESSEL_ROOT_DEPTH = {
-    1: 1.00,  # Crops, mixed farming
-    2: 1.00,  # Short grass
-    3: 1.50,  # Evergreen needleleaf
-    4: 1.50,  # Deciduous needleleaf
-    5: 1.50,  # Deciduous broadleaf
-    6: 2.00,  # Evergreen broadleaf
-    7: 1.00,  # Tall grass
-    8: 0.50,  # Desert
-    9: 0.50,  # Tundra
-    10: 1.00,  # Irrigated crops
-    11: 0.50,  # Semidesert
-    12: 0.00,  # Ice caps and glaciers
-    13: 0.50,  # Bogs and marshes
-    14: 0.00,  # Inland water
-    15: 0.00,  # Ocean
-    16: 1.50,  # Evergreen shrubs
-    17: 1.00,  # Deciduous shrubs
-    18: 1.50,  # Mixed forest
-    19: 1.00,  # Interrupted forest
-    20: 0.00,  # Water and land mix
-}
+# HTESSEL root fractions (srfrootfr_mod.F90, Zeng et al. 1998 table). Types
+# 8, 12, 14, 15 and 20 are redefined to root in soil layer 1 only; every other
+# type gets PROOTF(4) = 1 - sum(layers 1-3) > 0, so its roots reach the bottom
+# of soil layer 4. The four layers are 0.07, 0.21, 0.72 and 1.89 m thick
+# (sussoil_mod.F90).
+_HTESSEL_TOP_LAYER_ONLY_TYPES = (8, 12, 14, 15, 20)
+_HTESSEL_TOP_LAYER_DEPTH = 0.07
+_HTESSEL_SOIL_COLUMN_DEPTH = 0.07 + 0.21 + 0.72 + 1.89
 
 
 def compute_rootd(data, rule):
     """
-    Compute effective maximum root depth from IFS vegetation types.
+    Maximum depth from which HTESSEL roots extract soil water.
 
-    Uses vegetation-type-weighted root depth:
-    rootd = cvl * rootd(tvl) + cvh * rootd(tvh)
+    HTESSEL takes transpiration from the low- and high-vegetation tiles
+    through the root fractions of their vegetation types. A vegetated type
+    has a nonzero root fraction in soil layer 4, so its roots reach the
+    bottom of the column at 2.89 m. Types 8, 12, 14, 15 and 20 root in layer 1
+    only (0.07 m), which is also the only layer the bare-soil tile evaporates
+    from.
 
-    Input data should contain tvl, tvh, cvl, cvh fields.
+    A cell gets 2.89 m when, in any time step of the input, its low or high
+    vegetation tile has nonzero cover and a type other than those five; it
+    gets 0.07 m otherwise. Type 0 means the tile has no vegetation type. In
+    AWI-ESM3 LPJ-GUESS updates tvl/tvh/cvl/cvh during the run, so the fx
+    value is the maximum over the input year, and a monthly mean type that
+    is not an integer (the type changed within the month) counts as rooted
+    in layer 4 unless it equals one of the five top-layer types.
+
+    With ``slt`` in the input, cells without HTESSEL soil (slt == 0) are
+    missing, as the "where land" cell method asks.
+
+    Input data should contain tvl, tvh, cvl, cvh fields, optionally slt.
     """
     tvl = data["tvl"]
-    tvh = data["tvh"]
-    cvl = data["cvl"]
-    cvh = data["cvh"]
+    time_dims = [d for d in tvl.dims if d.startswith("time")]
 
-    rootd_low = xr.zeros_like(tvl, dtype=float)
-    rootd_high = xr.zeros_like(tvh, dtype=float)
+    def _rooted_to_layer4(vtype, cover):
+        top_only = xr.zeros_like(vtype, dtype=bool)
+        for t in _HTESSEL_TOP_LAYER_ONLY_TYPES:
+            top_only = top_only | (abs(vtype - t) < 1e-3)
+        return (cover > 0) & (vtype >= 0.5) & ~top_only
 
-    for vtype, depth in _HTESSEL_ROOT_DEPTH.items():
-        rootd_low = xr.where(np.round(tvl) == vtype, depth, rootd_low)
-        rootd_high = xr.where(np.round(tvh) == vtype, depth, rootd_high)
-
-    result = cvl * rootd_low + cvh * rootd_high
+    deep = _rooted_to_layer4(tvl, data["cvl"]) | _rooted_to_layer4(data["tvh"], data["cvh"])
+    if time_dims:
+        deep = deep.any(time_dims)
+    result = xr.where(deep, _HTESSEL_SOIL_COLUMN_DEPTH, _HTESSEL_TOP_LAYER_DEPTH)
+    if "slt" in data:
+        soil = data["slt"].max(time_dims) if time_dims else data["slt"]
+        result = result.where(soil > 0)
+    # Every time step carries the same fx value; the save takes the first.
+    result = result.broadcast_like(tvl).transpose(*tvl.dims)
 
     result.attrs = {"units": "m", "long_name": "Maximum Root Depth"}
     result.name = rule.model_variable
@@ -8229,6 +8236,10 @@ def add_hybrid_sigma_coordinate(data, rule):
       - ``oifs_vtable_dir``: directory containing vtable_L<N> (optional)
         The legacy L137 default is retained only for 137-level data.
       - ``ps_path`` / ``ps_pattern`` / ``ps_variable``: surface pressure source
+
+    A field on the vtable's half levels themselves (``alevhalf``, one level
+    more than the full levels, e.g. phalf) gets ``alternate_hybrid_sigma_half``:
+    the same formula on the half-level ``ap`` and ``b``, without bounds.
     """
     if isinstance(data, xr.DataArray):
         ds = data.to_dataset()
@@ -8243,18 +8254,22 @@ def add_hybrid_sigma_coordinate(data, rule):
     nlev = ds.sizes[level_dim]
     vtable = _oifs_vtable_for_levels(rule, nlev)
     a_half, b_half = _read_oifs_vtable(vtable)
-    if a_half.size != nlev + 1:
+    half_levels = a_half.size == nlev
+    if a_half.size != nlev + 1 and not half_levels:
         raise ValueError(
             f"add_hybrid_sigma_coordinate: vtable has {a_half.size} half levels, "
             f"which does not bound {nlev} full levels on {level_dim!r}"
         )
 
-    ap = 0.5 * (a_half[:-1] + a_half[1:])
-    b = 0.5 * (b_half[:-1] + b_half[1:])
-    ap_bnds = np.stack([a_half[:-1], a_half[1:]], axis=-1)
-    b_bnds = np.stack([b_half[:-1], b_half[1:]], axis=-1)
+    if half_levels:
+        ap, b = a_half, b_half
+    else:
+        ap = 0.5 * (a_half[:-1] + a_half[1:])
+        b = 0.5 * (b_half[:-1] + b_half[1:])
+        ap_bnds = np.stack([a_half[:-1], a_half[1:]], axis=-1)
+        b_bnds = np.stack([b_half[:-1], b_half[1:]], axis=-1)
+        lev_bnds = ap_bnds / _P0 + b_bnds
     lev = ap / _P0 + b
-    lev_bnds = ap_bnds / _P0 + b_bnds
 
     if level_dim != "lev":
         ds = ds.rename({level_dim: "lev"})
@@ -8274,25 +8289,31 @@ def add_hybrid_sigma_coordinate(data, rule):
         "formula_terms": "ap: ap b: b ps: ps",
         "bounds": "lev_bnds",
     }
-    ds["lev_bnds"] = xr.DataArray(lev_bnds, dims=("lev", "bnds"))
-    # CMOR repeats formula/standard_name/units on the bounds; checked against
-    # published MPI-ESM1-2-LR Amon.cli.
-    ds["lev_bnds"].attrs = {
-        "standard_name": "atmosphere_hybrid_sigma_pressure_coordinate",
-        "units": "1",
-        "formula": "p = ap + b*ps",
-        "formula_terms": "ap: ap_bnds b: b_bnds ps: ps",
-    }
+    if half_levels:
+        del ds["lev"].attrs["bounds"]
+    else:
+        ds["lev_bnds"] = xr.DataArray(lev_bnds, dims=("lev", "bnds"))
+        # CMOR repeats formula/standard_name/units on the bounds; checked against
+        # published MPI-ESM1-2-LR Amon.cli.
+        ds["lev_bnds"].attrs = {
+            "standard_name": "atmosphere_hybrid_sigma_pressure_coordinate",
+            "units": "1",
+            "formula": "p = ap + b*ps",
+            "formula_terms": "ap: ap_bnds b: b_bnds ps: ps",
+        }
     ds["ap"] = xr.DataArray(
         ap, dims=("lev",), attrs={"long_name": "vertical coordinate formula term: ap", "units": "Pa"}
     )
     ds["b"] = xr.DataArray(b, dims=("lev",), attrs={"long_name": "vertical coordinate formula term: b"})
-    ds["ap_bnds"] = xr.DataArray(
-        ap_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: ap(k+1/2)", "units": "Pa"}
-    )
-    ds["b_bnds"] = xr.DataArray(
-        b_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: b(k+1/2)"}
-    )
+    if not half_levels:
+        ds["ap_bnds"] = xr.DataArray(
+            ap_bnds,
+            dims=("lev", "bnds"),
+            attrs={"long_name": "vertical coordinate formula term: ap(k+1/2)", "units": "Pa"},
+        )
+        ds["b_bnds"] = xr.DataArray(
+            b_bnds, dims=("lev", "bnds"), attrs={"long_name": "vertical coordinate formula term: b(k+1/2)"}
+        )
 
     ps = _load_secondary_mf(rule, "ps_path", "ps_pattern", "ps_variable")
     if rule.get("climatology_window") is not None:
@@ -8339,3 +8360,337 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
 
     return ds[da_name] if was_dataarray and da_name in ds else ds
+
+
+# ============================================================
+# LR gap closure: atmosphere (notes/LR_gap_closure_design.md 4.6, 4.8, 4.9)
+# ============================================================
+
+
+def apply_variable_attributes(data, rule):
+    """Add the rule's ``variable_attributes`` to the output variable.
+
+    Runs after ``attributes.set_variable``, which writes the data-request
+    attributes. A ``comment`` is appended to the data-request comment, other
+    keys replace the attribute.
+    """
+    extra = dict(rule.get("variable_attributes") or {})
+    if not extra:
+        return data
+    if isinstance(data, xr.DataArray):
+        da = data
+    else:
+        name = getattr(rule, "cmor_variable", None)
+        da = data[name if name in data else rule.model_variable]
+    comment = extra.pop("comment", None)
+    if comment:
+        da.attrs["comment"] = " ".join(filter(None, [da.attrs.get("comment"), comment]))
+    da.attrs.update(extra)
+    return data
+
+
+def sum_variables(data, rule):
+    """Sum the variables ``summed_variables`` of a merged multi-file input.
+
+    Rules list one input per term, so a missing term blocks the product as a
+    missing input instead of silently giving a smaller sum.
+    """
+    names = list(rule.get("summed_variables") or [])
+    if not names:
+        raise ValueError("sum_variables needs summed_variables")
+    missing = [n for n in names if n not in data]
+    if missing:
+        raise ValueError(f"sum_variables: {missing} not in input variables {list(data.data_vars)}")
+    units = {data[n].attrs.get("units") for n in names}
+    if len(units) != 1:
+        raise ValueError(f"sum_variables: terms have different units {sorted(map(str, units))}")
+    result = data[names[0]]
+    for n in names[1:]:
+        result = result + data[n]
+    result.attrs = {"units": units.pop() or "1"}
+    result.name = rule.model_variable
+    return result
+
+
+def oifs_pextra_tendency(data, rule):
+    """Monthly-mean tendency from the OpenIFS budget fields ``pextra_NN``.
+
+    With LBUD23 (switched on by listing a pextra field in XIOS, suxios.F90)
+    callpar.F90 adds tendency x TSPHY of each process to the extra fields
+    (UPDATE_FIELDS). With NAMCLDP LCLDBUD_TIMEINT=.false. callpar resets them
+    at the start of every step, so each hourly send holds one step's
+    increment and the XIOS monthly mean divided by the step length is the
+    monthly-mean tendency. With the default LCLDBUD_TIMEINT=.true. they
+    accumulate over the whole run instead, and a monthly mean of an
+    accumulation does not give the month's tendency; the planner blocks that
+    case before this step runs.
+
+    Rule attributes:
+      - ``pextra_terms``: grib numbers to add, e.g. [93, 95, 98, 102, 105, 109]
+      - ``pextra_step_seconds``: TSPHY, the model time step (3600 s at LR)
+      - ``scaled_units``: units of the tendency (K s-1 or s-1)
+    """
+    terms = rule.get("pextra_terms")
+    seconds = rule.get("pextra_step_seconds")
+    if not terms or not seconds:
+        raise ValueError("oifs_pextra_tendency needs pextra_terms and pextra_step_seconds")
+    names = [f"pextra_{int(t)}" for t in terms]
+    missing = [n for n in names if n not in data]
+    if missing:
+        raise ValueError(f"oifs_pextra_tendency: {missing} not in input variables {list(data.data_vars)}")
+    result = data[names[0]]
+    for n in names[1:]:
+        result = result + data[n]
+    result = result / float(seconds)
+    result.attrs = {"units": rule.get("scaled_units")}
+    result.name = rule.model_variable
+    return result
+
+
+def select_lowest_model_level(data, rule):
+    """Keep the lowest OpenIFS model level.
+
+    XIOS writes model levels top first, so the lowest is the last index. A
+    file already reduced to that level (a one-level zoom axis) keeps it.
+    """
+    for dim in data.dims:
+        if "lev" in dim:
+            return data.isel({dim: -1}, drop=True)
+    return data
+
+
+def select_climatology_window(data, rule):
+    """Drop samples outside ``climatology_window`` (years, inclusive).
+
+    An instantaneous OpenIFS stream ends on 1 January 00 UTC of the next
+    year, so the last file of the window carries one sample of the year
+    after it; accumulate_monthly_climatology needs exactly the window years.
+    """
+    first, last = map(int, rule.get("climatology_window"))
+    tdim = "time" if "time" in data.dims else next(d for d in data.dims if d.startswith("time"))
+    years = data[tdim].dt.year
+    return data.where((years >= first) & (years <= last), drop=True)
+
+
+def oifs_half_level_pressure(data, rule):
+    """Pressure on the model half levels, ``a_k + b_k * ps``.
+
+    ``data`` is surface pressure on the target time axis (a monthly
+    climatology for phalf tclm; the formula is linear in ps, so the
+    climatology of phalf is that of ps put through it). The coefficients come
+    from the configured vtable (``oifs_vtable``), top first like the model
+    levels; add_hybrid_sigma_coordinate turns the axis around afterwards.
+    """
+    ps = data if isinstance(data, xr.DataArray) else data[rule.get("ps_variable") or rule.model_variable]
+    a_half, b_half = _read_oifs_vtable(_oifs_vtable_for_levels(rule, None))
+    a = xr.DataArray(a_half, dims="model_levels", coords={"model_levels": np.arange(1.0, a_half.size + 1)})
+    b = xr.DataArray(b_half, dims="model_levels", coords={"model_levels": np.arange(1.0, b_half.size + 1)})
+    result = a + b * ps
+    tdim = next(d for d in ps.dims if d.startswith("time"))
+    result = result.transpose(tdim, "model_levels", ...)
+    result["model_levels"].attrs = {"long_name": "vertical model half levels", "units": "-", "positive": "up"}
+    result.attrs = {"units": "Pa"}
+    result.name = rule.model_variable
+    return result
+
+
+# Mid-month anchors of the radiation gas climatology in minutes after 1
+# January, and the day each month starts on (upd_ghgclim.F90 PP_MIN, PP_DAY).
+_GHGCLIM_ANCHOR_MIN = np.array(
+    [22320.0, 64980.0, 107640.0, 151560.0, 195480.0, 239400.0, 283320.0, 327960.0, 371880.0, 415800.0, 459720.0,
+     503640.0]
+)
+_GHGCLIM_MONTH_START_DAY = [0.0, 31.0, 59.25, 90.25, 120.25, 151.25, 181.25, 212.25, 243.25, 273.25, 304.25, 334.25]
+
+
+def _ghgclim_time_weights(year, step_minutes=60):
+    """Weights (output month x climatology month) of the model's time interpolation.
+
+    upd_ghgclim.F90 interpolates linearly between the 12 monthly fields,
+    placed at the mid-month anchors, with its own minute count (February
+    stretched to 29.25 days). The weights here average that interpolation
+    over the model steps of each calendar month of ``year``.
+    """
+    import calendar
+
+    weights = np.zeros((12, 12))
+    for month in range(1, 13):
+        days = calendar.monthrange(int(year), month)[1]
+        row = np.zeros(12)
+        count = 0
+        for day in range(days):
+            for minute in range(0, 1440, step_minutes):
+                if month == 1:
+                    zmin = day * 1440.0 + minute
+                elif month == 2:
+                    zmin = 44640.0 + min(day, 27) * 1452.8571 + minute
+                else:
+                    zmin = (_GHGCLIM_MONTH_START_DAY[month - 1] + day) * 1440.0 + minute
+                zmin = zmin % 525960.0
+                if zmin <= _GHGCLIM_ANCHOR_MIN[0]:
+                    im1, im2, w1 = 11, 0, (_GHGCLIM_ANCHOR_MIN[0] - zmin) / 44640.0
+                elif zmin > _GHGCLIM_ANCHOR_MIN[11]:
+                    im1, im2, w1 = 11, 0, (548280.0 - zmin) / 44640.0
+                else:
+                    im1 = int(np.searchsorted(_GHGCLIM_ANCHOR_MIN, zmin)) - 1
+                    im2 = im1 + 1
+                    w1 = (zmin - _GHGCLIM_ANCHOR_MIN[im2]) / (_GHGCLIM_ANCHOR_MIN[im1] - _GHGCLIM_ANCHOR_MIN[im2])
+                row[im1] += w1
+                row[im2] += 1.0 - w1
+                count += 1
+        weights[month - 1] = row / count
+    return weights
+
+
+def _ghgclim_half_levels(pressure):
+    """Climatology layer interfaces as yoeradghg.F90 INIT_RAD_GHG sets them (Pa)."""
+    p = np.asarray(pressure, dtype=float)
+    return np.concatenate([[0.0], 0.5 * (p[:-1] + p[1:]), [max(110000.0, 1.5 * p[-1] - 0.5 * p[-2])]])
+
+
+def _ghgclim_latitude_weights(clim_lat, lat):
+    """Index and weight of the next climatology latitude, linear in sin(lat), clamped (radghg.F90)."""
+    sinlat = np.sin(np.deg2rad(np.asarray(clim_lat, dtype=float)))
+    s = np.sin(np.deg2rad(np.asarray(lat, dtype=float)))
+    idx = np.clip(np.searchsorted(sinlat, s) - 1, 0, sinlat.size - 2)
+    w = np.clip((s - sinlat[idx]) / (sinlat[idx + 1] - sinlat[idx]), 0.0, 1.0)
+    return idx, w
+
+
+def oifs_ghg_climatology_field(data, rule):
+    """CH4 or N2O mole fraction as the OpenIFS radiation used it.
+
+    With NGHGRAD=16 (suecrad.F90) radiation takes CH4 and N2O not as global
+    constants but from the latitude x pressure x month climatology
+    ``greenhouse_gas_climatology_48r1.nc``. upd_ghgclim.F90 scales each gas
+    by (the year's global mean)/(the climatology's own surface mean, cos-lat
+    weighted over the 12 months of the bottom level, yomclim.F90) and
+    interpolates it in time between mid-month anchors; radghg.F90
+    interpolates linearly in sin(latitude) and maps the climatology layers
+    onto the model layers by interpolating the accumulated gas mass in
+    pressure. The global means are the input4MIPs values the model read
+    (ece_cmip_ghg.F90, ``forcing_year`` = NCMIPFIXYR).
+
+    This step repeats that calculation for the month means of ``data``, which
+    is surface pressure on the target grid:
+
+    - ``ghg_vertical: model_levels``: the model's mass-conserving layer
+      mapping with the half-level pressures a + b*ps of the month-mean ps
+      (``oifs_vtable``). The model applies it every radiation step with the
+      instantaneous ps, so values differ slightly where a model layer spans
+      a climatology layer interface.
+    - ``ghg_vertical: pressure_levels``: the value at each of ``plevels``,
+      i.e. of the climatology layer that contains it, which is what the
+      mapping gives a thin layer there. Like the archived p19 fields it is
+      not masked below the surface; ps only supplies the grid.
+
+    Rule attributes: ``ghg_gas`` (ch4 or n2o), ``ghg_climatology_file``,
+    ``ghg_forcing_file``, ``forcing_year``, ``year``, ``ghg_vertical`` and
+    ``plevels`` or ``oifs_vtable``.
+    """
+    gas = rule.get("ghg_gas")
+    vertical = rule.get("ghg_vertical")
+    if gas not in ("ch4", "n2o") or vertical not in ("model_levels", "pressure_levels"):
+        raise ValueError("oifs_ghg_climatology_field needs ghg_gas ch4|n2o and ghg_vertical model_levels|pressure_levels")
+    ps = data if isinstance(data, xr.DataArray) else data[rule.model_variable]
+    tdim = "time" if "time" in ps.dims else next(d for d in ps.dims if d.startswith("time"))
+
+    # Month means of the target year, or the twelve months of a climatology.
+    months = ps[tdim].dt.month.values
+    if len(set(months.tolist())) != len(months):
+        year = _resolve_year(rule)
+        ps = ps.where(ps[tdim].dt.year == year, drop=True)
+        # Native reductions, as in accumulate_monthly_climatology: flox starts a
+        # Numba thread pool that strict per-process limits kill.
+        with xr.set_options(use_flox=False):
+            times = ps[tdim].groupby(f"{tdim}.month").first()
+            ps = ps.groupby(f"{tdim}.month").mean(tdim).rename(month=tdim)
+        ps = ps.assign_coords({tdim: times.values})
+        months = np.arange(1, 13)[: ps.sizes[tdim]]
+        if ps.sizes[tdim] != 12:
+            raise ValueError(f"oifs_ghg_climatology_field: {ps.sizes[tdim]} months of surface pressure, expected 12")
+
+    with xr.open_dataset(rule.get("ghg_climatology_file")) as clim:
+        vmr = clim[f"{gas}_vmr"].transpose("month", "level", "latitude").values.astype(float)
+        pressure = clim["pressure"].values.astype(float)
+        clim_lat = clim["latitude"].values.astype(float)
+    weight = np.cos(np.deg2rad(clim_lat))
+    surface_mean = float((vmr[:, -1, :] * weight).sum() / (12.0 * weight.sum()))
+
+    year = _resolve_year(rule)
+    fixed = rule.get("forcing_year")
+    fixed = None if fixed is None else int(fixed)
+    with xr.open_dataset(rule.get("ghg_forcing_file"), decode_times=xr.coders.CFDatetimeCoder(use_cftime=True)) as f:
+        series = f[gas].load()
+    target = np.array([oifs_ghg_mole_fraction(year, m, series, fixed) for m in range(1, 13)]) * 1.0e-9
+
+    # (output month, level, latitude): time-interpolated, scaled climatology
+    field = np.einsum("oc,clj->olj", _ghgclim_time_weights(year), vmr)
+    field *= (target / surface_mean)[:, None, None]
+    field = field[np.asarray(months) - 1]
+
+    half = _ghgclim_half_levels(pressure)
+    spatial = [d for d in ps.dims if d != tdim]
+    lat = ps["lat"].broadcast_like(ps.isel({tdim: 0})).transpose(*spatial).values.ravel()
+    ilat, wlat = _ghgclim_latitude_weights(clim_lat, lat)
+
+    if vertical == "pressure_levels":
+        plev = np.asarray(rule.get("plevels"), dtype=float)
+        k = np.clip(np.searchsorted(half, plev, side="right") - 1, 0, pressure.size - 1)
+        sel = field[:, k, :]
+        out = sel[:, :, ilat] * (1.0 - wlat) + sel[:, :, ilat + 1] * wlat
+        level_dim, level = "pressure_levels", plev
+        level_attrs = {"long_name": "vertical pressure levels", "units": "Pa", "positive": "down"}
+    else:
+        a_half, b_half = _read_oifs_vtable(_oifs_vtable_for_levels(rule, None))
+        psv = ps.transpose(tdim, *spatial).values.reshape(ps.sizes[tdim], -1)
+        nlev = a_half.size - 1
+        out = np.empty((len(months), nlev, lat.size))
+        dp_clim = np.diff(half)
+        for i in range(len(months)):
+            profile = field[i][:, ilat] * (1.0 - wlat) + field[i][:, ilat + 1] * wlat
+            mass = np.concatenate([np.zeros((1, lat.size)), np.cumsum(profile * dp_clim[:, None], axis=0)])
+            phl = a_half[None, :] + b_half[None, :] * psv[i][:, None]
+            k = np.clip(np.searchsorted(half, phl, side="right") - 1, 0, pressure.size - 1)
+            frac = (phl - half[k]) / (half[k + 1] - half[k])
+            lo = np.take_along_axis(mass.T, k, axis=1)
+            hi = np.take_along_axis(mass.T, k + 1, axis=1)
+            acc = lo + frac * (hi - lo)
+            out[i] = (np.diff(acc, axis=1) / np.diff(phl, axis=1)).T
+        level_dim, level = "model_levels", np.arange(1.0, nlev + 1)
+        level_attrs = {"long_name": "vertical model levels", "units": "-", "positive": "up"}
+
+    shape = [ps.sizes[tdim], level.size] + [ps.sizes[d] for d in spatial]
+    coords = {tdim: ps[tdim], level_dim: (level_dim, level, level_attrs)}
+    coords.update({c: ps[c] for c in ps.coords if c != tdim and set(ps[c].dims) <= set(spatial)})
+    result = xr.DataArray(out.reshape(shape).astype(np.float32), dims=[tdim, level_dim] + spatial, coords=coords)
+    result.attrs = {"units": "mol mol-1"}
+    result.name = rule.model_variable
+    logger.info(
+        f"{gas}: OpenIFS radiation climatology scaled by {target[0]:.4g}/{surface_mean:.4g} on {level.size} {level_dim}"
+    )
+    return result
+
+
+def as_monthly_climatology(data, rule):
+    """Label twelve monthly values of one year as the tclm climatology.
+
+    For a quantity that does not change from year to year (a prescribed
+    1850 concentration in piControl), the climatology over the window is the
+    twelve values themselves. Times and ``climatology_years`` follow
+    accumulate_monthly_climatology, so save writes the same climatology
+    bounds.
+    """
+    window = rule.get("climatology_window")
+    if window is None:
+        raise ValueError("as_monthly_climatology needs climatology_window")
+    first, last = map(int, window)
+    tdim = "time" if "time" in data.dims else next(d for d in data.dims if d.startswith("time"))
+    if sorted(data[tdim].dt.month.values.tolist()) != list(range(1, 13)):
+        raise ValueError("as_monthly_climatology needs exactly the twelve months of one year")
+    data = data.sortby(tdim)
+    result = data.assign_coords({tdim: [np.datetime64(f"{first:04d}-{m:02d}-01") for m in range(1, 13)]})
+    if tdim != "time":
+        result = result.rename({tdim: "time"})
+    rule.climatology_years = (first, last)
+    return result

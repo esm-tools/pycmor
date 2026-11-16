@@ -409,3 +409,35 @@ rules:
         pattern: atmos_mon_gust_wsg10_.*\.nc
     compound_name: atmos.wsg.tmax-h10m-hxy-u.mon.glb
     model_variable: wsg10
+
+  # ============================================================
+  # LR gap closure: silent gaps of the selection (esm_tools O2, O3)
+  # ============================================================
+
+  # Hourly maximum gust: new XIOS file atmos_1h_gust, 10fg with
+  # operation="maximum" over each hour (like atmos_mon_gust above).
+  - name: wsg_10m_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_gust_wsg10_.*\.nc
+    compound_name: atmos.wsg.tmax-h10m-hxy-u.1hr.glb
+    model_variable: wsg10
+    lazy_write: true
+
+  # Boundary-layer height blh, hourly mean (atmos_1h_sfc) and 3-hourly
+  # instantaneous (atmos_3h_pt).
+  - name: bldep_1hr
+    inputs:
+      - path: *dp
+        pattern: atmos_1h_sfc_blh_.*\.nc
+    compound_name: atmos.bldep.tavg-u-hxy-u.1hr.glb
+    model_variable: blh
+    lazy_write: true
+
+  - name: bldep_3hr_pt
+    inputs:
+      - path: *dp
+        pattern: atmos_3h_pt_blh_.*\.nc
+    compound_name: atmos.bldep.tpt-u-hxy-u.3hr.glb
+    model_variable: blh
+    lazy_write: true

@@ -21,10 +21,15 @@ class ScientificReviewTests(unittest.TestCase):
         self.assertTrue(all(r['action'] not in ('documented','review_required') for r in confirmed))
 
     def test_wrong_physical_proxy_is_blocked_on_every_route(self):
-        for product in ('atmos.ci.tavg-u-hxy-u.mon.glb','ocean.difmxylo.tavg-ol-hxy-sea.yr.glb',
-                        'land.rootd.ti-u-hxy-lnd.fx.glb'):
+        for product in ('atmos.ci.tavg-u-hxy-u.mon.glb','ocean.difmxylo.tavg-ol-hxy-sea.yr.glb'):
             with self.subTest(product=product),self.assertRaisesRegex(ValueError,'SCIENTIFIC_MAPPING_DISABLED'):
                 review_document(self.doc(product),IDENTITY,CONFIG)
+
+    def test_repaired_root_depth_is_enabled_and_keeps_its_open_review(self):
+        rule=review_document(self.doc('land.rootd.ti-u-hxy-lnd.fx.glb'),IDENTITY,CONFIG)['rules'][0]
+        actions={r['id']:r['action'] for r in rule['lr_scientific_review']}
+        self.assertEqual(actions['F42'],'reconstructed_htessel_root_layer_depth')
+        self.assertEqual(actions['F45'],'review_required')
 
     def test_constants_are_bound_to_the_reviewed_model_build(self):
         doc=self.doc('seaIce.simass.tavg-u-hxy-si.mon.glb',scale_factor=917.)
