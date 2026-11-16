@@ -220,5 +220,111 @@ class StreamTests(unittest.TestCase):
                 np.testing.assert_allclose(output.total_water.isel(time=0).compute(),489.)
 
 
+def write_points(path, name, year, day=1):
+    """XIOS monthly instants: 0Z on the first of Feb Y .. Jan Y+1, value = sample year*100+month."""
+    dates = [cftime.DatetimeGregorian(year + (m == 12), m % 12 + 1, day) for m in range(1, 13)]
+    units = 'seconds since 2840-01-01 00:00:00'
+    with netCDF4.Dataset(path, 'w') as ds:
+        ds.createDimension('time', 12); ds.createDimension('elem', 2)
+        time = ds.createVariable('time', 'f8', ('time',))
+        time.units = units; time.calendar = 'gregorian'; time.standard_name = 'time'; time.axis = 'T'
+        time[:] = cftime.date2num(dates, units, 'gregorian')
+        lat = ds.createVariable('lat', 'f4', ('elem',)); lat.standard_name = 'latitude'; lat[:] = [70., 80.]
+        v = ds.createVariable(name, 'f4', ('time', 'elem'))
+        v.units = 'N m-1'; v.cell_methods = 'time: point'; v.coordinates = 'lat'
+        v[:] = np.repeat([[d.year * 100 + d.month] for d in dates], 2, axis=1)
+    return Path(path)
+
+
+class MonthlyPointTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.base = Path(self.temp.name)/'outdata/fesom'
+        self.base.mkdir(parents=True)
+        f.directory_files.cache_clear()
+        f.matching.cache_clear()
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def points(self, name, years, **kwargs):
+        return [write_points(self.base/f'{name}_inst.fesom.{y}.nc', name, y, **kwargs) for y in years]
+
+    def test_january_comes_from_previous_year_file(self):
+        files = self.points('sgm11', (2844, 2845))
+        result = validate_input_streams(files, [2845], 'mon', monthly_points=True)
+        self.assertEqual(result['sgm11']['frequency'], 'mon')
+
+    def test_current_file_alone_lacks_january(self):
+        files = self.points('sgm11', (2845,))
+        with self.assertRaisesRegex(ValueError, 'INCOMPLETE_INPUT'):
+            validate_input_streams(files, [2845], 'mon', monthly_points=True)
+        with self.assertRaisesRegex(ValueError, 'January through December'):
+            validate_input_streams(files, [2845], 'mon')
+
+    def test_monthly_means_are_not_point_samples(self):
+        files = self.points('sgm11', (2844, 2845), day=15)
+        with self.assertRaisesRegex(ValueError, '0Z on the first'):
+            validate_input_streams(files, [2845], 'mon', monthly_points=True)
+
+    def doc(self):
+        rule = dict(compound_name='seaIce.sistressmax.tpt-u-hxy-si.mon.glb', model_variable='sgm11',
+                    previous_year_input=True,
+                    inputs=[dict(path=str(self.base), pattern=r'sgm11_inst\.fesom\.\d{4}\.nc')],
+                    sgm22_path=str(self.base), sgm22_pattern=r'sgm22_inst\.fesom\.\d{4}\.nc')
+        return dict(inherit={}, rules=[rule])
+
+    def test_planner_pins_previous_and_current_files_only(self):
+        for name in ('sgm11', 'sgm22'):
+            self.points(name, (2843, 2844, 2845, 2846))
+        rep = f.module(f.REPO/'examples/repoint_hr_year.py', 'test_point_repoint')
+        doc = self.doc()
+        paths = f.dependencies(doc, 2845, rep)
+        self.assertEqual(sorted(p.name for p in paths),
+                         [f'{n}_inst.fesom.{y}.nc' for n in ('sgm11', 'sgm22') for y in (2844, 2845)])
+        rule = doc['rules'][0]
+        self.assertTrue(rule['skip_input_year_filter'])
+        self.assertIn('(?:2844|2845)', rule['sgm22_pattern'])
+
+    def test_first_year_without_previous_file_is_blocked(self):
+        for name in ('sgm11', 'sgm22'):
+            self.points(name, (2845,))
+        rep = f.module(f.REPO/'examples/repoint_hr_year.py', 'test_point_repoint_first')
+        with self.assertRaisesRegex(ValueError, 'INCOMPLETE_INPUT'):
+            f.dependencies(self.doc(), 2845, rep)
+
+    def test_only_monthly_point_products_may_read_the_previous_year(self):
+        doc = self.doc()
+        doc['rules'][0]['compound_name'] = 'seaIce.sistressmax.tavg-u-hxy-si.mon.glb'
+        with self.assertRaisesRegex(ValueError, 'UNSUPPORTED_PREVIOUS_YEAR_INPUT'):
+            f.dependencies(doc, 2845, None)
+
+    def test_pipeline_keeps_january_to_december_of_the_year(self):
+        spec = importlib.util.spec_from_file_location('point_custom_steps', f.REPO/'examples/custom_steps.py')
+        steps = importlib.util.module_from_spec(spec); spec.loader.exec_module(steps)
+        files = self.points('sgm11', (2844, 2845))
+        with xr.open_mfdataset(files, decode_times=xr.coders.CFDatetimeCoder(use_cftime=True)) as ds:
+            result = steps.select_monthly_point_samples(ds['sgm11'], dict(year_start=2845, year_end=2845))
+            self.assertEqual([(d.year, d.month, d.day, d.hour) for d in result.time.values],
+                             [(2845, m, 1, 0) for m in range(1, 13)])
+            np.testing.assert_array_equal(result.isel(elem=0).values, [284500 + m for m in range(1, 13)])
+            with self.assertRaisesRegex(ValueError, 'INCOMPLETE_INPUT'):
+                steps.select_monthly_point_samples(ds['sgm11'].isel(time=slice(12, None)),
+                                                   dict(year_start=2845, year_end=2845))
+
+    def test_catalogue_rules_use_the_previous_year_layout(self):
+        import yaml
+        catalogue = f.REPO/'awi-esm3-lr-variables/lrcs_seaice/cmip7xml_awiesm3-lr_lrcs_seaice.yaml'
+        doc = yaml.safe_load(catalogue.read_text())
+        pipelines = {p['name']: p['steps'] for p in doc['pipelines']}
+        for name in ('sistressave', 'sistressmax'):
+            rule = next(r for r in doc['rules'] if r['name'] == name)
+            self.assertTrue(rule['previous_year_input'])
+            self.assertEqual(rule['model_variable'], 'sgm11')
+            steps = pipelines[rule['pipelines'][0]]
+            select = steps.index('script://$PYCMOR_HOME/examples/custom_steps.py:select_monthly_point_samples')
+            self.assertEqual(steps[select - 1], f'script://$PYCMOR_HOME/examples/custom_steps.py:compute_{name}')
+
+
 if __name__=='__main__':
     unittest.main()

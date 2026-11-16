@@ -378,8 +378,24 @@ def dependencies(doc, year, repointer):
     paths = set()
     primary_files = set()
     target_frequency = r['compound_name'].split('.')[-2]
+    # XIOS stamps a monthly instant at 0Z on the 1st of the FOLLOWING month, so
+    # the year-Y file holds Feb 1 Y .. Jan 1 Y+1 and January 1 Y is in the Y-1
+    # file. Such rules pin both files; their pipeline keeps Jan 1 .. Dec 1 of Y.
+    previous_year = bool(r.get('previous_year_input'))
+    if previous_year:
+        if not r['compound_name'].split('.')[2].startswith('tpt-') or target_frequency != 'mon':
+            raise ValueError('UNSUPPORTED_PREVIOUS_YEAR_INPUT: only monthly point samples')
+        # Both pinned files must reach the steps; the year filter would drop Y-1.
+        r['skip_input_year_filter'] = True
+    def pin(pattern):
+        pattern = repointer.anchor_pattern(repointer.add_year_to_pattern(pattern, str(year)))
+        if previous_year:
+            pattern = re.sub(rf'(?<!\d){year}(?!\d)', f'(?:{year-1}|{year})', pattern)
+        return pattern
     for inp in r.get('inputs', []):
-        inp['pattern'] = repointer.anchor_pattern(repointer.add_year_to_pattern(inp['pattern'], str(year)))
+        inp['pattern'] = pin(inp['pattern'])
+        if previous_year and str(year-1) not in inp['pattern']:
+            raise ValueError('UNRESOLVED_PREVIOUS_YEAR_INPUT: no year in '+inp['pattern'])
         files = matching(inp['path'], inp['pattern'])
         if not files:
             raise ValueError('MISSING_INPUT: '+str(Path(inp['path'])/inp['pattern']))
@@ -387,7 +403,7 @@ def dependencies(doc, year, repointer):
         primary_files.update(files)
         # Derived pipelines may use a placeholder model_variable: check in execution.
         if '/outdata/' in inp['path'] and all(p.suffix == '.nc' for p in files) and target_frequency != 'fx':
-            streams = validate_input_streams(files, [year], target_frequency)
+            streams = validate_input_streams(files, [year], target_frequency, monthly_points=previous_year)
             steps=[s for p in doc.get('pipelines',[]) if p['name'] in r.get('pipelines',[]) for s in p.get('steps',[])]
             if any('compute_square' in s for s in steps) and any(
                     stream['frequency'] in ('yr','mon') for stream in streams.values()):
@@ -438,7 +454,7 @@ def dependencies(doc, year, repointer):
             base = key[:-8]+'_path'
             if base not in effective:
                 continue
-            pattern = repointer.anchor_pattern(repointer.add_year_to_pattern(val, str(year)))
+            pattern = pin(val)
             r[key] = pattern
             files = matching(effective[base], pattern)
             if not files:
