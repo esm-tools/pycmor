@@ -1226,6 +1226,11 @@ def _ensure_vertical_bounds(ds):
             continue
         if ds[name].attrs.get("bounds") in ds.variables:
             return ds
+        # A hybrid axis written by add_hybrid_sigma_coordinate without bounds
+        # is the half-level form (alternate_hybrid_sigma_half, must_have_bounds
+        # no); midpoint bounds would describe layers it does not have.
+        if ds[name].attrs.get("standard_name") == "atmosphere_hybrid_sigma_pressure_coordinate":
+            return ds
         try:
             return add_vertical_bounds(ds, vertical_coord_names=[name])
         except Exception as exc:  # pragma: no cover - defensive

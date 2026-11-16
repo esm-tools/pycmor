@@ -316,3 +316,13 @@ class CatalogueRuleTests(unittest.TestCase):
         rows=self.plan(dict(pextra_budget='per_step',oifs_tstep=3600.))
         self.assertEqual(rows['atmos.tnta.tavg-al-hxy-u.mon.glb']['status'],'READY',
                          rows['atmos.tnta.tavg-al-hxy-u.mon.glb'].get('reason'))
+
+
+class HalfLevelSaveTests(unittest.TestCase):
+    def test_save_adds_no_midpoint_bounds_to_a_half_level_hybrid_axis(self):
+        from pycmor.std_lib.files import _ensure_vertical_bounds
+        attrs={'standard_name':'atmosphere_hybrid_sigma_pressure_coordinate','units':'1'}
+        ds=xr.Dataset({'phalf':(('lev',),[1.,2.,3.])},coords={'lev':('lev',[1.,.5,0.],attrs)})
+        self.assertNotIn('lev_bnds',_ensure_vertical_bounds(ds))
+        ds=xr.Dataset({'x':(('lev',),[1.,2.,3.])},coords={'lev':('lev',[1.,2.,3.])})
+        self.assertIn('lev_bnds',_ensure_vertical_bounds(ds))

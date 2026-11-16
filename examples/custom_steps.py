@@ -7921,8 +7921,11 @@ def oifs_ghg_climatology_field(data, rule):
     if len(set(months.tolist())) != len(months):
         year = _resolve_year(rule)
         ps = ps.where(ps[tdim].dt.year == year, drop=True)
-        times = ps[tdim].groupby(f"{tdim}.month").first()
-        ps = ps.groupby(f"{tdim}.month").mean(tdim).rename(month=tdim)
+        # Native reductions, as in accumulate_monthly_climatology: flox starts a
+        # Numba thread pool that strict per-process limits kill.
+        with xr.set_options(use_flox=False):
+            times = ps[tdim].groupby(f"{tdim}.month").first()
+            ps = ps.groupby(f"{tdim}.month").mean(tdim).rename(month=tdim)
         ps = ps.assign_coords({tdim: times.values})
         months = np.arange(1, 13)[: ps.sizes[tdim]]
         if ps.sizes[tdim] != 12:
