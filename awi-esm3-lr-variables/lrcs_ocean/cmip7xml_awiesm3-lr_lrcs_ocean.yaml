@@ -1123,6 +1123,10 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.thkcello.tavg-ol-hxy-sea.dec.glb
+    # hnode/volo were not written before 2840. Under linfs they are constant,
+    # so a decade with unarchived years is filled from the static geometry
+    # (decadal_support.linfs_static_years, checked against each leg namelist).
+    decadal_static_fill: linfs
     model_variable: hnode
     lazy_write: true
 
@@ -1133,6 +1137,7 @@ rules:
       - path: *dp
         pattern: volo\.fesom\.\d{4}\.nc
     compound_name: ocean.volo.tavg-u-hm-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
 
@@ -1141,6 +1146,7 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.masscello.tavg-ol-hxy-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     model_variable: hnode
     scale_factor: 1025.0
     scaled_units: "kg m-2"
@@ -1153,6 +1159,7 @@ rules:
       - path: *dp
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.volcello.tavg-ol-hxy-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     model_variable: hnode
     volume_area_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
     scientific_repairs: [F34]
@@ -1165,6 +1172,7 @@ rules:
       - path: *dp
         pattern: volo\.fesom\.\d{4}\.nc
     compound_name: ocean.masso.tavg-u-hm-sea.dec.glb
+    decadal_static_fill: linfs  # see thkcello_dec
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
     scale_factor: 1025.0

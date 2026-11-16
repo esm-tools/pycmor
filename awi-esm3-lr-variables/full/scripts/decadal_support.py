@@ -87,8 +87,13 @@ def _header(path, size, mtime_ns):
                 shapes=shapes, units=units, coordinates=coords)
 
 
-def validate_monthly_streams(files, first, last):
-    """Return the shared time metadata after validating each physical stream."""
+def validate_monthly_streams(files, first, last, years=None):
+    """Return the shared time metadata after validating each physical stream.
+
+    ``years`` restricts the expected months to a subset of the decade; only a
+    static-geometry fill (see ``linfs_static_years``) passes one.
+    """
+    years = list(range(first, last + 1)) if years is None else sorted(years)
     streams = defaultdict(list)
     if last - first != 9:
         raise ValueError('DECADAL_WINDOW_LENGTH: expected exactly ten complete years')
@@ -110,9 +115,9 @@ def validate_monthly_streams(files, first, last):
         calendar = first_header['calendar']
         entries = sorted((d, b) for h in headers for d, b in zip(h['dates'], h['bounds']))
         dates = [d for d, _ in entries]
-        expected = [(y, m) for y in range(first, last + 1) for m in range(1, 13)]
-        if len(dates) != 120 or [(d[0], d[1]) for d in dates] != expected:
-            raise ValueError(f'DECADAL_INCOMPLETE_MONTHS: {physical}; expected 120 unique months {first}-{last}, got {len(dates)}')
+        expected = [(y, m) for y in years for m in range(1, 13)]
+        if len(dates) != len(expected) or [(d[0], d[1]) for d in dates] != expected:
+            raise ValueError(f'DECADAL_INCOMPLETE_MONTHS: {physical}; expected {len(expected)} unique months {first}-{last}, got {len(dates)}')
         bounds, weights = [], []
         units = f'days since {first:04d}-01-01'
         for (d, b), (y, m) in zip(entries, expected):
@@ -128,6 +133,41 @@ def validate_monthly_streams(files, first, last):
             raise ValueError('DECADAL_UNALIGNED_STREAMS: primary and secondary monthly coordinates differ')
         reference = current
     return reference
+
+
+def linfs_static_years(rule, files, first, last):
+    """Years of the decade whose geometry stream was not archived, if a static fill is allowed.
+
+    ``hnode`` and ``volo`` were not written before 2840 in this run. With
+    ``which_ale='linfs'`` FESOM keeps layer thickness and volume fixed, so the
+    missing months equal the archived ones. The fill is allowed only for rules
+    that ask for it (``decadal_static_fill: linfs``), only for whole missing
+    years, and only when every leg covering the decade ran with linfs.
+    Returns (missing years, namelist files) or None when the decade is complete.
+    """
+    present = sorted({int(m[1]) for p in files if (m := re.search(r'\.(\d{4})\.nc$', Path(p).name))})
+    missing = [y for y in range(first, last + 1) if y not in present]
+    if not missing:
+        return None
+    if rule.get('decadal_static_fill') != 'linfs':
+        return None
+    if not present:
+        raise ValueError('DECADAL_STATIC_FILL: no archived year to take the static geometry from')
+    experiment = Path(rule['inputs'][0]['path']).parents[1]
+    evidence = []
+    for leg in sorted(experiment.glob('run_*')):
+        period = re.fullmatch(r'run_(\d{4})\d{4}-(\d{4})\d{4}', leg.name)
+        if not period or int(period[2]) < first or int(period[1]) > last:
+            continue
+        namelist = leg / 'work/namelist.config'
+        text = namelist.read_text() if namelist.is_file() else ''
+        if not re.search(r"^\s*which_ale\s*=\s*'linfs'", text, re.M | re.I):
+            raise ValueError(f'DECADAL_STATIC_FILL: cannot verify which_ale=linfs in {namelist}')
+        evidence.append(namelist)
+    covered = {y for p in evidence for y in range(int(p.parts[-3][4:8]), int(p.parts[-3][13:17]) + 1)}
+    if not set(range(first, last + 1)) <= covered:
+        raise ValueError(f'DECADAL_STATIC_FILL: no leg namelist for {sorted(set(range(first, last + 1)) - covered)}')
+    return missing, evidence
 
 
 def _window_pattern(pattern, first, last, submitted_year):
@@ -201,7 +241,16 @@ def configure_decadal_doc(doc, first, last, repointer=None):
             if not p.is_file() or not p.stat().st_size:
                 raise ValueError(f'MISSING_AUXILIARY: {value}')
             dependencies.add(p)
-    info = validate_monthly_streams(temporal_files, first, last)
+    static = linfs_static_years(rule, primary_files, first, last)
+    years = sorted(set(range(first, last + 1)) - set(static[0])) if static else None
+    info = validate_monthly_streams(temporal_files, first, last, years)
+    if static:
+        dependencies.update(static[1])
+        rule.update(decadal_static_fill_years=static[0],
+                    decadal_static_fill_note=(
+                        f'{", ".join(map(str, static[0]))} not archived; filled with the static geometry: '
+                        "which_ale='linfs' keeps FESOM layer thickness and volume constant, so the archived "
+                        'months of the decade stand for the whole decade.'))
     if vector_files and _spatial_signature(primary_files[0]) != _spatial_signature(vector_files[0]):
         raise ValueError('DECADAL_VECTOR_GRID_MISMATCH: vector components have different coordinates/levels')
     rule.update(explicit_decadal_window=True, year=last, year_start=first, year_end=last,
