@@ -5739,6 +5739,45 @@ def combine_with_ice_concentration(data, rule):
     return result
 
 
+def reduce_to_ice_concentration_records(data, rule):
+    """Average a sub-daily field onto the (daily) records of the a_ice stream.
+
+    Used before regridding, so the averaging runs on the small source grid.
+    The result carries the a_ice timestamps.
+    """
+    a_ice = _load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable")
+    result = _mean_on_time_axis_of(data, a_ice)
+    result.attrs = data.attrs.copy()
+    result.name = data.name
+    return result
+
+
+def open_water_weighted_monthly_mean(data, rule):
+    """Monthly mean over the ice-free part of the cell: sum((1-A)*x)/sum(1-A).
+
+    For cell_methods ``area: time: mean where ice_free_sea over sea``. ``data``
+    must be on the records of the a_ice stream (see
+    reduce_to_ice_concentration_records); NaN where the month never had open
+    water. One record per month, stamped with the month's middle record.
+    """
+    a_ice = _load_secondary_mf(rule, "aice_path", "aice_pattern", "aice_variable")
+    if not np.array_equal(a_ice["time"].values, data["time"].values):
+        raise ValueError("open_water_weighted_monthly_mean: data is not on the a_ice records")
+    open_water = (1.0 - a_ice.drop_vars([c for c in a_ice.coords if c not in a_ice.dims])).clip(0.0, 1.0)
+    month = data["time"].dt.year * 100 + data["time"].dt.month
+    weight = open_water.assign_coords(_month=month).groupby("_month").sum("time")
+    total = (data * open_water).assign_coords(_month=month).groupby("_month").sum("time")
+    result = (total / weight.where(weight > 0)).rename({"_month": "time"})
+    keys = month.values
+    stamps = [data["time"].values[np.flatnonzero(keys == k)[len(np.flatnonzero(keys == k)) // 2]]
+              for k in result["time"].values]
+    result = result.assign_coords(time=stamps)
+    result.attrs = data.attrs.copy()
+    result.attrs["processing_note"] = "monthly mean weighted by the daily open-water fraction 1 - a_ice"
+    result.name = data.name
+    return result
+
+
 def extract_single_plevel(data, rule):
     """
     Extract a single pressure level from a multi-level dataset.

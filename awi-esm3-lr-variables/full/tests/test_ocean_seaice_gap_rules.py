@@ -213,5 +213,36 @@ class IceShelfTests(unittest.TestCase):
                 self.assertTrue(rule['inputs'][0]['pattern'].startswith(stream))
 
 
+class OceanDerivedTests(unittest.TestCase):
+    def test_open_water_weighted_monthly_mean(self):
+        days, _ = daily_and_monthly()
+        hours = [days[0] + timedelta(hours=h - 12 + 0.5) for h in range(59 * 24)]
+        hourly = xr.DataArray(np.tile(np.r_[np.zeros(12), np.full(12, 200.)], 59)[:, None] * [1., 1.],
+                              dims=('time', 'cell'), coords={'time': hours}, name='rsds')
+        aice = np.zeros((59, 2)); aice[:10, 0] = 1.0; aice[10:31, 0] = 0.5
+        aice = xr.DataArray(aice, dims=('time', 'nod2'), coords={'time': days}, name='a_ice')
+        with patch.object(CUSTOM, '_load_secondary_mf', return_value=aice):
+            daily = CUSTOM.reduce_to_ice_concentration_records(hourly, Rule())
+            np.testing.assert_allclose(daily.values, 100.)
+            daily = daily.rename(cell='nod2') * xr.DataArray([[1.] * 2] * 10 + [[1., 1.]] * 21 + [[3., 3.]] * 28,
+                                                             dims=('time', 'nod2'))
+            monthly = CUSTOM.open_water_weighted_monthly_mean(daily, Rule())
+        self.assertEqual(monthly.sizes['time'], 2)
+        np.testing.assert_allclose(monthly.values, [[100., 100.], [300., 300.]])
+        aice[:31, 0] = 1.0
+        with patch.object(CUSTOM, '_load_secondary_mf', return_value=aice):
+            monthly = CUSTOM.open_water_weighted_monthly_mean(daily, Rule())
+        self.assertTrue(np.isnan(monthly.values[0, 0]))
+
+    def test_catalogue_rules(self):
+        for compound, stream in (('ocean.tauuo.tavg-u-hxy-sea.3hr.glb', 'tx_sur_3h'),
+                                 ('ocean.tauvo.tavg-u-hxy-sea.3hr.glb', 'ty_sur_3h'),
+                                 ('ocean.mlotst.tmax-u-hxy-sea.mon.glb', 'MLD3'),
+                                 ('ocean.mlotst.tmin-u-hxy-sea.mon.glb', 'MLD3'),
+                                 ('ocean.rsds.tavg-u-hxy-ifs.mon.glb', 'atmos_1h_sfc_rsds')):
+            with self.subTest(compound=compound):
+                self.assertTrue(reviewed(compound)['inputs'][0]['pattern'].startswith(stream))
+
+
 if __name__ == '__main__':
     unittest.main()

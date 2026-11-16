@@ -342,6 +342,31 @@ rules:
       - scale_pipeline
     # MLD3 = Griffies 2016 (sigma_t=0.03 kg/m3) = CMIP-compliant mlotst
 
+  # Monthly maximum and minimum of the daily-mean MLD3 (timeavg reduces with
+  # max/min from the DReq cell_methods). Taken from daily means, so extremes
+  # within a day are not seen.
+  - name: mlotst_tmax
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tmax-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    scale_factor: -1.0
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+
+  - name: mlotst_tmin
+    inputs:
+      - path: *dp
+        pattern: MLD3\.fesom\.\d{4}\.nc
+    compound_name: ocean.mlotst.tmin-u-hxy-sea.mon.glb
+    model_variable: MLD3
+    scale_factor: -1.0
+    scaled_units: "m"
+    pipelines:
+      - scale_pipeline
+
   - name: tauuo
     grid_label: __LR_GRID_OCEAN_ELEM__
     grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
@@ -363,6 +388,27 @@ rules:
     compound_name: ocean.tauvo.tavg-u-hxy-sea.mon.glb
     model_variable: ty_sur
     # NOTE: Same elem grid caveat as tauuo.
+
+  # 3-hourly means of the same stresses (tx_sur_3h/ty_sur_3h aliases,
+  # io_meandata def_xios_aliases). FESOM rotates the alias pair to geographic
+  # like the monthly fields, so the rule is the monthly one on the 3h stream.
+  - name: tauuo_3hr
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
+    inputs:
+      - path: *dp
+        pattern: tx_sur_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauuo.tavg-u-hxy-sea.3hr.glb
+    model_variable: tx_sur
+
+  - name: tauvo_3hr
+    grid_label: __LR_GRID_OCEAN_ELEM__
+    grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
+    inputs:
+      - path: *dp
+        pattern: ty_sur_3h\.fesom\.\d{4}\.nc
+    compound_name: ocean.tauvo.tavg-u-hxy-sea.3hr.glb
+    model_variable: ty_sur
 
   # ============================================================
   # Monthly 3D variables (Omon) — DefaultPipeline

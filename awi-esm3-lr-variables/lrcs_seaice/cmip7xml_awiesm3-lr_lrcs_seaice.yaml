@@ -189,6 +189,30 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # Mean over the ice-free part of each cell: hourly OpenIFS field to daily
+  # means on its native grid, nearest-neighbour onto the FESOM nodes, then
+  # sum((1-A)*x)/sum(1-A) per month with daily a_ice.
+  - name: regrid_atm_open_water_pipeline
+    throttle_group: lrcs_seaice_serial
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:reduce_to_ice_concentration_records
+      - script://$PYCMOR_HOME/examples/custom_steps.py:regrid_oifs_to_fesom
+      - script://$PYCMOR_HOME/examples/custom_steps.py:open_water_weighted_monthly_mean
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: scale_mask_pipeline
     throttle_group: lrcs_seaice_serial
     steps:
@@ -1465,6 +1489,23 @@ rules:
     lazy_write: true
     pipelines:
       - regrid_atm_to_fesom_seaice_mask_pipeline
+
+  # Downwelling shortwave over the ice-free ocean (ocean.rsds ifs). FESOM's
+  # own qsr output is zero in the coupled model (qsr_c is never set), so the
+  # OpenIFS grid-cell rsds is used, weighted by the open-water fraction. It
+  # is the grid-cell mean in air; OpenIFS writes no per-tile rsds.
+  - name: rsds_ifs
+    inputs:
+      - path: *odp
+        pattern: atmos_1h_sfc_rsds_.*\.nc
+    compound_name: ocean.rsds.tavg-u-hxy-ifs.mon.glb
+    model_variable: rsds
+    time_dimname: time_counter
+    aice_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
+    aice_pattern: a_ice\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines:
+      - regrid_atm_open_water_pipeline
 
   - name: rsds_seaice_day
     inputs:
