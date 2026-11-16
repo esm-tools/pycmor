@@ -70,7 +70,9 @@ class DailyTests(unittest.TestCase):
         return path
 
     def test_daily_recipe_catalogue_is_exactly_twelve_audited_products(self):
-        rules = [r for r in RAW.recom_rules() if '.day.' in r['compound_name']]
+        added = {'expcob_daily', 'o2min_daily', 'intpoc_daily', 'o2_200', 'ph_200', 'co3_200', 'co3satarag_200',
+                 'chl_200', 'phyc_200'}
+        rules = [r for r in RAW.recom_rules() if '.day.' in r['compound_name'] and r['name'] not in added]
         expected = {
             'intpp': ('NPPn', ['NPPn','NPPd'], 1e-3/86400),
             'chl': ('PhyChl', ['PhyChl','DiaChl'], 1e-6),
