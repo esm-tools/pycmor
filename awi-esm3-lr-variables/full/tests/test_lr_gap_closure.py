@@ -81,6 +81,8 @@ class AtmosphereStepTests(unittest.TestCase):
         rule=Rule(climatology_window=[2845,2849])
         out=CUSTOM.as_monthly_climatology(data,rule)
         self.assertEqual(rule.climatology_years,(2845,2849))
+        nextyear=xr.DataArray([1.,2.],dims='time',coords={'time':[times[-1],cftime.DatetimeProlepticGregorian(2850,1,1)]})
+        self.assertEqual(CUSTOM.select_climatology_window(nextyear,rule).sizes['time'],1)
         self.assertEqual(str(out.time.values[0])[:10],'2845-01-01')
         with self.assertRaisesRegex(ValueError,'twelve months'):
             CUSTOM.as_monthly_climatology(data.isel(time=slice(0,11)),Rule(climatology_window=[2845,2849]))
@@ -231,6 +233,17 @@ class PlannerTests(unittest.TestCase):
              'inputs':[{'path':str(self.base),'pattern':r'ch4_gm_1750-2022\.nc'}]}]}
         self.assertEqual([p.name for p in configure(doc,2845,2849)],['ch4_gm_1750-2022.nc'])
         self.assertEqual(doc['rules'][0]['climatology_window'],[2845,2849])
+
+    def test_point_stream_climatology_accepts_the_next_january_sample(self):
+        from climatology_support import configure
+        for year in (2845,2846):
+            write_stream(self.base/f'atmos_6h_pt_sp_{year}-{year}.nc','sp',
+                         np.arange(6.,8761.,6.)+24*365*(year-2845))
+        rule={'inputs':[{'path':str(self.base),'pattern':r'atmos_6h_pt_sp_2846-2846\.nc'}]}
+        with self.assertRaisesRegex(ValueError,'INCOMPLETE_INPUT'):
+            configure({'inherit':{},'rules':[dict(rule,inputs=[dict(rule['inputs'][0])])]},2845,2846)
+        doc={'inherit':{},'rules':[dict(rule,climatology_point_stream=True)]}
+        self.assertEqual(len(configure(doc,2845,2846)),2)
 
 
 def write_stream(path,variable,hours,cells=2,extra_dims=()):

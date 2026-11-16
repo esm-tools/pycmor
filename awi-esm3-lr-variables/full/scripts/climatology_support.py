@@ -30,7 +30,13 @@ def configure(doc, first, last):
         pattern=window_pattern(inp['pattern'],years,last)
         paths=sorted(p for p in Path(inp['path']).iterdir() if p.is_file() and re.fullmatch(pattern,p.name))
         if not paths:raise ValueError('CLIMATOLOGY_MISSING_SOURCE: '+pattern)
-        validate_input_streams(paths,years,'mon')
+        if rule.get('climatology_point_stream'):
+            # An annual point stream ends at the following January 1, 00 UTC,
+            # so check each year's file whole, as for the secondary ps below.
+            for year in years:
+                validate_input_streams(filter_files_by_year_range(paths,year,year),[year],'mon')
+        else:
+            validate_input_streams(paths,years,'mon')
         inp['pattern']='^(?:'+'|'.join(re.escape(p.name) for p in paths)+')$'
         dependencies.update(paths)
     for key,value in effective.items():

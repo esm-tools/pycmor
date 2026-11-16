@@ -237,6 +237,7 @@ pipelines:
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
       - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:select_climatology_window
       - script://$PYCMOR_HOME/examples/custom_steps.py:accumulate_monthly_climatology
       - script://$PYCMOR_HOME/examples/custom_steps.py:oifs_half_level_pressure
       - pycmor.std_lib.units.handle_unit_conversion
@@ -986,6 +987,7 @@ rules:
         pattern: atmos_6h_pt_sp_.*\.nc
     compound_name: atmos.phalf.tclm-alh-hxy-u.mon.glb
     model_variable: sp
+    climatology_point_stream: true
     lazy_write: true
 
   # ============================================================

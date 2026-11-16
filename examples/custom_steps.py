@@ -48,7 +48,7 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
     compute_surface_pressure, compute_sfcwind, compute_hurs, compute_hur_ml,
     compute_huss, compute_clwvi, compute_snc, compute_areacella, compute_rtmt,
     apply_variable_attributes, sum_variables, oifs_pextra_tendency,
-    select_lowest_model_level, oifs_half_level_pressure,
+    select_lowest_model_level, select_climatology_window, oifs_half_level_pressure,
     oifs_ghg_climatology_field, as_monthly_climatology
 
   Land / LPJ-GUESS
@@ -7778,6 +7778,19 @@ def select_lowest_model_level(data, rule):
         if "lev" in dim:
             return data.isel({dim: -1}, drop=True)
     return data
+
+
+def select_climatology_window(data, rule):
+    """Drop samples outside ``climatology_window`` (years, inclusive).
+
+    An instantaneous OpenIFS stream ends on 1 January 00 UTC of the next
+    year, so the last file of the window carries one sample of the year
+    after it; accumulate_monthly_climatology needs exactly the window years.
+    """
+    first, last = map(int, rule.get("climatology_window"))
+    tdim = "time" if "time" in data.dims else next(d for d in data.dims if d.startswith("time"))
+    years = data[tdim].dt.year
+    return data.where((years >= first) & (years <= last), drop=True)
 
 
 def oifs_half_level_pressure(data, rule):
