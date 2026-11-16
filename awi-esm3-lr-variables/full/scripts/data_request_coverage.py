@@ -23,6 +23,12 @@ def conditional_exclusion(compound, metadata, identity, config):
             and config.get('carbon_context', {}).get('co2_representation') == 'nonuniform_diagnostic_tracer'):
         return ('NOT_APPLICABLE: nonuniform diagnostic CO2; the DReq processing note '
                 'requires the corresponding mole-fraction diagnostic instead of prescribed-uniform CO2 mass.')
+    note = ' '.join(info.get('processing_note', '').lower().split())
+    if (compound.startswith('atmosChem.o3.tclm-')
+            and 'if the o3 varies from one year to the next' in note
+            and identity.get('ozone') == 'prognostic'):
+        return ('NOT_APPLICABLE: prognostic ozone (fort.4 YO3_NL%LGP) varies from year to year; the DReq '
+                'processing note asks for the yearly tavg product instead of this climatology.')
     return None
 
 

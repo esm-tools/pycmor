@@ -243,7 +243,7 @@ def identify(experiment, period, config):
         elif 'conservative temperature' in description or 'sea_water_conservative_temperature' in description:
             temperature = 'conservative'
     return dict(grid='TCO95-land / CORE3', vector_frame=frame, fesom_sha256=sha,
-                ocean_temperature=temperature)
+                ocean_temperature=temperature, **support_module('oifs_namelist').identity(work))
 
 
 def remap_strings(value, replacements):
@@ -630,6 +630,8 @@ def build_catalog(config, experiment, period, identity, campaign):
     replacements = [
         ('/work/ab0246/a270092/input/fesom2/core3', config['mesh_dir']),
         ('/work/ab0246/a270092/input/oifs-48r1/cmip7-data/ghg', config['ghg_dir']),
+        # The radiation gas climatology: the copy this leg staged and read.
+        ('/work/ab0246/a270092/input/oifs-48r1/ifsdata', str(experiment/f'run_{period}'/'work/ifsdata')),
         ('/work/ab0246/a270092/software/pycmor', str(repo)),
         ('$PYCMOR_HOME', str(repo)),
         (str(experiment/'outdata/lpj_guess'), str(experiment/'outdata/lpj_guess'/period)),
@@ -717,6 +719,7 @@ def build_catalog(config, experiment, period, identity, campaign):
                         item.update(window_start=start, window_end=end)
                     else:
                         sources = dependencies(one,year,rep)
+                    support_module('oifs_namelist').check_pextra(one['rules'][0], identity)
                     item.update(doc=one, inputs=list(map(str,sources)), status='READY')
                 except (ValueError,KeyError,OSError) as e:
                     item.update(status='BLOCKED',reason=str(e))

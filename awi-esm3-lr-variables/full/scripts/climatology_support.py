@@ -19,6 +19,14 @@ def configure(doc, first, last):
     rule=doc['rules'][0];effective=dict(doc['inherit'],**rule)
     years=list(range(first,last+1));dependencies=set()
     for inp in rule['inputs']:
+        if rule.get('climatology_static_inputs'):
+            # A forcing record that does not depend on the model years (the
+            # 1850 GHG means of piControl): pin the file, no yearly streams.
+            paths=sorted(p for p in Path(inp['path']).iterdir() if p.is_file() and re.fullmatch(inp['pattern'],p.name))
+            if not paths:raise ValueError('CLIMATOLOGY_MISSING_SOURCE: '+inp['pattern'])
+            inp['pattern']='^(?:'+'|'.join(re.escape(p.name) for p in paths)+')$'
+            dependencies.update(paths)
+            continue
         pattern=window_pattern(inp['pattern'],years,last)
         paths=sorted(p for p in Path(inp['path']).iterdir() if p.is_file() and re.fullmatch(pattern,p.name))
         if not paths:raise ValueError('CLIMATOLOGY_MISSING_SOURCE: '+pattern)
