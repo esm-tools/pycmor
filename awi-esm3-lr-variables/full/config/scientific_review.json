@@ -895,7 +895,10 @@
           "line": 2741,
           "function": "integrate_over_pressure_layers"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.absscint.tavg-op4-hxy-sea.mon.glb": "Practical salinity is converted to Absolute Salinity with gsw.SA_from_SP at layer mid-depth pressure before the oplayer4 integral (convert_to_teos10), and the constant is rho_0*1e-3 with the model density_0=1030."
+      }
     },
     {
       "id": "F33",

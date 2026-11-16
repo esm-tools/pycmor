@@ -2901,6 +2901,55 @@ def integrate_over_pressure_layers(data: xr.DataArray, rule) -> xr.Dataset:
     return result
 
 
+def convert_to_teos10(data, rule):
+    """Convert FESOM practical salinity / potential temperature to a TEOS-10 variable.
+
+    FESOM uses the JM equation of state with practical salinity and potential
+    temperature (oce_modules.F90) and carries no Absolute Salinity anomaly. The
+    conversion therefore goes through gsw with its global atlas, before the
+    oplayer4 integral, at the pressure of each layer mid-depth:
+
+      - ``absolute_salinity``: SA = gsw.SA_from_SP(SP, p, lon, lat)
+      - ``preformed_salinity``: S* = gsw.Sstar_from_SP(SP, p, lon, lat)
+      - ``conservative_temperature``: CT = gsw.CT_from_pt(SA, pt), SA from the
+        practical salinity in ``salt_path`` / ``salt_pattern`` / ``salt_variable``
+
+    ``teos10_variable`` selects the output. ``grid_file`` supplies lon/lat.
+    """
+    import gsw
+
+    target = rule.get("teos10_variable")
+    level_dim = next(d for d in ("nz", "nz1", "depth", "lev") if d in data.dims)
+    node_dim = next(d for d in ("nod2", "ncells") if d in data.dims)
+    with xr.open_dataset(rule.get("grid_file"), decode_times=False) as mesh:
+        lon = xr.DataArray(np.asarray(mesh["lon"].values, dtype=float), dims=(node_dim,))
+        lat = xr.DataArray(np.asarray(mesh["lat"].values, dtype=float), dims=(node_dim,))
+    depth = xr.DataArray(np.asarray(data[level_dim].values, dtype=float), dims=(level_dim,))
+    pressure = xr.apply_ufunc(gsw.p_from_z, -depth, lat)
+
+    def ufunc(function, *args):
+        return xr.apply_ufunc(function, *args, dask="parallelized", output_dtypes=[float])
+
+    if target == "absolute_salinity":
+        result = ufunc(gsw.SA_from_SP, data, pressure, lon, lat)
+        attrs = {"units": "g kg-1", "long_name": "Sea Water Absolute Salinity"}
+    elif target == "preformed_salinity":
+        result = ufunc(gsw.Sstar_from_SP, data, pressure, lon, lat)
+        attrs = {"units": "g kg-1", "long_name": "Sea Water Preformed Salinity"}
+    elif target == "conservative_temperature":
+        salt = _load_secondary_mf(rule, "salt_path", "salt_pattern", "salt_variable")
+        salt = salt.drop_vars([c for c in salt.coords if c not in salt.dims])
+        absolute = ufunc(gsw.SA_from_SP, salt, pressure, lon, lat)
+        result = ufunc(gsw.CT_from_pt, absolute, data)
+        attrs = {"units": "degC", "long_name": "Sea Water Conservative Temperature"}
+    else:
+        raise ValueError(f"teos10_variable must be absolute_salinity, preformed_salinity or "
+                         f"conservative_temperature, not {target!r}")
+    result = result.transpose(*data.dims)
+    result.attrs = dict(attrs, processing_note=f"TEOS-10 {target} from FESOM output via gsw at layer mid-depth pressure")
+    result.name = data.name
+    return result
+
 # Used only when neither the rule nor the environment names a state directory.
 # A campaign exports PYCMOR_CLIMATOLOGY_STATE_DIR=<campaign>/climatologies, so
 # each campaign keeps its own accumulator: a test campaign never pools its

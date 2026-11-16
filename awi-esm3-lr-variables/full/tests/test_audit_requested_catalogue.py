@@ -27,7 +27,7 @@ class CatalogueTests(unittest.TestCase):
                 summary, records, coverage = audit.audit(config_file)
             load.assert_called_once_with(config_file)
             self.assertEqual(summary['full_tier_files'], 17)
-            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 565)
+            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 567)
             self.assertIn('shared_recom', summary['groups'])
             self.assertIn('shared_co2', summary['groups'])
             self.assertNotIn('private_recom', summary['groups'])

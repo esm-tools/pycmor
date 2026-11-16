@@ -288,5 +288,34 @@ class ZostogaTests(unittest.TestCase):
         self.assertIn('2849', out['zostoga_reference_pattern'])
 
 
+class Teos10Tests(unittest.TestCase):
+    def test_conversions_match_gsw(self):
+        import gsw
+        with tempfile.TemporaryDirectory() as tmp:
+            mesh, _ = mesh_files(tmp)
+            sp = xr.DataArray(np.full((1, 2, 3), 35.), dims=('time', 'nod2', 'nz'),
+                              coords={'nz': [5., 20., 45.]}, name='salt').chunk()
+            p = gsw.p_from_z(-np.array([5., 20., 45.]), np.array([[-50.], [-75.]]))
+            lon, lat = np.array([[0.], [10.]]), np.array([[-50.], [-75.]])
+            for target, function in (('absolute_salinity', gsw.SA_from_SP), ('preformed_salinity', gsw.Sstar_from_SP)):
+                out = CUSTOM.convert_to_teos10(sp, Rule(grid_file=str(mesh), teos10_variable=target))
+                np.testing.assert_allclose(out.values[0], function(35., p, lon, lat))
+                self.assertEqual(out.dims, sp.dims)
+            theta = sp.copy(data=np.full((1, 2, 3), 10.)).rename('temp')
+            with patch.object(CUSTOM, '_load_secondary_mf', return_value=sp):
+                ct = CUSTOM.convert_to_teos10(theta, Rule(grid_file=str(mesh), teos10_variable='conservative_temperature'))
+            np.testing.assert_allclose(ct.values[0], gsw.CT_from_pt(gsw.SA_from_SP(35., p, lon, lat), 10.))
+            self.assertNotAlmostEqual(float(ct.values[0, 0, 0]), 10.0, places=3)
+
+    def test_catalogue_rules(self):
+        for compound, target in (('ocean.absscint.tavg-op4-hxy-sea.mon.glb', 'absolute_salinity'),
+                                 ('ocean.pfscint.tavg-op4-hxy-sea.mon.glb', 'preformed_salinity'),
+                                 ('ocean.chcint.tavg-op4-hxy-sea.mon.glb', 'conservative_temperature')):
+            with self.subTest(compound=compound):
+                rule = reviewed(compound)
+                self.assertEqual(rule['teos10_variable'], target)
+                self.assertAlmostEqual(rule['scale_factor'] / (4111624. if 'chcint' in compound else 1.03), 1., 6)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -61,6 +61,28 @@ pipelines:
       - pycmor.std_lib.files.save_dataset
       - pycmor.std_lib.qc.run_compliance_checker
 
+  # As ocean_oplayer4_pipeline, after converting to a TEOS-10 variable
+  # (convert_to_teos10: SA, S* or CT through gsw at layer mid-depth pressure).
+  - name: ocean_oplayer4_teos10_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:convert_to_teos10
+      - script://$PYCMOR_HOME/examples/custom_steps.py:integrate_over_pressure_layers
+      - script://$PYCMOR_HOME/examples/custom_steps.py:scale_by_constant
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   - name: ocean_vertical_integration_pipeline
     steps:
       - pycmor.core.gather_inputs.load_mfdataset
@@ -489,9 +511,12 @@ rules:
   # Depth-integrated variables — ocean_vertical_integration_pipeline
   # ============================================================
 
-  # absscint = depth-integrated salt mass content (kg m-2), absolute salinity.
-  # vertical_integrate emits ∫(salt[psu] * dz); FESOM salt units are "1e-3"
-  # (psu = g/kg) so the factor needed to convert psu·m to kg/m² is rho_0 * 1e-3.
+  # TEOS-10 content integrals over the four oplayer4 layers. FESOM carries
+  # practical salinity and potential temperature (JM EOS) and no Absolute
+  # Salinity anomaly, so gsw converts them with its global atlas first
+  # (convert_to_teos10). Constants use the model's density_0 = 1030
+  # (oce_modules.F90:36); heat content uses the TEOS-10 cp0 = 3991.868 J/kg/K,
+  # the heat capacity that defines Conservative Temperature.
   - name: absscint
     inputs:
       - path: *dp
@@ -499,14 +524,57 @@ rules:
     compound_name: ocean.absscint.tavg-op4-hxy-sea.mon.glb
     model_variable: salt
     lazy_write: true
-    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    teos10_variable: absolute_salinity
+    scale_factor: 1.030          # rho_0 * 1e-3 (g/kg -> mass fraction)
     scaled_units: "kg m-2"
     integration_attrs:
       long_name: "Integral wrt depth of seawater absolute salinity expressed as salt mass content"
       standard_name: "integral_wrt_depth_of_sea_water_absolute_salinity_expressed_as_salt_mass_content"
-      units: "1e-3 m"            # raw integrate of (psu * dz); scale brings to kg m-2
+      units: "1e-3 m"            # raw integrate of (g/kg * dz); scale brings to kg m-2
+    scientific_repairs: [F32]
     pipelines:
-      - ocean_oplayer4_pipeline
+      - ocean_oplayer4_teos10_pipeline
+
+  # Preformed salinity: gsw.Sstar_from_SP. The model has no biogeochemical
+  # salinity anomaly, so this is the atlas-based TEOS-10 preformed salinity.
+  - name: pfscint
+    inputs:
+      - path: *dp
+        pattern: salt\.fesom\.\d{4}\.nc
+    compound_name: ocean.pfscint.tavg-op4-hxy-sea.mon.glb
+    model_variable: salt
+    lazy_write: true
+    teos10_variable: preformed_salinity
+    scale_factor: 1.030
+    scaled_units: "kg m-2"
+    integration_attrs:
+      long_name: "Integral wrt depth of seawater preformed salinity expressed as salt mass content"
+      standard_name: "integral_wrt_depth_of_sea_water_preformed_salinity_expressed_as_salt_mass_content"
+      units: "1e-3 m"
+    pipelines:
+      - ocean_oplayer4_teos10_pipeline
+
+  # Conservative-temperature heat content: rho_0 * cp0 * integral(CT dz),
+  # CT = gsw.CT_from_pt(SA, theta) with SA from the same month's salinity.
+  - name: chcint
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    compound_name: ocean.chcint.tavg-op4-hxy-sea.mon.glb
+    model_variable: temp
+    lazy_write: true
+    teos10_variable: conservative_temperature
+    salt_path: *dp
+    salt_pattern: salt\.fesom\.\d{4}\.nc
+    salt_variable: salt
+    scale_factor: 4111624.0      # 1030 * 3991.868 J K-1 m-3
+    scaled_units: "J m-2"
+    integration_attrs:
+      long_name: "Depth Integrated Seawater Conservative Temperature Expressed As Heat Content"
+      standard_name: "integral_wrt_depth_of_sea_water_conservative_temperature_expressed_as_heat_content"
+      units: "K m"
+    pipelines:
+      - ocean_oplayer4_teos10_pipeline
 
   # ============================================================
   # Daily variables (Oday) — DefaultPipeline
