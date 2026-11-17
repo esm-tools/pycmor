@@ -704,7 +704,7 @@ rules:
   #
   # Unit conversion: source is `m s-1 psu` (velocity × salinity-as-
   # per-mille); registry wants `kg m-2 s-1` (mass flux). The conversion
-  # is m/s × g/kg × ρ₀ (1025 kg/m³) = 1.025 kg/m²/s. The 1e-3 prefix on
+  # is m/s × g/kg × ρ₀ (FESOM density_0, 1030 kg/m³) = 1.030 kg/m²/s. The 1e-3 prefix on
   # psu cancels the 1000 g/kg in seawater density. nan_to_zero_scale_pipeline
   # adds scale_by_constant after nan_to_zero so the multiplication runs on
   # the now-zeroed array.
@@ -714,7 +714,7 @@ rules:
         pattern: relaxsalt\.fesom\.\d{4}\.nc
     compound_name: ocean.vsfcorr.tavg-u-hxy-sea.mon.glb
     model_variable: relaxsalt
-    scale_factor: 1.025
+    scale_factor: 1.030  # FESOM density_0 * 1e-3
     scaled_units: "kg m-2 s-1"
     pipelines:
       - nan_to_zero_scale_pipeline
@@ -885,7 +885,7 @@ rules:
         pattern: ssh\.fesom\.\d{4}\.nc
     compound_name: ocean.pso.tavg-u-hxy-sea.mon.glb
     model_variable: ssh
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     pipelines:
       - surface_pressure_pipeline
 
@@ -898,7 +898,7 @@ rules:
     compound_name: ocean.masso.tavg-u-hm-sea.mon.glb
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
-    scale_factor: 1025.0
+    scale_factor: 1030.0  # FESOM density_0
     scaled_units: "kg"
     pipelines:
       - scale_pipeline
@@ -906,7 +906,7 @@ rules:
   # phcint — integrated ocean heat content from potential temperature
   # Depth-integrated ocean heat content (J m-2) = rho_0 * c_p * integral(T*dz).
   # vertical_integrate produces T(K) * H(m); scale_by_constant then multiplies
-  # by rho_0 * c_p = 1027 * 3990 = 4.097e+6 J K-1 m-3 to land in J m-2. The
+  # by FESOM vcpw = rho_0 * c_p = 4.2e6 J K-1 m-3 to land in J m-2. The
   # integration_attrs.units is "K m" because that's what vertical_integrate
   # actually emits before the scale; scaled_units overrides to "J m-2".
   - name: phcint
@@ -916,7 +916,7 @@ rules:
     compound_name: ocean.phcint.tavg-op4-hxy-sea.mon.glb
     model_variable: temp
     lazy_write: true
-    scale_factor: 4097273.0      # rho_0 * c_p = 1027 kg m-3 * 3990 J kg-1 K-1
+    scale_factor: 4200000.0      # FESOM vcpw = rho_0*c_p (oce_modules.F90)
     scaled_units: "J m-2"
     integration_attrs:
       long_name: "Depth integrated ocean heat content from potential temperature"
@@ -928,7 +928,7 @@ rules:
   # scint = depth-integrated salt mass content (kg m-2).
   # vertical_integrate emits ∫(salt[psu] * dz) numerically ≈ 34.5 * column_depth.
   # FESOM salt units are "1e-3" (psu = g/kg), so the dimensionless factor needed
-  # to convert psu·m to kg/m² is rho_0 * 1e-3 = 1.027 kg m-3.
+  # to convert psu·m to kg/m² is rho_0 * 1e-3 = 1.030 kg m-3 (FESOM density_0).
   - name: scint
     inputs:
       - path: *dp
@@ -936,7 +936,7 @@ rules:
     compound_name: ocean.scint.tavg-op4-hxy-sea.mon.glb
     model_variable: salt
     lazy_write: true
-    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    scale_factor: 1.030          # rho_0 * 1e-3 (FESOM density_0 1030 * psu->mass-fraction)
     scaled_units: "kg m-2"
     integration_attrs:
       long_name: "Integral wrt depth of seawater practical salinity expressed as salt mass content"
@@ -954,7 +954,7 @@ rules:
     compound_name: ocean.opottempmint.tavg-u-hxy-sea.yr.glb
     model_variable: temp
     lazy_write: true
-    scale_factor: 1027.0         # rho_0, kg m-3
+    scale_factor: 1030.0         # rho_0, FESOM density_0, kg m-3
     scaled_units: "degC kg m-2"
     integration_attrs:
       long_name: "Depth integral of product of sea water density and potential temperature"
@@ -965,7 +965,7 @@ rules:
 
   # somint = depth integral of rho_0 * salinity (g m-2).
   # vertical_integrate emits ∫(salt[psu] * dz). With psu == 1e-3 (g/kg) and target
-  # in g/m², factor = rho_0 = 1027 kg/m³ (the 1e-3 prefix on psu cancels the
+  # in g/m², factor = rho_0 = 1030 kg/m³, FESOM density_0 (the 1e-3 prefix on psu cancels the
   # 1000 needed to convert kg-of-salt to g-of-salt — net: just rho_0).
   - name: somint
     inputs:
@@ -974,7 +974,7 @@ rules:
     compound_name: ocean.somint.tavg-u-hxy-sea.yr.glb
     model_variable: salt
     lazy_write: true
-    scale_factor: 1027.0         # rho_0; the 1e-3 prefix on psu cancels the 1000 g/kg
+    scale_factor: 1030.0         # rho_0 (FESOM density_0); the 1e-3 prefix on psu cancels the 1000 g/kg
     scaled_units: "g m-2"
     integration_attrs:
       long_name: "Integral wrt depth of product of sea water density and salinity"
@@ -1127,7 +1127,7 @@ rules:
         pattern: hnode\.fesom\.\d{4}\.nc
     compound_name: ocean.masscello.tavg-ol-hxy-sea.dec.glb
     model_variable: hnode
-    scale_factor: 1025.0
+    scale_factor: 1030.0  # FESOM density_0
     scaled_units: "kg m-2"
     lazy_write: true
     pipelines:
@@ -1150,7 +1150,7 @@ rules:
     compound_name: ocean.masso.tavg-u-hm-sea.dec.glb
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: volo
-    scale_factor: 1025.0
+    scale_factor: 1030.0  # FESOM density_0
     scaled_units: "kg"
     pipelines:
       - decadal_scale_pipeline
@@ -1334,7 +1334,7 @@ rules:
     salt_path: *dp
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: x
     lazy_write: true
     # FESOM writes this in its rotated model frame; rotated to geographic
@@ -1355,7 +1355,7 @@ rules:
     salt_path: *dp
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: x
     lazy_write: true
     # FESOM writes this in its rotated model frame; rotated to geographic
@@ -1376,7 +1376,7 @@ rules:
     salt_path: *dp
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: y
     lazy_write: true
     # FESOM writes this in its rotated model frame; rotated to geographic
@@ -1397,7 +1397,7 @@ rules:
     salt_path: *dp
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: y
     lazy_write: true
     # FESOM writes this in its rotated model frame; rotated to geographic

@@ -261,7 +261,7 @@ rules:
   # ============================================================
 
   # hfx — 3D ocean heat X transport (requires ldiag_trflx=.true.)
-  # FESOM outputs utemp = u * T [m/s * degC]; scale by rho_0 * cp = 1025 * 3996 ≈ 4.096e6 → W m-2.
+  # FESOM outputs utemp = u * T [m/s * degC]; scale by FESOM vcpw = rho_0*cp = 4.2e6 → W m-2.
   - name: hfx
     grid_label: __LR_GRID_OCEAN_ELEM__
     grid: "FESOM 2.8 CORE3 unstructured mesh, element (triangle) centres (426403 elements)"
@@ -270,7 +270,7 @@ rules:
         pattern: utemp\.fesom\.\d{4}\.nc
     compound_name: ocean.hfx.tavg-ol-hxy-sea.mon.glb
     model_variable: utemp
-    scale_factor: 4095900.0
+    scale_factor: 4200000.0  # FESOM vcpw = rho_0*c_p
     scaled_units: "W"
     hnode_path: *dp
     hnode_pattern: hnode\.fesom\.\d{4}\.nc
@@ -292,7 +292,7 @@ rules:
         pattern: utemp\.fesom\.\d{4}\.nc
     compound_name: ocean.hfx.tavg-u-hxy-sea.mon.glb
     model_variable: utemp
-    scale_factor: 4095900.0
+    scale_factor: 4200000.0  # FESOM vcpw = rho_0*c_p
     scaled_units: "W"
     hnode_path: *dp
     hnode_pattern: hnode\.fesom\.\d{4}\.nc
@@ -309,7 +309,7 @@ rules:
         pattern: vtemp\.fesom\.\d{4}\.nc
     compound_name: ocean.hfy.tavg-ol-hxy-sea.mon.glb
     model_variable: vtemp
-    scale_factor: 4095900.0
+    scale_factor: 4200000.0  # FESOM vcpw = rho_0*c_p
     scaled_units: "W"
     hnode_path: *dp
     hnode_pattern: hnode\.fesom\.\d{4}\.nc
@@ -328,7 +328,7 @@ rules:
         pattern: vtemp\.fesom\.\d{4}\.nc
     compound_name: ocean.hfy.tavg-u-hxy-sea.mon.glb
     model_variable: vtemp
-    scale_factor: 4095900.0
+    scale_factor: 4200000.0  # FESOM vcpw = rho_0*c_p
     scaled_units: "W"
     hnode_path: *dp
     hnode_pattern: hnode\.fesom\.\d{4}\.nc

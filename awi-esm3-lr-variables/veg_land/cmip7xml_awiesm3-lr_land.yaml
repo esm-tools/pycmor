@@ -365,16 +365,10 @@ rules:
     pipelines:
       - temporal_diff_pipeline
 
-  # dsw / mrtws need swvl1..swvl4 + sd + src loaded together to compute
-  # total water storage. Pattern matches the 6 per-var files via alternation.
-  - name: dsw_day
-    inputs:
-      - path: *dp
-        pattern: atmos_day_land_(swvl[1-4]|sd|src)_.*\.nc
-    compound_name: land.dsw.tavg-u-hxy-lnd.day.glb
-    model_variable: total_water
-    pipelines:
-      - temporal_diff_pipeline
+  # dsw dropped (2026-11-17): the DReq asks for the change in surface water
+  # storage, which this model has no field for. The old rule wrote the daily
+  # change in total land water (soil + snow + skin reservoir), i.e. the
+  # tendency of mrtws, which is delivered itself (mrtws_day below).
 
   - name: mrtws_day
     inputs:

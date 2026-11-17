@@ -109,7 +109,7 @@ rules:
     second_variable: a_ice
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
-    rho_snow: 330.0
+    rho_snow: 290.0  # FESOM rhosno (MOD_ICE.F90)
     L_f: 334000.0
     pipelines:
       - sisnhc_from_msnow_pipeline

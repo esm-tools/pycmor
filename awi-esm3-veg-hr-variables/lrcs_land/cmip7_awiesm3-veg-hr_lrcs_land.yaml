@@ -187,12 +187,17 @@ rules:
     pipelines:
       - mrsofc_pipeline
 
-  # Maximum root depth from vegetation type weighted average
+  # Maximum root depth from vegetation type weighted average. cvl/cvh follow
+  # the dynamic vegetation, so computing it from the year being processed
+  # gave a different "fixed" field every year (24 % of cells differ between
+  # 1930 and 1931). It is read from 1850, the first year of every experiment,
+  # so all years write the same file.
   - name: rootd
     inputs:
       - path: *dp
-        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh)_.*\.nc
+        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh)_1850-1850\.nc
     compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
+    skip_input_year_filter: true
     model_variable: rootd
     pipelines:
       - rootd_pipeline

@@ -146,28 +146,18 @@ rules:
   # od550aer dropped: MACv2-SP represents only anthropogenic simple-plume AOD,
   # not total AOD as CMIP7 requires. No prognostic/other aerosol in this config.
 
-  # cfc11: global-mean mole fraction from input4MIPs annual GHG forcing file.
-  # CMIP7 registry says units='1E-12' (file values are in ppt, label is the
-  # scaling factor); annual -> monthly by ffill in the pipeline.
-  - name: cfc11_mon
-    inputs:
-      - path: *ghg
-        pattern: cfc11_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
-    compound_name: atmosChem.cfc11.tavg-u-hm-air.mon.glb
-    grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
-    model_variable: cfc11
-    scale_factor: 1.0
-    scaled_units: "1E-12"
-    skip_input_year_filter: true
-    pipelines:
-      - ghg_scalar_pipeline
+  # cfc11 is not delivered (Jan, 2026-11-17).
 
-  # cfc12: same shape as cfc11 (ppt -> file labelled 1E-12).
+  # cfc12: global-mean mole fraction from input4MIPs (ppt -> file labelled 1E-12).
   - name: cfc12_mon
     inputs:
       - path: *ghg
         pattern: cfc12_input4MIPs_GHGConcentrations_CMIP_CR-CMIP-1-0-0_gm_1750-2022\.nc
     compound_name: atmosChem.cfc12.tavg-u-hm-air.mon.glb
+    # Delivered for historical only, from 1950 (Jan, 2026-11-17). shard_tier_yaml.py
+    # drops the rule for other experiments and earlier years.
+    only_experiments: [historical]
+    first_year: 1950
     grid_label: g010  # globales Mittel; CV-TT 2026-09-02: g010 ist das globale Spezialgitter, g190 ein Box-Modell-Gitter
     model_variable: cfc12
     scale_factor: 1.0

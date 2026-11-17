@@ -471,7 +471,7 @@ rules:
 
   # absscint = depth-integrated salt mass content (kg m-2), absolute salinity.
   # vertical_integrate emits ∫(salt[psu] * dz); FESOM salt units are "1e-3"
-  # (psu = g/kg) so the factor needed to convert psu·m to kg/m² is rho_0 * 1e-3.
+  # (psu = g/kg) so the factor needed to convert psu·m to kg/m² is rho_0 * 1e-3 (FESOM density_0 1030).
   - name: absscint
     inputs:
       - path: *dp
@@ -479,7 +479,7 @@ rules:
     compound_name: ocean.absscint.tavg-op4-hxy-sea.mon.glb
     model_variable: salt
     lazy_write: true
-    scale_factor: 1.027          # rho_0 * 1e-3 (1027 kg m-3 * psu->mass-fraction)
+    scale_factor: 1.030          # rho_0 * 1e-3 (FESOM density_0 1030 * psu->mass-fraction)
     scaled_units: "kg m-2"
     integration_attrs:
       long_name: "Integral wrt depth of seawater absolute salinity expressed as salt mass content"
@@ -571,7 +571,7 @@ rules:
         pattern: mesh.nc
     compound_name: ocean.masscello.ti-ol-hxy-sea.fx.glb
     model_variable: masscello
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     pipelines:
       - fx_masscello_pipeline
 
@@ -607,7 +607,7 @@ rules:
     compound_name: ocean.masscello.tavg-ol-hxy-sea.mon.glb
     model_variable: hnode
     lazy_write: true
-    scale_factor: 1025.0
+    scale_factor: 1030.0  # FESOM density_0
     scaled_units: "kg m-2"
     pipelines:
       - scale_pipeline
@@ -624,7 +624,7 @@ rules:
     compound_name: ocean.umo.tavg-ol-hxy-sea.mon.glb
     model_variable: unod
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: x
     vector_component: x
     vector_partner_path: *dp
@@ -640,7 +640,7 @@ rules:
     compound_name: ocean.vmo.tavg-ol-hxy-sea.mon.glb
     model_variable: vnod
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: y
     vector_component: y
     vector_partner_path: *dp
@@ -656,7 +656,7 @@ rules:
     compound_name: ocean.wmo.tavg-ol-hxy-sea.mon.glb
     model_variable: w
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: z
     pipelines:
       - mass_transport_pipeline
@@ -676,6 +676,6 @@ rules:
     salt_path: /work/bb1469/a270092/runtime/awiesm3-develop/Final_CMIP7_IO_Test_01/outdata/fesom
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     pipelines:
       - zostoga_pipeline
