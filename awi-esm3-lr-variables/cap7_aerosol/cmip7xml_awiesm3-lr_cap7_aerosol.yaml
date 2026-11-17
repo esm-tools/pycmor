@@ -612,16 +612,14 @@ rules:
   # ============================================================
   # Aerosol optical depth at 550 nm (esm_tools change O6)
   # ============================================================
-  # radaca.F90 computes the CAMS-climatology optical depths (aod550 total,
-  # aod550bc/du/om/su/ss per species), written to monthly files
-  # atmos_mon_aod_<field> on the reduced grid. od550aer adds the MACv2-SP
-  # anthropogenic plumes (macv2sp_taod550), which radiation applies on top.
-  # The archived macv2sp_taod550 is on the regular grid only
-  # (atm_remapped_1m), so the same file must also write it on the reduced
-  # grid. Before the spinup takes these rules, the test month has to show
-  # that aod550 does not already contain the MACv2-SP part, otherwise
-  # od550aer counts it twice. The species products are the CAMS climatology
-  # alone; the plumes are not apportioned to species.
+  # radaca.F90 computes the CAMS-climatology optical depth aod550, written
+  # monthly to atmos_mon_aod_aod550 on the reduced grid. od550aer adds the
+  # MACv2-SP anthropogenic plumes (macv2sp_taod550), which radiation applies
+  # on top; atmos_mon_aod writes them on the reduced grid as well. Test month
+  # 2850-01 (cc-LR, piControl): aod550 0.07 on average, macv2sp_taod550 zero on
+  # both grids (no anthropogenic plumes in 1850). The per-species fields
+  # aod550bc/du/om/su/ss come out but sum to 0.3% of aod550 and do not
+  # decompose it, so od550bc/dust/oa/so4/ss are dropped (exclusions.yaml).
 
   - name: od550aer_mon
     grid_label: __LR_GRID_ATM__
@@ -638,73 +636,3 @@ rules:
     summed_variables: [aod550, macv2sp_taod550]
     variable_attributes:
       comment: "wavelength: 550 nm. CAMS climatology aerosol (radaca.F90) plus the MACv2-SP anthropogenic plumes; no stratospheric aerosol."
-
-  - name: od550bc_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550bc_.*\.nc
-    compound_name: aerosol.od550bc.tavg-u-hxy-u.mon.glb
-    model_variable: od550bc
-    summed_variables: [aod550bc]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
-
-  - name: od550dust_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550du_.*\.nc
-    compound_name: aerosol.od550dust.tavg-u-hxy-u.mon.glb
-    model_variable: od550dust
-    summed_variables: [aod550du]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
-
-  - name: od550oa_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550om_.*\.nc
-    compound_name: aerosol.od550oa.tavg-u-hxy-u.mon.glb
-    model_variable: od550oa
-    summed_variables: [aod550om]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
-
-  - name: od550so4_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550su_.*\.nc
-    compound_name: aerosol.od550so4.tavg-u-hxy-u.mon.glb
-    model_variable: od550so4
-    summed_variables: [aod550su]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."
-
-  - name: od550ss_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550ss_.*\.nc
-    compound_name: aerosol.od550ss.tavg-u-hxy-u.mon.glb
-    model_variable: od550ss
-    summed_variables: [aod550ss]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol component (radaca.F90), without the MACv2-SP plumes."

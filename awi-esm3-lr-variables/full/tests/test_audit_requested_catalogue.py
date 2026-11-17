@@ -27,7 +27,7 @@ class CatalogueTests(unittest.TestCase):
                 summary, records, coverage = audit.audit(config_file)
             load.assert_called_once_with(config_file)
             self.assertEqual(summary['full_tier_files'], 17)
-            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 617)  # 555 plus 20 ocean/sea-ice and 44 atmosphere gap-closure rules, minus cfc11 and dsw (not delivered)
+            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 612)  # 555 plus 20 ocean/sea-ice and 39 atmosphere gap-closure rules; -2 for cfc11 and dsw
             self.assertIn('shared_recom', summary['groups'])
             self.assertIn('shared_co2', summary['groups'])
             self.assertNotIn('private_recom', summary['groups'])
