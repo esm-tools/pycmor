@@ -38,6 +38,7 @@ Table 2: Precision of time labels used in file names
 
 """
 
+import functools
 import os
 import sys
 import threading
@@ -51,7 +52,7 @@ import xarray as xr
 from xarray.core.utils import is_scalar
 
 from ..core.logging import logger
-from .bounds import add_bounds_from_coords
+from .bounds import add_bounds_from_coords, dual_cell_vertices
 from .chunking import (
     calculate_chunks_even_divisor,
     calculate_chunks_iterative,
@@ -764,8 +765,12 @@ def _ensure_horizontal_aux_coords(ds, rule=None):
             if n_cells == n_nodes and not has_latlon:
                 lat = np.asarray(mesh["lat"].values, dtype=np.float64)
                 lon = np.asarray(mesh["lon"].values, dtype=np.float64)
-                lat_b = np.asarray(mesh["lat_bnds"].values, dtype=np.float64) if "lat_bnds" in mesh else None
-                lon_b = np.asarray(mesh["lon_bnds"].values, dtype=np.float64) if "lon_bnds" in mesh else None
+                cells = _mesh_node_cells(grid_file)
+                if cells is not None:
+                    lat_b, lon_b = cells[2].copy(), cells[3].copy()
+                else:
+                    lat_b = np.asarray(mesh["lat_bnds"].values, dtype=np.float64) if "lat_bnds" in mesh else None
+                    lon_b = np.asarray(mesh["lon_bnds"].values, dtype=np.float64) if "lon_bnds" in mesh else None
                 source = "mesh nodes"
             elif n_cells == n_triags and "triag_nodes" in mesh:
                 # FESOM stores the connectivity 1-based (Fortran).
@@ -1656,6 +1661,151 @@ def _recover_bounds_from_inputs(ds, rule, coord_name, declared_bounds_name):
     return None
 
 
+# How far a stream's node position may sit from the mesh's and still be the
+# same node. XIOS writes the FESOM node coordinates as float32 after FESOM's
+# own rotation; on CORE3 they differ from mesh.nc by 2e-5 deg typically and
+# by 3e-3 deg on the node next to the North Pole, while no two nodes are
+# closer than 0.069 deg (CORE3) or 0.029 deg (DARS2).
+_MESH_NODE_TOL_DEG = 0.01
+
+
+@functools.lru_cache(maxsize=1)
+def _mesh_node_cells_cached(path, mtime_ns):
+    with xr.open_dataset(path, decode_times=False) as mesh:
+        if any(v not in mesh.variables for v in ("lat", "lon", "triag_nodes")):
+            return None
+        if mesh["lat"].ndim != 1 or mesh["lon"].shape != mesh["lat"].shape or mesh["triag_nodes"].shape[-1:] != (3,):
+            return None
+        lat = np.asarray(mesh["lat"].values, dtype=np.float64)
+        lon = np.asarray(mesh["lon"].values, dtype=np.float64)
+        tri = np.asarray(mesh["triag_nodes"].values, dtype=np.int64)
+        # pyfesom2 writes the connectivity 1-based (Fortran).
+        if tri.min() == 1 and tri.max() == lat.size:
+            tri = tri - 1
+        lon_b, lat_b = dual_cell_vertices(lon, lat, tri)
+        stored = [mesh[v] for v in ("lon_bnds", "lat_bnds") if v in mesh.variables]
+        if len(stored) == 2 and all(v.shape == lon_b.shape for v in stored):
+            keep = np.zeros(lat.size, dtype=bool)
+            for rows in np.array_split(np.arange(lat.size), max(1, lat.size // 250000)):
+                s_lon, s_lat = (np.asarray(v[rows[0] : rows[-1] + 1].values, dtype=np.float64) for v in stored)
+                keep[rows] = _same_ring(lon_b[rows], lat_b[rows], s_lon, s_lat)
+                lon_b[rows[keep[rows]]] = s_lon[keep[rows]]
+                lat_b[rows[keep[rows]]] = s_lat[keep[rows]]
+            logger.info(
+                f"  → mesh cells: {int((~keep).sum())} of {lat.size} stored polygons in {path} are not the "
+                "dual cells of its triangles; rebuilt those, kept the rest as stored"
+            )
+    return lat, lon, lat_b, lon_b
+
+
+def _same_ring(lon_b, lat_b, s_lon, s_lat, tol=1e-8):
+    """Rows where the stored polygon is the rebuilt one started at another vertex.
+
+    pyfesom2 starts each ring wherever its neighbour search began. Where its
+    polygon is right, keeping it keeps files written before identical.
+    """
+    nv = lon_b.shape[1]
+    repeat = (lon_b[:, 1:] == lon_b[:, :-1]) & (lat_b[:, 1:] == lat_b[:, :-1])
+    k = nv - np.cumprod(repeat[:, ::-1], axis=1).sum(axis=1)
+    j = np.arange(nv)[None, :]
+    # Start the rebuilt ring where the stored one starts, then compare once.
+    start = np.abs(lat_b - s_lat[:, :1]) + np.abs((lon_b - s_lon[:, :1] + 180.0) % 360.0 - 180.0)
+    shift = np.where(j < k[:, None], start, np.inf).argmin(axis=1)[:, None]
+    idx = np.where(j < k[:, None], (j + shift) % k[:, None], (k[:, None] - 1 + shift) % k[:, None])
+    d_lat = np.abs(np.take_along_axis(lat_b, idx, axis=1) - s_lat)
+    d_lon = np.abs((np.take_along_axis(lon_b, idx, axis=1) - s_lon + 180.0) % 360.0 - 180.0)
+    return np.maximum(d_lat, d_lon).max(axis=1) < tol
+
+
+def _mesh_node_cells(grid_file):
+    """Node positions and median-dual cell vertices of a FESOM mesh file.
+
+    The single source of the horizontal cells of every FESOM node-grid
+    product: built from the mesh's ``triag_nodes`` with
+    :func:`~pycmor.std_lib.bounds.dual_cell_vertices`, never taken from the
+    ``lat_bnds``/``lon_bnds`` pyfesom2 stored next to them, which are wrong
+    (see there). Returns ``(lat, lon, lat_bnds, lon_bnds)`` as float64, or
+    None when ``grid_file`` is not a mesh with a triangulation.
+    """
+    if not grid_file or not os.path.exists(str(grid_file)):
+        return None
+    path = os.path.realpath(str(grid_file))
+    try:
+        return _mesh_node_cells_cached(path, os.stat(path).st_mtime_ns)
+    except Exception as exc:
+        logger.warning(f"  → mesh cells from {grid_file} failed: {exc}")
+        return None
+
+
+def _attach_mesh_node_cells(ds, rule):
+    """Put the mesh's node positions and cell vertices on a FESOM node field.
+
+    Applies when ``rule.grid_file`` is a mesh with a triangulation and the
+    dataset's auxiliary lat/lon are its nodes, all of them or a subset such as
+    a 30S-90S region, within :data:`_MESH_NODE_TOL_DEG`. Any bounds the
+    stream brought are dropped: XIOS writes ``bounds_lat``/``bounds_lon``
+    truncated to eight vertices, most of them collapsed to one or two points.
+    The coordinates are replaced by the mesh's too, so every product on the
+    grid carries the same positions. Returns ``(ds, attached)``.
+    """
+    if rule is None or not isinstance(ds, xr.Dataset):
+        return ds, False
+    pair = next(((a, b) for a, b in (("lat", "lon"), ("latitude", "longitude")) if a in ds and b in ds), None)
+    if pair is None:
+        return ds, False
+    lat_name, lon_name = pair
+    if ds[lat_name].ndim != 1 or ds[lon_name].dims != ds[lat_name].dims or ds[lat_name].dims[0] == lat_name:
+        return ds, False
+    cells = _mesh_node_cells(getattr(rule, "grid_file", None))
+    if cells is None:
+        return ds, False
+    lat, lon, lat_b, lon_b = cells
+    cell_dim = ds[lat_name].dims[0]
+    n_live = ds.sizes[cell_dim]
+    if n_live > lat.size:
+        return ds, False
+    live_lat = np.asarray(ds[lat_name].values, dtype=np.float64)
+    live_lon = np.asarray(ds[lon_name].values, dtype=np.float64)
+    tol = 2.0 * np.sin(np.radians(_MESH_NODE_TOL_DEG) / 2.0)
+    if n_live == lat.size:
+        a = np.stack(_xyz_unit(live_lon, live_lat))
+        b = np.stack(_xyz_unit(lon, lat))
+        if float(np.sqrt(((a - b) ** 2).sum(axis=0)).max()) > tol:
+            logger.info(f"  → mesh cells: {cell_dim!r} is not the node list of {rule.grid_file}")
+            return ds, False
+        take = slice(None)
+    else:
+        take = _match_cells(ds, xr.Dataset({"lat": ("n", lat), "lon": ("n", lon)}), tol=tol)
+        if take is None or np.unique(take).size != take.size:
+            return ds, False
+    stale = [
+        v
+        for name in (lat_name, lon_name)
+        for v in (f"{name}_bnds", f"bounds_{name}", ds[name].attrs.get("bounds"), ds[name].encoding.get("bounds"))
+        if v and v in ds.variables
+    ]
+    ds = ds.drop_vars(sorted(set(stale)))
+    vdim = _VERTICES_DIM if _VERTICES_DIM not in ds.dims else f"{_VERTICES_DIM}_{lat_b.shape[1]}"
+    for name, centres, bnds in ((lat_name, lat, lat_b), (lon_name, lon, lon_b)):
+        coord = xr.DataArray(np.array(centres[take]), dims=(cell_dim,), attrs=dict(ds[name].attrs))
+        coord.attrs["bounds"] = f"{name}_bnds"
+        coord.encoding.update(dtype="float64", _FillValue=None)
+        ds = ds.assign_coords({name: coord})
+        # CF §7.1: bounds carry no attributes of their own.
+        ds[f"{name}_bnds"] = xr.DataArray(np.array(bnds[take]), dims=(cell_dim, vdim), attrs={})
+        ds[f"{name}_bnds"].encoding.update(dtype="float64", _FillValue=None)
+    logger.info(
+        f"  → mesh cells: {n_live} nodes on {cell_dim!r} with {lat_b.shape[1]}-vertex dual cells "
+        f"from {rule.grid_file} (dropped {stale})"
+    )
+    return ds, True
+
+
+def _xyz_unit(lon_deg, lat_deg):
+    lo, la = np.radians(lon_deg), np.radians(lat_deg)
+    return np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)
+
+
 def _ensure_lat_lon_bounds_impl(ds, rule=None):
     """
     Add lat_bnds/lon_bnds to a dataset.
@@ -1673,6 +1823,9 @@ def _ensure_lat_lon_bounds_impl(ds, rule=None):
     if not isinstance(ds, xr.Dataset):
         return ds
     ds = _expand_global_subset_to_reference_grid(ds, rule)
+    # FESOM node fields take their cells from the mesh triangulation, and
+    # nothing below may replace them.
+    ds, on_mesh = _attach_mesh_node_cells(ds, rule)
     # Adopt XIOS-style `bounds_lat` / `bounds_lon` bounds if present (rename to
     # the CF-standard `<coord>_bnds` form and update the `bounds` attr). If the
     # referenced bounds variable was dropped during variable selection (XIOS
@@ -1718,8 +1871,9 @@ def _ensure_lat_lon_bounds_impl(ds, rule=None):
     # ``mesh.nc``. Drop the truncated lat_bnds/lon_bnds so the unstructured
     # branch below pulls the canonical mesh polygons via
     # ``_attach_bounds_from_mesh``. Skipped when no mesh is configured or the
-    # mesh doesn't carry matching-size lat_bnds/lon_bnds.
-    if rule is not None and getattr(rule, "grid_file", None):
+    # mesh doesn't carry matching-size lat_bnds/lon_bnds, and for FESOM node
+    # fields, which already have their cells from the triangulation.
+    if rule is not None and getattr(rule, "grid_file", None) and not on_mesh:
         try:
             mesh_probe = xr.open_dataset(rule.grid_file, decode_times=False)
             try:
