@@ -397,3 +397,144 @@ def add_bounds_to_grid(grid: xr.Dataset) -> xr.Dataset:
     grid_with_bounds = add_bounds_from_coords(grid, coord_names=coord_names)
 
     return grid_with_bounds
+
+
+def _unit_vectors(lon, lat):
+    lo, la = np.radians(lon), np.radians(lat)
+    return np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], axis=-1)
+
+
+def dual_cell_vertices(lon, lat, triangles):
+    """Vertices of the median-dual cell around every node of a triangular mesh.
+
+    FESOM2 puts scalars on the nodes, and the cell a node stands for is its
+    median-dual polygon: going counter-clockwise round the node, the midpoint
+    of each edge leaving it alternates with the centroid of each triangle
+    between two such edges. On the open boundary (coast, ice-shelf front) the
+    fan of triangles does not close; the polygon then runs from the midpoint
+    of the last boundary edge along that edge back to the node itself and out
+    along the first boundary edge, so the node is one of its vertices.
+
+    The ``lat_bnds`` / ``lon_bnds`` that pyfesom2 ``writeCDO`` stores in the
+    CORE3 and DARS2 ``mesh.nc`` do not follow this: the fan is ordered wrongly,
+    every polygon repeats one or two vertices in place of others, and boundary
+    nodes are not included, so 1103 CORE3 boundary nodes fall outside their own
+    cell (cf §7.1). This rebuilds the cells from the triangles instead.
+
+    Parameters
+    ----------
+    lon, lat : array-like, shape (n,)
+        Node positions in degrees.
+    triangles : array-like of int, shape (m, 3)
+        Zero-based node indices of every triangle, any orientation.
+
+    Returns
+    -------
+    (lon_bnds, lat_bnds) : two float64 arrays of shape (n, nvertices)
+        Counter-clockwise vertices, longitude in [-180, 180), padded to the
+        largest cell by repeating the last vertex, which is the CMOR
+        convention. Midpoints and centroids are taken on the sphere.
+    """
+    lon = np.asarray(lon, dtype=np.float64).ravel()
+    lat = np.asarray(lat, dtype=np.float64).ravel()
+    tri = np.array(triangles, dtype=np.int64)
+    n = lon.size
+    p = _unit_vectors(lon, lat)
+    a, b, c = p[tri[:, 0]], p[tri[:, 1]], p[tri[:, 2]]
+    clockwise = np.einsum("ij,ij->i", np.cross(b - a, c - a), a) < 0
+    tri[clockwise] = tri[clockwise, ::-1]
+    centroid = p[tri].sum(axis=1)
+
+    # One wedge per triangle corner: node A, then B and C counter-clockwise.
+    # The wedge after it round A is the one whose B is this wedge's C.
+    node = tri.ravel()
+    first = tri[:, [1, 2, 0]].ravel()
+    last = tri[:, [2, 0, 1]].ravel()
+    owner = np.repeat(np.arange(len(tri)), 3)
+    key = node * n + first
+    order = np.argsort(key, kind="stable")
+    sorted_key = key[order]
+    if np.any(sorted_key[1:] == sorted_key[:-1]):
+        raise ValueError("mesh has an edge that two triangles traverse in the same direction")
+    want = node * n + last
+    hit = np.minimum(np.searchsorted(sorted_key, want), key.size - 1)
+    following = np.where(sorted_key[hit] == want, order[hit], -1)
+    has_previous = np.zeros(key.size, dtype=bool)
+    has_previous[following[following >= 0]] = True
+
+    # A boundary fan starts at the wedge nothing precedes; a closed fan
+    # starts anywhere. A node where two fans touch gets both, one after the
+    # other, each closing through the node.
+    open_starts = np.flatnonzero(~has_previous)
+    any_wedge = np.full(n, -1)
+    any_wedge[node[::-1]] = np.arange(key.size)[::-1]
+    closed_nodes = np.setdiff1d(np.unique(node), node[open_starts])
+    starts = np.concatenate([open_starts, any_wedge[closed_nodes]])
+    degree = np.bincount(node, minlength=n)
+    count = 2 * degree + 2 * np.bincount(node[open_starts], minlength=n)
+    nvertices = max(int(count.max()), 1)
+
+    # A node in no triangle keeps itself as its only vertex.
+    lon_bnds = np.repeat(lon[:, None], nvertices, axis=1)
+    lat_bnds = np.repeat(lat[:, None], nvertices, axis=1)
+    filled = np.zeros(n, dtype=np.int64)
+
+    def put(rows, vectors):
+        vectors = vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
+        lon_bnds[rows, filled[rows]] = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0]))
+        lat_bnds[rows, filled[rows]] = np.degrees(np.arcsin(np.clip(vectors[:, 2], -1.0, 1.0)))
+        filled[rows] += 1
+
+    # Walk the fans of each node one at a time so ``filled`` stays per node.
+    fan_node = node[starts]
+    by_node = np.argsort(fan_node, kind="stable")
+    rank = np.empty(starts.size, dtype=np.int64)
+    rank[by_node] = np.arange(starts.size) - np.searchsorted(fan_node[by_node], fan_node[by_node])
+    for r in range(int(rank.max()) + 1 if starts.size else 0):
+        wedge = start = starts[rank == r]
+        while wedge.size:
+            rows = node[wedge]
+            put(rows, p[rows] + p[first[wedge]])
+            put(rows, centroid[owner[wedge]])
+            after = following[wedge]
+            ends = after < 0
+            closing = rows[ends]
+            put(closing, p[closing] + p[last[wedge[ends]]])
+            # The node itself, copied exactly so it lies on its own cell.
+            lon_bnds[closing, filled[closing]] = lon[closing]
+            lat_bnds[closing, filled[closing]] = lat[closing]
+            filled[closing] += 1
+            go_on = ~ends & (after != start)
+            wedge, start = after[go_on], start[go_on]
+    # A cell round a pole can have its node further poleward than any vertex,
+    # and then no latitude range of its vertices holds the node (cf §7.1).
+    # Route the ring through the pole along the two meridians of the
+    # shortest edge that does not pass the node's own meridian. That cuts
+    # the sliver between edge and pole off the cell (10 % of the one polar
+    # CORE3 cell) but keeps the node inside it.
+    turn = np.zeros(n)
+    for j in range(nvertices):
+        step = np.where(j + 1 < filled, lon_bnds[:, (j + 1) % nvertices], lon_bnds[:, 0]) - lon_bnds[:, j]
+        turn += np.where(j < filled, (step + 180.0) % 360.0 - 180.0, 0.0)
+    polar = np.flatnonzero(np.abs(turn) > 180.0)
+    if polar.size and int(filled[polar].max()) >= nvertices:
+        nvertices += 1
+        lon_bnds = np.concatenate([lon_bnds, lon_bnds[:, -1:]], axis=1)
+        lat_bnds = np.concatenate([lat_bnds, lat_bnds[:, -1:]], axis=1)
+    for row in polar:
+        k = int(filled[row])
+        ring = lon_bnds[row, :k]
+        step = (np.roll(ring, -1) - ring + 180.0) % 360.0 - 180.0
+        to_node = (lon[row] - ring + 180.0) % 360.0 - 180.0
+        passes_node = (to_node * step > 0) & (np.abs(to_node) < np.abs(step))
+        at = int(np.argmin(np.where(passes_node, np.inf, np.abs(step)))) + 1
+        lon_bnds[row, at : k + 1] = np.concatenate([[lon_bnds[row, at - 1]], lon_bnds[row, at:k]])
+        lat_bnds[row, at : k + 1] = np.concatenate([[np.copysign(90.0, lat[row])], lat_bnds[row, at:k]])
+        filled[row] += 1
+    for j in range(1, nvertices):
+        short = filled <= j
+        short &= filled > 0
+        lon_bnds[short, j] = lon_bnds[short, j - 1]
+        lat_bnds[short, j] = lat_bnds[short, j - 1]
+    lon_bnds[lon_bnds >= 180.0] -= 360.0
+    return lon_bnds, lat_bnds
