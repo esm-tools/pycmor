@@ -25,15 +25,13 @@ CARBON_CONTEXT = {}
 ARCHIVED_FILES = {}
 GEOTHERMAL_CONTEXT = None
 MODEL_LEVEL_TABLE = None
-WAM_GRID_LABEL = None
 
 
 def configure(root, repo, experiment, period, config):
     global ROOT, REPO, EXP, PERIOD, YEARS, META, PROFILE, MESH, CARBON_CONTEXT, ARCHIVED_FILES, GEOTHERMAL_CONTEXT, VERIFIED_FESOM_SHA256
-    global MODEL_LEVEL_TABLE, WAM_GRID_LABEL
+    global MODEL_LEVEL_TABLE
     ROOT, REPO, EXP, PERIOD = Path(root), Path(repo), Path(experiment), period
     MODEL_LEVEL_TABLE = config.get('model_level_table')
-    WAM_GRID_LABEL = config.get('wam_grid_label')
     YEARS = list(range(int(period[:4]), int(period[9:13]) + 1))
     META = json.loads(Path(config['metadata']).read_text())['Compound Name']
     PROFILE = yaml.safe_load((REPO/'awi-esm3-lr-variables/profile.yaml').read_text())
@@ -481,10 +479,8 @@ def materialize(rule, gridpaths):
             rule['lr_auxiliary_files']+=list(map(str,liquid))
     rule['inputs']=[{'path':str(p.parent),'pattern':re.escape(p.name)+'$'} for p in paths]
     if group=='wave':
-        if not WAM_GRID_LABEL:
-            raise ValueError('UNREGISTERED_WAM_GRID: the 29530-point WAM grid has no EMD grid label; '
-                             'register it and set wam_grid_label in the run configuration')
-        rule['grid_label']=WAM_GRID_LABEL
+        # Delivered on the registered regular 1x1 degree grid (wave_steps.remap_wave_to_g150).
+        rule['grid_label']='g150'
     if rule.get('lr_geothermal_zero'):
         if not GEOTHERMAL_CONTEXT or GEOTHERMAL_CONTEXT.get('binary_sha256')!=VERIFIED_FESOM_SHA256:
             raise ValueError('UNREVIEWED_GEOTHERMAL: reviewed binary does not match this archived run')
@@ -617,6 +613,7 @@ def register_wave_pipelines(profile):
         return
     steps = ['pycmor.core.gather_inputs.load_mfdataset',
              f'script://{Path(__file__).resolve().with_name("wave_steps.py")}:select_wave_variable',
+             f'script://{Path(__file__).resolve().with_name("wave_steps.py")}:remap_wave_to_g150',
              'pycmor.std_lib.timeaverage.timeavg',
              'pycmor.std_lib.set_time_bounds',
              'pycmor.std_lib.units.handle_unit_conversion',

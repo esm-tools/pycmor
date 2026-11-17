@@ -1,11 +1,20 @@
 schema_version: 1
-description: WAM integrated wave parameters on the WAM sea-point grid (file_def_wam_cmip7.xml.j2).
+description: WAM integrated wave parameters (file_def_wam_cmip7.xml.j2), delivered on the registered 1x1 degree grid g150.
 scientific_assumptions:
   grid: One XIOS cell per WAM sea point (29530 on the LR 1 degree reduced latitude-longitude grid,
     78S to 90N). Land is not part of the grid; WAM writes -999 (decoded as missing) at points it
     masks (sea ice, too shallow), so every mean is over the ice-free samples only.
-  grid_label: The WAM grid has no EMD registration yet; the label is taken from the run
-    configuration (wam_grid_label) and the products stay blocked without it.
+  delivery_grid: Products are written on g150, the registered regular 1x1 degree grid (latitude centres
+    -89.5..89.5, longitude centres 0..359), agreed for the WAM output in the EMD meeting of 17 Nov 2026
+    instead of registering the 29530-point WAM grid. WAM rows sit on whole-degree latitudes and the
+    equator row on whole-degree longitudes, so longitude needs no averaging; a WAM cell is copied to every
+    1-degree column it covers (2 degrees wide at 60N). Each g150 row lies half in two WAM rows and takes
+    their mean, the one available value where the other is land or masked (coasts, ice edge), the
+    maximum for swhmax (lr_wave_remap maximum) and the direction of the mean unit vector for directions
+    (lr_wave_remap direction). Cells with no WAM value stay missing (land, sea ice, south of 78.5S).
+    Measured on January 2845, WAM -> g150 -> WAM changes swh by 0.6 cm (monthly) and 1.1 cm (3-hourly)
+    in the median, under 10 cm at the 95th percentile, mean wave direction by 0.3 degrees in the
+    median; the largest differences sit at coasts, the ice edge and the sharpest storm gradients.
   directions: WAM mwd, mdww and mdts are "from" directions, clockwise from true north
     (sea_surface_*_from_direction), the DReq convention. Checked on 2845 output, wind-sea from 72
     degrees in the January North Pacific trades and from 279 degrees in the Southern Ocean westerlies.
@@ -24,7 +33,7 @@ defaults:
   lr_grid_key: wam
   lr_grid_cells: 29530
   time_dimname: time
-  grid: WAM 1 degree reduced latitude-longitude sea points (29530 cells)
+  grid: WAM 1 degree reduced latitude-longitude sea points (29530 cells) remapped to the regular 1x1 degree grid g150
   pipelines: [lr_wave]
 rules:
 - name: swh_3hr
@@ -37,6 +46,7 @@ rules:
 - name: swhmax_3hr
   compound_name: ocean.swhmax.tpt-u-hxy-sea.3hr.glb
   model_variable: swh_max
+  lr_wave_remap: maximum
   expected_units: m
   lr_wave_window_end: true
   lr_input:
@@ -87,6 +97,7 @@ rules:
 - name: wdir_3hr
   compound_name: ocean.wdir.tpt-u-hxy-sea.3hr.glb
   model_variable: mwd
+  lr_wave_remap: direction
   expected_units: degree
   lr_input:
     component: oifs
@@ -94,6 +105,7 @@ rules:
 - name: wdirswell_3hr
   compound_name: ocean.wdirswell.tpt-u-hxy-sea.3hr.glb
   model_variable: mdts
+  lr_wave_remap: direction
   expected_units: degree
   lr_input:
     component: oifs
@@ -101,6 +113,7 @@ rules:
 - name: wdirwindsea_3hr
   compound_name: ocean.wdirwindsea.tpt-u-hxy-sea.3hr.glb
   model_variable: mdww
+  lr_wave_remap: direction
   expected_units: degree
   lr_input:
     component: oifs
@@ -129,6 +142,7 @@ rules:
 - name: swhmax_mon
   compound_name: ocean.swhmax.tmax-u-hxy-sea.mon.glb
   model_variable: swh_max
+  lr_wave_remap: maximum
   expected_units: m
   lr_input:
     component: oifs
@@ -178,6 +192,7 @@ rules:
 - name: wdir_mon
   compound_name: ocean.wdir.tavg-u-hxy-sea.mon.glb
   model_variable: mwd_sin
+  lr_wave_remap: direction
   lr_wave_cosine: mwd_cos
   expected_units: '1'
   lr_input:
@@ -186,6 +201,7 @@ rules:
 - name: wdirswell_mon
   compound_name: ocean.wdirswell.tavg-u-hxy-sea.mon.glb
   model_variable: mdts_sin
+  lr_wave_remap: direction
   lr_wave_cosine: mdts_cos
   expected_units: '1'
   lr_input:
@@ -194,6 +210,7 @@ rules:
 - name: wdirwindsea_mon
   compound_name: ocean.wdirwindsea.tavg-u-hxy-sea.mon.glb
   model_variable: mdww_sin
+  lr_wave_remap: direction
   lr_wave_cosine: mdww_cos
   expected_units: '1'
   lr_input:

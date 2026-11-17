@@ -93,7 +93,7 @@ class WaveRuleTests(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.out = self.base / 'outdata/oifs'
         self.out.mkdir(parents=True)
-        RAW.EXP, RAW.YEARS, RAW.WAM_GRID_LABEL = self.base, [2001], 'g999'
+        RAW.EXP, RAW.YEARS = self.base, [2001]
 
     def rule(self, compound):
         return copy.deepcopy(next(r for r in RAW.wave_rules() if r['compound_name'] == compound))
@@ -131,7 +131,7 @@ class WaveRuleTests(unittest.TestCase):
         write_wam(self.out / 'swh.wam_3h.2002.nc', {'swh': 'm'}, 2002, 'point')
         group, rule = RAW.materialize(self.rule('ocean.swh.tpt-u-hxy-sea.3hr.glb'), {'wam': 'grid.nc'})
         self.assertEqual(group, 'wave')
-        self.assertEqual(rule['grid_label'], 'g999')
+        self.assertEqual(rule['grid_label'], 'g150')
         self.assertEqual(rule['grid_file'], 'grid.nc')
         self.assertTrue(rule['retain_year_end_point'])
         self.assertEqual([Path(p).name for p in rule['lr_source_files']], ['swh.wam_3h.2001.nc'])
@@ -163,13 +163,20 @@ class WaveRuleTests(unittest.TestCase):
         _, rule = RAW.materialize(self.rule('ocean.wdir.tavg-u-hxy-sea.mon.glb'), {'wam': 'grid.nc'})
         self.assertNotIn('retain_year_end_point', rule)
 
-    def test_unregistered_grid_and_missing_geometry_block(self):
+    def test_missing_geometry_blocks_and_products_go_to_g150(self):
         write_wam(self.out / 'wam_1mo.2001.nc', {'swh': 'm'}, 2001, 'mon')
         with self.assertRaisesRegex(ValueError, 'No audited wam fixed-grid geometry'):
             RAW.materialize(self.rule('ocean.swh.tavg-u-hxy-sea.mon.glb'), {})
-        RAW.WAM_GRID_LABEL = None
-        with self.assertRaisesRegex(ValueError, 'UNREGISTERED_WAM_GRID'):
-            RAW.materialize(self.rule('ocean.swh.tavg-u-hxy-sea.mon.glb'), {'wam': 'grid.nc'})
+        _, rule = RAW.materialize(self.rule('ocean.swh.tavg-u-hxy-sea.mon.glb'), {'wam': 'grid.nc'})
+        self.assertEqual(rule['grid_label'], 'g150')
+
+    def test_remap_kind_follows_the_statistic(self):
+        kinds = {r['compound_name']: r.get('lr_wave_remap', 'mean') for r in RAW.wave_rules()}
+        self.assertEqual({c for c, k in kinds.items() if k == 'maximum'},
+                         {'ocean.swhmax.tpt-u-hxy-sea.3hr.glb', 'ocean.swhmax.tmax-u-hxy-sea.mon.glb'})
+        self.assertEqual({c.split('.')[1] for c, k in kinds.items() if k == 'direction'},
+                         {'wdir', 'wdirswell', 'wdirwindsea'})
+        self.assertEqual(sum(k == 'direction' for k in kinds.values()), 6)
 
     def test_wam_grid_areas_and_box_check(self):
         source = write_wam(self.out / 'wam_1mo.2001.nc', {'swh': 'm'}, 2001, 'mon')
@@ -193,6 +200,8 @@ class WaveRuleTests(unittest.TestCase):
         path, name = step[9:].rsplit(':', 1)
         self.assertTrue(Path(path).is_file())
         self.assertEqual(name, 'select_wave_variable')
+        scripts = [s.rsplit(':', 1)[1] for s in profile['pipelines'][0]['steps'] if s.startswith('script://')]
+        self.assertEqual(scripts, ['select_wave_variable', 'remap_wave_to_g150'])
         self.assertNotIn('pycmor.std_lib.generic.get_variable', profile['pipelines'][0]['steps'])
 
 
@@ -255,26 +264,27 @@ class WaveValidationTests(unittest.TestCase):
         with netCDF4.Dataset(source) as src:
             t = src['time']
             ends = netCDF4.num2date(src['time_bounds'][:, 1], t.units, t.calendar)
-            values = src['swh_max'][:]
-            lat, lon = src['lat'][:], src['lon'][:]
+            values = np.ma.filled(src['swh_max'][:].astype(float), np.nan)
+            cell, flat = STEPS.g150_index(src['lat'][:], src['bounds_lon'][:])
         stamps = [e + timedelta(hours=shift_hours) for e in ends]
         with netCDF4.Dataset(out / 'swhmax.nc', 'w') as ds:
-            ds.source_id = 'LR-SPINUP-TEST'; ds.tracking_id = 'hdl:test'
-            ds.createDimension('time', None); ds.createDimension('cell', lat.size)
-            ds.createVariable('latitude', 'f8', ('cell',))[:] = lat
-            ds.createVariable('longitude', 'f8', ('cell',))[:] = lon
+            ds.source_id = 'LR-SPINUP-TEST'; ds.tracking_id = 'hdl:test'; ds.grid_label = 'g150'
+            ds.createDimension('time', None); ds.createDimension('lat', 180); ds.createDimension('lon', 360)
+            ds.createVariable('lat', 'f8', ('lat',))[:] = STEPS.G150_LAT
+            ds.createVariable('lon', 'f8', ('lon',))[:] = STEPS.G150_LON
             time = ds.createVariable('time', 'f8', ('time',))
             time.units, time.calendar = 'days since 1850-01-01', 'proleptic_gregorian'
             time[:] = cftime.date2num([cftime.datetime(*s.timetuple()[:6], calendar='proleptic_gregorian')
                                        for s in stamps], time.units, time.calendar)
-            v = ds.createVariable(name, 'f4', ('time', 'cell'), fill_value=1e20)
+            v = ds.createVariable(name, 'f4', ('time', 'lat', 'lon'), fill_value=1e20)
             v.units = 'm'
-            v[:] = values
+            v[:] = np.ma.masked_invalid(STEPS.to_g150(values, cell, flat, how='maximum'))
         return out
 
     def config(self, source, out):
         rule = dict(compound_name='ocean.swhmax.tpt-u-hxy-sea.3hr.glb', model_variable='swh_max',
-                    expected_units='m', lr_wave=True, lr_wave_window_end=True, lr_source_files=[str(source)])
+                    expected_units='m', lr_wave=True, lr_wave_window_end=True, lr_wave_remap='maximum',
+                    lr_source_files=[str(source)])
         return dict(inherit=dict(year_start=2001, year_end=2001, output_directory=str(out)), rules=[rule])
 
     def test_window_end_stamps_pass_and_start_stamps_fail(self):
@@ -289,6 +299,71 @@ class WaveValidationTests(unittest.TestCase):
         bad = self.output(source, shift_hours=-3)
         with self.assertRaises((AssertionError, KeyError)):
             VALIDATOR.validate_wave(cfg, cfg['rules'][0], sorted(bad.rglob('*.nc')))
+
+
+class WaveRemapTests(unittest.TestCase):
+    """Delivery on g150: whole-degree WAM rows straddled by half-degree g150 rows."""
+
+    def test_cells_cover_their_columns_across_the_dateline(self):
+        lat = np.array([0., 0., 60.])
+        lon_bnds = np.array([[-1., 1.], [1., 3.], [10., 12.]])
+        cell, flat = STEPS.g150_index(lat, lon_bnds)
+        got = {(int(c), int(f // 360) - 90, int(f % 360)) for c, f in zip(cell, flat)}
+        self.assertEqual(got, {(0, 0, 359), (0, 0, 0), (1, 0, 1), (1, 0, 2), (2, 60, 10), (2, 60, 11)})
+        with self.assertRaisesRegex(ValueError, 'whole-degree'):
+            STEPS.g150_index(np.array([0.5]), np.array([[0., 1.]]))
+
+    def test_rows_mean_maximum_direction_and_coast(self):
+        lat = np.array([0., 1.])
+        lon_bnds = np.array([[-.5, .5], [-.5, .5]])
+        cell, flat = STEPS.g150_index(lat, lon_bnds)
+        mean = STEPS.to_g150(np.array([[1., 3.]]), cell, flat)[0]
+        self.assertEqual(mean.shape, (180, 360))
+        self.assertAlmostEqual(float(mean[90, 0]), 2.)      # 0.5N straddles the 0 and 1 rows
+        self.assertAlmostEqual(float(mean[89, 0]), 1.)      # 0.5S: the 0 row only, the other is not sea
+        self.assertAlmostEqual(float(mean[91, 0]), 3.)
+        self.assertTrue(np.isnan(mean[92, 0]) and np.isnan(mean[90, 1]))
+        self.assertAlmostEqual(float(STEPS.to_g150(np.array([[1., 3.]]), cell, flat, 'maximum')[0, 90, 0]), 3.)
+        direction = STEPS.to_g150(np.array([[350., 10.]]), cell, flat, 'direction')[0, 90, 0]
+        self.assertAlmostEqual(float(min(direction, 360 - direction)), 0., places=4)
+
+    def test_step_matches_the_independent_audit_on_a_reduced_grid(self):
+        rng = np.random.default_rng(1)
+        lat, lon_bnds = [], []
+        for row in range(-78, 91):
+            n = max(4, int(round(360 * np.cos(np.radians(row)))))
+            n = min(n, 360)
+            width = 360. / n
+            for i in range(n):
+                if rng.random() < .7:
+                    lat.append(float(row)); lon_bnds.append([i * width - width / 2, i * width + width / 2])
+        lat, lon_bnds = np.array(lat), np.array(lon_bnds)
+        values = rng.random((2, lat.size)) * 360
+        values[:, rng.random(lat.size) < .1] = np.nan
+        cell, flat = STEPS.g150_index(lat, lon_bnds)
+        for how in ('mean', 'maximum', 'direction'):
+            # Directions of neighbouring cells within 120 degrees across north, never near-opposite.
+            field = (values / 3 + 300) % 360 if how == 'direction' else values
+            step = np.ma.masked_invalid(STEPS.to_g150(field, cell, flat, how)[1])
+            audit = VALIDATOR.wam_on_g150(field[1], lat, lon_bnds, how)
+            np.testing.assert_array_equal(np.ma.getmaskarray(step), np.ma.getmaskarray(audit))
+            difference = np.abs(step.compressed() - audit.compressed())
+            if how == 'direction':
+                difference = np.minimum(difference, 360 - difference)
+            self.assertLess(float(difference.max()), 1e-3)
+
+    def test_remap_step_on_a_dataarray(self):
+        grid = Path(tempfile.mkdtemp()) / 'wam_grid.nc'
+        RAW.wam_grid(write_wam(grid.with_name('g.nc'), {'swh': 'm'}, 2001, 'mon'), grid)
+        da = xr.DataArray(np.array([[1., 2., 3.]] * 2), dims=('time', 'cell'), name='swh', attrs={'units': 'm'})
+        out = STEPS.remap_wave_to_g150(da, Rule(name='t', grid_file=str(grid)))
+        self.assertEqual(out.dims, ('time', 'lat', 'lon'))
+        self.assertEqual(out.shape, (2, 180, 360))
+        np.testing.assert_allclose(out.lat.values, STEPS.G150_LAT)
+        self.assertEqual(out.attrs['units'], 'm')
+        self.assertAlmostEqual(float(out.values[0, 89, 0]), 1.)     # 0.5S: only the -1 row covers 0E
+        self.assertAlmostEqual(float(out.values[0, 90, 2]), 2.)     # 0.5N: the 0 row; the 1 row starts at 3E
+        self.assertTrue(np.isnan(out.values[0, 120, 0]))
 
 
 if __name__ == '__main__':

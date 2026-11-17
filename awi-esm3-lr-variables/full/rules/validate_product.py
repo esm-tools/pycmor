@@ -240,8 +240,35 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
     return value
 
 
+def wam_on_g150(values, lat, lon_bnds, how):
+    """Independent g150 reconstruction for the audit: per WAM row, the cell whose longitude bounds contain each
+    1-degree column centre; each g150 row from the two whole-degree rows it straddles."""
+    values=np.ma.filled(np.ma.asarray(values,dtype=float),np.nan)
+    rows=np.full((181,360),np.nan)
+    west,east=np.asarray(lon_bnds,dtype=float).min(1),np.asarray(lon_bnds,dtype=float).max(1)
+    columns=np.arange(360.)
+    for r in np.unique(np.rint(lat)):
+        k=np.flatnonzero(np.rint(lat)==r); k=k[np.argsort(west[k])]
+        # Same edge rule as the step: a column centre belongs to the cell it is at or after the west edge of.
+        w=(west[k]-1e-6)%360; order=np.argsort(w); k,w=k[order],w[order]
+        j=np.searchsorted(w,columns,side='right')-1
+        inside=((columns-w[j])%360)<(east[k[j]]-west[k[j]])
+        rows[int(r)+90]=np.where(inside,values[k[j]],np.nan)
+    a,b=rows[:-1],rows[1:]
+    with np.errstate(invalid='ignore'):
+        if how=='maximum':
+            out=np.fmax(a,b)
+        elif how=='direction':
+            sin=np.nanmean(np.stack([np.sin(np.radians(a)),np.sin(np.radians(b))]),0)
+            cos=np.nanmean(np.stack([np.cos(np.radians(a)),np.cos(np.radians(b))]),0)
+            out=np.degrees(np.arctan2(sin,cos))%360
+        else:
+            out=np.nanmean(np.stack([a,b]),0)
+    return np.ma.masked_invalid(out)
+
+
 def validate_wave(cfg, rule, files):
-    """WAM: whole sampled output fields against the raw records they come from."""
+    """WAM on g150: whole sampled output fields against an independent remap of the raw records."""
     name=rule['compound_name'].split('.')[1]; frequency=rule['compound_name'].split('.')[-2]
     years=range(cfg['inherit']['year_start'],cfg['inherit']['year_end']+1)
     key=(lambda d:(d.year,d.month)) if frequency=='mon' else (lambda d:(d.year,d.month,d.day,d.hour,d.minute))
@@ -254,7 +281,7 @@ def validate_wave(cfg, rule, files):
             for i,d in enumerate(netCDF4.num2date(stamps,t.units,calendar)):
                 assert key(d) not in sources, 'Duplicate raw WAM record'
                 sources[key(d)]=(path,i)
-            source_lat=np.asarray(ds['lat'][:],dtype=float); source_lon=np.asarray(ds['lon'][:],dtype=float)
+            source_lat=np.asarray(ds['lat'][:],dtype=float); source_lon_bnds=np.asarray(ds['bounds_lon'][:],dtype=float)
     def raw(path,index):
         with netCDF4.Dataset(path) as ds:
             if rule.get('lr_wave_cosine'):
@@ -271,9 +298,10 @@ def validate_wave(cfg, rule, files):
             v=ds[name]
             assert ds.getncattr('source_id')=='LR-SPINUP-TEST', 'Wrong experiment identity'
             assert hasattr(ds,'tracking_id'), 'Missing tracking_id'
-            assert v.dimensions==('time','cell'), 'Unexpected WAM output dimensions'
-            moved=(np.abs(ds['latitude'][:]-source_lat).max(),np.abs((ds['longitude'][:]-source_lon+180)%360-180).max())
-            assert max(moved)<=1e-5, 'WAM cells reordered or moved'
+            assert v.dimensions[0]=='time' and v.shape[1:]==(180,360), 'WAM output is not on g150'
+            assert ds.getncattr('grid_label')=='g150', 'WAM output grid label is not g150'
+            out_lat,out_lon=(np.asarray(ds[v.dimensions[i]][:],dtype=float) for i in (1,2))
+            assert np.allclose(out_lat,np.arange(-89.5,90.)) and np.allclose(out_lon,np.arange(360.)), 'g150 coordinates'
             factor,offset=unit_factor('degree' if rule.get('lr_wave_cosine') else rule['expected_units'],v.units)
             t=ds['time']; decoded=netCDF4.num2date(t[:],t.units,getattr(t,'calendar','standard'))
             if frequency=='mon':
@@ -282,7 +310,8 @@ def validate_wave(cfg, rule, files):
                     assert lo<d<hi and lo.day==hi.day==1 and (lo.year,lo.month)==key(d), 'Monthly interval mismatch'
             keys=[key(d) for d in decoded]; dates.extend(keys)
             for ti in sorted({0,len(keys)//2,len(keys)-1}):
-                expected=raw(*sources[keys[ti]])*factor+offset
+                expected=wam_on_g150(raw(*sources[keys[ti]]),source_lat,source_lon_bnds,
+                                     rule.get('lr_wave_remap','mean'))*factor+offset
                 actual=np.ma.masked_invalid(np.ma.asarray(v[ti],dtype=float))
                 masks=np.ma.getmaskarray(expected),np.ma.getmaskarray(actual)
                 assert np.array_equal(*masks), f'Mask changed: {path.name}'
@@ -294,7 +323,7 @@ def validate_wave(cfg, rule, files):
                     difference=np.minimum(difference,360-difference);scale=360.
                 assert np.all(difference<=np.maximum(scale*3e-5,1e-30)), (path.name,float(difference.max()))
                 compared+=int(valid.sum())
-            checks.append({'file':str(path),'check':'identity, WAM cells, whole first/middle/last fields'})
+            checks.append({'file':str(path),'check':'identity, g150 grid, whole first/middle/last fields against an independent remap'})
     if frequency=='mon':
         expected=[(y,m) for y in years for m in range(1,13)]
     else:
