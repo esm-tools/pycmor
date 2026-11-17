@@ -152,7 +152,7 @@ class Tests(unittest.TestCase):
         files=list((REPO/'awi-esm3-lr-variables').glob('*/cmip7xml*.yaml'))
         compounds={r['compound_name'] for p in files for r in yaml.safe_load(p.read_text())['rules']}
         self.assertEqual(len(files),17)
-        self.assertEqual(len(compounds),619)  # Groundwater cannot use the removed deep-soil proxy; +20 ocean/sea-ice, +44 atmosphere gap closure.
+        self.assertEqual(len(compounds),617)  # Groundwater cannot use the removed deep-soil proxy; +20 ocean/sea-ice, +44 atmosphere gap closure; -2 for cfc11 and dsw (not delivered).
 
     def test_recom_seven_rules_retained(self):
         raw=f.module(f.RULES/'raw_adapter.py','test_raw_seven')

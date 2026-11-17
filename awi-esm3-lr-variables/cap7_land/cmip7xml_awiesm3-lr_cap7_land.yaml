@@ -545,7 +545,7 @@ rules:
     compound_name: land.rhSoil.tavg-u-hxy-lnd.mon.glb
     model_variable: Total
     variable_attributes:
-      comment: "Heterotrophic soil respiration efflux floored at 0; small negatives introduced by the pycmor pipeline (not in raw LPJ-GUESS .out per Laszlo) are clipped. CMIP convention is one-sided efflux from soil C pool."
+      comment: "Heterotrophic respiration from the soil carbon pool as an efflux; negative values, which arise in post-processing and are not in the LPJ-GUESS output, are set to zero."
     pipelines:
       - lpjg_monthly_clip0_pipeline
 
@@ -634,7 +634,7 @@ rules:
     model_variable: Total
     source_units: "%"
     variable_attributes:
-      comment: "Sourced from LPJ-GUESS yearly stand-area output (treeFrac_yearly.out) and broadcast to monthly cadence (each month within a year holds the same yearly value). The native monthly file (treeFrac_monthly.out) is LAI/phenology-weighted and incorrectly imparts an annual cycle; see HANDOFF_d4_treeFrac_per_pft.md."
+      comment: "From the LPJ-GUESS annual stand-area output; every month of a year carries that year's value. LPJ-GUESS has no monthly tree area: its monthly tree fraction is weighted by leaf area and so carries a seasonal cycle that the tree-covered area does not have."
     pipelines:
       - lpjg_yearly_to_monthly_pipeline
 
@@ -1355,7 +1355,7 @@ rules:
     model_variable: Total
     source_units: kg m-2
     variable_attributes:
-      comment: "Soil moisture content floored at 0; small negatives introduced by the pycmor pipeline (not in raw LPJ-GUESS .out per Laszlo) are clipped. Physical floor is 0 — soil cannot hold negative water."
+      comment: "Negative values, which arise in post-processing and are not in the LPJ-GUESS output, are set to zero."
     pipelines:
       - lpjg_monthly_depth_clip0_pipeline
   - name: tsl_mon

@@ -128,7 +128,7 @@ rules:
     model_variable: m_snow
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
-    rho_snow: 290.0
+    rho_snow: 290.0  # FESOM rhosno (MOD_ICE.F90)
     L_f: 334000.0
     scientific_repairs: [F10]
     pipelines:

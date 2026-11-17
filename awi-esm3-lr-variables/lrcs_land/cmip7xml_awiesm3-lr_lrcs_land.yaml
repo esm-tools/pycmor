@@ -194,6 +194,10 @@ rules:
   # Maximum root depth: 2.89 m where a vegetation tile of the year has a
   # type with roots in HTESSEL soil layer 4, 0.07 m (layer 1) elsewhere on
   # land (srfrootfr_mod.F90, see compute_rootd). slt marks the land cells.
+  # The vegetation types follow the dynamic vegetation, so each year gives a
+  # slightly different "fixed" field. HR reads 1850 for that reason; LR runs
+  # start in other model years (piControl near 2690), so the reference year
+  # still has to be chosen per experiment here.
   - name: rootd
     inputs:
       - path: *dp

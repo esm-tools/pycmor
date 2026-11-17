@@ -40,6 +40,44 @@ def _load_source_yaml(path: str) -> dict:
     return data
 
 
+def _applicable(rule: dict, inherit: dict) -> bool:
+    """Whether ``rule`` is delivered for this experiment and year.
+
+    A rule can limit itself with ``only_experiments`` (list of experiment_id)
+    and ``first_year`` / ``last_year`` (model years, inclusive). The
+    experiment and year come from the rule or, as written by
+    repoint_hr_year.py, from ``inherit``. A rule that sets a year limit while
+    the year is unknown is kept, so a yaml that was never repointed still runs
+    everything it lists.
+    """
+    experiment = rule.get("experiment_id", inherit.get("experiment_id"))
+    only = rule.get("only_experiments")
+    if only is not None and experiment not in only:
+        return False
+    year = rule.get("year", inherit.get("year"))
+    if year is None:
+        return True
+    year = int(year)
+    first, last = rule.get("first_year"), rule.get("last_year")
+    if first is not None and year < int(first):
+        return False
+    if last is not None and year > int(last):
+        return False
+    return True
+
+
+def _applicable_rules(source: dict, source_path: str) -> list:
+    inherit = source.get("inherit") or {}
+    kept = [r for r in source["rules"] if _applicable(r, inherit)]
+    dropped = [r.get("name") for r in source["rules"] if r not in kept]
+    if dropped:
+        sys.stderr.write(
+            f"# {os.path.basename(source_path)}: not delivered for experiment "
+            f"{inherit.get('experiment_id')!r} year {inherit.get('year')!r}: {', '.join(map(str, dropped))}\n"
+        )
+    return kept
+
+
 def _emit_shard_yaml(source: dict, rules: list, out_path: str) -> None:
     """Write one shard yaml by cloning source and replacing rules:."""
     shard = dict(source)
@@ -72,7 +110,9 @@ def shard_mode(
     Returns the list of written shard-yaml paths.
     """
     source = _load_source_yaml(source_path)
-    rules = source["rules"]
+    rules = _applicable_rules(source, source_path)
+    if not rules:
+        return []
     if only_rules is not None:
         keep = set(only_rules)
         rules = [r for r in rules if r.get("name") in keep]

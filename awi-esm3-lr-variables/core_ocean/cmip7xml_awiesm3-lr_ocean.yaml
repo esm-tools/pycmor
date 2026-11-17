@@ -647,7 +647,7 @@ rules:
         pattern: mesh.nc
     compound_name: ocean.masscello.ti-ol-hxy-sea.fx.glb
     model_variable: masscello
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     pipelines:
       - fx_masscello_pipeline
 
@@ -684,7 +684,7 @@ rules:
     compound_name: ocean.masscello.tavg-ol-hxy-sea.mon.glb
     model_variable: hnode
     lazy_write: true
-    scale_factor: 1025.0
+    scale_factor: 1030.0  # FESOM density_0
     scaled_units: "kg m-2"
     pipelines:
       - scale_pipeline
@@ -701,7 +701,7 @@ rules:
     compound_name: ocean.umo.tavg-ol-hxy-sea.mon.glb
     model_variable: unod
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: x
     pipelines:
       - mass_transport_pipeline
@@ -713,7 +713,7 @@ rules:
     compound_name: ocean.vmo.tavg-ol-hxy-sea.mon.glb
     model_variable: vnod
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: y
     pipelines:
       - mass_transport_pipeline
@@ -725,7 +725,7 @@ rules:
     compound_name: ocean.wmo.tavg-ol-hxy-sea.mon.glb
     model_variable: w
     lazy_write: true
-    reference_density: 1025.0
+    reference_density: 1030.0  # FESOM density_0
     transport_component: z
     pipelines:
       - mass_transport_pipeline

@@ -912,7 +912,7 @@ rules:
         pattern: thdgrsnw\.fesom\.\d{4}\.nc
     compound_name: seaIce.snm.tavg-u-hxy-si.mon.glb
     model_variable: thdgrsnw
-    scale_factor: -330.0
+    scale_factor: -290.0  # FESOM rhosno
     scaled_units: "kg m-2 s-1"
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
@@ -1101,7 +1101,7 @@ rules:
     sss_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     sss_pattern: sss\.fesom\.\d{4}\.nc
     sss_variable: sss
-    reference_density: 1025.0
+    reference_density: 1025.0  # rhowat of the FESOM ice model; fw_ice is scaled by it
     pipelines:
       - sfdsi_from_fw_ice_pipeline
 
@@ -1119,7 +1119,7 @@ rules:
     sss_path: /work/ab1095/a270073/out/awiesm3-v3.5.0-cc/pi/outdata/fesom
     sss_pattern: sss\.fesom\.\d{4}\.nc
     sss_variable: sss
-    reference_density: 1025.0
+    reference_density: 1025.0  # rhowat of the FESOM ice model; fw_ice is scaled by it
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:
@@ -1200,7 +1200,7 @@ rules:
         pattern: h_snow\.fesom\.\d{4}\.nc
     compound_name: seaIce.sisnhc.tavg-u-hxy-si.mon.glb
     model_variable: h_snow
-    rho_snow: 330.0
+    rho_snow: 290.0  # FESOM rhosno (MOD_ICE.F90)
     L_f: 334000.0
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
@@ -1230,8 +1230,8 @@ rules:
     snow_pattern: h_snow\.fesom\.\d{4}\.nc
     snow_variable: h_snow
     rho_ice: 910.0
-    rho_snow: 330.0
-    rho_water: 1025.0
+    rho_snow: 290.0  # FESOM rhosno (MOD_ICE.F90)
+    rho_water: 1025.0  # rhowat of the FESOM ice model (MOD_ICE.F90)
     aice_path: *dp
     aice_pattern: a_ice\.fesom\.\d{4}\.nc
     pipelines:
@@ -1282,7 +1282,7 @@ rules:
     grid_label: g011  # Mittel über die Nordhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     model_variable: m_snow
     hemisphere: "N"
-    scale_factor: 330.0       # rho_snow, kg/m³ (matches FESOM default)
+    scale_factor: 290.0  # rho_snow, FESOM rhosno (MOD_ICE.F90)
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline
@@ -1295,7 +1295,7 @@ rules:
     grid_label: g012  # Mittel über die Südhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     model_variable: m_snow
     hemisphere: "S"
-    scale_factor: 330.0
+    scale_factor: 290.0  # rho_snow, FESOM rhosno (MOD_ICE.F90)
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline
@@ -1756,7 +1756,7 @@ rules:
     grid_label: g011  # Mittel über die Nordhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     model_variable: m_snow
     hemisphere: "N"
-    scale_factor: 330.0
+    scale_factor: 290.0  # rho_snow, FESOM rhosno (MOD_ICE.F90)
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline
@@ -1769,7 +1769,7 @@ rules:
     grid_label: g012  # Mittel über die Südhemisphäre; cmip7-guidance#274: g011/g012 sind die registrierten Ein-Zellen-Gitter für NH/SH, g010 nur für globale und subglobale Mittel
     model_variable: m_snow
     hemisphere: "S"
-    scale_factor: 330.0
+    scale_factor: 290.0  # rho_snow, FESOM rhosno (MOD_ICE.F90)
     scaled_units: "kg"
     pipelines:
       - hemisphere_integral_scale_pipeline

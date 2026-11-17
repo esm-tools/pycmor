@@ -70,6 +70,20 @@ import xarray as xr
 
 from pycmor.std_lib.basins import BASIN_IDS, BASIN_NAMES, canonical_basin_ids
 
+# Constants of the FESOM2 build the AWI-ESM3 runs use (fesom-2.7). Conversions
+# to mass and energy must use the model's own values, not textbook ones, or
+# budgets built from the published fields do not close.
+#   FESOM_RHO0        Boussinesq reference density, density_0 in oce_modules.F90
+#   FESOM_VCPW        rho*cp the ocean converts heat fluxes with, vcpw in oce_modules.F90
+#   FESOM_RHOSNO      snow density, rhosno in MOD_ICE.F90
+#   FESOM_RHOICE      ice density, rhoice in MOD_ICE.F90
+#   FESOM_RHOWAT_ICE  water density of the ice model, rhowat in MOD_ICE.F90
+FESOM_RHO0 = 1030.0
+FESOM_VCPW = 4.2e6
+FESOM_RHOSNO = 290.0
+FESOM_RHOICE = 910.0
+FESOM_RHOWAT_ICE = 1025.0
+
 logger = logging.getLogger(__name__)
 
 
@@ -679,12 +693,12 @@ def compute_masscello_fx(data, rule):
     Compute static ocean grid-cell mass per area.
 
     For Boussinesq models: masscello = rho_0 * thkcello
-    where rho_0 is the reference density (default 1025 kg/m3).
+    where rho_0 is the reference density (default 1030 kg/m3, FESOM density_0).
 
     Input: xr.Dataset (mesh file with 'depth_bnds' and 'depth_lev')
     Output: xr.DataArray (lev, ncells) in kg/m2
     """
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     depth, thickness = _mesh_vertical_geometry(data)
     result = _profile_over_cells(
         rho_0 * thickness,
@@ -881,10 +895,10 @@ def compute_sisnhc(data, rule):
 
     Primary input (data) is h_snow.
     Rule attributes:
-      - rho_snow: snow density (default: 330.0 kg/m3)
+      - rho_snow: snow density (default: 290.0 kg/m3, FESOM rhosno)
       - L_f: latent heat of fusion (default: 334000.0 J/kg)
     """
-    rho_snow = float(rule.get("rho_snow", 330.0))
+    rho_snow = float(rule.get("rho_snow", FESOM_RHOSNO))
     L_f = float(rule.get("L_f", 334000.0))
 
     # Dominant term: latent heat (sensible ≈ 0 since T_snow ≈ T_melt)
@@ -904,32 +918,34 @@ def compute_sisnhc_from_msnow(data, rule):
     Compute daily snow heat content from m_snow and a_ice.
 
     FESOM outputs h_snow only at monthly frequency. For daily sisnhc,
-    derive h_snow from daily m_snow (snow mass per area) and a_ice
-    (ice concentration):
+    derive h_snow from daily m_snow and a_ice (ice concentration).
+    FESOM's m_snow is snow height per unit cell area in m (io_meandata.F90
+    writes it with units "m"), not a mass, so the snow density is needed:
 
-        h_snow = m_snow / (rho_snow * a_ice)
-        sisnhc = -rho_snow * L_f * h_snow = -L_f * m_snow / a_ice
+        h_snow = m_snow / a_ice
+        sisnhc = -rho_snow * L_f * h_snow = -rho_snow * L_f * m_snow / a_ice
 
-    Primary input (data) is m_snow (kg/m2).
+    Primary input (data) is m_snow (m).
     Secondary input a_ice loaded via rule attributes.
 
     Rule attributes:
       - second_input_path: directory containing a_ice files
       - second_input_pattern: glob pattern for a_ice files
       - second_variable: variable name (default: auto-detect)
-      - rho_snow: snow density (default: 330.0 kg/m3, used only in note)
+      - rho_snow: snow density (default: 290.0 kg/m3, FESOM rhosno)
       - L_f: latent heat of fusion (default: 334000.0 J/kg)
     """
-    rho_snow = float(rule.get("rho_snow", 330.0))
+    rho_snow = float(rule.get("rho_snow", FESOM_RHOSNO))
     L_f = float(rule.get("L_f", 334000.0))
 
     a_ice = _load_secondary_mf(rule, "second_input_path", "second_input_pattern", "second_variable")
 
-    # h_snow = m_snow / (rho_snow * a_ice), then sisnhc = -rho_snow * L_f * h_snow
-    # Simplifies to: sisnhc = -L_f * m_snow / a_ice
+    # m_snow is a height (m), so h_snow = m_snow / a_ice and
+    # sisnhc = -rho_snow * L_f * h_snow. Until 2026-11-17 the rho_snow factor
+    # was missing here, which made daily sisnhc about 300x too small.
     # Protect against division by zero where a_ice == 0
     a_ice_safe = a_ice.where(a_ice > 0, np.nan)
-    result = -L_f * data / a_ice_safe
+    result = -rho_snow * L_f * data / a_ice_safe
     result = result.fillna(0.0)
 
     result.attrs = {
@@ -937,7 +953,8 @@ def compute_sisnhc_from_msnow(data, rule):
         "standard_name": "integral_of_snow_temperature_wrt_depth_expressed_as_heat_content",
         "long_name": "Snow Heat Content",
         "processing_note": (
-            f"sisnhc = -L_f*m_snow/a_ice, rho_snow={rho_snow}, L_f={L_f}, " "derived from daily m_snow and a_ice"
+            f"sisnhc = -rho_snow*L_f*m_snow/a_ice, rho_snow={rho_snow}, L_f={L_f}, "
+            "derived from daily m_snow and a_ice"
         ),
     }
     result.name = rule.model_variable
@@ -1064,12 +1081,12 @@ def compute_sifb(data, rule):
       - snow_file: path to h_snow file
       - snow_variable: variable name (default: 'h_snow')
       - rho_ice: ice density (default: 910.0 kg/m3)
-      - rho_snow: snow density (default: 330.0 kg/m3)
-      - rho_water: seawater density (default: 1025.0 kg/m3)
+      - rho_snow: snow density (default: 290.0 kg/m3, FESOM rhosno)
+      - rho_water: seawater density (default: 1025.0 kg/m3, rhowat of the FESOM ice model)
     """
     rho_ice = float(rule.get("rho_ice", 910.0))
-    rho_snow = float(rule.get("rho_snow", 330.0))
-    rho_water = float(rule.get("rho_water", 1025.0))
+    rho_snow = float(rule.get("rho_snow", FESOM_RHOSNO))
+    rho_water = float(rule.get("rho_water", FESOM_RHOWAT_ICE))
 
     h_snow = _load_secondary_mf(rule, "snow_path", "snow_pattern", "snow_variable")
 
@@ -1886,12 +1903,12 @@ def compute_surface_pressure(data, rule):
     rather than around zero.
 
     Rule attributes (optional):
-      - reference_density: float (default 1025.0 kg/m3)
+      - reference_density: float (default 1030.0 kg/m3, FESOM density_0)
       - gravity: float (default 9.80665 m/s2)
       - reference_atmospheric_pressure: float (default 101325.0 Pa); set
         to 0 to recover the legacy anomaly behaviour.
     """
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     g = float(rule.get("gravity", 9.80665))
     p_atm = float(rule.get("reference_atmospheric_pressure", 101325.0))
     result = p_atm + rho_0 * g * data
@@ -1933,14 +1950,14 @@ def compute_msftbarot(data, rule):
     Rule attributes:
       - grid_file: path to mesh NetCDF file (must contain 'depth'+'depth_lev'
         or 'zbar_n_bottom', and 'lat' or 'latitude')
-      - reference_density: Boussinesq rho_0 (default 1025.0 kg/m3)
+      - reference_density: Boussinesq rho_0 (default 1030.0 kg/m3, FESOM density_0)
       - gravity: g (default 9.80665 m/s2)
       - omega: Earth's angular velocity (default 7.2921e-5 rad/s)
       - f_min: minimum |f| cutoff for equatorial masking (default
         2.5e-5 1/s = ±~10° latitude; widen further if downstream tools
         still show non-physical equatorial spikes)
     """
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     g = float(rule.get("gravity", 9.80665))
     omega = float(rule.get("omega", 7.2921e-5))
     f_min = float(rule.get("f_min", 2.5e-5))
@@ -2152,9 +2169,9 @@ def compute_sfdsi_from_fw_ice(data, rule):
     Rule attributes:
       - sss_file: glob pattern for FESOM sss file(s) (required)
       - sss_variable: variable name in those files (default: 'sss')
-      - reference_density: rho_w (default 1025.0 kg/m³)
+      - reference_density: rho_w (default 1025.0 kg/m³, rhowat of the FESOM ice model)
     """
-    rho_w = float(rule.get("reference_density", 1025.0))
+    rho_w = float(rule.get("reference_density", FESOM_RHOWAT_ICE))
     sss = _load_secondary_mf(rule, "sss_path", "sss_pattern", "sss_variable")
     # FESOM writes sss daily but fw_ice monthly; coarsen sss to monthly so
     # the multiplication broadcasts cleanly. _align_time_to alone leaves the
@@ -2492,12 +2509,12 @@ def compute_mass_transport(data, rule):
       is ~50 m / 1e4 m = ~200x too small.)
 
     Rule attributes:
-      - reference_density: Boussinesq rho_0 (default 1025.0 kg/m3)
+      - reference_density: Boussinesq rho_0 (default 1030.0 kg/m3, FESOM density_0)
       - transport_component: 'x', 'y', or 'z' (controls area factor)
       - grid_file: path to FESOM mesh netCDF (needs `depth_bnds` and
         `cell_area`)
     """
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     grid_file = rule.get("grid_file")
     component = rule.get("transport_component", "")
 
@@ -2600,10 +2617,10 @@ def compute_salt_transport(data, rule):
       - salt_path: directory containing salt files
       - salt_pattern: glob pattern for salt files (e.g. salt.fesom.*.nc)
       - salt_variable: variable name in salt files (default: 'salt')
-      - reference_density: Boussinesq rho_0 (default 1025.0 kg/m3)
+      - reference_density: Boussinesq rho_0 (default 1030.0 kg/m3, FESOM density_0)
       - transport_component: 'x' or 'y' (for metadata only)
     """
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     grid_file = rule.get("grid_file")
 
     if not isinstance(data, xr.DataArray):
@@ -2715,11 +2732,11 @@ def compute_zostoga(data, rule):
     Rule attributes:
       - grid_file: path to mesh file (for cell_area and depth_bnds)
       - salt_file: path to salinity file (optional, for full steric)
-      - reference_density: rho_0 (default 1025.0)
+      - reference_density: rho_0 (default 1030.0, FESOM density_0)
     """
     import gsw
 
-    rho_0 = float(rule.get("reference_density", 1025.0))
+    rho_0 = float(rule.get("reference_density", FESOM_RHO0))
     grid_file = rule.get("grid_file")
 
     # data is a DataArray of temperature (from get_variable step)
@@ -3189,10 +3206,11 @@ def accumulate_monthly_climatology(data, rule):
             # Native Dask reductions avoid a per-process Numba/JIT thread pool
             # on sites with strict login/compute process limits.
             with xr.set_options(use_flox=False):
-                monthly.append(one.groupby('time.month').mean('time', keep_attrs=True))
-        result = xr.concat(monthly, dim='climatology_year').mean('climatology_year', keep_attrs=True)
-        result = result.rename(month='time').assign_coords(time=(
-            'time', [np.datetime64(f'{first:04d}-{m:02d}-01') for m in range(1, 13)]))
+                monthly.append(one.groupby("time.month").mean("time", keep_attrs=True))
+        result = xr.concat(monthly, dim="climatology_year").mean("climatology_year", keep_attrs=True)
+        result = result.rename(month="time").assign_coords(
+            time=("time", [np.datetime64(f"{first:04d}-{m:02d}-01") for m in range(1, 13)])
+        )
         result.name = rule.model_variable
         result.attrs = dict(da.attrs)
         rule.climatology_years = (first, last)
@@ -6181,8 +6199,8 @@ def _aggregate_to_cmip_basins(binned, lat_centers, cutoff=_BASIN_SOUTH_CUTOFF):
     return out
 
 
-_RHO0 = 1030.0
-_CP = 3900.0
+_RHO0 = FESOM_RHO0
+_CP = FESOM_VCPW / FESOM_RHO0
 
 
 def _load_basin_nodes(rule):
@@ -6196,8 +6214,7 @@ def _load_basin_nodes(rule):
         raise ValueError("Rule must specify 'basin_mask_file'")
     with xr.open_dataset(path) as ds:
         basin = ds["basin"]
-        return canonical_basin_ids(basin.values, basin.attrs.get("flag_values"),
-                                   basin.attrs.get("flag_meanings"))
+        return canonical_basin_ids(basin.values, basin.attrs.get("flag_values"), basin.attrs.get("flag_meanings"))
 
 
 def _mesh_nodes(grid_file):
@@ -6681,10 +6698,14 @@ def compute_hfbasin_tripyview(data, rule):
     else:
         stacked = np.full((3, glob_lat.size), np.nan, dtype=np.float64)
 
+    # tripyview scales by its own rho0*cp = 1030*3850 and returns PW; rescale
+    # to the rho*cp FESOM converts heat with (vcpw = 4.2e6), so the transport
+    # is consistent with the model's surface heat fluxes.
+    to_watts = 1.0e15 * FESOM_VCPW / (1030.0 * 3850.0)
     basin_names = [n for n, _ in basins]
     for bi, name in enumerate(basin_names):
         for t, out in enumerate(per_basin_results[name]):
-            mh = out["mhflx"].reindex(lat=glob_lat, fill_value=0.0) * 1.0e15
+            mh = out["mhflx"].reindex(lat=glob_lat, fill_value=0.0) * to_watts
             mh = mh.where(~_outside_ocean)
             if has_time:
                 stacked[t, bi, :] = mh.values
@@ -6794,8 +6815,9 @@ def compute_basin_transport_component(data, rule):
 
     Monthly means are used for v and T, so the overturning and bolus parts
     miss their sub-monthly covariance (it ends up in the gyre part). Element
-    tracer = mean of its three nodes, as FESOM forms u*T. Heat uses tripyview's
-    rho0*cp = 1030*3850 and its sign (northward positive), salt rho0*1e-3.
+    tracer = mean of its three nodes, as FESOM forms u*T. Heat uses FESOM's
+    rho0*cp (vcpw = 4.2e6, as hfbasin does) with tripyview's sign (northward
+    positive), salt rho0*1e-3 with rho0 = 1030.
 
     Rule attributes: transport_component (overturning|gyre|bolus),
     transport_tracer (temp|salt), mesh_path, grid_file, and *_path/*_pattern/
@@ -6810,7 +6832,7 @@ def compute_basin_transport_component(data, rule):
     tracer_name = rule.get("transport_tracer", "temp")
     if component not in ("overturning", "gyre", "bolus"):
         raise ValueError(f"transport_component must be overturning, gyre or bolus, not {component!r}")
-    factor = -1030.0 * 3850.0 if tracer_name == "temp" else -1030.0 * 1e-3
+    factor = -FESOM_VCPW if tracer_name == "temp" else -FESOM_RHO0 * 1e-3
     mesh_path = rule.get("mesh_path")
     mesh = _tpv.load_mesh_fesom2(mesh_path, do_pickle=True, do_info=False)
     mdiag = _build_tripyview_mdiag(mesh, _os.path.join(mesh_path, "fesom.mesh.diag.nc"))
@@ -6923,10 +6945,15 @@ def compute_sltbasin_tripyview(data, rule):
         Q_PW = rho0 * cp * 1e-15 * (-1) * ∫∫ vsalt·dz·dx
 
       we want CMIP sltbasin:
-        Q_kg_s = rho0 * 1e-3 * ∫∫ vsalt·dz·dx        (psu → mass fraction)
+        Q_kg_s = rho0 * 1e-3 * (-1) * ∫∫ vsalt·dz·dx  (psu → mass fraction)
 
-      ratio: Q_kg_s / Q_PW = -1e-3 / (cp * 1e-15) = -1e+12 / 3850
-                            ≈ -2.5974e+8 kg/s per PW
+      The (-1) is tripyview's edge orientation, the same one that makes
+      hfbasin northward-positive (Atlantic 26.5N matches RAPID), so it has
+      to stay. Until 2026-11-17 it was dropped here, which flipped the sign
+      of sltbasin against hfbasin.
+
+      ratio: Q_kg_s / Q_PW = 1e-3 / (cp * 1e-15) = +1e+12 / 3850
+                            ≈ +2.5974e+8 kg/s per PW
 
     Rule attributes:
       - mesh_path: dir containing FESOM mesh + ``fesom.mesh.diag.nc``
@@ -7044,9 +7071,10 @@ def compute_sltbasin_tripyview(data, rule):
     _outside_ocean = ~np.isin(glob_lat, _ocean_lat)
 
     # Post-process: tripyview returned PW-as-if-heat. Convert to kg/s salt.
-    # See docstring for the derivation: factor = -1e+12 / cp = -2.5974e+8.
+    # See docstring for the derivation: factor = +1e+12 / cp = +2.5974e+8,
+    # with tripyview's own cp (3850); its rho0 (1030) is already FESOM's.
     _CP = 3850.0
-    factor = -1e12 / _CP
+    factor = 1e12 / _CP
 
     if has_time:
         stacked = np.full((ntime, 3, glob_lat.size), np.nan, dtype=np.float64)
@@ -7561,8 +7589,7 @@ def compute_msftm_density(data, rule):
     if pinned_bolus is not None:
         # The full LR workflow freezes and fingerprints this secondary input.
         # Missing files are fatal; never silently change total into resolved-only.
-        bolus_ds = xr.open_dataset(pinned_bolus, decode_times=True,
-                                   use_cftime=True, chunks={"time": 1})
+        bolus_ds = xr.open_dataset(pinned_bolus, decode_times=True, use_cftime=True, chunks={"time": 1})
     else:
         # Legacy rules without a frozen secondary still support configurations
         # that do not produce GM bolus output (e.g. HR with Fer_GM=false).
@@ -7577,8 +7604,7 @@ def compute_msftm_density(data, rule):
     try:
         if bolus_ds is not None:
             bolus = _normalize_dmoc_dim(bolus_ds["std_dens_DIVbolus"])
-            if set(bolus.dims) != set(div.dims) or any(
-                    bolus.sizes[dim] != div.sizes[dim] for dim in div.dims):
+            if set(bolus.dims) != set(div.dims) or any(bolus.sizes[dim] != div.sizes[dim] for dim in div.dims):
                 raise ValueError("Resolved and bolus density divergence dimensions differ")
             # Inexact reindexing used to fill mismatched samples with NaN;
             # downstream binning could then silently treat them as zero.

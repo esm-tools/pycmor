@@ -190,11 +190,15 @@ rules:
   # Maximum root depth: 2.89 m where a vegetation tile of the year has a
   # type with roots in HTESSEL soil layer 4, 0.07 m (layer 1) elsewhere on
   # land (srfrootfr_mod.F90, see compute_rootd). slt marks the land cells.
+  # The vegetation types follow the dynamic vegetation, so the year being
+  # processed would give a different "fixed" field every year; the inputs
+  # are read from 1850, the first year of every experiment.
   - name: rootd
     inputs:
       - path: *dp
-        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh|slt)_.*\.nc
+        pattern: atmos_mon_land_static_(tvl|tvh|cvl|cvh|slt)_1850-1850\.nc
     compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
+    skip_input_year_filter: true
     model_variable: rootd
     pipelines:
       - rootd_pipeline
