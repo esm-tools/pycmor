@@ -268,7 +268,7 @@ class WaveValidationTests(unittest.TestCase):
             cell, flat = STEPS.g150_index(src['lat'][:], src['bounds_lon'][:])
         stamps = [e + timedelta(hours=shift_hours) for e in ends]
         with netCDF4.Dataset(out / 'swhmax.nc', 'w') as ds:
-            ds.source_id = 'LR-SPINUP-TEST'; ds.tracking_id = 'hdl:test'; ds.grid_label = 'g150'
+            ds.source_id = 'AWI-ESM3-5-2-cc-LR'; ds.tracking_id = 'hdl:test'; ds.grid_label = 'g150'
             ds.createDimension('time', None); ds.createDimension('lat', 180); ds.createDimension('lon', 360)
             ds.createVariable('lat', 'f8', ('lat',))[:] = STEPS.G150_LAT
             ds.createVariable('lon', 'f8', ('lon',))[:] = STEPS.G150_LON
@@ -285,7 +285,8 @@ class WaveValidationTests(unittest.TestCase):
         rule = dict(compound_name='ocean.swhmax.tpt-u-hxy-sea.3hr.glb', model_variable='swh_max',
                     expected_units='m', lr_wave=True, lr_wave_window_end=True, lr_wave_remap='maximum',
                     lr_source_files=[str(source)])
-        return dict(inherit=dict(year_start=2001, year_end=2001, output_directory=str(out)), rules=[rule])
+        return dict(inherit=dict(year_start=2001, year_end=2001, output_directory=str(out),
+                                 source_id='AWI-ESM3-5-2-cc-LR'), rules=[rule])
 
     def test_window_end_stamps_pass_and_start_stamps_fail(self):
         source = write_wam(self.base / 'swh_max.wam_3h.2001.nc', {'swh_max': 'm'}, 2001, 'max')

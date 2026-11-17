@@ -168,10 +168,10 @@ class DailyTests(unittest.TestCase):
             bounds[:]=np.column_stack([t[:]-0.5,t[:]+0.5])
             v=ds.createVariable('o2','f4',('time','nod2'),fill_value=-9999.)
             v.units='mol m-3';v[:]=src['O2'][:,:,0]*.001
-            ds.source_id='LR-SPINUP-TEST';ds.tracking_id='test-only'
+            ds.source_id='AWI-ESM3-5-2-cc-LR';ds.tracking_id='test-only'
         recipe=self.base/'recipe.yaml'
         recipe.write_text(yaml.safe_dump({'inherit':{'year_start':2000,'year_end':2000,
-            'output_directory':str(out)},'rules':[{
+            'output_directory':str(out),'source_id':'AWI-ESM3-5-2-cc-LR'},'rules':[{
                 'compound_name':'ocnBgchem.o2.tavg-ols-hxy-sea.day.glb','model_variable':'O2',
                 'lr_source_files':[str(source)],'expected_units':'[mmol/m3]',
                 'lr_units':'mol m-3','lr_scale':.001,'surface_layer':True}]}))

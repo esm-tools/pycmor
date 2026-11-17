@@ -357,16 +357,16 @@ remain explicitly blocked, and cannot be used as a validation-gate selection.
 
 For CF, WCRP and AICC configure ``qc_tests``, ``cmip7_tables_path``,
 ``aicc_grid_config`` and ``aicc_vertical_config``. The supplied vertical
-configuration identifies OpenIFS hybrid pressure and FESOM depth axes; the
-``LR-SPINUP-TEST`` key enables those checks without pretending that the test
-identity is registered. Pin the tables and configuration files. Each execution
+configuration identifies OpenIFS hybrid pressure and FESOM depth axes for the
+registered source ``AWI-ESM3-5-2-cc-LR`` (CMIP7-CVs, cmip7@2.5.8). Pin the tables and configuration files. Each execution
 retains command, return code, stdout and stderr in ``checker_execution_*.json``.
 The LR gate rejects internal checker exceptions, missing/stale reports and
 empty suites, separately from retained HIGH/MEDIUM findings. Ordinary findings
 remain visible when ``qc_fail_on_mandatory`` is false. Missing requested checker reports
 fail conversion validation. Findings are retained separately and do not constitute
-publication approval. The current development spinup uses an explicit test
-identity; a v3.5.1 run must not be relabelled as registered v3.5.2 without review.
+publication approval. Files carry ``source_id`` and ``experiment_id`` from the run
+configuration, defaulting to ``AWI-ESM3-5-2-cc-LR`` and ``piControl-spinup``; a
+v3.5.1 run must not be labelled as the registered v3.5.2 source.
 
 ``supervisor_audit.py`` records static/configuration evidence and optionally
 runs bounded scientific source checks under Slurm. Its REVIEW_REQUIRED records

@@ -296,7 +296,7 @@ def validate_wave(cfg, rule, files):
         with netCDF4.Dataset(path) as ds:
             assert name in ds.variables, f'Missing data variable {name}'
             v=ds[name]
-            assert ds.getncattr('source_id')=='LR-SPINUP-TEST', 'Wrong experiment identity'
+            assert ds.getncattr('source_id')==cfg['inherit']['source_id'], 'Wrong experiment identity'
             assert hasattr(ds,'tracking_id'), 'Missing tracking_id'
             assert v.dimensions[0]=='time' and v.shape[1:]==(180,360), 'WAM output is not on g150'
             assert ds.getncattr('grid_label')=='g150', 'WAM output grid label is not g150'
@@ -354,7 +354,7 @@ def validate(recipe):
             land_cells=native_output_cells(rule,years.start,ds) if rule.get('lr_lpj_daily') else None
             if land_cells is not None:verify_unsimulated_mask(ds,v,land_cells)
             assert hasattr(v,'units'), 'Missing units'
-            assert ds.getncattr('source_id')=='LR-SPINUP-TEST', 'Wrong experiment identity'
+            assert ds.getncattr('source_id')==cfg['inherit']['source_id'], 'Wrong experiment identity'
             assert hasattr(ds,'tracking_id'), 'Missing tracking_id'
             if expected_frequency=='fx':
                 if rule.get('lr_geothermal_zero'):

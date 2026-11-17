@@ -4,7 +4,10 @@
 cf-units==3.3.0
 compliance-checker==6.1.0
 cc-plugin-wcrp==2.3.5
-esgvoc==7.0.0
+# esgvoc >= 7.1.0 reads cmip7@2.5.8, the first CV release with AWI-ESM3-5-2-cc-LR and g271;
+# activate with `esgvoc use cmip7@2.5.8` and `esgvoc use universe@latest`. fsspec is needed by FILE004.
+esgvoc==7.3.0
+fsspec
 cmip7_repack==1.1.1
 CMIP7_data_request_api==1.5.1
 pyfesom2==0.4.1

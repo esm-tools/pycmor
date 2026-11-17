@@ -497,7 +497,9 @@ def new_doc(doc, config, year, compound):
     for k in list(inherit):
         if k.startswith('parent_') or k.startswith('branch_'):
             inherit.pop(k)
-    inherit.update(source_id='LR-SPINUP-TEST', experiment_id='piControl-spinup',
+    # Registered in CMIP7-CVs (cmip7@2.5.8); the spinup legs are piControl-spinup.
+    inherit.update(source_id=config.get('source_id', 'AWI-ESM3-5-2-cc-LR'),
+                   experiment_id=config.get('experiment_id', 'piControl-spinup'),
                    institution_id='AWI', institution='Alfred Wegener Institute for Polar and Marine Research',
                    contact='cmip7@awi.de',
                    activity_id='CMIP', variant_label='r1i1p1f1',
@@ -510,7 +512,7 @@ def new_doc(doc, config, year, compound):
                    preserve_native_small_values=True,
                    duration_weighted_annual_mean=True,
                    netcdf_write_scheduler='synchronous',
-                   comment='Test CMORization; actual simulation years retained. Not publication approved.')
+                   comment='Spinup CMORization; actual simulation years retained. Not publication approved.')
     inherit['qc_binary'] = str(Path(support_module('checker_compat').__file__).with_name('cchecker_lr.py'))
     inherit.update(config.get('metadata_overrides', {}))
     inherit['qc_tests'] = config.get('qc_tests', ['cf', 'wcrp_cmip7'])
@@ -1072,7 +1074,7 @@ def run_one(campaign, task, config):
             validation['files'], attempt, recipe['inherit']['qc_tests'])
         validation['supervisor_source_check'] = checks.source_check(
             task, recipe, validation['files'])
-        if task['route']=='raw' and recipe['inherit']['source_id']=='LR-SPINUP-TEST':
+        if task['route']=='raw':
             # Existing independent source-value audit, including the seven repairs.
             with (attempt/'source_validation.log').open('w') as log:
                 cp=subprocess.run([config['python'],str(campaign/'reproduce/validate_product.py'),

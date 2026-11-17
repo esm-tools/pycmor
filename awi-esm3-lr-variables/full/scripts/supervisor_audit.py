@@ -90,7 +90,7 @@ def static_audit(exp,period,config,repo):
         linked['loaded_hdf5_libraries']=sorted(set(line.split()[-1] for line in maps.splitlines() if 'libhdf5' in line))
     except Exception as e:linked['error']=str(e)
     checks=[dict(id='source_identity',status='REVIEW_REQUIRED',
-                 detail=f'Actual coupled experiment {exp.name}; retain LR-SPINUP-TEST until registered source/experiment/parent are reviewed.'),
+                 detail=f'Actual coupled experiment {exp.name}; source_id {config.get("source_id", "AWI-ESM3-5-2-cc-LR")}, review experiment and parent before publication.'),
             dict(id='dreq',status='PASS' if digest(config['metadata'])=='eccf9f9296488581939310a37c60849501f77c9c9dd27faf8585b2345c18b9e3' else 'REVIEW_REQUIRED',
                  detail={'path':config['metadata'],'sha256':digest(config['metadata']),
                          'missing_catalogue_compounds':sorted(set(catalog)-metadata['Compound Name'].keys())}),
