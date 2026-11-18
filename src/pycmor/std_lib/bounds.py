@@ -415,11 +415,13 @@ def dual_cell_vertices(lon, lat, triangles):
     of the last boundary edge along that edge back to the node itself and out
     along the first boundary edge, so the node is one of its vertices.
 
-    The ``lat_bnds`` / ``lon_bnds`` that pyfesom2 ``writeCDO`` stores in the
-    CORE3 and DARS2 ``mesh.nc`` do not follow this: the fan is ordered wrongly,
-    every polygon repeats one or two vertices in place of others, and boundary
-    nodes are not included, so 1103 CORE3 boundary nodes fall outside their own
-    cell (cf §7.1). This rebuilds the cells from the triangles instead.
+    The ``lat_bnds`` / ``lon_bnds`` that pyfesom2 ``writeCDO`` stored in the
+    CORE3 ``mesh.nc`` do not follow this: the fan is ordered wrongly, every
+    polygon repeats one to three vertices in place of others, and boundary
+    nodes are not included, so 1103 CORE3 boundary nodes fall outside their
+    own cell (cf §7.1). The DARS2 ``mesh.nc`` is right except at the 30 nodes
+    where two boundary fans touch, which get both lobes here. This rebuilds
+    the cells from the triangles instead.
 
     Parameters
     ----------
