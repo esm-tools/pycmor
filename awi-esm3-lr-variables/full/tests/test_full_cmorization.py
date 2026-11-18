@@ -302,6 +302,49 @@ class Tests(unittest.TestCase):
                 ds['nz'].positive = 'down'
             self.assertEqual(len(f.validate_output(task, recipe, output)['files']), 1)
 
+    def test_production_validation_counts_g150_as_regular_grid(self):
+        # WAM rules carry the native 29530 sea points in lr_grid_cells; the
+        # delivered g150 product is the full 360 x 180 regular grid.
+        compound = 'ocean.swh.tavg-u-hxy-sea.mon.glb'
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            output = base / 'output'
+            output.mkdir()
+            metadata = base / 'metadata.json'
+            f.write(metadata, {'Compound Name': {compound: dict(
+                units='m', standard_name='sea_surface_wave_significant_height',
+                dimensions='longitude latitude time')}})
+            recipe = base / 'recipe.yaml'
+            recipe.write_text(yaml.safe_dump(dict(
+                general={'CMIP7_DReq_metadata': str(metadata)},
+                inherit=dict(source_id='TEST', experiment_id='test'),
+                rules=[dict(grid_label='g150', lr_grid_cells=29530)])))
+            with netCDF4.Dataset(output / 'swh.nc', 'w') as ds:
+                ds.source_id = 'TEST'
+                ds.experiment_id = 'test'
+                ds.createDimension('time', 1)
+                ds.createDimension('lat', 180)
+                ds.createDimension('lon', 360)
+                t = ds.createVariable('time', 'f8', ('time',))
+                t.units = 'days since 2000-01-01'
+                t.calendar = 'proleptic_gregorian'
+                t[:] = [15.5]
+                ds.createVariable('lat', 'f8', ('lat',))[:] = [i + 0.5 for i in range(-90, 90)]
+                ds.createVariable('lon', 'f8', ('lon',))[:] = [i + 0.5 for i in range(360)]
+                v = ds.createVariable('swh', 'f4', ('time', 'lat', 'lon'))
+                v.units = 'm'
+                v.standard_name = 'sea_surface_wave_significant_height'
+            task = dict(compound=compound, year=2000)
+            with patch.object(f, 'cover_dates'):
+                self.assertEqual(len(f.validate_output(task, recipe, output)['files']), 1)
+            with netCDF4.Dataset(output / 'swh.nc', 'a') as ds:
+                ds.createDimension('lat2', 90)
+                ds.renameVariable('lat', 'lat_full')
+                ds.createVariable('lat', 'f8', ('lat2',))[:] = list(range(-89, 90, 2))
+            with patch.object(f, 'cover_dates'):
+                with self.assertRaisesRegex(ValueError, 'g150 requires 64800 cells; got 32400'):
+                    f.validate_output(task, recipe, output)
+
     def test_submit_helper_is_only_submission_interface(self):
         config=dict(account='test-account', partition='test-partition', qos='boost',
                     memory='1G', walltime='00:01:00')

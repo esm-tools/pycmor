@@ -980,9 +980,12 @@ def validate_output(task, recipe, output):
             if compound.split('.')[-1] == 'glb' and '-hxy-' in compound:
                 lat = next((ds[n] for n in ('latitude', 'lat') if n in ds.variables), None)
                 lon = next((ds[n] for n in ('longitude', 'lon') if n in ds.variables), None)
-                required = {'g235':40320,'g236':220509,'g238':426403,'g271':76800}.get(label, rule.get('lr_grid_cells'))
+                # g150 is the regular 1x1 degree grid the WAM sea points are delivered on,
+                # not the native WAM point count in lr_grid_cells.
+                required = {'g150':64800,'g235':40320,'g236':220509,'g238':426403,
+                            'g271':76800}.get(label, rule.get('lr_grid_cells'))
                 if required:
-                    cells = (lat.size * lon.size if label == 'g271' and lat is not None and lon is not None
+                    cells = (lat.size * lon.size if label in ('g150', 'g271') and lat is not None and lon is not None
                              and lat.dimensions != lon.dimensions else lat.size if lat is not None else 0)
                     if cells != required:
                         raise ValueError(f'{p}: {label} requires {required} cells; got {cells}')
