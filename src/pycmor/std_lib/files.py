@@ -617,21 +617,23 @@ def _normalise_vertices_naming(ds):
     the DKRZ coordinate check asked for the CMOR spelling.
 
     Only auxiliary lat/lon are touched. On a regular grid ``lat`` is a
-    coordinate variable and ``lat_bnds(lat, bnds)`` is already correct.
+    coordinate variable and ``lat_bnds(lat, bnds)`` is already correct. A
+    curvilinear grid (``latitude(j, i)``) gets ``vertices_latitude(j, i,
+    vertices)`` the same way.
     """
     if not isinstance(ds, xr.Dataset):
         return ds
     for coord, vname in _VERTICES_NAMES.items():
-        if not _is_auxiliary_coord(ds, coord):
+        if coord not in ds.coords or ds[coord].ndim not in (1, 2) or coord in ds[coord].dims:
             continue
         bname = ds[coord].attrs.get("bounds") or ds[coord].encoding.get("bounds") or f"{coord}_bnds"
         if bname not in ds.variables or vname in ds.variables:
             continue
         bnds = ds[bname]
-        if bnds.ndim != 2:
+        if bnds.ndim != ds[coord].ndim + 1:
             continue
         renames = {bname: vname}
-        vdim = bnds.dims[1]
+        vdim = bnds.dims[-1]
         # Only rename the vertex dim if nothing else is already using that
         # name, otherwise xarray would merge two unrelated dimensions.
         if vdim != _VERTICES_DIM and _VERTICES_DIM not in ds.dims:
@@ -639,7 +641,8 @@ def _normalise_vertices_naming(ds):
         ds = ds.rename(renames)
         ds[coord].encoding.pop("bounds", None)
         ds[coord].attrs["bounds"] = vname
-        logger.info(f"  → vertices: {bname}({bnds.dims[0]}, {vdim}) -> {vname}({bnds.dims[0]}, {_VERTICES_DIM})")
+        cells = ", ".join(bnds.dims[:-1])
+        logger.info(f"  → vertices: {bname}({cells}, {vdim}) -> {vname}({cells}, {_VERTICES_DIM})")
     return ds
 
 
