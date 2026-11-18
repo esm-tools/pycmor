@@ -2,6 +2,7 @@
 """
 Cleans up from example runs
 """
+
 import shutil
 from pathlib import Path
 

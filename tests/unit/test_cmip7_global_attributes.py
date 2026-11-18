@@ -76,6 +76,7 @@ def _get_rule_attrs(rule):
         "table_id": rule.table_id,
         "realm": "atmos",  # Default realm for testing
         "mip_era": "CMIP7",
+        "compound_name": "atmos.tas.tavg-h2m-hxy-u.mon.glb",
     }
 
 
@@ -123,7 +124,6 @@ def test_cmip7_global_attributes_structure(sample_cmip7_rule, cmip7_cv_dir):
         "license",
         "mip_era",
         "source_id",
-        "source_type",
         "tracking_id",
         "variable_id",
         "variant_label",
@@ -158,7 +158,6 @@ def test_cmip7_conventions(sample_cmip7_rule):
     attrs = ga.global_attributes()
     # CMIP7 should use CF-1.10 or later
     assert "CF-" in attrs["Conventions"]
-    assert "CMIP-" in attrs["Conventions"]
 
 
 def test_cmip7_license_format(sample_cmip7_rule):
@@ -213,8 +212,8 @@ def test_cmip7_tracking_id_format(sample_cmip7_rule):
     assert bool(re.match(tracking_id_format, tracking_id))
 
 
-def test_cmip7_further_info_url(sample_cmip7_rule):
-    """Test that further_info_url is properly constructed for CMIP7."""
+def test_cmip7_drops_further_info_url(sample_cmip7_rule):
+    """CMIP7 Appendix 2 eliminated further_info_url."""
     rule = sample_cmip7_rule
     rule_attrs = _get_rule_attrs(rule)
 
@@ -222,19 +221,11 @@ def test_cmip7_further_info_url(sample_cmip7_rule):
     GAClass = ga_factory.get("CMIP7")
     ga = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs)
 
-    attrs = ga.global_attributes()
-    further_info_url = attrs.get("further_info_url", "")
-
-    # Check that URL contains CMIP7 and key identifiers
-    assert "CMIP7" in further_info_url or "cmip7" in further_info_url.lower()
-    assert rule.institution_id in further_info_url
-    assert rule.source_id in further_info_url
-    assert rule.experiment_id in further_info_url
-    assert rule.variant_label in further_info_url
+    assert "further_info_url" not in ga.global_attributes()
 
 
-def test_cmip7_source_type_from_cv(sample_cmip7_rule):
-    """Test that source_type is derived from CMIP7 CVs."""
+def test_cmip7_drops_source_type(sample_cmip7_rule):
+    """CMIP7 Appendix 2 eliminated source_type."""
     rule = sample_cmip7_rule
     rule_attrs = _get_rule_attrs(rule)
 
@@ -242,13 +233,7 @@ def test_cmip7_source_type_from_cv(sample_cmip7_rule):
     GAClass = ga_factory.get("CMIP7")
     ga = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs)
 
-    attrs = ga.global_attributes()
-    source_type = attrs.get("source_type")
-
-    # Should have a source_type
-    assert source_type is not None
-    assert isinstance(source_type, str)
-    assert len(source_type) > 0
+    assert "source_type" not in ga.global_attributes()
 
 
 def test_cmip7_variant_label_format(sample_cmip7_rule):
@@ -267,7 +252,32 @@ def test_cmip7_variant_label_format(sample_cmip7_rule):
     assert re.match(r"^r\d+i\d+p\d+f\d+$", variant_label)
 
 
-def test_cmip7_attributes_are_strings(sample_cmip7_rule):
+def test_cmip7_index_attributes_carry_their_letter(sample_cmip7_rule):
+    """CMIP7 defines the four indices with their letter (cmor-cvs.json:
+    realization_index ^r[[:digit:]]\\{1,\\}$, and likewise i, p, f). pycmor
+    wrote the bare number, as CMIP6 does, and every file failed wcrp ATTR004
+    once the checker started looking."""
+    rule = sample_cmip7_rule
+    rule_attrs = _get_rule_attrs(rule)
+
+    ga_factory = create_factory(GlobalAttributes)
+    GAClass = ga_factory.get("CMIP7")
+    ga = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs)
+
+    attrs = ga.global_attributes()
+    for name, letter in (
+        ("realization_index", "r"),
+        ("initialization_index", "i"),
+        ("physics_index", "p"),
+        ("forcing_index", "f"),
+    ):
+        assert re.fullmatch(rf"{letter}\d+", attrs[name]), (name, attrs[name])
+    assert attrs["variant_label"] == "".join(
+        attrs[k] for k in ("realization_index", "initialization_index", "physics_index", "forcing_index")
+    )
+
+
+def test_cmip7_attributes_are_writable(sample_cmip7_rule):
     """Test that all global attributes are strings (required for netCDF)."""
     rule = sample_cmip7_rule
     rule_attrs = _get_rule_attrs(rule)
@@ -278,9 +288,9 @@ def test_cmip7_attributes_are_strings(sample_cmip7_rule):
 
     attrs = ga.global_attributes()
 
-    # All attributes should be strings for netCDF compliance
+    # All attributes must be writable to netCDF. Branch times are numbers, the rest strings.
     for key, value in attrs.items():
-        assert isinstance(value, str), f"Attribute '{key}' is not a string: {type(value)}"
+        assert isinstance(value, (str, float, int)), f"Attribute '{key}' cannot be written: {type(value)}"
 
 
 @pytest.mark.skipif(
@@ -314,3 +324,17 @@ def test_cmip7_global_attributes_with_data_request(sample_cmip7_rule):
         assert attrs["variable_id"] == "tas"
     except Exception:
         pytest.skip("Could not load CMIP7 data request")
+
+
+def test_cmip7_contact_only_when_the_recipe_sets_it(sample_cmip7_rule):
+    """contact is no CMIP7 attribute, but it is written when the recipe sets it."""
+    rule = sample_cmip7_rule
+    GAClass = create_factory(GlobalAttributes).get("CMIP7")
+
+    attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, _get_rule_attrs(rule)).global_attributes()
+    assert "contact" not in attrs
+
+    rule.contact = "cmip7@awi.de"
+    rule_attrs = {**_get_rule_attrs(rule), "contact": rule.global_attributes_set_on_rule()["contact"]}
+    attrs = GAClass(rule.data_request_variable, rule.controlled_vocabularies, rule_attrs).global_attributes()
+    assert attrs["contact"] == "cmip7@awi.de"

@@ -1,6 +1,9 @@
 """Tests for pycmor.tutorial module."""
 
 import pytest
+import requests
+
+from pycmor.tutorial import data_fetcher
 
 
 def test_tutorial_available_datasets():
@@ -76,3 +79,34 @@ def test_tutorial_open_dataset_with_kwargs():
     # Pass chunks argument to xarray
     ds = tutorial.open_dataset("fesom_2p6", use_real=False, chunks={"time": 1})
     assert ds is not None
+
+
+def _flaky_retrieve(failures):
+    calls = []
+
+    def retrieve(**kwargs):
+        calls.append(kwargs)
+        if len(calls) <= failures:
+            raise requests.exceptions.HTTPError("503 Server Error")
+        return "/cache/data.tar"
+
+    return retrieve, calls
+
+
+def test_download_retries_when_the_server_fails(monkeypatch):
+    retrieve, calls = _flaky_retrieve(failures=2)
+    monkeypatch.setattr("pooch.retrieve", retrieve)
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    assert data_fetcher._retrieve("http://x/data.tar", None, "/cache", "data.tar") == "/cache/data.tar"
+    assert len(calls) == 3
+
+
+def test_download_gives_up_after_the_last_retry(monkeypatch):
+    retrieve, calls = _flaky_retrieve(failures=99)
+    monkeypatch.setattr("pooch.retrieve", retrieve)
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        data_fetcher._retrieve("http://x/data.tar", None, "/cache", "data.tar")
+    assert len(calls) == len(data_fetcher.RETRY_WAITS_SEC) + 1

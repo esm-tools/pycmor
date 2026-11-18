@@ -1,0 +1,73 @@
+# HR write-path benchmark: tossq_day — slowest cap7_ocean rule (~275 s
+# in jobs 24434197 / 24441371 / 24652449, single-worker).
+#
+# Input:  sst.fesom.1587.nc  (~3.0 GB)
+#         shape: (time=365, cell=3146761) float32 on FESOM DARS HR mesh
+# Pipeline: square SST -> timeavg (no-op at daily) -> save
+# Output: same shape, ~1.5-2 GB compressed
+#
+# Mirrors cmip7_bench_hr_wap_day.yaml so the two benches share submitter
+# logic; the only differences are the rule, its inputs, and the
+# 2D-vs-3D pipeline (no add_vertical_bounds, no rechunk_time).
+
+general:
+  name: "hr-tossq-day-bench"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "local"
+  dask_n_workers: 1
+
+inherit:
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/Test_16n/outdata/fesom
+  source_id: AWI-ESM3-4-2-veg-HR
+  institution_id: AWI
+  experiment_id: piControl
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: g130
+  mesh_path: &mp /work/ab0246/a270092/input/fesom2/dars2
+  grid_file: /work/ab0246/a270092/input/fesom2/dars2/mesh.nc
+  grid: "FESOM 2.7 unstructured grid DARS2 (~3.15M surface vertices, ~6.23M elements)"
+  nominal_resolution: "10 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  output_directory: ./cmorized_output/bench_hr_tossq_day
+
+pipelines:
+  # DefaultPipeline-style steps with the square op inserted between
+  # get_variable and timeavg, matching cap7_ocean.yaml's square_pipeline.
+  - name: bench_square_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_square
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+rules:
+  - name: tossq_day
+    inputs:
+      - path: *dp
+        pattern: sst\.fesom\.1587\.nc
+    compound_name: ocean.tossq.tavg-u-hxy-sea.day.glb
+    model_variable: sst
+    squared_units: "degC2"
+    lazy_write: true
+    netcdf_compression_codec: blosc_zstd
+    netcdf_compression_level: 3
+    netcdf_write_scheduler: threads
+    pipelines:
+      - bench_square_pipeline

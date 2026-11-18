@@ -1,0 +1,32 @@
+schema_version: 1
+description: Reviewed FESOM surface iceberg freshwater flux, without inventing depth or unarchived ice-sheet diagnostics.
+scientific_assumptions:
+  source_review: FESOM icb_coupling.F90 icb2fesom subtracts ibfwb + ibfwbv + ibfwl + ibfwe from upward-positive water_flux, at the ocean surface only; it skips cavity nodes.
+  unit_conversion: The four terms are freshwater volume fluxes in m s-1; multiply their signed sum by freshwater density 1000 kg m-3.
+  missing_values: Zero only at verified ice-shelf cavity nodes where the model explicitly excludes iceberg injection; unexplained missing values outside cavities are an error.
+  dreq_choice: The 2-D monthly product is appropriate because only surface-integrated iceberg freshwater is archived. Do not fabricate a depth profile or 3-hourly product.
+  signed_terms: Preserve negative basal-melt terms; never clip freezing to zero.
+  applicability: Requires the reviewed FESOM surface-injection convention and a matching native grid with an explicit binary cav_nod_mask; not a generic iceberg reconstruction.
+defaults:
+  time_dimname: time
+  lr_grid_key: core3
+  lr_group: icebergs
+  lr_iceberg_surface: true
+  grid_label: gn
+  grid: CORE3 native ocean nodes
+  pipelines: [lr_iceberg_surface]
+rules:
+- name: ficeberg
+  compound_name: ocean.ficeberg.tavg-u-hxy-sea.mon.glb
+  model_variable: ibfwb
+  expected_units: m s-1
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: ibfwb\.fesom\.\d{4}\.nc$
+  lr_terms:
+  - {component: fesom, variable: ibfwb, pattern: 'ibfwb\.fesom\.\d{4}\.nc$', units: 'm s-1', coefficient: 1000.0}
+  - {component: fesom, variable: ibfwbv, pattern: 'ibfwbv\.fesom\.\d{4}\.nc$', units: 'm s-1', coefficient: 1000.0}
+  - {component: fesom, variable: ibfwl, pattern: 'ibfwl\.fesom\.\d{4}\.nc$', units: 'm s-1', coefficient: 1000.0}
+  - {component: fesom, variable: ibfwe, pattern: 'ibfwe\.fesom\.\d{4}\.nc$', units: 'm s-1', coefficient: 1000.0}
+  comment: Signed total iceberg freshwater input to the ocean surface, 1000*(ibfwb+ibfwbv+ibfwl+ibfwe). Positive into ocean; negative freezing terms retained. Verified cavity nodes receive zero because FESOM excludes iceberg injection there. This is the available 2-D monthly DReq alternative, not a fabricated 3-D profile.

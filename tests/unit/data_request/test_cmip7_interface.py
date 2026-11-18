@@ -53,11 +53,11 @@ class TestLoadMetadata:
             pytest.skip("CMIP7 API not available")
 
         interface = CMIP7Interface()
-        interface.load_metadata(metadata_file=cmip7_metadata_file)
+        interface.load_metadata(version="v1.2.2.2", metadata_file=cmip7_metadata_file)
         first_metadata = interface._metadata
 
         # Load again without force_reload
-        interface.load_metadata(metadata_file=cmip7_metadata_file)
+        interface.load_metadata(version="v1.2.2.2", metadata_file=cmip7_metadata_file)
         assert interface._metadata is first_metadata  # Same object
 
     def test_load_metadata_with_force_reload(self, cmip7_metadata_file):

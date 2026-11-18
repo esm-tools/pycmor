@@ -131,6 +131,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -184,6 +185,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -215,6 +217,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -240,6 +243,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -264,6 +268,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -290,6 +295,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule with disabled config
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=False)
 
         # Apply coordinate attributes
@@ -300,19 +306,20 @@ class TestSetCoordinateAttributes:
         assert "standard_name" not in ds["lon"].attrs
 
     def test_coordinates_attribute_on_data_var(self):
-        """Test that 'coordinates' attribute is set on data variables."""
-        # Create test dataset
+        """Test that 'coordinates' names the auxiliary coordinates of a data variable."""
+        # Create test dataset on an unstructured grid, where lat and lon are auxiliary
         ds = xr.Dataset(
-            {"tas": (["time", "lat", "lon"], np.random.rand(10, 90, 180))},
+            {"tas": (["time", "ncells"], np.random.rand(10, 50))},
             coords={
                 "time": np.arange(10),
-                "lat": np.arange(-89.5, 90, 2),
-                "lon": np.arange(0, 360, 2),
+                "lat": ("ncells", np.linspace(-80, 80, 50)),
+                "lon": ("ncells", np.linspace(0, 350, 50)),
             },
         )
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -323,7 +330,7 @@ class TestSetCoordinateAttributes:
         coords_str = ds["tas"].attrs["coordinates"]
         assert "lat" in coords_str
         assert "lon" in coords_str
-        assert "time" in coords_str
+        assert "time" not in coords_str  # a dimension coordinate
 
     def test_non_overriding(self):
         """Test that existing attributes are not overridden."""
@@ -342,6 +349,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -372,6 +380,7 @@ class TestSetCoordinateAttributes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -403,6 +412,7 @@ class TestIntegrationScenarios:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -413,7 +423,8 @@ class TestIntegrationScenarios:
         assert ds["lat"].attrs["axis"] == "Y"
         assert ds["lon"].attrs["standard_name"] == "longitude"
         assert ds["lon"].attrs["axis"] == "X"
-        assert "coordinates" in ds["tas"].attrs
+        # Dimension coordinates are implicit, CF wants only auxiliary ones listed
+        assert "coordinates" not in ds["tas"].attrs
 
     def test_cmip7_style_dataset_with_plev(self):
         """Test with a CMIP7-style dataset with pressure levels."""
@@ -431,6 +442,7 @@ class TestIntegrationScenarios:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(return_value=True)
 
         # Apply coordinate attributes
@@ -465,6 +477,7 @@ class TestValidationModes:
 
         # Mock rule with 'ignore' mode
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,
@@ -497,6 +510,7 @@ class TestValidationModes:
 
         # Mock rule with 'warn' mode (default)
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,
@@ -529,6 +543,7 @@ class TestValidationModes:
 
         # Mock rule with 'error' mode
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,
@@ -563,6 +578,7 @@ class TestValidationModes:
 
         # Mock rule with 'fix' mode
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,
@@ -596,6 +612,7 @@ class TestValidationModes:
 
         # Mock rule
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,
@@ -631,6 +648,7 @@ class TestValidationModes:
 
         # Mock rule with 'fix' mode
         rule = Mock()
+        rule.data_request_variable.dimensions = ()
         rule._pycmor_cfg = Mock(
             side_effect=lambda key: {
                 "xarray_set_coordinate_attributes": True,

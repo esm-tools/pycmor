@@ -11,6 +11,11 @@ def test_cmip6_from_git():
         # If we get 429, it's because we're being rate limited.
         # In that case, mark this test as skipped:
         pytest.skip(f"Rate limited: {e}")
+    except ValueError as e:
+        # The GitHub API answers an unauthenticated runner with 403 when rate limited.
+        if "403" not in str(e):
+            raise
+        pytest.skip(f"Rate limited: {e}")
     # If the function worked, we should get tables:
     assert request.tables
 

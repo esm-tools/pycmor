@@ -1,0 +1,706 @@
+schema_version: 1
+description: Reviewed native LR REcoM monthly and daily mappings; no new tracer interpretation is introduced.
+scientific_assumptions:
+  eligibility_profile: awiesm3-v3.5.1-cc-raw-v1
+  applicability: These mappings require the reviewed REcoM tracer definitions and CORE3 geometry. A different
+    model build or tracer layout requires a new scientific review.
+  configuration_key: carbon_context
+  configuration_evidence:
+  - Record REcoM and FESOM source revisions and build identity in campaign configuration/state.
+  - Verify tracer identities, source units, carbon pools, sign conventions and native vertical geometry
+    for the selected run.
+  - DFe and NPPn3D/NPPd3D source unit-attribute corrections are specific reviewed assumptions, not general
+    unit guesses.
+  context_handling: Optional carbon_context is copied to rule comments as operator-supplied provenance.
+    Its presence is not automatic scientific validation.
+  metadata_policy: All base candidate mappings remain explicit even if absent from pinned DReq metadata;
+    the planner must report them BLOCKED rather than omit or reinterpret them.
+  currently_unsupported_candidates:
+  - ocnBgchem.bsi.tavg-ol-hxy-sea.mon.glb
+  - ocnBgchem.co2.tavg-ol-hxy-sea.mon.glb
+  - ocnBgchem.co3.tavg-ol-hxy-sea.mon.glb
+  - ocnBgchem.phynano.tavg-ol-hxy-sea.mon.glb
+  - ocnBgchem.poc.tavg-ol-hxy-sea.mon.glb
+  unsupported_note: The list above records gaps in the previously audited metadata version, not a permanent
+    prohibition; actual support is determined from the selected pinned metadata.
+  conversion_constants:
+    carbon_mass_g_mol: 12.011
+    seconds_per_day: 86400
+    mmol_to_mol: 0.001
+    umol_to_mol: 1.0e-06
+  sum_policy: Only explicitly represented pools are summed; no missing pool, nutrient species or functional
+    group is inferred.
+  daily_evidence: Native daily source headers were checked for every year 2605-2609, including 366
+    records in 2608. Daily fields have time mean cell_methods and noon-centred timestamps; 3D daily
+    sources have 47 native layers and surface sources have one nz_sfc layer. Daily recipes apply
+    the same reviewed pool definitions and unit conversions as monthly recipes, never temporal upsampling.
+surface_variants:
+  policy: metadata_supported_only
+  source_brand: tavg-ol-
+  target_brand: tavg-ols-
+  name_suffix: _surface
+  method: Select the first native ocean layer; do not interpolate or integrate.
+  monthly_pipeline: recom_surface
+  linear_pipeline: recom_surface_linear
+defaults:
+  time_dimname: time
+  lr_grid_key: core3
+  lr_group: recom
+  grid_label: gn
+  grid: CORE3 native 220509 nodes; exact model vertical layers
+  pipelines:
+  - lr_monthly
+rules:
+- name: fgco2
+  compound_name: ocnBgchem.fgco2.tavg-u-hxy-sea.mon.glb
+  model_variable: CO2f
+  expected_units: mmolC/m2/d
+  lr_scale: 1.390162037037037e-10
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: CO2f\.fesom\.\d{4}\.nc$
+- name: dissic
+  compound_name: ocnBgchem.dissic.tavg-ol-hxy-sea.mon.glb
+  model_variable: DIC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DIC\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: talk
+  compound_name: ocnBgchem.talk.tavg-ol-hxy-sea.mon.glb
+  model_variable: Alk
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: Alk\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: dissoc
+  compound_name: ocnBgchem.dissoc.tavg-ol-hxy-sea.mon.glb
+  model_variable: DOC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DOC\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: dfe
+  compound_name: ocnBgchem.dfe.tavg-ol-hxy-sea.mon.glb
+  model_variable: DFe
+  expected_units: '[mmol/m3]'
+  lr_scale: 1.0e-06
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DFe\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: Source DFe units attribute [mmol/m3] is incorrect. REcoM init and iron cycling use micromol
+    Fe/m3; factor 1e-6 to mol/m3.
+- name: o2
+  compound_name: ocnBgchem.o2.tavg-ol-hxy-sea.mon.glb
+  model_variable: O2
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: O2\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: si
+  compound_name: ocnBgchem.si.tavg-ol-hxy-sea.mon.glb
+  model_variable: DSi
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DSi\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: co3
+  compound_name: ocnBgchem.co3.tavg-ol-hxy-sea.mon.glb
+  model_variable: CO3
+  expected_units: '[mol/m3]'
+  lr_scale: 1
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO3\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: co2
+  compound_name: ocnBgchem.co2.tavg-ol-hxy-sea.mon.glb
+  model_variable: CO2_aq
+  expected_units: '[mol/m3]'
+  lr_scale: 1
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO2_aq\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: ph
+  compound_name: ocnBgchem.ph.tavg-ol-hxy-sea.mon.glb
+  model_variable: pH
+  expected_units: total_scale
+  lr_scale: 1
+  lr_units: '1'
+  lr_input:
+    component: fesom
+    pattern: pH\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: spco2
+  compound_name: ocnBgchem.spco2.tavg-u-hxy-sea.mon.glb
+  model_variable: pCO2s
+  expected_units: uatm
+  lr_scale: 0.101325
+  lr_units: Pa
+  lr_input:
+    component: fesom
+    pattern: pCO2s\.fesom\.\d{4}\.nc$
+- name: dpco2
+  compound_name: ocnBgchem.dpco2.tavg-u-hxy-sea.mon.glb
+  model_variable: dpCO2s
+  expected_units: uatm
+  lr_scale: 0.101325
+  lr_units: Pa
+  lr_input:
+    component: fesom
+    pattern: dpCO2s\.fesom\.\d{4}\.nc$
+- name: fsfe
+  compound_name: ocnBgchem.fsfe.tavg-u-hxy-sea.mon.glb
+  model_variable: aFe
+  expected_units: umolFe/m2/s
+  lr_scale: 1.0e-06
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: aFe\.fesom\.\d{4}\.nc$
+- name: fsn
+  compound_name: ocnBgchem.fsn.tavg-u-hxy-sea.mon.glb
+  model_variable: aN
+  expected_units: mmolN/m2/s
+  lr_scale: 0.001
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: aN\.fesom\.\d{4}\.nc$
+- name: intppdiat
+  compound_name: ocnBgchem.intppdiat.tavg-u-hxy-sea.mon.glb
+  model_variable: NPPd
+  expected_units: mmolC/m2/d
+  lr_scale: 1.1574074074074074e-08
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NPPd\.fesom\.\d{4}\.nc$
+- name: intppnano
+  compound_name: ocnBgchem.intppnano.tavg-u-hxy-sea.mon.glb
+  model_variable: NPPn
+  expected_units: mmolC/m2/d
+  lr_scale: 1.1574074074074074e-08
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NPPn\.fesom\.\d{4}\.nc$
+- name: phydiat
+  compound_name: ocnBgchem.phydiat.tavg-ol-hxy-sea.mon.glb
+  model_variable: DiaC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DiaC\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: phynano
+  compound_name: ocnBgchem.phynano.tavg-ol-hxy-sea.mon.glb
+  model_variable: PhyC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyC\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: chl
+  compound_name: ocnBgchem.chl.tavg-ol-hxy-sea.mon.glb
+  model_variable: PhyChl
+  expected_units: '[mg/m3]'
+  lr_scale: 1.0e-06
+  lr_units: kg m-3
+  lr_input:
+    component: fesom
+    pattern: PhyChl\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: PhyChl\.fesom\.\d{4}\.nc$
+    variable: PhyChl
+    units: '[mg/m3]'
+    coefficient: 1.0e-06
+  - component: fesom
+    pattern: DiaChl\.fesom\.\d{4}\.nc$
+    variable: DiaChl
+    units: '[mg/m3]'
+    coefficient: 1.0e-06
+- name: chldiat
+  compound_name: ocnBgchem.chldiat.tavg-ol-hxy-sea.mon.glb
+  model_variable: DiaChl
+  expected_units: '[mg/m3]'
+  lr_scale: 1.0e-06
+  lr_units: kg m-3
+  lr_input:
+    component: fesom
+    pattern: DiaChl\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+- name: phyc
+  compound_name: ocnBgchem.phyc.tavg-ol-hxy-sea.mon.glb
+  model_variable: PhyC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyC\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: PhyC\.fesom\.\d{4}\.nc$
+    variable: PhyC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: DiaC\.fesom\.\d{4}\.nc$
+    variable: DiaC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: zooc
+  compound_name: ocnBgchem.zooc.tavg-ol-hxy-sea.mon.glb
+  model_variable: HetC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: HetC\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: HetC\.fesom\.\d{4}\.nc$
+    variable: HetC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: Zoo2C\.fesom\.\d{4}\.nc$
+    variable: Zoo2C
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: Zoo3C\.fesom\.\d{4}\.nc$
+    variable: Zoo3C
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: intpp
+  compound_name: ocnBgchem.intpp.tavg-u-hxy-sea.mon.glb
+  model_variable: NPPn
+  expected_units: mmolC/m2/d
+  lr_scale: 1.1574074074074074e-08
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NPPn\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_terms:
+  - component: fesom
+    pattern: NPPn\.fesom\.\d{4}\.nc$
+    variable: NPPn
+    units: mmolC/m2/d
+    coefficient: 1.1574074074074074e-08
+  - component: fesom
+    pattern: NPPd\.fesom\.\d{4}\.nc$
+    variable: NPPd
+    units: mmolC/m2/d
+    coefficient: 1.1574074074074074e-08
+- name: calc
+  compound_name: ocnBgchem.calc.tavg-ol-hxy-sea.mon.glb
+  model_variable: PhyCalc
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyCalc\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: PhyCalc\.fesom\.\d{4}\.nc$
+    variable: PhyCalc
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: DetCalc\.fesom\.\d{4}\.nc$
+    variable: DetCalc
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: idetz2calc\.fesom\.\d{4}\.nc$
+    variable: idetz2calc
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: bsi
+  compound_name: ocnBgchem.bsi.tavg-ol-hxy-sea.mon.glb
+  model_variable: DiaSi
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DiaSi\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: DiaSi\.fesom\.\d{4}\.nc$
+    variable: DiaSi
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: DetSi\.fesom\.\d{4}\.nc$
+    variable: DetSi
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: idetz2si\.fesom\.\d{4}\.nc$
+    variable: idetz2si
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: poc
+  compound_name: ocnBgchem.poc.tavg-ol-hxy-sea.mon.glb
+  model_variable: DetC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DetC\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: PhyC\.fesom\.\d{4}\.nc$
+    variable: PhyC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: DiaC\.fesom\.\d{4}\.nc$
+    variable: DiaC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: HetC\.fesom\.\d{4}\.nc$
+    variable: HetC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: Zoo2C\.fesom\.\d{4}\.nc$
+    variable: Zoo2C
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: Zoo3C\.fesom\.\d{4}\.nc$
+    variable: Zoo3C
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: DetC\.fesom\.\d{4}\.nc$
+    variable: DetC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: idetz2c\.fesom\.\d{4}\.nc$
+    variable: idetz2c
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: detoc
+  compound_name: ocnBgchem.detoc.tavg-ol-hxy-sea.mon.glb
+  model_variable: DetC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DetC\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: DetC\.fesom\.\d{4}\.nc$
+    variable: DetC
+    units: '[mmol/m3]'
+    coefficient: 0.001
+  - component: fesom
+    pattern: idetz2c\.fesom\.\d{4}\.nc$
+    variable: idetz2c
+    units: '[mmol/m3]'
+    coefficient: 0.001
+- name: zmicro
+  compound_name: ocnBgchem.zmicro.tavg-ol-hxy-sea.mon.glb
+  model_variable: Zoo3C
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: Zoo3C\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: 'Model functional groups, not inferred from column order: REcoM HetC is mesozooplankton, Zoo3C
+    is microzooplankton, and Zoo2C is macrozooplankton (the remaining group, mapped to zmisc). See recom_sms
+    and recom_init tracer identities.'
+- name: zmeso
+  compound_name: ocnBgchem.zmeso.tavg-ol-hxy-sea.mon.glb
+  model_variable: HetC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: HetC\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: 'Model functional groups, not inferred from column order: REcoM HetC is mesozooplankton, Zoo3C
+    is microzooplankton, and Zoo2C is macrozooplankton (the remaining group, mapped to zmisc). See recom_sms
+    and recom_init tracer identities.'
+- name: zmisc
+  compound_name: ocnBgchem.zmisc.tavg-ol-hxy-sea.mon.glb
+  model_variable: Zoo2C
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: Zoo2C\.fesom\.\d{4}\.nc$
+  lr_exact_ocean_depth: true
+  comment: 'Model functional groups, not inferred from column order: REcoM HetC is mesozooplankton, Zoo3C
+    is microzooplankton, and Zoo2C is macrozooplankton (the remaining group, mapped to zmisc). See recom_sms
+    and recom_init tracer identities.'
+- name: pp
+  compound_name: ocnBgchem.pp.tavg-ol-hxy-sea.mon.glb
+  model_variable: NPPn3D
+  expected_units: mmolC/m2/d
+  lr_scale: 1.1574074074074074e-08
+  lr_units: mol m-3 s-1
+  lr_input:
+    component: fesom
+    pattern: NPPn3D\.fesom\.\d{4}\.nc$
+  pipelines:
+  - lr_linear
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - component: fesom
+    pattern: NPPn3D\.fesom\.\d{4}\.nc$
+    variable: NPPn3D
+    units: mmolC/m2/d
+    coefficient: 1.1574074074074074e-08
+  - component: fesom
+    pattern: NPPd3D\.fesom\.\d{4}\.nc$
+    variable: NPPd3D
+    units: mmolC/m2/d
+    coefficient: 1.1574074074074074e-08
+  comment: 'XIOS units mmolC/m2/d are incorrect for these 3D rates: io_meandata defines NPPn3D/NPPd3D
+    as mmolC/(m3*d), assigned directly from vertNPP. Sum then multiply 1e-3/86400; no additional depth
+    integration.'
+- name: intpp_daily
+  compound_name: ocnBgchem.intpp.tavg-u-hxy-sea.day.glb
+  model_variable: NPPn
+  expected_units: mmolC/m2/d
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NPPn_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_linear]
+  lr_terms:
+  - {component: fesom, pattern: 'NPPn_day\.fesom\.\d{4}\.nc$', variable: NPPn, units: mmolC/m2/d, coefficient: 1.1574074074074074e-08}
+  - {component: fesom, pattern: 'NPPd_day\.fesom\.\d{4}\.nc$', variable: NPPd, units: mmolC/m2/d, coefficient: 1.1574074074074074e-08}
+- name: intpbn_south30
+  compound_name: ocnBgchem.intpbn.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: NNAn
+  expected_units: mmolN/m2/d
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NNAn\.fesom\.\d{4}\.nc$
+  pipelines: [recom_south30_linear]
+  lr_region: 30S-90S
+  lr_recom_production: nitrogen
+  lr_terms:
+  - {component: fesom, pattern: 'NNAn\.fesom\.\d{4}\.nc$', variable: NNAn, units: mmolN/m2/d, coefficient: 1.1574074074074074e-08}
+  - {component: fesom, pattern: 'NNAd\.fesom\.\d{4}\.nc$', variable: NNAd, units: mmolN/m2/d, coefficient: 1.1574074074074074e-08}
+  comment: 'Net nitrogen production: REcoM recom_sms accumulates uptake minus exudation in
+    vertNNAn/vertNNAd; recom_forcing integrates these with model-step layer thickness before writing
+    NNAn/NNAd. Requires actual leg enable_coccos=false and equal lossn/lossn_d (the reviewed NNAd
+    diagnostic uses lossn). No conversion of bulk DIN to nitrate or ammonium is involved.'
+- name: intpbfe_south30
+  compound_name: ocnBgchem.intpbfe.tavg-u-hxy-sea.mon.30S-90S
+  model_variable: NNAn
+  expected_units: mmolN/m2/d
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: NNAn\.fesom\.\d{4}\.nc$
+  pipelines: [recom_south30_linear]
+  lr_region: 30S-90S
+  lr_recom_production: iron
+  lr_terms:
+  - {component: fesom, pattern: 'NNAn\.fesom\.\d{4}\.nc$', variable: NNAn, units: mmolN/m2/d, coefficient: null}
+  - {component: fesom, pattern: 'NNAd\.fesom\.\d{4}\.nc$', variable: NNAd, units: mmolN/m2/d, coefficient: null}
+  comment: 'Net iron production: recom_sms_update couples biological iron uptake/exudation to the
+    same nitrogen terms using Fe2N in micromol Fe per millimol N. Materialization reads fe2n from
+    the actual leg namelist and sets coefficient=fe2n*1e-6/86400; never use it as a mol/mol ratio.
+    Requires enable_coccos=false and equal lossn/lossn_d. The actual parameter file is an input dependency.'
+- name: chl_daily_surface
+  compound_name: ocnBgchem.chl.tavg-ols-hxy-sea.day.glb
+  model_variable: PhyChl
+  expected_units: '[mg/m3]'
+  lr_units: kg m-3
+  lr_input:
+    component: fesom
+    pattern: PhyChl_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface_linear]
+  surface_layer: true
+  lr_terms:
+  - {component: fesom, pattern: 'PhyChl_sfc\.fesom\.\d{4}\.nc$', variable: PhyChl, units: '[mg/m3]', coefficient: 1.0e-06}
+  - {component: fesom, pattern: 'DiaChl_sfc\.fesom\.\d{4}\.nc$', variable: DiaChl, units: '[mg/m3]', coefficient: 1.0e-06}
+- name: o2_daily_surface
+  compound_name: ocnBgchem.o2.tavg-ols-hxy-sea.day.glb
+  model_variable: O2
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: O2_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
+- name: co3_daily_surface
+  compound_name: ocnBgchem.co3.tavg-ols-hxy-sea.day.glb
+  model_variable: CO3
+  expected_units: '[mol/m3]'
+  lr_scale: 1.0
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO3_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
+- name: ph_daily_surface
+  compound_name: ocnBgchem.ph.tavg-ols-hxy-sea.day.glb
+  model_variable: pH
+  expected_units: total_scale
+  lr_scale: 1.0
+  lr_units: '1'
+  lr_input:
+    component: fesom
+    pattern: pH_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
+- name: phyc_daily_surface
+  compound_name: ocnBgchem.phyc.tavg-ols-hxy-sea.day.glb
+  model_variable: PhyC
+  expected_units: '[mmol/m3]'
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyC_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface_linear]
+  surface_layer: true
+  lr_terms:
+  - {component: fesom, pattern: 'PhyC_sfc\.fesom\.\d{4}\.nc$', variable: PhyC, units: '[mmol/m3]', coefficient: 0.001}
+  - {component: fesom, pattern: 'DiaC_sfc\.fesom\.\d{4}\.nc$', variable: DiaC, units: '[mmol/m3]', coefficient: 0.001}
+- name: phydiat_daily_surface
+  compound_name: ocnBgchem.phydiat.tavg-ols-hxy-sea.day.glb
+  model_variable: DiaC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DiaC_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
+- name: detoc_daily
+  compound_name: ocnBgchem.detoc.tavg-ol-hxy-sea.day.glb
+  model_variable: DetC
+  expected_units: '[mmol/m3]'
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DetC_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_linear]
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - {component: fesom, pattern: 'DetC_day\.fesom\.\d{4}\.nc$', variable: DetC, units: '[mmol/m3]', coefficient: 0.001}
+  - {component: fesom, pattern: 'idetz2c_day\.fesom\.\d{4}\.nc$', variable: idetz2c, units: '[mmol/m3]', coefficient: 0.001}
+- name: dissoc_daily
+  compound_name: ocnBgchem.dissoc.tavg-ol-hxy-sea.day.glb
+  model_variable: DOC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: DOC_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  lr_exact_ocean_depth: true
+- name: zmeso_daily
+  compound_name: ocnBgchem.zmeso.tavg-ol-hxy-sea.day.glb
+  model_variable: HetC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: HetC_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  lr_exact_ocean_depth: true
+  comment: 'Same reviewed functional group as monthly zmeso: HetC is mesozooplankton, not Zoo2C.'
+- name: zmicro_daily
+  compound_name: ocnBgchem.zmicro.tavg-ol-hxy-sea.day.glb
+  model_variable: Zoo3C
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: Zoo3C_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily]
+  lr_exact_ocean_depth: true
+  comment: 'Same reviewed functional group as monthly zmicro: Zoo3C is microzooplankton, not HetC.'
+- name: zooc_daily
+  compound_name: ocnBgchem.zooc.tavg-ol-hxy-sea.day.glb
+  model_variable: HetC
+  expected_units: '[mmol/m3]'
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: HetC_day\.fesom\.\d{4}\.nc$
+  pipelines: [lr_daily_linear]
+  lr_exact_ocean_depth: true
+  lr_terms:
+  - {component: fesom, pattern: 'HetC_day\.fesom\.\d{4}\.nc$', variable: HetC, units: '[mmol/m3]', coefficient: 0.001}
+  - {component: fesom, pattern: 'Zoo2C_day\.fesom\.\d{4}\.nc$', variable: Zoo2C, units: '[mmol/m3]', coefficient: 0.001}
+  - {component: fesom, pattern: 'Zoo3C_day\.fesom\.\d{4}\.nc$', variable: Zoo3C, units: '[mmol/m3]', coefficient: 0.001}

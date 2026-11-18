@@ -1,0 +1,370 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,urlcolor=blue!60!black,linkcolor=black]{hyperref}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\ok}{\textcolor{green!45!black}{\textbf{erledigt}}}
+\newcommand{\offen}{\textcolor{orange!75!black}{\textbf{offen}}}
+\newcommand{\upstream}{\textcolor{blue!60!black}{\textbf{upstream}}}
+
+\title{AWI-ESM3-4-2-veg-HR, CMIP7 piControl\\[2mm]
+\large Was sich seit \code{cli112} geaendert hat, und Antwort auf deine letzten drei Runden}
+\author{Jan Streffing, AWI}
+\date{17. August 2026}
+
+\begin{document}
+% babel-ngerman macht " aktiv, was in Code-Beispielen zuschlaegt:
+% operation="instant" wurde als operation=ïnstant" gesetzt. Die Shorthands
+% werden erst bei \begin{document} scharfgeschaltet, also muss das hierhin.
+\shorthandoff{"}
+\maketitle
+
+\section{Kurzfassung}
+
+Seit \code{cli112} sind drei Runden von dir eingegangen: der Koordinaten-Check, die
+Liste mit den acht Punkten, und dein Plugin. Zusammen mit dem, was das Plugin selbst
+noch gefunden hat, waren das rund zwanzig Befunde. Umfang seither: 15 Commits,
+26 Dateien, +1197 / -209 Zeilen.
+
+Gemessen am fertigen Lauf, 534 Dateien:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+& \textbf{cf + wcrp\_cmip7} & \textbf{aicc} \\
+\midrule
+HIGH   &   4 & 31 \\
+MEDIUM & 304 &  0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Zum Vergleich: vor dieser Runde lagen wir bei 284 MEDIUM auf denselben zwei
+Suiten, aber ohne dass aicc ueberhaupt mitlief. Die 35 verbleibenden HIGH
+verteilen sich so:
+
+\begin{center}
+\begin{tabular}{rl}
+\toprule
+19 & Dateien ohne eigenes Gitter, warten auf die Registrierung des Zonalgitters \\
+ 6 & \code{depth} traegt bei zwei Dateien noch \code{units = "meter"}, bei uns \\
+ 5 & \code{plev7h}, unsere Modellausgabe schreibt die falschen Druckflaechen \\
+ 3 & Dimensionsreihenfolge bei \code{msftm} und die \code{tclm}-Zeitachse \\
+ 2 & \code{vegtype} und \code{basin}, beide upstream \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Dein Plugin}
+
+\code{cc-plugin-aicc} laeuft ab sofort in jedem unserer Laeufe mit, als dritte Suite
+neben \code{cf} und \code{wcrp\_cmip7}. Das war die wirksamste einzelne Aenderung
+dieser Runde: er sieht eine ganze Klasse, die die beiden anderen nicht anfassen.
+41~Dateien mit \code{latitude(latitude)} statt \code{lat(lat)} sind an \code{cf} und
+\code{wcrp\_cmip7} glatt vorbeigelaufen.
+
+Ein Hinweis dazu, den du vermutlich wissen willst. Ohne gesetztes
+\code{CMIP7\_TABLES\_PATH} wirft das Plugin eine \code{FileNotFoundError} aus
+\code{ComplianceChecker.run\_checker} heraus, und damit stirbt der gesamte
+\code{cchecker}-Aufruf:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+& \textbf{Exit} & \textbf{Report} \\
+\midrule
+ohne \code{CMIP7\_TABLES\_PATH} & 1 & gar keiner \\
+mit \code{CMIP7\_TABLES\_PATH}  & 1 & alle drei Suiten \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Es fehlt also nicht nur das aicc-Ergebnis, sondern auch das von \code{cf} und
+\code{wcrp\_cmip7} fuer dieselbe Datei. Bei uns waere das lautlos gewesen: pycmor
+protokolliert, dass kein JSON entstand, und laeuft weiter. Eine Datei ohne Sidecar
+wird nirgends gezaehlt, der Lauf haette also sauberer ausgesehen als vorher. Wir
+pruefen den Pfad deshalb jetzt einmal beim Submit, statt es nach ein paar hundert
+Dateien zu merken. Vielleicht ist ein Befund statt einer Exception fuer dich der
+bessere Weg.
+
+\section{Deine acht Punkte}
+
+\subsection*{1. Verlustbehaftete Kompression auf \code{ps}}
+\ok\ Du hast recht, und die entscheidende Stelle ist der Zusatz in CF: nicht nur
+Koordinaten, sondern auch eine Variable, die von \code{coordinates},
+\code{formula\_terms} oder \code{cell\_measures} benannt wird, "even if it is also a
+data variable". Genau den hatten wir uebersehen. Im Code stand woertlich:
+
+\begin{quote}
+\code{\# ps is a genuine geophysical field and keeps its normal treatment.}
+\end{quote}
+
+Das stimmt fuer sich genommen, nur greift die Ausnahme eben trotzdem, weil \code{ps}
+zugleich formula\_term der Hybridachse ist. Betraf 9 Dateien. Wir sammeln die
+geschuetzten Variablen jetzt nach der Regel statt \code{ps} einzeln auszunehmen.
+Nachgemessen war \code{ps} in \code{cli114} tatsaechlich der einzige Treffer.
+
+\subsection*{2. \code{plev}: \code{positive} und \code{units}}
+\ok\ Und der Fund war groesser, als er aussieht. Es war kein Fehler an \code{plev}
+allein, sondern an allen Vertikalachsen ausser \code{lev}: der Pass, der die
+CV-Werte durchsetzt, kannte nur \code{lev}.
+
+\begin{center}
+\begin{tabular}{llr}
+\toprule
+\textbf{Achse} & \textbf{was falsch war} & \textbf{Dateien} \\
+\midrule
+\code{plev}   & \code{standard\_name} und \code{axis} fehlen, \code{units} "pascal", \code{positive} "up" & 17 \\
+\code{height} & \code{axis} fehlt & 35 \\
+\code{sdepth} & \code{units} "meter" & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Sichtbar wurde es erst, als die Achse richtig \code{plev} hiess. Solange sie
+\code{plev19} oder \code{plev3} hiess, lief der Check ins Leere, weil er eine
+Variable namens \code{plev} sucht. In \code{cli112} standen also 68 HIGH latent im
+Output, ohne dass sie jemand zaehlte.
+
+Dazu der Typ: \code{plev} lag als float32 vor, die Tabelle sagt \code{double}
+(17 Dateien), \code{sdepth} als int64. Wird jetzt aus dem \code{type}-Feld der
+Tabelle abgeleitet.
+
+\subsection*{3. \code{alevel}: \code{lev}, \code{a}, \code{b} invertieren}
+\ok\ \code{stored\_direction} ist "decreasing", die ECMWF-Vertikaltabelle laeuft
+top-first, also kam bei uns alles aufsteigend heraus. Gedreht wird die ganze Achse in
+einem Zug, nicht nur die Koordinate, damit die Daten an ihrem Level haengen bleiben.
+Das ist die einzige Aenderung dieser Runde, die Werte bewegt, deshalb gegen die
+echten L137-Koeffizienten geprueft:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+& \textbf{vorher} & \textbf{nachher} \\
+\midrule
+\code{lev}            & 1{,}00e--05 \dots 0{,}9988 & 0{,}9988 \dots 1{,}00e--05 \\
+\code{b}              & 0 \dots 0{,}9988 & 0{,}9988 \dots 0 \\
+$p = ap + b \cdot ps$ & steigend & 100880 \dots 1 Pa, streng fallend \\
+Testfeld 0\dots136    & 0\dots136 & 136\dots0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Die Bounds-Paare drehen mit, sonst stuende in jeder Zelle weiter [unten, oben].
+\code{ap} und \code{b} haben ausserdem das \code{(k)} im \code{long\_name} verloren.
+
+\subsection*{4. \code{deltasigt} mit Absatz im \code{long\_name}}
+\ok\ Der Absatz steht schon upstream im \code{long\_name}, rund 900 Zeichen
+Methodenbeschreibung mit Literaturangaben. Wir kuerzen jetzt auf den ersten Satz und
+verschieben den ganzen Text nach \code{comment}. Das greift generisch, nicht nur bei
+\code{deltasigt}.
+
+Gleich mit erledigt: die \code{long\_name} aller Koordinaten kommen jetzt aus der
+Tabelle, und zwar ueber den DReq-Namen, nicht ueber den Ausgabenamen. \code{plev19}
+heisst "Pressure Levels (19)" und \code{plev3} "Pressure Levels (3)", geschrieben
+werden beide als \code{plev}. Bei \code{time} genauso, das sind vier verschiedene
+Werte auf derselben Achse. Betraf 492 Dateien.
+
+\subsection*{5. Bodentiefe ohne Bounds, \code{slthick} ohne Gitter}
+\ok\ Beides.
+
+Bei \code{sdepth10cm} liefert die Tabelle die Bounds sogar mit
+(\code{bounds\_values} "0.0 10.0"), wir haben sie nur nicht gelesen und schrieben
+allein den Mittelpunkt 5{,}0 cm. Die Schicht, fuer die der Wert steht, stand also gar
+nicht in der Datei.
+
+\code{slthick} kam als \code{slthick(sdepth)} heraus, ein 1D-Feld, dessen Koordinate
+der Schichtindex 1..4 war statt einer Tiefe, und im ganzen File kein lat/lon. Liegt
+jetzt auf dem Gitter, mit den Schichtmitten als Tiefe und den echten
+HTESSEL-Grenzflaechen 0, 7, 28, 100, 289 cm als Bounds. Die aus den Mitten zu
+interpolieren waere bei so ungleichen Schichten Unsinn gewesen: die zweite Schicht
+ginge dann von 10{,}5 auf 40{,}75 cm statt von 7 auf 28.
+
+\subsection*{6. \code{oplayer4} soll \code{pdepth} heissen}
+\ok\ Und dahinter steckte mehr als ein Name. Die drei betroffenen Variablen
+\code{scint}, \code{phcint} und \code{absscint} lieferten ein Integral pro
+Wassersaeule, verlangt sind vier, eines je Schicht.
+
+Welche vier Schichten das sind, steht in der Tabelle nicht: \code{oplayer4} ist
+\code{must\_have\_bounds: yes} mit leerem \code{bounds\_requested}, geliefert werden
+nur die vier Werte 15, 50, 136 und 1000 bar. Das laesst sich aber ausrechnen. Euer
+Ozeanpapier zum Data Request nennt die Bereiche 0--300, 0--700, 0--2000 m und Rest.
+Mit $p = \rho g h$:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+& \textbf{15} & \textbf{50} & \textbf{136} \\
+\midrule
+disjunkt (0--300, 300--700, 700--2000) & 15{,}08 & 50{,}28 & 135{,}75 \\
+kumulativ (0--300, 0--700, 0--2000)    & 15{,}08 & 35{,}19 & 100{,}55 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Also disjunkte Schichten, drei unabhaengige Treffer auf unter 0{,}3 bar. Der vierte
+Wert 1000 gehoert zu einer nach unten offenen Schicht unter 2000 m. Integriert wird
+ueber Tiefe, nicht ueber Druck, weil die Schichten in der Quelle Tiefenbereiche sind
+und auf der Achse nur als Druck ausgedrueckt werden. Modellschichten, die eine Grenze
+kreuzen, werden anteilig geteilt; die Summe der vier ergibt exakt das
+Saeulenintegral.
+
+\subsection*{7. \code{lat(lat)} und \code{lon(lon)} auf regulaeren Gittern}
+\ok\ Das war der groesste Einzelhebel: 41~Dateien ueber acht Checks, dazu der
+Grossteil der \code{AICC006}-Befunde zur Dimensionsreihenfolge.
+
+Die Ursache lag eine Ebene tiefer als der Name. Der DReq benennt eine Dimension nach
+der angeforderten Stufe, auf die Platte gehoert der \code{out\_name}, und 110~der
+Eintraege in \code{CMIP7\_coordinate.json} unterscheiden sich darin. Wir hatten zwei
+Sonderfaelle fest verdrahtet, genau die zwei, die uns aufgefallen waren. Jetzt wird
+allgemein aufgeloest.
+
+Darunter lag noch ein zweiter Fehler derselben Sorte: die Liste, die Quelldimensionen
+auf DReq-Dimensionen abbildet, war ebenfalls handgepflegt und kannte \code{plev19},
+aber nicht \code{plev7h}, und \code{olevel}, aber nicht \code{sdepth}. Eine nicht
+zugeordnete Dimension wird nicht umbenannt, sie landet unter ihrem Modellnamen in der
+Datei. Deshalb stand bei uns \code{pressure\_levels\_7h} und \code{sdepth} auf der
+Platte, und keine \code{out\_name}-Aufloesung haette daran etwas geaendert. Beides
+kommt jetzt aus der Tabelle.
+
+\subsection*{8. \code{positive} auf \code{siflcondtop}}
+\ok\ Verstanden und umgesetzt: in den Variablentabellen ist \code{positive} eine
+Anweisung an den Produzenten, keine Metadatenangabe, und gehoert nicht in die Datei.
+
+Das Vorzeichen selbst haben wir vorher geprueft, bevor wir das Attribut entfernt
+haben. \code{siflcondtop} rechnen wir aus \code{ist}, \code{sss} und \code{h\_ice},
+und die Formel $k(T_\mathrm{surface} - T_\mathrm{base})/h$ ist bereits die
+CMIP-Richtung: im Winter leitet Waerme nach oben aus dem Eis, also negativ. Gemessen
+86{,}4\,\% negativ bei einem Mittel von $-24{,}5$\,W\,m$^{-2}$. Die Daten stimmten
+also, nur das Attribut musste weg.
+
+\section{Was dein Plugin darueber hinaus gefunden hat}
+
+\begin{center}
+\begin{tabular}{lrl}
+\toprule
+\textbf{Fund} & \textbf{Dateien} & \textbf{Stand} \\
+\midrule
+\code{coordinates} listet Koordinatenvariablen & 490 & \ok \\
+Zeitachse hinter der horizontalen (\code{msftbarot}) & 1 & \ok \\
+\code{nz} im \code{coordinates} von \code{tob}/\code{sob} & 2 & \ok \\
+\code{tclm} ohne \code{climatology\_bnds} & 1 & \ok, s.\,u. \\
+\code{olevel}: \code{lev} fehlt ganz & 6 & \offen, Modellseite \\
+zonale Schnitte ohne eigenes Gitter & 4 & \offen \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{\code{pfull} ist jetzt eine echte Klimatologie}
+
+Du hattest recht, dass da eine fehlte. \code{tclm} heisst laut CV zwoelf Werte,
+gemittelt ueber eine Anzahl Jahre, mit \code{time: mean within years time: mean over
+years}. Wir schrieben die zwoelf Monatsmittel eines einzigen Jahres darunter.
+
+Alles neu zu rechnen scheidet bei uns aus: die Quelle ist 27\,GB pro Jahr bei
+194~Jahren, ein Neuaufbau waere rund 5\,TB Lesen und wuerde mit jedem Lauf wachsen.
+Wir fuehren deshalb einen Zwischenstand ausserhalb des Laufverzeichnisses, Summe und
+Anzahl der Jahre je Monat. Jeder Lauf addiert nur sein eigenes Jahr, die Klimatologie
+ist der Quotient und waechst mit. Welche Jahre schon eingerechnet sind, steht mit
+dabei, damit ein wiederholt cmorisiertes Jahr nicht doppelt zaehlt.
+
+Das ist bei uns die einzige Datei, die nicht jahrweise archiviert werden kann. Alle
+anderen 539 sind es.
+
+\subsection*{Sechs Ozeanvariablen, bei denen die Daten fehlen}
+
+\code{osalttend}, \code{osaltrmadvect}, \code{osaltdiff}, \code{opottemptend},
+\code{opottemprmadvect} und \code{opottempdiff} sollen \code{(time, lev, ncells)}
+sein und sind bei uns \code{(time, nod2)}.
+
+Das ist kein Metadatenproblem. Die Felder sind im FESOM-Diagnosemodul konstruktiv
+zweidimensional, der Quellcode sagt es selbst:
+
+\begin{quote}
+\code{real(kind=WP), save, allocatable :: osalttend(:)\ \ ! Salinity tendency - 2D column-integrated}
+\end{quote}
+
+Ein XIOS-Eintrag auf ein 3D-Gitter laeuft ins Leere, wenn das Feld nur eine Dimension
+hat. Die sechs Regeln sind fuer HR deaktiviert. Der Term pro Level wird im Modell
+ohnehin gerechnet und nur aufsummiert, die Aenderung ist also klein; sie geht in die
+naechste Modellversion, und die betroffenen Variablen kommen mit dem LR-Lauf.
+
+\section{Offene Fragen an dich}
+
+\subsection*{\code{grid\_label} fuer Dateien ohne horizontales Gitter}
+
+Bei uns sind das 30~Dateien, alle mit \code{-hm-} in der Branding, also globale
+Mittel. Sie trugen bisher \code{g130}, \code{g129} oder \code{g122} und behaupteten
+damit ein Gitter, auf dem sie nicht liegen.
+
+Wir setzen sie jetzt auf \code{g190}, "A single grid cell for the entire globe". Eine
+Zelle fuer die ganze Kugel ist genau das, was ein globales Mittel raeumlich
+darstellt, und der Eintrag ist seit Ende Juni gemergt.
+
+Bleibt eine Frage: du hattest geschrieben, die ersten 100 Label seien fuer solche
+Faelle reserviert und es sei noch nicht final entschieden. Falls dort etwas anderes
+vorgesehen ist, stellen wir um; es sind 29~Regeln in vier Tiers und ein
+\code{sed}-Lauf.
+
+\subsection*{Sieben Achsen verlangen Bounds und liefern keine}
+
+\code{oplayer4} ist kein Einzelfall. In \code{CMIP7\_coordinate.json} stehen sieben
+Eintraege auf \code{must\_have\_bounds: yes}, haben eine explizite Werteliste und kein
+\code{bounds\_requested}:
+
+\begin{quote}
+\code{alt16}, \code{alt40}, \code{dbze}, \code{oplayer4}, \code{plev7c},
+\code{scatratio}, \code{tau}
+\end{quote}
+
+Bei \code{oplayer4} liessen sich die Schichten aus eurem Papier rekonstruieren, wie
+oben gezeigt. Fuer die uebrigen duerfte es anderen genauso gehen wie uns.
+
+\subsection*{Ein \code{requested}-Wert, den CF nicht kennt}
+
+\code{vegtype} setzt \code{standard\_name = area\_type}, und der CF-Standardname
+\code{area\_type} schreibt vor, dass die Werte aus der CF-Area-Type-Tabelle stammen.
+In der \code{requested}-Liste steht aber \code{needleleaf\_evergreen\_tree} im
+Singular, den es dort nicht gibt; die anderen drei Baumtypen sind Plural, und die
+CF-Tabelle fuehrt durchgehend \code{needleleaf\_evergreen\_trees}. Von 247 geprueften
+CF-Begriffen ist das der einzige Ausreisser.
+
+Wir schreiben den CF-Plural, weil derselbe Tabelleneintrag den Standardnamen setzt,
+der das verlangt. Dein Plugin meldet das folgerichtig als fehlenden Wert.
+
+\subsection*{Zwei Punkte auf unserer Seite}
+
+Sechs Ozeanvariablen (\code{osalttend} und Geschwister) liefern wir vorerst
+nicht: FESOM rechnet sie konstruktiv zweidimensional, verlangt ist
+\code{(time, lev, ncells)}. Und bei \code{plev7h} schreibt unser Modell sieben
+Druckflaechen, aber nicht die angeforderten sieben; \code{60000} und \code{5000}
+Pa fehlen, dafuer kommen \code{100000} und \code{10000} mit. Beides ist
+Modellausgabe, nicht Cmorisierung, und geht in die naechste Modellversion.
+
+\subsection*{Kleinigkeit}
+
+\code{time4} hat im \code{long\_name} einen Tippfehler: "Monthly Mean Daily
+Satistics".
+
+\section{Was als naechstes kommt}
+
+Der Lauf mit allem aus diesem Dokument ist durch, die Zahlen oben stammen
+daraus.
+
+Offen bleiben von unserer Seite die vier zonalen Schnitte
+(\code{msftm}, \code{hfbasin}, \code{sltbasin}), fuer die es kein passendes Gitter im
+Register gibt. Die Registrierung ist angestossen. Beim Nachmessen ist uns dabei
+aufgefallen, dass unsere drei zonalen Achsen nicht einheitlich sind, einmal 181
+Punkte auf ganzen Grad und zweimal auf halben; das ziehen wir vorher gerade, damit
+die Registrierung nicht die Uneinheitlichkeit festschreibt.
+
+\end{document}

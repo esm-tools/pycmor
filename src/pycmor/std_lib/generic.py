@@ -683,7 +683,6 @@ def trigger_compute(data, rule_spec, *args, **kwargs):
     --------
     >>> import xarray as xr
     >>> import numpy as np
-    >>> from types import SimpleNamespace
     >>> # Create data (in real use, this might be dask-backed)
     >>> data = xr.DataArray(
     ...     np.array([1.0, 2.0, 3.0]),
@@ -692,7 +691,7 @@ def trigger_compute(data, rule_spec, *args, **kwargs):
     >>> print("INPUT:", data.values)
     INPUT: [1. 2. 3.]
     >>> # Trigger compute (no-op for eager numpy arrays)
-    >>> rule_spec = SimpleNamespace()
+    >>> rule_spec = {}
     >>> result = trigger_compute(data, rule_spec)
     >>> print("OUTPUT:", result.values)
     OUTPUT: [1. 2. 3.]
@@ -702,9 +701,11 @@ def trigger_compute(data, rule_spec, *args, **kwargs):
     >>> print("OUTPUT (computed):", computed.values)
     OUTPUT (computed): [11. 12. 13.]
     """
+    if rule_spec.get("lazy_write", False):
+        logger.info("lazy_write=True: keeping data lazy for streaming write")
+        return data
     if hasattr(data, "compute"):
         return data.compute()
-    # Data doesn't have a compute method, do nothing
     return data
 
 

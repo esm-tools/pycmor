@@ -1,0 +1,182 @@
+# CMIP7 LRCS Land Variables — Test config with TCo95 / CORE2
+# Adapted from awi-esm3-veg-hr-variables/lrcs_land/cmip7_awiesm3-veg-hr_lrcs_land.yaml
+# Uses low-resolution TCo95 (~100km) experiment for quick testing.
+# 3 LPJ-GUESS monthly variables + 3 IFS-derived fx variables
+
+general:
+  name: "awiesm3-cmip7-lrcs-land-tco95-test"
+  cmor_version: "CMIP7"
+  mip: "CMIP"
+  CMIP7_DReq_metadata: "/home/a/a270092/.cache/pycmor/cmip7_metadata/v1.2.2.4/metadata.json"
+
+pycmor:
+  enable_output_subdirs: true
+  warn_on_no_rule: False
+  parallel: False
+  dask_cluster: "slurm"
+  dask_n_workers: 1
+  dask_cluster_scaling_mode: "fixed"
+  dask_cluster_scaling_fixed_jobs: 1
+
+jobqueue:
+  slurm:
+    name: pycmor-worker
+    queue: compute
+    account: ba0989
+    cores: 16
+    memory: 256GB
+    walltime: '00:30:00'
+
+pipelines:
+  # LPJ-GUESS monthly loader (Jan..Dec format)
+  - name: lpjg_monthly_pipeline
+    steps:
+      - script://$PYCMOR_HOME/examples/custom_steps.py:load_lpjguess_monthly
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  # Custom fx pipeline for IFS-derived static fields (sftgif, mrsofc, rootd)
+  - name: sftgif_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_sftgif
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: mrsofc_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_mrsofc
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+  - name: rootd_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - script://$PYCMOR_HOME/examples/custom_steps.py:compute_rootd
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.generic.show_data
+      - pycmor.std_lib.files.save_dataset
+
+      - pycmor.std_lib.qc.run_compliance_checker
+inherit:
+  # Write-perf defaults rolled out from HR atm core bench:
+  netcdf_compression_codec: blosc_zstd
+  netcdf_compression_level: 3
+  netcdf_write_scheduler: threads
+  data_path: &dp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/oifs
+  lpjg_data_path: &ldp /work/bb1469/a270092/runtime/awiesm3-develop/LR_run_test3/outdata/lpj_guess
+  source_id: AWI-ESM3-VEG-LR
+  institution_id: AWI
+  experiment_id: piControl
+  activity_id: CMIP
+  parent_experiment_id: no parent
+  variant_label: r1i1p1f1
+  grid_label: gn
+  grid: "OpenIFS TCo95 reduced Gaussian, interpolated to 1deg regular grid"
+  nominal_resolution: "100 km"
+  institution: "Alfred Wegener Institute for Polar and Marine Research"
+  time_dimname: time_counter
+  output_directory: ./cmorized_output/lrcs_land_tco95_test
+  year_start: 1900
+  year_end: 1901
+
+rules:
+  # ============================================================
+  # LPJ-GUESS monthly variables (Lmon / LImon)
+  # ============================================================
+
+  # Bare soil evaporation (LPJ-GUESS outputs kg m-2 s-1, converted from monthly totals)
+  - name: evspsblsoi
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/evspsblsoi_monthly.out"
+    compound_name: land.evspsblsoi.tavg-u-hxy-lnd.mon.glb
+    model_variable: evspsblsoi
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # Canopy water evaporation (LPJ-GUESS outputs kg m-2 s-1, converted from monthly totals)
+  - name: evspsblveg
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/evspsblveg_monthly.out"
+    compound_name: land.evspsblveg.tavg-u-hxy-lnd.mon.glb
+    model_variable: evspsblveg
+    source_units: "kg m-2 s-1"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # Soil frozen water content (LPJ-GUESS outputs kg m-2)
+  - name: mrfso
+    inputs:
+      - path: *ldp
+        pattern: "*/run1/mrfso_monthly.out"
+    compound_name: landIce.mrfso.tavg-u-hxy-lnd.mon.glb
+    model_variable: mrfso
+    source_units: "kg m-2"
+    pipelines:
+      - lpjg_monthly_pipeline
+
+  # ============================================================
+  # Derived from IFS static fields (fx)
+  # ============================================================
+
+  # Glacier fraction from vegetation type fields
+  - name: sftgif
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_.*\.nc
+    compound_name: land.sftgif.ti-u-hxy-u.fx.glb
+    model_variable: sftgif
+    pipelines:
+      - sftgif_pipeline
+
+  # Field capacity from soil type lookup
+  # NOTE: requires 'slt' field — may fail if not in static output
+  - name: mrsofc
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_.*\.nc
+    compound_name: land.mrsofc.ti-u-hxy-lnd.fx.glb
+    model_variable: mrsofc
+    pipelines:
+      - mrsofc_pipeline
+
+  # Maximum root depth from vegetation type weighted average
+  - name: rootd
+    inputs:
+      - path: *dp
+        pattern: atmos_mon_land_static_.*\.nc
+    compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
+    model_variable: rootd
+    pipelines:
+      - rootd_pipeline

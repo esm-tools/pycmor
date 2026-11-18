@@ -1,0 +1,33 @@
+tier: cap7_ocean
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules: []
+not_enabled:
+- name: tossq_day
+  compound_name: ocean.tossq.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: volcello_mon
+  compound_name: ocean.volcello.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: friver
+  compound_name: ocean.friver.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfx
+  compound_name: ocean.hfx.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfxint
+  compound_name: ocean.hfx.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfy
+  compound_name: ocean.hfy.tavg-ol-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfyint
+  compound_name: ocean.hfy.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
