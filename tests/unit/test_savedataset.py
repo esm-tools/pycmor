@@ -169,6 +169,20 @@ def test__filename_time_range_multiple_timesteps(frequency):
     assert expected[frequency] == result
 
 
+def test__filename_time_range_rounds_float_noise_before_truncating():
+    # 1hr window midpoints decoded from float days, as written for a time-maximum product.
+    import cftime
+
+    time = [
+        cftime.DatetimeProlepticGregorian(2850, 1, 1, 0, 29, 59, 999998),
+        cftime.DatetimeProlepticGregorian(2850, 1, 31, 23, 29, 59, 999997),
+    ]
+    ds = xr.DataArray(np.zeros((2, 2)), coords={"time": time, "ncells": [1, 2]}, name="wsg")
+    rule = Mock()
+    rule.data_request_variable.frequency = "1hr"
+    assert _filename_time_range(ds, rule) == "285001010030-285001312330"
+
+
 def test_save_dataset_saves_to_single_file_when_no_time_axis(tmp_path):
     t = tmp_path / "output"
     da = xr.DataArray([1, 2, 3], coords={"ncells": [1, 2, 3]}, dims=["ncells"])

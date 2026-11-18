@@ -2977,8 +2977,10 @@ def _filename_time_range(ds, rule) -> str:
     # stamp directly: ``strftime`` truncates to the frequency's precision
     # (mon: %Y%m, day: %Y%m%d, 1hr: %Y%m%d%H%M, ...), which lines up with
     # canonical midpointed tavg and canonical instantaneous tpt files.
-    start = pd.Timestamp(str(ds[time_label].data[0]))
-    end = pd.Timestamp(str(ds[time_label].data[-1]))
+    # Round to the second first: a stamp decoded from float days can sit a
+    # few microseconds early (00:29:59.999998), which truncates to ..0029.
+    start = pd.Timestamp(str(ds[time_label].data[0])).round("s")
+    end = pd.Timestamp(str(ds[time_label].data[-1])).round("s")
     frequency_str = rule.data_request_variable.frequency
     if frequency_str in ("yr", "yrPt", "dec"):
         return f"{start.year:04d}-{end.year:04d}"  # YYYY
