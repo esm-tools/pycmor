@@ -245,10 +245,12 @@ class MaterializeTests(unittest.TestCase):
         self.write(self.fesom / 'expC.fesom.2000.nc', 'expC', 'mmolC/m2/s', ('nz1', EDGES))
         _, rule = RAW.materialize(self.rules['expc_1000m'], grid)
         self.assertEqual(rule['lr_target_depth'], 1000.)
-        self.write(self.fesom / 'bflxC.fesom.2000.nc', 'bflxC', 'mmolC/m2/s', daily=True)
+        # The CMIP7 file_def writes bflxC twice: a monthly mean and the daily bflxC_day.
+        self.write(self.fesom / 'bflxC.fesom.2000.nc', 'bflxC', 'mmolC/m2/s')
+        self.write(self.fesom / 'bflxC_day.fesom.2000.nc', 'bflxC', 'mmolC/m2/s', daily=True)
         for name in ('expcob', 'froc', 'expcob_daily'):
             _, rule = RAW.materialize(self.rules[name], grid)
-            self.assertEqual(rule['lr_source_files'], [str(self.fesom / 'bflxC.fesom.2000.nc')])
+            self.assertEqual(rule['lr_source_files'], [str(self.fesom / 'bflxC_day.fesom.2000.nc')])
         for stem, variable in (('PhyChl_200', 'PhyChl'), ('DiaChl_200', 'DiaChl')):
             self.write(self.fesom / f'{stem}.fesom.2000.nc', variable, '[mg/m3]', ('nz_200', [175., 210.]),
                        daily=True)

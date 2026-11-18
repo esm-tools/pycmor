@@ -990,7 +990,7 @@ rules:
   lr_units: mol m-2 s-1
   lr_input:
     component: fesom
-    pattern: bflxC\.fesom\.\d{4}\.nc$
+    pattern: bflxC_day\.fesom\.\d{4}\.nc$
   pipelines: [lr_daily]
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), POC flux into the benthos (recom_sinking BotFlux),
     i.e. the flux leaving the deepest ocean layer. Daily mean stream.
@@ -1002,11 +1002,12 @@ rules:
   lr_units: mol m-2 s-1
   lr_input:
     component: fesom
-    pattern: bflxC\.fesom\.\d{4}\.nc$
+    pattern: bflxC_day\.fesom\.\d{4}\.nc$
   lr_source_frequency: day
   pipelines: [lr_daily_to_monthly]
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), POC flux into the benthos (recom_sinking BotFlux).
-    bflxC is written daily only; the monthly value is the mean of the complete daily means of the month.
+    The monthly value is the mean of the complete daily means in bflxC_day; the monthly bflxC file of the
+    same name holds one record per month.
 - name: froc
   compound_name: ocnBgchem.froc.tavg-u-hxy-sea.mon.glb
   model_variable: bflxC
@@ -1015,12 +1016,12 @@ rules:
   lr_units: mol m-2 s-1
   lr_input:
     component: fesom
-    pattern: bflxC\.fesom\.\d{4}\.nc$
+    pattern: bflxC_day\.fesom\.\d{4}\.nc$
   lr_source_frequency: day
   pipelines: [lr_daily_to_monthly]
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), gross POC deposition into the benthos (recom_sinking
     BotFlux); benthic remineralisation back to the water column is a separate source and not subtracted.
-    Monthly mean of the complete daily means of bflxC.
+    Monthly mean of the complete daily means of bflxC_day.
 - name: expcalcob
   compound_name: ocnBgchem.expcalcob.tavg-u-hxy-sea.mon.glb
   model_variable: bflxCalc
@@ -1116,7 +1117,7 @@ rules:
   lr_units: mol m-3
   lr_input:
     component: fesom
-    pattern: O2min\.fesom\.\d{4}\.nc$
+    pattern: O2min_day\.fesom\.\d{4}\.nc$
   pipelines: [lr_daily]
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), O2 at the shallowest interior local minimum of the
     profile, or the column minimum where there is none (recom_main); daily mean.
@@ -1128,7 +1129,7 @@ rules:
   lr_units: kg m-2
   lr_input:
     component: fesom
-    pattern: intPOC\.fesom\.\d{4}\.nc$
+    pattern: intPOC_day\.fesom\.\d{4}\.nc$
   pipelines: [lr_daily]
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), column inventory of the same POC pools as the poc
     rule (recom_main intPOC), mmol C to kg C with 12.011 g/mol; daily mean.
