@@ -304,13 +304,14 @@ class CatalogueRuleTests(unittest.TestCase):
         self.assertEqual(rows['atmos.ua.tpt-h100m-hxy-u.1hr.glb']['status'],'READY')
         for compound,stream in (('atmos.wsg.tmax-h10m-hxy-u.1hr.glb','atmos_1h_gust_wsg10_2845-2845'),
                                 ('atmos.bldep.tpt-u-hxy-u.3hr.glb','atmos_3h_pt_blh_2845-2845'),
-                                ('aerosol.od550aer.tavg-u-hxy-u.mon.glb','atmos_mon_aod_macv2sp_taod550_2845-2845'),
                                 ('atmosChem.o3.tavg-al-hxy-u.mon.glb','atmos_mon_ml_o3_2845-2845')):
             with self.subTest(compound=compound):
                 self.assertEqual(rows[compound]['status'],'BLOCKED')
                 self.assertIn('MISSING_INPUT',rows[compound]['reason'])
                 self.assertIn(stream,rows[compound]['reason'].replace('\\',''))
         self.assertIn('UNRESOLVED_PEXTRA_ACCUMULATION',rows['atmos.tnta.tavg-al-hxy-u.mon.glb']['reason'])
+        # aod550 is the near-surface extinction coefficient, not a column AOD.
+        self.assertIn('EXCLUDED_OUTPUT_GAP',rows['aerosol.od550aer.tavg-u-hxy-u.mon.glb']['reason'])
 
     def test_tendency_is_ready_once_the_budget_is_per_step(self):
         rows=self.plan(dict(pextra_budget='per_step',oifs_tstep=3600.))

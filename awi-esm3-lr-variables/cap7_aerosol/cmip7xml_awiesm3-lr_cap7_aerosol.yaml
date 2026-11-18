@@ -612,27 +612,11 @@ rules:
   # ============================================================
   # Aerosol optical depth at 550 nm (esm_tools change O6)
   # ============================================================
-  # radaca.F90 computes the CAMS-climatology optical depth aod550, written
-  # monthly to atmos_mon_aod_aod550 on the reduced grid. od550aer adds the
-  # MACv2-SP anthropogenic plumes (macv2sp_taod550), which radiation applies
-  # on top; atmos_mon_aod writes them on the reduced grid as well. Test month
-  # 2850-01 (cc-LR, piControl): aod550 0.07 on average, macv2sp_taod550 zero on
-  # both grids (no anthropogenic plumes in 1850). The per-species fields
-  # aod550bc/du/om/su/ss come out but sum to 0.3% of aod550 and do not
-  # decompose it, so od550bc/dust/oa/so4/ss are dropped (exclusions.yaml).
-
-  - name: od550aer_mon
-    grid_label: __LR_GRID_ATM__
-    grid: "OpenIFS TCo95 reduced Gaussian (~100 km)"
-    pipelines:
-      - aod_pipeline
-    inputs:
-      - path: *dp
-        pattern: atmos_mon_aod_aod550_.*\.nc
-      - path: *dp
-        pattern: atmos_mon_aod_macv2sp_taod550_.*\.nc
-    compound_name: aerosol.od550aer.tavg-u-hxy-u.mon.glb
-    model_variable: od550aer
-    summed_variables: [aod550, macv2sp_taod550]
-    variable_attributes:
-      comment: "wavelength: 550 nm. CAMS climatology aerosol (radaca.F90) plus the MACv2-SP anthropogenic plumes; no stratospheric aerosol."
+  # od550aer is not delivered (output_gap in exclusions.yaml). The XIOS field
+  # aod550 is not a column optical depth here: with NAERMACC=1 (forced by
+  # LMACV2SP) climaer_layer.F90:156-201 overwrites the 550 nm slot with the
+  # extinction coefficient of the lowest model level in km-1, the visibility
+  # input. macv2sp_taod550 is a column AOD but only the anthropogenic plumes,
+  # which is why HR does not deliver od550aer either. A column AOD of the CAMS
+  # background needs a source change. The per-species aod550bc/du/om/su/ss are
+  # RADACA column masses, not optical depths (dropped as well).
