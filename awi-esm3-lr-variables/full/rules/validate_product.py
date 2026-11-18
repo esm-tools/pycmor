@@ -154,6 +154,19 @@ def regional_native_indices(rule, output):
         return np.asarray(lon[:]).ravel(), np.asarray(lat[:]).ravel()
     with netCDF4.Dataset(rule['lr_source_files'][0]) as source:
         slon, slat = coordinates(source)
+    klon, klat = slon, slat
+    grid = rule.get('grid_file')
+    if grid and Path(grid).is_file():
+        with netCDF4.Dataset(grid) as mesh:
+            if 'triag_nodes' in mesh.variables:
+                mlon, mlat = coordinates(mesh)
+                # pycmor writes the mesh.nc node positions, not the float32 XIOS
+                # ones; XIOS keeps the mesh node order, so match by index.
+                assert mlon.size == slon.size, 'Source is not on the grid_file mesh'
+                dlon = np.abs((np.asarray(mlon, np.float64) - slon + 180) % 360 - 180)
+                assert np.all(dlon * np.cos(np.deg2rad(slat)) < 0.01) and np.all(np.abs(mlat - slat) < 0.01), \
+                    'Source node positions differ from the mesh'
+                klon, klat = mlon, mlat
     olon, olat = coordinates(output)
     assert np.all(olat <= -30.0), 'Out-of-region cells in Southern Ocean product'
     def keys(lon, lat):
@@ -163,7 +176,7 @@ def regional_native_indices(rule, output):
         lon=np.asarray(lon,dtype=np.float64)
         lat=np.asarray(lat,dtype=np.float64)
         return list(zip(np.round(lon % 360,5),np.round(lat,5)))
-    source_keys = keys(slon,slat)
+    source_keys = keys(klon,klat)
     assert len(set(source_keys)) == len(source_keys), 'Nonunique native coordinate match'
     lookup = {key:i for i,key in enumerate(source_keys)}
     indices = np.asarray([lookup[key] for key in keys(olon,olat)],dtype=int)

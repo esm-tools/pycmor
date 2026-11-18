@@ -293,6 +293,42 @@ class DailyTests(unittest.TestCase):
             with self.assertRaises(KeyError):
                 VALIDATOR.regional_native_indices(rule,ds)
 
+    def test_regional_output_on_mesh_positions_maps_through_grid_file(self):
+        # pycmor writes the mesh.nc node positions; the float32 XIOS source
+        # positions of the same nodes differ by up to a few 1e-3 degrees.
+        source=self.base/'xios.nc';mesh=self.base/'mesh.nc';output=self.base/'regional_mesh.nc'
+        mlon=np.array([10.,181.556187322969,-178.44383,42.123455]);mlat=np.array([50.,-84.4691023578597,-35.,-60.123455])
+        slon=(mlon+[0.,1.2e-4,-3e-3,0.]).astype(np.float32);slat=(mlat+[0.,-1.7e-5,2e-3,0.]).astype(np.float32)
+        selected=np.flatnonzero(slat <= -30.)
+        with netCDF4.Dataset(source,'w') as ds:
+            ds.createDimension('nod2',4)
+            ds.createVariable('lon','f4',('nod2',))[:]=slon
+            ds.createVariable('lat','f4',('nod2',))[:]=slat
+        with netCDF4.Dataset(mesh,'w') as ds:
+            ds.createDimension('nod2',4);ds.createDimension('ntri',1);ds.createDimension('three',3)
+            ds.createVariable('lon','f8',('nod2',))[:]=mlon
+            ds.createVariable('lat','f8',('nod2',))[:]=mlat
+            ds.createVariable('triag_nodes','i4',('ntri','three'))[:]=[[1,2,3]]
+        with netCDF4.Dataset(output,'w') as ds:
+            ds.createDimension('nod2',len(selected))
+            ds.createVariable('longitude','f8',('nod2',))[:]=mlon[selected]
+            ds.createVariable('latitude','f8',('nod2',))[:]=mlat[selected]
+        rule={'lr_region':'30S-90S','lr_source_files':[str(source)],'grid_file':str(mesh)}
+        with netCDF4.Dataset(output) as ds:
+            np.testing.assert_array_equal(VALIDATOR.regional_native_indices(rule,ds),selected)
+            with self.assertRaises(KeyError):
+                VALIDATOR.regional_native_indices(dict(rule,grid_file=None),ds)
+        with netCDF4.Dataset(output,'r+') as ds:
+            ds['longitude'][0]=ds['longitude'][0]+0.001
+        with netCDF4.Dataset(output) as ds:
+            with self.assertRaises(KeyError):
+                VALIDATOR.regional_native_indices(rule,ds)
+        with netCDF4.Dataset(mesh,'r+') as ds:
+            ds['lat'][3]=ds['lat'][3]+0.05
+        with netCDF4.Dataset(output) as ds:
+            with self.assertRaisesRegex(AssertionError,'differ from the mesh'):
+                VALIDATOR.regional_native_indices(rule,ds)
+
 
 if __name__ == '__main__':
     unittest.main()
