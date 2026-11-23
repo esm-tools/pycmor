@@ -677,5 +677,8 @@ rules:
     salt_pattern: salt\.fesom\.\d{4}\.nc
     salt_variable: salt
     reference_density: 1030.0  # FESOM density_0
+    # One zero for piControl and every experiment: the piControl year the
+    # experiments branch from (restart fesom.1949). Jan, 2026-11-23.
+    reference_temperature: /work/bb1469/a270089/runtime/awiesm3-v3.4.2/AWI-ESM3-VEG-HR-CMIP7-piControl/outdata/fesom/temp.fesom.1949.nc
     pipelines:
       - zostoga_pipeline

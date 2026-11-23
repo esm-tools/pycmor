@@ -16,7 +16,7 @@ model output they come from:
 
 This script applies exactly those changes to files already written, so the
 years do not have to be cmorized again. Products whose change is not a
-constant (sifb, msftm at tavg-rho-hyb-sea, rootd) need the rules run again;
+constant (sifb, msftm at tavg-rho-hyb-sea, rootd, zostoga) need the rules run again;
 use a campaign with ``rules:`` for those (see campaign.py).
 
 Each repaired file is written next to the original, quantized as the original
@@ -116,8 +116,6 @@ REPAIRS = [
             ("sfy", "tavg-u-hxy-sea", "mon"),
         ]
     ],
-    # steric height is -1/rho_0 times the integrated density anomaly
-    _r("zostoga", "tavg-u-hm-sea", "mon", "glb", factor=1.0 / RHO_1025, notes=RHO_NOTE, why="density_0 1025 -> 1030"),
     _r(
         "pso",
         "tavg-u-hxy-sea",
@@ -192,7 +190,12 @@ WITHDRAWN = [
 ]
 
 # Products that need their rule run again; the script only reports them.
-RERUN = ["sifb (rule sifb, g130 and g131)", "msftm tavg-rho-hyb-sea (rule msftm_density)", "rootd fx (rule rootd)"]
+RERUN = [
+    "sifb (rule sifb, g130 and g131)",
+    "msftm tavg-rho-hyb-sea (rule msftm_density)",
+    "rootd fx (rule rootd)",
+    "zostoga (rule zostoga; it was relative to each year's own mean, now to piControl 1949)",
+]
 
 PERIOD = re.compile(r"_(\d{4})(\d{2})?(\d{2})?(\d{4})?-(\d{4})(\d{2})?(\d{2})?(\d{4})?\.nc$")
 
