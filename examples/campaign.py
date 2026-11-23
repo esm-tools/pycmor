@@ -43,7 +43,10 @@ the first year of every launch), ``max_consecutive_fails`` (2),
 ``conda_init``, ``conda_env``, ``code_repo`` (default: this checkout),
 ``with_gr`` (false; true also writes the regridded FESOM output, g131),
 ``overlap`` (false; true runs two years at once, see run_year_chain.sbatch; it
-changes when years run, not what they write, so it is not pinned).
+changes when years run, not what they write, so it is not pinned),
+``rules`` (none; a list of rule names runs only those rules in every year, to
+redo a few products over years that are already published. Pinned, and best
+kept in a campaign of its own next to the one that wrote the years).
 
 Where campaigns run: ``campaign_root`` (campaign.yaml, then
 ``$PYCMOR_CAMPAIGN_ROOT``, then ``/work/bb1469/$USER/cmor_campaigns``). Put
@@ -178,6 +181,14 @@ def load(path):
     cfg.setdefault("overlap", False)
     if not isinstance(cfg["overlap"], bool):
         raise CampaignError(f"overlap must be true or false, not {cfg['overlap']!r}")
+    cfg.setdefault("rules", None)
+    rules = cfg["rules"]
+    if rules is not None and (
+        not isinstance(rules, list)
+        or not rules
+        or not all(isinstance(r, str) and re.fullmatch(r"[A-Za-z0-9_.-]+", r) for r in rules)
+    ):
+        raise CampaignError(f"rules must be a non-empty list of rule names, not {rules!r}")
     cfg.setdefault("production", DEFAULT_PRODUCTION.get(cfg["model"]))
     if cfg["production"] is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", str(cfg["production"])):
         raise CampaignError(f"production {cfg['production']!r} is not a profile name")
@@ -224,6 +235,8 @@ def _pinned_view(cfg, sha):
         view["production"] = cfg["production"]
     if cfg.get("with_gr"):
         view["with_gr"] = True
+    if cfg.get("rules"):
+        view["rules"] = list(cfg["rules"])
     return view
 
 
@@ -635,7 +648,7 @@ def env(cfg):
         "WITH_GR": "yes" if cfg["with_gr"] else "no",
         "OVERLAP": "yes" if cfg["overlap"] else "no",
         "TIER": "",
-        "RULES": "",
+        "RULES": ",".join(cfg["rules"] or []),
         **_env_values(cfg),
     }
     return "\n".join(f"export {k}={shlex.quote(str(v))}" for k, v in values.items())

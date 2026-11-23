@@ -74,6 +74,9 @@ def _write_campaign(tmp_path, code_repo, **over):
         ({"inherit": {"experiment_id": "piControl"}}, "owns"),
         ({"output_root": "relative/out"}, "absolute"),
         ({"overlap": "yes"}, "overlap must be true or false"),
+        ({"rules": "sifb"}, "rules must be"),
+        ({"rules": []}, "rules must be"),
+        ({"rules": ["sifb,rootd"]}, "rules must be"),
     ],
 )
 def test_load_rejects_bad_campaigns(campaign, tmp_path, code_repo, over, msg):
@@ -148,6 +151,26 @@ def test_env_is_valid_shell(campaign, tmp_path, code_repo, monkeypatch):
     )
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
     assert out == f"{cfg['_code']}/src|a b@example.org|1pctCO2|{cfg['_dir']}/climatologies"
+
+
+def test_rules_reach_the_jobs_and_are_pinned(campaign, tmp_path, code_repo, monkeypatch):
+    """A campaign that redoes a few products exports them as RULES, which
+    submit_hr_year_shards.sh cuts every tier down to. Campaigns without the
+    key keep exporting an empty RULES and keep their old pins valid."""
+    monkeypatch.setenv("CMIP7_TABLES_PATH", str(tmp_path))
+    plain = campaign.load(_write_campaign(tmp_path, code_repo))
+    campaign.setup(plain)
+    assert "rules" not in json.loads(Path(plain["_pin"]).read_text())
+    assert "export RULES=''" in campaign.env(plain)
+
+    path = _write_campaign(tmp_path, code_repo, rules=["sifb", "msftm_density"])
+    with pytest.raises(campaign.CampaignError, match="rules"):
+        campaign.verify(campaign.load(path))
+    cfg = campaign.load(path)
+    campaign.setup(cfg, repin=True)
+    assert json.loads(Path(cfg["_pin"]).read_text())["rules"] == ["sifb", "msftm_density"]
+    out = subprocess.run(["bash", "-c", campaign.env(cfg) + '\nprintf "%s" "$RULES"'], capture_output=True, text=True)
+    assert out.stdout == "sifb,msftm_density"
 
 
 TIER = """\

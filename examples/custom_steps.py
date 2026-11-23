@@ -2717,6 +2717,47 @@ def compute_salt_transport_integrated(data, rule):
     return transport_2d
 
 
+def _zostoga_reference_temperature(data, rule, vertical_dim, horizontal_dim):
+    """Reference temperature for zostoga and a note saying what it is.
+
+    ``reference_temperature`` names a FESOM temperature file whose time mean
+    is the reference state, for AWI-ESM3 HR the piControl year the
+    experiments branch from (piControl 1949), so that every experiment and
+    piControl itself share one zero. Without it the reference is the time
+    mean of the data being processed. Cmorized a year at a time, that is
+    each year's own mean, which leaves zostoga without any trend; it is
+    kept only so a setup without a reference still runs, and says so.
+    """
+    path = rule.get("reference_temperature")
+    if not path:
+        logger.warning(
+            "zostoga: no reference_temperature; using the time mean of the processed period, "
+            "which removes any trend when years are cmorized one at a time"
+        )
+        ref = data.mean(dim="time") if "time" in data.dims else data
+        return ref, "the time mean of the processed period"
+    variable = rule.get("reference_temperature_variable", rule.model_variable)
+    with xr.open_dataset(path) as ds:
+        ref = ds[variable]
+        ref = (ref.mean(dim="time") if "time" in ref.dims else ref).load()
+    # The reference file may name the dimensions differently; match them by size.
+    rename = {}
+    for d in ref.dims:
+        if d in (vertical_dim, horizontal_dim):
+            continue
+        for want in (vertical_dim, horizontal_dim):
+            if ref.sizes[d] == data.sizes[want] and want not in ref.dims and want not in rename.values():
+                rename[d] = want
+                break
+    ref = ref.rename(rename)
+    if set(ref.dims) != {vertical_dim, horizontal_dim} or any(ref.sizes[d] != data.sizes[d] for d in ref.dims):
+        raise ValueError(
+            f"zostoga reference {path} has dims {dict(ref.sizes)}, the data "
+            f"{ {d: data.sizes[d] for d in (vertical_dim, horizontal_dim)} }"
+        )
+    return ref.transpose(vertical_dim, horizontal_dim), f"the time mean of {_os.path.basename(path)}"
+
+
 def compute_zostoga(data, rule):
     """
     Compute global average thermosteric sea level change.
@@ -2733,6 +2774,8 @@ def compute_zostoga(data, rule):
       - grid_file: path to mesh file (for cell_area and depth_bnds)
       - salt_file: path to salinity file (optional, for full steric)
       - reference_density: rho_0 (default 1030.0, FESOM density_0)
+      - reference_temperature: FESOM temperature file whose time mean is the
+        reference state (see _zostoga_reference_temperature)
     """
     import gsw
 
@@ -2785,8 +2828,7 @@ def compute_zostoga(data, rule):
     # Compute pressure from depth
     pressure = xr.DataArray(depth_bnds[:nz], dims=[vertical_dim])
 
-    # Reference state: time-mean temperature (or use first timestep)
-    temp_ref = data.mean(dim="time") if "time" in data.dims else data
+    temp_ref, reference_note = _zostoga_reference_temperature(data, rule, vertical_dim, horizontal_dim)
 
     # Compute density for actual and reference states
     SA = gsw.SA_from_SP(salt, pressure, 0, 0)
@@ -2811,7 +2853,7 @@ def compute_zostoga(data, rule):
         "units": "m",
         "standard_name": "global_average_thermosteric_sea_level_change",
         "long_name": "Global Average Thermosteric Sea Level Change",
-        "processing_note": f"Computed from temperature anomaly relative to time-mean. rho_0={rho_0}",
+        "processing_note": f"Computed from the temperature anomaly relative to {reference_note}. rho_0={rho_0}",
     }
     return zostoga
 
