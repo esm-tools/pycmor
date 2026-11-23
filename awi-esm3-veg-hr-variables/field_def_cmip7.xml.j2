@@ -1,4 +1,6 @@
-<field_definition level="1" prec="4" enabled="true" operation="instant" freq_op="{{ oifs.output_step_freq }}ts" ts_enabled="true" default_value="1.e+20" >
+<!-- operation="average" is what @this_ref in file_def_oifs_cmip7_spinup.xml.j2 averages the
+     source fields with. Every file group sets its own operation, so nothing else reads it. -->
+<field_definition level="1" prec="4" enabled="true" operation="average" freq_op="{{ oifs.output_step_freq }}ts" ts_enabled="true" default_value="1.e+20" >
   <field_group id="2D_physical" grid_ref="reduced_sfc" freq_op="{{ oifs.output_step_freq }}ts" >
     <!--TODO: convert to kg m-2-->
     <field id="sro"    long_name="surface runoff"                                             standard_name="runoff_amount"                                            unit="m" />
@@ -418,7 +420,9 @@
     <field id="co2"    long_name="co2 mass mixing ration"                    standard_name="co2_mass_mixing_ratio"                     unit="kg*kg-1" />
   </field_group>
 
-  <field_group id="3D_pl" grid_ref="reduced_pl" freq_op="{{ oifs.output_step_freq }}ts" >
+  <!-- Sent on all FullPos pressure levels; files subset them through the
+       zoomed axes in axis_def.xml (reduced_pl / regular_pl are plev19). -->
+  <field_group id="3D_pl" grid_ref="reduced_pl_fpos" freq_op="{{ oifs.output_step_freq }}ts" >
     <field id="pt_pl"     long_name="potential temperature"                     standard_name="air_potential_temperature"                 unit="K" />
     <!-- WARNING: FullPos doesn't process 'mont', don't use it -->
     <field id="mont_pl"   long_name="Montgomery geopotential"                                                                             unit="m2 s-2" />

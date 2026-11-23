@@ -62,11 +62,13 @@ Config from `global.ins` via `run_coupled_4_1_2.ins`:
 
 These files configure the OpenIFS/XIOS output pipeline. XIOS expressions handle unit conversions, deaccumulation, and sign flips at output time so pycmor only needs to add metadata.
 
+They are esm_tools templates, copied from `namelists/oifs/48r1/xios/cmip7` at esm_tools 772903d89 (`feat/awiesm3-v3.4-co2`). The rendered set the HR production run used, OpenIFS and FESOM, is in [`xios_rendered/`](xios_rendered/README.md).
+
 | File | Purpose |
 |------|---------|
 | `iodef.xml` | XIOS top-level entry point, references context files |
 | `context_ifs.xml.j2` | IFS XIOS context, includes all `*_def.xml` and `file_def` |
-| `field_def_cmip7.xml` | All CMIP7 field definitions: raw IFS fields + derived expressions |
+| `field_def_cmip7.xml.j2` | All CMIP7 field definitions: raw IFS fields + derived expressions |
 | `file_def_oifs_cmip7_spinup.xml.j2` | Output file definitions: fields, frequencies, operations (average/instant/min/max) |
 | `axis_def.xml` | Vertical axes: plev19, plev3 (850/500/250 hPa), model levels |
 | `grid_def.xml` | Grids: regular_sfc, regular_pl, regular_pl3, regular_ml |
