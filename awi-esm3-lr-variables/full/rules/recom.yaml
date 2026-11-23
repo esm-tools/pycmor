@@ -650,6 +650,30 @@ rules:
     pattern: DiaC_sfc\.fesom\.\d{4}\.nc$
   pipelines: [recom_daily_surface]
   surface_layer: true
+- name: phynano_daily_surface
+  compound_name: ocnBgchem.phynano.tavg-u-hxy-sea.day.glb
+  model_variable: PhyC
+  expected_units: '[mmol/m3]'
+  lr_scale: 0.001
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: PhyC_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
+  comment: First ocean layer, as for Oday.phyc (DReq "Analogous to Oday.phyc"). REcoM's small phytoplankton
+    class (PhyC) is the nano class, as in the monthly phynano.
+- name: co3satarag_daily_surface
+  compound_name: ocnBgchem.co3satarag.tavg-ols-hxy-sea.day.glb
+  model_variable: CO3satA
+  expected_units: '[mol/m3]'
+  lr_scale: 1.0
+  lr_units: mol m-3
+  lr_input:
+    component: fesom
+    pattern: CO3satA_sfc\.fesom\.\d{4}\.nc$
+  pipelines: [recom_daily_surface]
+  surface_layer: true
 - name: detoc_daily
   compound_name: ocnBgchem.detoc.tavg-ol-hxy-sea.day.glb
   model_variable: DetC
