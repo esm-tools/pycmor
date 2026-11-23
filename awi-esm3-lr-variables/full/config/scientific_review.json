@@ -1593,6 +1593,16 @@
         "LPJG CMIPoutput.cpp and OpenIFS sussoil_mod.F90 match the earlier audited source bytes.",
         "Previous invalid proxy mappings remain withheld until replacement routes are reviewed."
       ]
+    },
+    "awiesm3-v3.5.2-cc-fec1cda3": {
+      "fesom_sha256": "fec1cda3169516ee3f96274e9365ea63d6e04ccf68d69debb36267c5432c0928",
+      "source_revision": "8a1af1c67c05dadef601d092b23de8a8c89523a2",
+      "vector_frame": "geographic",
+      "evidence": [
+        "Separate compile (jstreffi model_codes, 2026-11-08) of the source reviewed for awiesm3-v3.5.2-cc-94377dfc: same revision, clean checkout, and diff -r of src/ against that build's tree (REcoM submodule 04fc23f included) finds no difference.",
+        "oce_ale_tracer.F90, oce_modules.F90, MOD_ICE.F90 and io_meandata.F90 match the sha256 recorded in the reviewed geothermal evidence.",
+        "Same library size (52670584 bytes) and the same REcoM, transit and sea-ice field ids as the reviewed build; ran the January 2850 gap-fill test month."
+      ]
     }
   }
 }
