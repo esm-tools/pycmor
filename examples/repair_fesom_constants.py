@@ -94,14 +94,18 @@ def _r(variable, branding, frequency, region, *, factor=1.0, offset=0.0, notes=(
 
 
 # (variable, branding, frequency, region): new = offset + factor * (old - offset).
-# Every entry was checked against 8600581a on 1pctCO2 1900 (cli134 -> cli135).
+# Every entry was checked against 8600581a on 1pctCO2 1900 (cli134 -> cli135),
+# the decadal ones on the 1850s decade (cli137). vsfcorr's factor changed too
+# (1.025 -> 1.030), but HR writes it as zero everywhere, so it is left alone.
 REPAIRS = [
     *[
         _r(v, b, f, "glb", factor=RHO_1025, notes=RHO_NOTE, why="density_0 1025 -> 1030")
         for v, b, f in [
             ("masscello", "tavg-ol-hxy-sea", "mon"),
             ("masscello", "ti-ol-hxy-sea", "fx"),
+            ("masscello", "tavg-ol-hxy-sea", "dec"),
             ("masso", "tavg-u-hm-sea", "mon"),
+            ("masso", "tavg-u-hm-sea", "dec"),
             ("msftbarot", "tavg-u-hxy-sea", "mon"),
             ("umo", "tavg-ol-hxy-sea", "mon"),
             ("vmo", "tavg-ol-hxy-sea", "mon"),
