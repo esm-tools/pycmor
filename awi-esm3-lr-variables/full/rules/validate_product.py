@@ -354,6 +354,25 @@ def validate(recipe):
     out=Path(cfg['inherit']['output_directory']); files=sorted(out.rglob('*.nc'))
     if rule.get('lr_wave'):
         return dict(validate_wave(cfg,rule,files),recipe=str(recipe))
+    if rule.get('lr_group') == 'requested_land':
+        import requested_land_validation
+        return dict(requested_land_validation.validate(cfg, rule, files), recipe=str(recipe))
+    if rule.get('ocean_physics_operation'):
+        import ocean_validation
+        by_label = {r['grid_label']: [] for r in cfg['rules']}
+        for file in files:
+            with netCDF4.Dataset(file) as ds:
+                by_label[ds.grid_label].append(file)
+        native = by_label[rule['grid_label']]
+        if not all(by_label.values()):
+            raise ValueError('Missing grid for independent ocean value checks')
+        result = ocean_validation.validate(cfg, native)
+        if len(cfg['rules']) == 2:
+            import ocean_spherical
+            mapped = by_label[cfg['rules'][1]['grid_label']]
+            result['mapped_grid'] = ocean_spherical.validate(cfg, mapped, native)
+            result['compared_samples'] += result['mapped_grid']['compared_samples']
+        return dict(result, recipe=str(recipe))
     name=rule['compound_name'].split('.')[1]
     expected_frequency=rule['compound_name'].split('.')[-2]
     years=range(cfg['inherit']['year_start'],cfg['inherit']['year_end']+1)

@@ -25,6 +25,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import traceback
 
 for _thread_setting in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
@@ -364,7 +365,7 @@ def prune_unused_inherited_basin_mask(doc):
     doc['inherit'].pop('basin_mask_file')
 
 
-def dependencies(doc, year, repointer):
+def dependencies(doc, year, repointer, config=None):
     """Pin primary AND secondary inputs; no wildcard may read another leg."""
     from input_streams import validate_input_streams, validate_previous_day
     prune_unused_inherited_basin_mask(doc)
@@ -483,6 +484,8 @@ def dependencies(doc, year, repointer):
                     pipeline['steps'][i]=f'script://{RULES / "heat_steps.py"}:compute_daily_heat_transport'
                     changed+=1
         if changed!=1:raise ValueError('Daily heat integration requires exactly one heat-transport step')
+    if r.get('ocean_physics_operation'):
+        module(RULES/'ocean_validation.py', 'lr_ocean_validation').prepare(r, primary_files, paths, config or {})
     return sorted(paths)
 
 
@@ -599,7 +602,8 @@ def build_catalog(config, experiment, period, identity, campaign):
         raise ValueError('Full LR catalog changed: expected 17 tiers; review before running')
     metadata = read(config['metadata'])['Compound Name']
     full_compounds = {r['compound_name'] for p in catalog for r in yaml.safe_load(p.read_text())['rules']}
-    raw_rules = []
+    requested_land = module(RULES/'requested_land.py', 'lr_requested_land')
+    raw_rules = list(requested_land.rules())
     for file in raw.PROFILE['tier_files']:
         raw_rules += yaml.safe_load((repo/'awi-esm3-lr-variables'/file).read_text())['rules']
     raw_rules += (list(raw.recom_rules()) + list(raw.co2_rules()) + list(raw.transit_rules()) +
@@ -647,6 +651,15 @@ def build_catalog(config, experiment, period, identity, campaign):
         requested, _ = support_module('data_request_coverage').load_request(
             config['data_request_file'], config.get('data_request_experiment', 'piControl'), metadata)
         scope.update(requested)
+    if 'requested_products' in config:
+        requested_products = config['requested_products']
+        if (not isinstance(requested_products, list) or not requested_products
+                or not all(isinstance(name, str) and name for name in requested_products)):
+            raise ValueError('requested_products must be a nonempty list of compound names')
+        unknown = set(requested_products) - scope
+        if unknown:
+            raise ValueError(f'Unknown requested_products: {sorted(unknown)}')
+        scope = set(requested_products)
     # HR rotation-aware pipelines are the audited equivalents of the LR rules.
     vectors = {}
     for p in (repo/'awi-esm3-veg-hr-variables').glob('*/cmip7_awiesm3-veg-hr*.yaml'):
@@ -679,6 +692,7 @@ def build_catalog(config, experiment, period, identity, campaign):
     vector['name'] = 'lr_rotated_vector'
     vector['steps'].insert(1, f'script://{repo}/examples/custom_steps.py:rotate_vector_to_geographic')
     raw.PROFILE['pipelines'].append(vector)
+    requested_land.install_pipelines(raw.PROFILE, campaign/'reproduce')
     raw.register_daily_pipelines(raw.PROFILE, campaign)
     raw.register_derived_pipelines(raw.PROFILE, campaign)
     raw.register_wave_pipelines(raw.PROFILE)
@@ -692,6 +706,8 @@ def build_catalog(config, experiment, period, identity, campaign):
                 doc['inherit']['bounds_reference_file']=str(full_grid)
             for rule in doc['rules']:
                 compound = rule['compound_name']
+                if compound not in scope:
+                    continue
                 frequency = compound.split('.')[-2]
                 if compound.split('.')[2].startswith('tclm-') and year != years.stop-1:
                     continue
@@ -747,7 +763,13 @@ def build_catalog(config, experiment, period, identity, campaign):
                         sources = decadal.configure_decadal_doc(one, start, end, rep)
                         item.update(window_start=start, window_end=end)
                     else:
-                        sources = dependencies(one,year,rep)
+                        sources = dependencies(one, year, rep, dict(raw_config, experiment=str(experiment), leg=period))
+                        if rule.get('ocean_physics_operation'):
+                            if 'grid_label' not in one['rules'][0]:
+                                one['rules'][0]['grid_label'] = one['inherit']['grid_label']
+                            spherical = module(RULES/'ocean_spherical.py', 'lr_ocean_spherical')
+                            sources = set(sources)
+                            spherical.configure(one, experiment, period, config, sources)
                     support_module('oifs_namelist').check_pextra(one['rules'][0], identity)
                     item.update(doc=one, inputs=list(map(str,sources)), status='READY')
                 except (ValueError,KeyError,OSError) as e:
@@ -756,6 +778,8 @@ def build_catalog(config, experiment, period, identity, campaign):
         raw.YEARS = [year]
         for original in raw_rules:
             compound = original['compound_name']
+            if compound not in scope:
+                continue
             if compound.split('.')[-2]=='fx' and year!=years.start:
                 continue
             item = dict(route='raw',tier=original.get('lr_group','recom'),source=str(RULES/'raw_adapter.py'),
@@ -769,7 +793,10 @@ def build_catalog(config, experiment, period, identity, campaign):
                         raise ValueError('UNRESOLVED_CARBON_FLUX: external emissions must be explicitly absent; other pathways need additional terms')
                 if compound not in metadata:
                     raise ValueError('UNRESOLVED_DREQ: not present in pinned metadata')
-                group, r = raw.materialize(original,grid)
+                if original.get('lr_group') == 'requested_land':
+                    group, r = requested_land.materialize(original, raw, grid, full_grid, config)
+                else:
+                    group, r = raw.materialize(original,grid)
                 if group == 'icebergs':
                     iceberg.validate_rule(r)
                 if r.get('vector_partner_pattern'):
@@ -932,7 +959,9 @@ def plan(args, config):
         tasks, coverage, full_count = build_catalog(config,experiment,period,identity,campaign)
         write(campaign/'tasks.json',tasks)
         write(campaign/'coverage.json',coverage)
-        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'transit.yaml', RULES/'wave.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py'):
+        for p in (Path(__file__), Path(args.config), ROOT/'scripts/select_latest_completed.py', RULES/'native_cli.py',RULES/'extra_steps.py',RULES/'validate_product.py', RULES/'raw_adapter.py', RULES/'recom.yaml', RULES/'co2.yaml', RULES/'transit.yaml', RULES/'wave.yaml', RULES/'iceberg.yaml', RULES/'iceberg_steps.py', RULES/'iceberg_validation.py',
+                  RULES/'requested_land.py', RULES/'requested_land_validation.py',
+                  RULES/'ocean_validation.py', RULES/'ocean_spherical.py'):
             shutil.copy2(p,campaign/'reproduce'/p.name)
         if config.get('hr_reference_manifest'):
             shutil.copy2(config['hr_reference_manifest'], campaign/'reproduce/hr_reference_manifest.txt')
@@ -954,16 +983,42 @@ def plan(args, config):
     return campaign
 
 
-def validate_output(task, recipe, output):
-    from cf_units import Unit
+def files_by_recipe_grid(recipe, paths):
+    """Keep each independently requested delivery grid and its time axis together."""
+    rules = recipe.get('rules', [{}])
+    if len(rules) == 1:
+        return [(rules[0], paths)]
+    by_label = {rule['grid_label']: [] for rule in rules}
+    if len(by_label) != len(rules):
+        raise ValueError('Multi-grid delivery requires unique grid labels')
+    for path in paths:
+        with netCDF4.Dataset(path) as ds:
+            label = getattr(ds, 'grid_label', None)
+        if label not in by_label or Path(path).parents[1].name != label:
+            raise ValueError(f'{path}: unexpected output grid {label}')
+        by_label[label].append(path)
+    if not all(by_label.values()):
+        raise ValueError('Missing requested output grid')
+    return [(rule, by_label[rule['grid_label']]) for rule in rules]
 
+
+def validate_output(task, recipe, output):
     files = sorted(Path(output).rglob('*.nc'))
     if not files:
         raise ValueError('Converter produced no NetCDF files')
     cfg = yaml.safe_load(Path(recipe).read_text())
-    expected = cfg['inherit']
+    metadata = read(cfg['general']['CMIP7_DReq_metadata'])['Compound Name'][task['compound']]
+    records = sum(validate_grid_output(task, cfg['inherit'], rule, grid_files, metadata)
+                  for rule, grid_files in files_by_recipe_grid(cfg, files))
+    return dict(files=[str(p) for p in files], records=records, output_state=file_state(files),
+                independent_scientific_value_check='not yet performed for full-catalog route',
+                publication_ready=False)
+
+
+def validate_grid_output(task, expected, rule, files, metadata):
+    from cf_units import Unit
+
     compound = task['compound']; name = compound.split('.')[1]; freq=compound.split('.')[-2]
-    metadata = read(cfg['general']['CMIP7_DReq_metadata'])['Compound Name'][compound]
     dates=[];calendar='standard';records=0
     for p in files:
         with netCDF4.Dataset(p) as ds:
@@ -975,17 +1030,16 @@ def validate_output(task, recipe, output):
                 raise ValueError(f'{p}: units differ from pinned DReq')
             if metadata.get('standard_name') and getattr(ds[name], 'standard_name', '') != metadata['standard_name']:
                 raise ValueError(f'{p}: standard_name differs from pinned DReq')
-            rule = cfg.get('rules', [{}])[0]
             label = rule.get('grid_label', expected.get('grid_label'))
             if compound.split('.')[-1] == 'glb' and '-hxy-' in compound:
                 lat = next((ds[n] for n in ('latitude', 'lat') if n in ds.variables), None)
                 lon = next((ds[n] for n in ('longitude', 'lon') if n in ds.variables), None)
                 # g150 is the regular 1x1 degree grid the WAM sea points are delivered on,
                 # not the native WAM point count in lr_grid_cells.
-                required = {'g150':64800,'g235':40320,'g236':220509,'g238':426403,
+                required = {'g131':259200,'g150':64800,'g235':40320,'g236':220509,'g238':426403,
                             'g271':76800}.get(label, rule.get('lr_grid_cells'))
                 if required:
-                    cells = (lat.size * lon.size if label in ('g150', 'g271') and lat is not None and lon is not None
+                    cells = (lat.size * lon.size if lat is not None and lon is not None
                              and lat.dimensions != lon.dimensions else lat.size if lat is not None else 0)
                     if cells != required:
                         raise ValueError(f'{p}: {label} requires {required} cells; got {cells}')
@@ -1016,9 +1070,45 @@ def validate_output(task, recipe, output):
             files, task['window_start'], task['window_end'])
     elif freq!='fx':
         cover_dates(dates,task['year'],freq,calendar)
-    return dict(files=[str(p) for p in files], records=records, output_state=file_state(files),
-                independent_scientific_value_check='not yet performed for full-catalog route',
-                publication_ready=False)
+    return records
+
+
+def cli_recipes(recipe, path):
+    """Give each requested grid one unambiguous upstream CMIP7 compound match."""
+    rules = recipe['rules']
+    if len(rules) == 1:
+        return [path]
+    labels = [rule.get('grid_label') for rule in rules]
+    if (not rules or len({rule.get('compound_name') for rule in rules}) != 1
+            or not all(isinstance(label, str) and re.fullmatch(r'g[0-9]{3}', label) for label in labels)
+            or len(set(labels)) != len(labels)):
+        raise ValueError('A multi-grid recipe needs one compound and distinct explicit output grids')
+    paths = []
+    for rule in rules:
+        selected = dict(recipe, rules=[rule], inherit=dict(recipe['inherit']))
+        for attribute in ('grid_label', 'grid', 'grid_file', 'nominal_resolution'):
+            if attribute in rule:
+                selected['inherit'][attribute] = rule[attribute]
+        single = path.with_name(f'{path.stem}-{rule["grid_label"]}{path.suffix}')
+        single.write_text(yaml.safe_dump(selected, sort_keys=False))
+        paths.append(single)
+    return paths
+
+
+def run_native_recipe(recipe, path, python, launcher, scratch, env, log, timeout):
+    """Convert each requested grid in the same attempt, under one product deadline."""
+    deadline = time.monotonic() + timeout
+    for single in cli_recipes(recipe, path):
+        argv = [python, str(launcher), 'process', str(single)]
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(argv, timeout)
+        print(f'Converting {single.name}', file=log, flush=True)
+        result = subprocess.run(argv, env=env, cwd=scratch, stdout=log, stderr=subprocess.STDOUT,
+                                timeout=remaining)
+        if result.returncode:
+            return result
+    return result
 
 
 def run_one(campaign, task, config):
@@ -1065,9 +1155,8 @@ def run_one(campaign, task, config):
     result=dict(key=task['key'],started=stamp(),status='FAILED',output=str(attempt),publication_ready=False)
     try:
         with (attempt/'conversion.log').open('w') as log:
-            cp=subprocess.run([config['python'],str(campaign/'reproduce/native_cli.py'),'process',str(rp)],
-                              env=env,cwd=scratch,stdout=log,stderr=subprocess.STDOUT,
-                              timeout=config['product_timeout_seconds'])
+            cp = run_native_recipe(recipe, rp, config['python'], campaign/'reproduce/native_cli.py',
+                                   scratch, env, log, config['product_timeout_seconds'])
         result['exit_code']=cp.returncode
         if cp.returncode:
             raise ValueError(f'pycmor exit {cp.returncode}; see {attempt}/conversion.log')
@@ -1077,7 +1166,7 @@ def run_one(campaign, task, config):
             validation['files'], attempt, recipe['inherit']['qc_tests'])
         validation['supervisor_source_check'] = checks.source_check(
             task, recipe, validation['files'])
-        if task['route']=='raw':
+        if task['route']=='raw' or recipe['rules'][0].get('ocean_physics_operation'):
             # Existing independent source-value audit, including the seven repairs.
             with (attempt/'source_validation.log').open('w') as log:
                 cp=subprocess.run([config['python'],str(campaign/'reproduce/validate_product.py'),
@@ -1192,7 +1281,7 @@ def report(campaign):
           unmapped_without_reason=len(unmapped),unmapped_without_reason_products=unmapped,
           counts_unit='annual/fixed/decadal task records, not variable names or NetCDF files',
           publication_ready=False,qc='Requested checker reports required per file; findings retained; metadata not approved'))
-    (target/'STATUS.txt').write_text(f"Requested scope: {state}\nConversion tasks: {conversion_state}\n{dict(counts)}\nAll-catalog scope; no category excluded.\n"
+    (target/'STATUS.txt').write_text(f"Requested scope: {state}\nConversion tasks: {conversion_state}\n{dict(counts)}\nSee coverage.json for the requested scope.\n"
         f"Selected products (April selection and REcoM/CO2/iceberg lists): {len(selected)}\n"
         f"UNMAPPED without a reviewed reason (config/exclusions.yaml): {len(unmapped)} products\n"
         'BLOCKED is not success. See products.csv for every missing input, unmapped rule and deferred decade.\n'

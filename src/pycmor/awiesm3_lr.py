@@ -172,15 +172,28 @@ def exact_vertical_bounds(data, rule):
     if not rule.get("lr_exact_ocean_depth", False):
         return data
     ds = data.to_dataset() if isinstance(data, xr.DataArray) else data
-    with xr.open_dataset(rule.grid_file, decode_times=False) as mesh:
-        centers = mesh.depth.values
-        edges = mesh.depth_bnds.values
-        names = [n for n in ds.coords if ds[n].ndim == 1 and ds[n].size == len(centers)]
-        assert len(names) == 1, names
-        name = names[0]
-        assert np.allclose(ds[name].values, centers, rtol=0, atol=1e-4)
-        ds[name + "_bnds"] = xr.DataArray(np.column_stack([edges[:-1], edges[1:]]), dims=(name, "bnds"))
-        ds[name].attrs["bounds"] = name + "_bnds"
+    geometry = rule.get("ocean_geometry_file")
+    with xr.open_dataset(geometry or rule.grid_file, decode_times=False) as mesh:
+        if geometry:
+            centers = np.abs(mesh.nz1.values)
+            edges = np.abs(mesh.nz.values)
+        else:
+            centers = mesh.depth.values
+            edges = mesh.depth_bnds.values
+    expected = np.column_stack((edges[:-1], edges[1:]))
+    if expected.shape != (len(centers), 2) or not np.all(np.diff(edges) > 0):
+        raise ValueError("Invalid CORE3 layer interfaces")
+    names = [
+        name
+        for name, coord in ds.coords.items()
+        if coord.ndim == 1 and coord.size == len(centers) and coord.dtype.kind in "iuf"
+        and np.allclose(coord.values, centers, rtol=0, atol=1e-4)
+    ]
+    if len(names) != 1:
+        raise ValueError(f"Output depth coordinate does not match the CORE3 tracer centers: {names}")
+    name = names[0]
+    ds[name + "_bnds"] = xr.DataArray(expected, dims=(name, "bnds"))
+    ds[name].attrs["bounds"] = name + "_bnds"
     return ds
 
 

@@ -21,6 +21,7 @@ categories:
   not_requested: absent from DReq v1.2.2.5 or from the piControl request
   output_gap: the field is not written and writing it needs a model source change
 exclusions:
+  ocean.friver.tavg-u-hxy-sea.3hr.glb: {category: output_gap, reason: "FESOM combines liquid runoff with nonzero solid glacial discharge before writing runoff_3h. These spinup legs lack a separate three-hourly liquid river discharge on the ocean grid (gen_forcing_couple.F90, scientific review F59)."}
   aerosol.abs550aer.tavg-u-hxy-u.mon.glb: {category: output_gap, reason: "prescribed CAMS clim + MACv2-SP optics are in ecRad per SW band, but no 550nm absorption/extinction-profile/443/865 diagnostic in field_def.xml or yomxios. Needs: IFS code change to export ecRad aerosol optics"}
   aerosol.od550aer.tavg-u-hxy-u.mon.glb: {category: output_gap, reason: "XIOS aod550 is the lowest-level 550 nm extinction coefficient in km-1 (climaer_layer.F90:156-201 overwrites it with NAERMACC=1), not a column AOD; macv2sp_taod550 is only the anthropogenic plumes. A column AOD of the CAMS background needs an IFS source change. HR does not deliver od550aer either"}
   aerosol.abs550no3.tavg-u-hxy-u.mon.glb: {category: not_simulated, reason: "no prognostic aerosol: NODE.001_01:3654 '2D CAMS AEROSOL CLIMATOLOGY IS LOADED' (column clim, NAERMACC=1) + MACv2-SP; no 3D/near-surface aerosol mass, number or water in model; CAMS clim species are SS/DU/OM/BC/SU only (radaca.F90 NAERMACC branch), no nitrate/SOA/BB split"}

@@ -1350,7 +1350,11 @@
           "line": 36,
           "excerpt": "real(kind=WP), parameter      :: density_0=1030.0_WP"
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.opottempmint.tavg-u-hxy-sea.yr.glb": "Use the audited FESOM Boussinesq density of 1030 kg m-3.",
+        "ocean.somint.tavg-u-hxy-sea.yr.glb": "Use the audited FESOM Boussinesq density of 1030 kg m-3."
+      }
     },
     {
       "id": "F53",
@@ -1487,6 +1491,7 @@
       "products": [
         "ocean.ficeberg.tavg-ol-hxy-sea.mon.glb",
         "ocean.ficeberg.tavg-u-hxy-sea.mon.glb",
+        "ocean.friver.tavg-u-hxy-sea.3hr.glb",
         "ocean.friver.tavg-u-hxy-sea.mon.glb"
       ],
       "action": "review_required",
@@ -1535,7 +1540,11 @@
           "path": "additional_probes.json",
           "excerpt": "column_integration_thickness: actual mesh interface differences versus the recipe midpoint fallback."
         }
-      ]
+      ],
+      "repaired": {
+        "ocean.opottempmint.tavg-u-hxy-sea.yr.glb": "Integrate the archived tracer against the matching native hnode on all wet layers, including under shelves.",
+        "ocean.somint.tavg-u-hxy-sea.yr.glb": "Integrate the archived tracer against the matching native hnode on all wet layers, including under shelves."
+      }
     },
     {
       "id": "F62",

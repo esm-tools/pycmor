@@ -27,6 +27,11 @@ without a rule gets its reviewed category and reason from
 it stays BLOCKED. ``report/summary.json`` and ``STATUS.txt`` count the
 products that are still UNMAPPED without a reason.
 
+For a supplemental run, set ``requested_products`` to a JSON list of exact
+CMIP7 compound names and choose a separate results root. Planning, coverage
+reports, representative tests and workers then use that selection. Omit
+``requested_products`` for the full catalogue.
+
 Only reusable source, tests and configuration examples belong in Git. Actual
 configuration, environments, metadata/CV caches, mesh and forcing files, model
 data, generated recipes, test results and PDFs belong outside this checkout.
@@ -87,6 +92,11 @@ ESGVOC cache, CORE3 mesh and greenhouse-gas forcing, plus site-specific Slurm
 resources. Provide reviewed experiment metadata rather than treating spinup
 metadata as a publication template. The current scientific routes are for
 TCO95/CORE3; a different grid needs scientific review.
+
+For a run with prescribed ice-sheet orography and a mask, set
+``"land_ice_representation": "orography_and_mask"`` in the configuration to
+enable fixed ``lithk``. The workflow also checks the archived OpenIFS
+``ECE_LANDICE`` flag before applying the CMIP7 zero-thickness convention.
 
 Optional auxiliary inputs and comparison baseline:
 

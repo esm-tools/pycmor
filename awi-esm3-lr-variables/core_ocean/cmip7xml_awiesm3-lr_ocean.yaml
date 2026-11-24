@@ -32,6 +32,24 @@ jobqueue:
     walltime: '00:30:00'
 
 pipelines:
+  - name: lr_ocean_physics_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/awi-esm3-lr-variables/full/rules/ocean_steps.py:compute
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.awiesm3_lr.exact_vertical_bounds
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Vertical integration + post-multiply by a physical-constant prefactor.
   # vertical_integrate emits the bare ∫(field*dz); scale_by_constant then
   # applies the rho_0-family factor declared on each rule (scale_factor),
@@ -758,3 +776,115 @@ rules:
     scientific_repairs: [F35]
     pipelines:
       - zostoga_fixed_pipeline
+
+  - name: hfds_3hr
+    compound_name: ocean.hfds.tavg-u-hxy-sea.3hr.glb
+    model_variable: fh
+    inputs:
+      - path: *dp
+        pattern: fh_3h\.fesom\.\d{4}\.nc
+    ocean_physics_operation: heat_flux
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: wfo_3hr
+    compound_name: ocean.wfo.tavg-u-hxy-sea.3hr.glb
+    model_variable: fw
+    inputs:
+      - path: *dp
+        pattern: fw_3h\.fesom\.\d{4}\.nc
+    ocean_physics_operation: water_flux
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: so_day
+    compound_name: ocean.so.tavg-ol-hxy-sea.day.glb
+    model_variable: salt
+    inputs:
+      - path: *dp
+        pattern: salt_day\.fesom\.\d{4}\.nc
+    ocean_physics_operation: salinity
+    lr_exact_ocean_depth: true
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: wo_day
+    compound_name: ocean.wo.tavg-ol-hxy-sea.day.glb
+    model_variable: w
+    inputs:
+      - path: *dp
+        pattern: w_day\.fesom\.\d{4}\.nc
+    ocean_physics_operation: vertical_velocity
+    lr_exact_ocean_depth: true
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: sfriver_mon
+    compound_name: ocean.sfriver.tavg-u-hxy-sea.mon.glb
+    model_variable: runoff
+    inputs:
+      - path: *dp
+        pattern: runoff\.fesom\.\d{4}\.nc
+    ocean_physics_operation: river_salt
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: thetaot_mon
+    compound_name: ocean.thetaot.tavg-u-hxy-sea.mon.glb
+    model_variable: temp
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    ocean_physics_operation: mean
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: thetao_300m
+    compound_name: ocean.thetao.tavg-d300m-hxy-sea.mon.glb
+    model_variable: temp
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    ocean_physics_operation: mean
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    ocean_depth_limit: 300
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: thetao_700m
+    compound_name: ocean.thetao.tavg-d700m-hxy-sea.mon.glb
+    model_variable: temp
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    ocean_physics_operation: mean
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    ocean_depth_limit: 700
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]
+
+  - name: thetao_2000m
+    compound_name: ocean.thetao.tavg-d2000m-hxy-sea.mon.glb
+    model_variable: temp
+    inputs:
+      - path: *dp
+        pattern: temp\.fesom\.\d{4}\.nc
+    ocean_physics_operation: mean
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
+    ocean_depth_limit: 2000
+    lazy_write: true
+    pipelines: [lr_ocean_physics_pipeline]

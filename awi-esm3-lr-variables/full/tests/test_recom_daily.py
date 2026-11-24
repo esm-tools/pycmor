@@ -69,7 +69,7 @@ class DailyTests(unittest.TestCase):
             v[:] = values
         return path
 
-    def test_daily_recipe_catalogue_is_exactly_fourteen_audited_products(self):
+    def test_daily_recipe_catalogue_matches_audited_sources(self):
         added = {'expcob_daily', 'o2min_daily', 'intpoc_daily', 'o2_200', 'ph_200', 'co3_200', 'co3satarag_200',
                  'chl_200', 'phyc_200'}
         rules = [r for r in RAW.recom_rules() if '.day.' in r['compound_name'] and r['name'] not in added]
@@ -83,7 +83,7 @@ class DailyTests(unittest.TestCase):
             'zmeso': ('HetC', [], 1e-3), 'zmicro': ('Zoo3C', [], 1e-3),
             'zooc': ('HetC', ['HetC','Zoo2C','Zoo3C'], 1e-3),
         }
-        self.assertEqual(len(rules), 14)
+        self.assertEqual(len(rules), len(expected))
         self.assertEqual({r['compound_name'].split('.')[1] for r in rules}, set(expected))
         for r in rules:
             variable, terms, scale = expected[r['compound_name'].split('.')[1]]

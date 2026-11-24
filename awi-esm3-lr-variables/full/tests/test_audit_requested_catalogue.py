@@ -27,10 +27,24 @@ class CatalogueTests(unittest.TestCase):
                 summary, records, coverage = audit.audit(config_file)
             load.assert_called_once_with(config_file)
             self.assertEqual(summary['full_tier_files'], 17)
-            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 611)  # 555 plus 20 ocean/sea-ice and 39 atmosphere gap-closure rules; -2 for cfc11 and dsw; -1 for od550aer
+            self.assertEqual(summary['groups']['full_cmip7xml']['distinct_products'], 620)  # Nine new ocean mappings; two corrected inventories already existed.
             self.assertIn('shared_recom', summary['groups'])
             self.assertIn('shared_co2', summary['groups'])
             self.assertNotIn('private_recom', summary['groups'])
+            land_source = audit.WORKFLOW_ROOT / 'rules/requested_land.py'
+            self.assertEqual(summary['source_sha256'][str(land_source)], audit.sha256(land_source))
+            land = [r for r in records if 'shared_requested_land' in r['catalogue_groups']]
+            self.assertEqual({r['variable'] for r in land}, {
+                'depthl', 'evspsblsoi', 'evspsblveg', 'lithk', 'mrros', 'rsds',
+                'sftlaf', 'snm', 'vegFrac',
+            })
+            for record in land:
+                with self.subTest(compound=record['compound']):
+                    self.assertTrue(record['has_implemented_rule'])
+                    self.assertEqual(record['observed_status_counts'], {})
+                    source, = [s for s in record['sources'] if s['kind'] == 'shared_requested_land']
+                    self.assertEqual(source['path'], str(land_source))
+                    self.assertEqual(source['tier'], 'requested_land')
             self.assertEqual(summary['repo'], str(REPO))
             self.assertEqual(summary['workflow_root'], str(REPO / 'awi-esm3-lr-variables/full'))
             self.assertTrue(records)

@@ -661,8 +661,8 @@ rules:
     pattern: PhyC_sfc\.fesom\.\d{4}\.nc$
   pipelines: [recom_daily_surface]
   surface_layer: true
-  comment: First ocean layer, as for Oday.phyc (DReq "Analogous to Oday.phyc"). REcoM's small phytoplankton
-    class (PhyC) is the nano class, as in the monthly phynano.
+  comment: First ocean layer, as for Oday.phyc. As in monthly phynano, REcoM represents nanophytoplankton
+    with PhyC, a combined group of small flagellates and picophytoplankton.
 - name: co3satarag_daily_surface
   compound_name: ocnBgchem.co3satarag.tavg-ols-hxy-sea.day.glb
   model_variable: CO3satA
@@ -674,6 +674,8 @@ rules:
     pattern: CO3satA_sfc\.fesom\.\d{4}\.nc$
   pipelines: [recom_daily_surface]
   surface_layer: true
+  comment: REcoM diagnoses the carbonate ion concentration at aragonite saturation as CO3 divided by
+    the aragonite saturation state. The daily upper-layer stream is already in mol m-3.
 - name: detoc_daily
   compound_name: ocnBgchem.detoc.tavg-ol-hxy-sea.day.glb
   model_variable: DetC

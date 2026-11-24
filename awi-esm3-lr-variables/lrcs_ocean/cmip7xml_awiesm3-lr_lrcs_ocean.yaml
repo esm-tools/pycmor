@@ -29,6 +29,23 @@ jobqueue:
     walltime: '00:30:00'
 
 pipelines:
+  - name: lr_ocean_physics_pipeline
+    steps:
+      - pycmor.core.gather_inputs.load_mfdataset
+      - pycmor.std_lib.generic.get_variable
+      - script://$PYCMOR_HOME/awi-esm3-lr-variables/full/rules/ocean_steps.py:compute
+      - pycmor.std_lib.timeaverage.timeavg
+      - pycmor.std_lib.set_time_bounds
+      - pycmor.std_lib.units.handle_unit_conversion
+      - pycmor.std_lib.attributes.set_global
+      - pycmor.std_lib.attributes.set_variable
+      - pycmor.std_lib.attributes.set_coordinates
+      - pycmor.std_lib.dimensions.map_dimensions
+      - pycmor.core.caching.manual_checkpoint
+      - pycmor.std_lib.generic.trigger_compute
+      - pycmor.std_lib.files.save_dataset
+      - pycmor.std_lib.qc.run_compliance_checker
+
   # Basin-integrated overturning streamfunction (depth space, Sv → kg/s)
   - name: msftmz_pipeline
     steps:
@@ -1094,42 +1111,40 @@ rules:
       - ocean_oplayer4_pipeline
 
   # opottempmint = depth integral of rho_0 * potential temperature (degC kg m-2).
-  # vertical_integrate emits ∫(T[degC] * dz); multiply by rho_0 to get degC*kg*m-2.
+  # FESOM hnode supplies wet tracer thickness; the annual average uses month lengths.
   - name: opottempmint
+    compound_name: ocean.opottempmint.tavg-u-hxy-sea.yr.glb
+    model_variable: temp
     inputs:
       - path: *dp
         pattern: temp\.fesom\.\d{4}\.nc
-    compound_name: ocean.opottempmint.tavg-u-hxy-sea.yr.glb
-    model_variable: temp
+    scientific_repairs: [F52, F61]
+    duration_weighted_annual_mean: true
+    ocean_physics_operation: inventory
+    basin_mask_file: null  # A column integral uses no basin mask.
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
     lazy_write: true
-    scale_factor: 1030.0         # rho_0, FESOM density_0, kg m-3
-    scaled_units: "degC kg m-2"
-    integration_attrs:
-      long_name: "Depth integral of product of sea water density and potential temperature"
-      standard_name: "integral_wrt_depth_of_product_of_sea_water_density_and_potential_temperature"
-      units: "degC m"            # raw integrate; scale brings to degC kg m-2
-    pipelines:
-      - ocean_vertical_integration_pipeline
+    pipelines: [lr_ocean_physics_pipeline]
 
   # somint = depth integral of rho_0 * salinity (g m-2).
-  # vertical_integrate emits ∫(salt[psu] * dz). With psu == 1e-3 (g/kg) and target
-  # in g/m², factor = rho_0 = 1030 kg/m³, FESOM density_0 (the 1e-3 prefix on psu cancels the
-  # 1000 needed to convert kg-of-salt to g-of-salt — net: just rho_0).
+  # Practical salinity in g/kg times rho_0 in kg/m³ and hnode yields g/m².
   - name: somint
+    compound_name: ocean.somint.tavg-u-hxy-sea.yr.glb
+    model_variable: salt
     inputs:
       - path: *dp
         pattern: salt\.fesom\.\d{4}\.nc
-    compound_name: ocean.somint.tavg-u-hxy-sea.yr.glb
-    model_variable: salt
+    scientific_repairs: [F52, F61]
+    duration_weighted_annual_mean: true
+    ocean_physics_operation: inventory
+    basin_mask_file: null  # A column integral uses no basin mask.
+    ocean_geometry_file: /work/ab0246/a270092/input/fesom2/core3/fesom.mesh.diag.nc
+    hnode_path: *dp
+    hnode_pattern: hnode\.fesom\.\d{4}\.nc
     lazy_write: true
-    scale_factor: 1030.0         # rho_0 (FESOM density_0); the 1e-3 prefix on psu cancels the 1000 g/kg
-    scaled_units: "g m-2"
-    integration_attrs:
-      long_name: "Integral wrt depth of product of sea water density and salinity"
-      standard_name: "integral_wrt_depth_of_product_of_sea_water_density_and_salinity"
-      units: "1e-3 m"            # raw integrate; scale brings to g m-2
-    pipelines:
-      - ocean_vertical_integration_pipeline
+    pipelines: [lr_ocean_physics_pipeline]
 
   # volcello (fx) — static ocean grid-cell volume
   # Layer thickness from mesh times the model's depth-dependent node area

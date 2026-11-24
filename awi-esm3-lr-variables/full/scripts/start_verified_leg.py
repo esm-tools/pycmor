@@ -42,6 +42,12 @@ def start(experiment, leg, config_path):
                         '--experiment', str(experiment), '--leg', leg, '--config', str(used),
                         '--output', str(audit), '--science'], env=environment, check=True)
         campaign = f.plan(argparse.Namespace(experiment=experiment, leg=leg, config=used), config)
+        if config.get('requested_products'):
+            coverage = f.read(campaign/'coverage.json')
+            blocked = [f"{row['year']} {row['compound']}: {row['reason']}"
+                       for row in coverage if row['status'] != 'READY']
+            if blocked:
+                raise ValueError('Explicitly selected products failed preflight:\n' + '\n'.join(blocked))
         r.prepare(campaign)
         r.submit(campaign, full_after_pass=True)
         f.write(marker, dict(campaign=str(campaign), started=f.stamp(),

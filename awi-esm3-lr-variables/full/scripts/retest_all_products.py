@@ -16,6 +16,7 @@ import shutil
 import shlex
 
 import netCDF4
+import yaml
 import numpy as np
 from cf_units import Unit
 
@@ -241,7 +242,10 @@ def worker(campaign, index):
             else dict(raw_sample_comparison=False, compared_samples=0,
                       limitations=['No independent source-value audit for this full-catalog route']))
         metadata = f.read(manifest['config']['metadata'])['Compound Name'][task['compound']]
-        record['additional_data_checks'] = check_data(task, result['validation']['files'], metadata)
+        recipe = yaml.safe_load(Path(task['recipe']).read_text())
+        record['additional_data_checks'] = []
+        for _, files in f.files_by_recipe_grid(recipe, result['validation']['files']):
+            record['additional_data_checks'].extend(check_data(task, files, metadata))
         verify(manifest, campaign)
         record['status'] = 'CONVERSION_AND_BASIC_CHECKS_PASS'
     except Exception as exc:

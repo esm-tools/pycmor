@@ -51,7 +51,7 @@ class Tests(unittest.TestCase):
                                 for row in groundwater))
             self.assertEqual(tasks,[])
 
-    def catalog_without_metadata(self):
+    def catalog_without_metadata(self, **options):
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory);period='26100101-26101231'
             for component in ('oifs','fesom',f'lpj_guess/{period}'):
@@ -61,7 +61,7 @@ class Tests(unittest.TestCase):
             (campaign/'reproduce').mkdir()
             (campaign/'grids/full_TCO95_grid.nc').touch()
             metadata=base/'metadata.json';f.write(metadata,{'Compound Name':{}})
-            config=dict(repo=str(REPO),metadata=str(metadata),mesh_dir=str(base),ghg_dir=str(base))
+            config=dict(repo=str(REPO),metadata=str(metadata),mesh_dir=str(base),ghg_dir=str(base),**options)
             load_module=f.module
             def module(path,name):
                 result=load_module(path,name)
@@ -70,6 +70,56 @@ class Tests(unittest.TestCase):
                 return result
             with patch.object(f,'module',side_effect=module):
                 return f.build_catalog(config,base,period,{},campaign)[1]
+
+    def test_explicit_product_scope_keeps_blocked_products_visible(self):
+        target = 'land.dgw.tavg-u-hxy-lnd.day.glb'
+        rows = self.catalog_without_metadata(requested_products=[target])
+        self.assertEqual([(r['compound'], r['status']) for r in rows], [(target, 'BLOCKED')])
+        with self.assertRaisesRegex(ValueError, 'Unknown requested_products'):
+            self.catalog_without_metadata(requested_products=['typo'])
+
+    def test_native_runner_uses_one_compound_per_grid_and_stops_on_error(self):
+        name = 'ocean.so.tavg-ol-hxy-sea.day.glb'
+        native = dict(compound_name=name, grid_label='g236', pipelines=['native'])
+        mapped = dict(compound_name=name, grid_label='g131', grid_file='regular.nc', pipelines=['mapped'])
+        doc = dict(rules=[native, mapped], inherit=dict(grid_label='g236', grid_file='native.nc'))
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            path = base/'recipe.yaml'
+            path.write_text(yaml.safe_dump(doc))
+            self.assertEqual(f.cli_recipes(dict(doc, rules=[native]), path), [path])
+            grids = [yaml.safe_load(p.read_text()) for p in f.cli_recipes(doc, path)]
+            self.assertEqual([g['rules'] for g in grids], [[native], [mapped]])
+            self.assertEqual([g['inherit']['grid_file'] for g in grids], ['native.nc', 'regular.nc'])
+            self.assertEqual([g['inherit']['grid_label'] for g in grids], ['g236', 'g131'])
+            with self.assertRaisesRegex(ValueError, 'distinct explicit output grids'):
+                f.cli_recipes(dict(doc, rules=[native, native]), path)
+            with (base/'log').open('w') as log, patch.object(f.subprocess, 'run') as run:
+                run.side_effect = [f.subprocess.CompletedProcess([], 0), f.subprocess.CompletedProcess([], 2)]
+                result = f.run_native_recipe(doc, path, 'python', 'native_cli.py', base, {}, log, 50)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual([Path(call.args[0][-1]).stem for call in run.call_args_list],
+                                 ['recipe-g236', 'recipe-g131'])
+                self.assertLessEqual(run.call_args_list[1].kwargs['timeout'], run.call_args_list[0].kwargs['timeout'])
+
+    def test_grid_validation_requires_every_requested_grid(self):
+        rules = [dict(grid_label=label) for label in ('g236', 'g131')]
+        with tempfile.TemporaryDirectory() as tmp:
+            files = []
+            for rule in rules:
+                path = Path(tmp) / rule['grid_label'] / 'v20261123' / 'so.nc'
+                path.parent.mkdir(parents=True)
+                with netCDF4.Dataset(path, 'w') as ds:
+                    ds.grid_label = rule['grid_label']
+                files.append(path)
+            grids = f.files_by_recipe_grid(dict(rules=rules), list(reversed(files)))
+            self.assertEqual(grids, [(rules[0], [files[0]]), (rules[1], [files[1]])])
+            with self.assertRaisesRegex(ValueError, 'Missing requested output grid'):
+                f.files_by_recipe_grid(dict(rules=rules), files[:1])
+            with netCDF4.Dataset(files[1], 'a') as ds:
+                ds.grid_label = 'g236'
+            with self.assertRaisesRegex(ValueError, 'unexpected output grid'):
+                f.files_by_recipe_grid(dict(rules=rules), files)
 
     def test_april_selection_is_scoped_and_flagged(self):
         import csv
@@ -152,7 +202,7 @@ class Tests(unittest.TestCase):
         files=list((REPO/'awi-esm3-lr-variables').glob('*/cmip7xml*.yaml'))
         compounds={r['compound_name'] for p in files for r in yaml.safe_load(p.read_text())['rules']}
         self.assertEqual(len(files),17)
-        self.assertEqual(len(compounds),611)  # Groundwater cannot use the removed deep-soil proxy; +20 ocean/sea-ice, +39 atmosphere gap closure; -2 for cfc11 and dsw; -1 for od550aer.
+        self.assertEqual(len(compounds),620)  # Includes 9 new native ocean products.
 
     def test_recom_seven_rules_retained(self):
         raw=f.module(f.RULES/'raw_adapter.py','test_raw_seven')

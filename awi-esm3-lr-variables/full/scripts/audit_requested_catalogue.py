@@ -243,7 +243,12 @@ def audit(config_file=None, campaign=None):
     for group, rules in shared.items():
         for rule in rules:
             add_rule(rule, group, WORKFLOW_ROOT / 'rules/raw_adapter.py', rule.get('lr_group', ''))
-    implemented = set().union(*(groups[g] for g in ('full_cmip7xml', 'raw_profile', *shared)))
+    land_source = WORKFLOW_ROOT / 'rules/requested_land.py'
+    provenance.add(land_source)
+    land = f.module(land_source, '_catalogue_audit_requested_land')
+    for rule in land.rules():
+        add_rule(rule, 'shared_requested_land', land_source, rule['lr_group'])
+    implemented = set(sources)
     for path in sorted(base.glob('*/cmip7_awiesm3-lr*.yaml')):
         for rule in yaml.safe_load(path.read_text()).get('not_enabled', []):
             sources[rule['compound_name']].append(dict(kind='explicitly_disabled', path=str(path),
