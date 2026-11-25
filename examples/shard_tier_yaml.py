@@ -44,8 +44,10 @@ def _applicable(rule: dict, inherit: dict) -> bool:
     """Whether ``rule`` is delivered for this experiment and year.
 
     A rule can limit itself with ``only_experiments`` (list of experiment_id)
-    and ``first_year`` / ``last_year`` (model years, inclusive). The
-    experiment and year come from the rule or, as written by
+    and ``first_year`` / ``last_year`` (model years, inclusive). A year limit
+    can also be a mapping ``{experiment_id: year}``, for when the experiments
+    start at different years; an experiment missing from the mapping is not
+    delivered. The experiment and year come from the rule or, as written by
     repoint_hr_year.py, from ``inherit``. A rule that sets a year limit while
     the year is unknown is kept, so a yaml that was never repointed still runs
     everything it lists.
@@ -54,11 +56,18 @@ def _applicable(rule: dict, inherit: dict) -> bool:
     only = rule.get("only_experiments")
     if only is not None and experiment not in only:
         return False
+    first, last = rule.get("first_year"), rule.get("last_year")
+    for limit in (first, last):
+        if isinstance(limit, dict) and experiment not in limit:
+            return False
+    if isinstance(first, dict):
+        first = first[experiment]
+    if isinstance(last, dict):
+        last = last[experiment]
     year = rule.get("year", inherit.get("year"))
     if year is None:
         return True
     year = int(year)
-    first, last = rule.get("first_year"), rule.get("last_year")
     if first is not None and year < int(first):
         return False
     if last is not None and year > int(last):
