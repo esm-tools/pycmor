@@ -874,10 +874,17 @@ rules:
   lr_input:
     component: fesom
     pattern: limNd\.fesom\.\d{4}\.nc$
-  pipelines: [recom_surface]
-  surface_layer: true
-  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), nitrogen limitation factor of diatom photosynthesis
-    (1 = no limitation). The source is 3D; the requested 2D field is its first ocean layer.
+  pipelines: [lr_diatom_limitation]
+  lr_weighted_depth: 100
+  lr_biomass: &diatom_carbon {component: fesom, pattern: 'DiaC\.fesom\.\d{4}\.nc$', variable: DiaC, units: '[mmol/m3]'}
+  lr_thickness: &diatom_thickness {component: fesom, pattern: 'hnode\.fesom\.\d{4}\.nc$', variable: hnode, units: m}
+  comment: &diatom_limitation_method >-
+    Estimated from monthly mean REcoM profiles. Diatom limitation (1 = no limitation) is
+    averaged over the upper 100 m using diatom carbon concentration (DiaC) times wet
+    layer thickness (hnode) as weights. Only layers with valid limitation and positive
+    weights contribute. Columns with no contributing biomass are missing.
+    Vertical weighting follows Orr et al. (2017), Table 11, footnote f.
+  variable_attributes: {comment: *diatom_limitation_method}
 - name: limfediat
   compound_name: ocnBgchem.limfediat.tavg-u-hxy-sea.mon.glb
   model_variable: limFed
@@ -887,10 +894,12 @@ rules:
   lr_input:
     component: fesom
     pattern: limFed\.fesom\.\d{4}\.nc$
-  pipelines: [recom_surface]
-  surface_layer: true
-  comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), iron limitation factor of diatom photosynthesis
-    (1 = no limitation). The source is 3D; the requested 2D field is its first ocean layer.
+  pipelines: [lr_diatom_limitation]
+  lr_weighted_depth: 100
+  lr_biomass: *diatom_carbon
+  lr_thickness: *diatom_thickness
+  comment: *diatom_limitation_method
+  variable_attributes: {comment: *diatom_limitation_method}
 - name: intpbsi_south30
   compound_name: ocnBgchem.intpbsi.tavg-u-hxy-sea.mon.30S-90S
   model_variable: intpbsi

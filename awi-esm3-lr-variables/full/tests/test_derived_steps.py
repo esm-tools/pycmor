@@ -54,8 +54,9 @@ class PipelineTests(unittest.TestCase):
         RAW.register_derived_pipelines(profile, Path('/campaign'))
         RAW.register_derived_pipelines(profile, Path('/campaign'))
         pipes = {p['name']: p['steps'] for p in profile['pipelines']}
-        self.assertEqual(len(profile['pipelines']), before + 7)
+        self.assertEqual(len(profile['pipelines']), before + 8)
         extra = 'script:///campaign/reproduce/extra_steps.py:'
+        self.assertEqual(pipes['lr_diatom_limitation'][2], extra + 'diatom_limitation')
         self.assertIn(extra + 'transform_and_target_depth', pipes['lr_target_depth'])
         self.assertNotIn('pycmor.awiesm3_lr.transform', pipes['lr_target_depth'])
         self.assertIn('pycmor.awiesm3_lr.daily_time', pipes['lr_daily_target_depth'])
@@ -116,7 +117,7 @@ class StepTests(unittest.TestCase):
             ds.createVariable('lat', 'f4', ('nod2',))[:] = np.linspace(-80, 60, values.shape[1])
             ds.createVariable('lon', 'f4', ('nod2',))[:] = np.linspace(0, 300, values.shape[1])
             v = ds.createVariable(variable, 'f4', ('time', 'nod2', 'nz'), fill_value=-9999.)
-            v.units = units; v.coordinates = 'lat lon'; v[:] = values
+            v.units = units; v.coordinates = 'lat lon'; v.cell_methods = 'time: mean'; v[:] = values
         return path
 
     def test_column_integral_uses_matching_month_thickness_and_masks(self):
@@ -140,6 +141,47 @@ class StepTests(unittest.TestCase):
         rule.lr_thickness_units = 'cm'
         with self.assertRaisesRegex(ValueError, 'thickness units'):
             EXTRA.vertical_integral(load_linear(None, rule), rule)
+
+    def test_monthly_diatom_limitation_weights_only_valid_upper_ocean_biomass(self):
+        shape = (12, 6, len(CENTRES))
+        lim = np.full(shape, np.nan)
+        carbon = np.zeros(shape)
+        thickness = np.broadcast_to(np.diff(EDGES), shape).copy()
+        lim[:, :, 0], lim[:, :, 10], lim[:, :, 11:] = 0.2, 0.8, 1.
+        carbon[:, :, 0], carbon[:, :, 10], carbon[:, :, 11:] = 1., 3., 1000.
+        thickness[:, 0, 10] = 12.  # Only 10 m of this layer lies above 100 m.
+        thickness[:, 1, 10] = 2.   # Shallow bottom cell.
+        carbon[:, 2, :11] = 0.
+        lim[:, 3, 10] = np.nan
+        thickness[:, 4, :11] = np.nan
+        lim[:, 5, :11] = 0.
+        carbon[6, 0, 0] = 0.
+        source = self.monthly('limNd', 'limNd', np.ma.masked_invalid(lim), '1')
+        biomass = self.monthly('DiaC', 'DiaC', carbon, '[mmol/m3]')
+        dz = self.monthly('hnode', 'hnode', np.ma.masked_invalid(thickness), 'm')
+        rule = Rule(year_start=2000, year_end=2000, grid_file=self.grid, model_variable='limNd',
+                    expected_units='1', lr_weighted_depth=100, lr_source_files=[str(source)],
+                    lr_biomass_files=[str(biomass)], lr_biomass_variable='DiaC', lr_biomass_units='[mmol/m3]',
+                    lr_thickness_files=[str(dz)], lr_thickness_variable='hnode', lr_thickness_units='m')
+        expected = [25./35., 5.8/11., np.nan, 0.2, np.nan, 0.]
+        with xr.open_dataset(source) as ds:
+            result = EXTRA.diatom_limitation(ds.limNd, rule)
+            self.assertEqual(result.dims, ('time', 'nod2'))
+            self.assertEqual(result.attrs['units'], '1')
+            np.testing.assert_allclose(result[0], expected)
+            self.assertAlmostEqual(float(result[6, 0]), 0.8)
+            for j, value in enumerate(expected):
+                sample = VALIDATOR.sample_nc(vars(rule), 2000, 1, {'nod2': j}, 0)
+                if np.isnan(value):
+                    self.assertTrue(np.ma.is_masked(sample))
+                else:
+                    self.assertAlmostEqual(float(sample), value)
+            with self.assertRaisesRegex(ValueError, 'months, nodes and depth'):
+                EXTRA.diatom_limitation(ds.limNd.assign_coords(lon=ds.lon[::-1]), rule)
+            with self.assertRaisesRegex(ValueError, 'months, nodes and depth'):
+                EXTRA.diatom_limitation(ds.limNd.assign_coords(time=ds.time + np.timedelta64(1, 'D')), rule)
+            with self.assertRaisesRegex(ValueError, 'monthly mean for limNd'):
+                EXTRA.diatom_limitation(ds.limNd.assign_attrs(cell_methods='time: point'), rule)
 
     def test_daily_to_monthly_mean_keeps_every_day_and_labels_mid_month(self):
         first = cftime.datetime(2000, 1, 1, 12, calendar='gregorian')

@@ -190,3 +190,18 @@ Only items an output-config change could unblock:
 - The FESOM opottemp/osalt `padvect`/`pmdiff` items were skipped as "zero, fer_gm off".
   GM is on in LR, but FESOM has no separate eddy-advection tendency diagnostic, so they
   still need source work.
+
+## Daily REcoM inputs for ensemble member 2 and later
+
+Member 1 of the LR esm-piControl supplies monthly `limNd`, `limFed` and `DiaC`.
+Pycmor uses monthly diatom carbon (`DiaC`) and layer thickness (`hnode`) to
+weight nitrogen and iron limitation over the upper 100 m. The two CMIP7
+products, `limndiat` and `limfediat`, are monthly. Weighting monthly inputs
+omits changes in the relationship between biomass and limitation within a month.
+
+From ensemble member 2 onward, the model team can enable daily means of
+`limNd`, `limFed` and `DiaC` for the layers intersecting 0–100 m in the
+FESOM XIOS output configuration. The LR linear free surface permits reuse of
+the archived layer thickness. A corresponding pycmor rule would weight each
+day's profiles first and then average the resulting maps over the month.
+This is an option for future runs. Member 1 uses the monthly method.

@@ -1,5 +1,7 @@
 """Surface and fixed-depth extraction, column integrals, monthly means of daily
 streams and the lowest OpenIFS model level for the LR raw rules."""
+from contextlib import ExitStack
+
 import cftime
 import numpy as np
 import xarray as xr
@@ -79,6 +81,56 @@ def vertical_integral(data, rule):
         # column stays missing.
         result = (data * thickness).sum(dims[0], min_count=1).load()
     result.attrs, result.name = attrs, name
+    return result
+
+
+def diatom_limitation(data, rule):
+    """Diatom-carbon-weighted upper-ocean limitation from collocated monthly means."""
+    data = transform(data, rule)
+    depth_dims = [d for d in ('nz', 'nz1', 'depth') if d in data.dims]
+    if len(depth_dims) != 1 or set(data.dims) != {'time', 'nod2', depth_dims[0]}:
+        raise ValueError('Expected a monthly CORE3 limitation profile on ocean nodes')
+    dim = depth_dims[0]
+    with xr.open_dataset(rule.get('grid_file'), decode_times=False) as mesh:
+        centres = mesh.depth.values
+        edges = mesh.depth_bnds.values
+    if (edges.shape != (centres.size + 1,) or edges[0] != 0 or not np.all(np.diff(edges) > 0)
+            or centres.shape != data[dim].shape or not np.allclose(data[dim], centres, rtol=0, atol=1e-4)):
+        raise ValueError('Limitation depths must match the CORE3 layer centres and interfaces')
+    limit = rule.get('lr_weighted_depth')
+    if not 0 < limit <= edges[-1]:
+        raise ValueError('Weighted depth is outside the CORE3 water column')
+    stop = np.searchsorted(edges[:-1], limit)
+    upper = {dim: slice(0, stop)}
+    remaining = xr.DataArray(limit - edges[:stop], dims=(dim,), coords={dim: data[dim].isel(upper)})
+
+    with ExitStack() as stack:
+        def monthly_input(key):
+            ds = stack.enter_context(xr.open_mfdataset(rule.get(key + '_files'), combine='by_coords',
+                                                       join='exact', chunks={'time': 1}))
+            field = ds[rule.get(key + '_variable')]
+            if field.attrs.get('units') != rule.get(key + '_units'):
+                raise ValueError(f'Unexpected units for {field.name}: {field.attrs.get("units")}')
+            field = monthly_time(_select_years(field, rule), rule)
+            # XIOS uses an unindexed nod2 dimension. Checking only indexed
+            # coordinates would allow a reordered latitude/longitude array.
+            if field.sizes != data.sizes or not field.coords.to_dataset().equals(data.coords.to_dataset()):
+                raise ValueError(f'{field.name} must match the limitation months, nodes and depth levels')
+            return field.isel(upper).astype('float64')
+
+        biomass = monthly_input('lr_biomass')
+        thickness = monthly_input('lr_thickness')
+        limitation = data.isel(upper)
+        for field in (limitation, biomass, thickness):
+            if 'time: mean' not in field.attrs.get('cell_methods', '') and field.attrs.get('online_operation') != 'average':
+                raise ValueError(f'Expected a monthly mean for {field.name}')
+        valid = (np.isfinite(limitation) & np.isfinite(biomass) & (biomass > 0)
+                 & np.isfinite(thickness) & (thickness > 0))
+        weights = (biomass * np.minimum(thickness, remaining)).where(valid)
+        total = weights.sum(dim)
+        mean = (limitation * weights).sum(dim) / total.where(total > 0)
+        result = mean.compute(scheduler='synchronous')
+    result.attrs, result.name = dict(data.attrs), data.name
     return result
 
 

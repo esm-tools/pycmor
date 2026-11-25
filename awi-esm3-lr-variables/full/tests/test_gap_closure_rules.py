@@ -262,6 +262,26 @@ class MaterializeTests(unittest.TestCase):
         group, rule = RAW.materialize(self.rules['sf6'], grid)
         self.assertEqual(group, 'ocean')
 
+    def test_both_diatom_limitations_require_monthly_biomass_and_thickness(self):
+        grid = {'core3': '/fixture/core3.nc'}
+        for name in ('limndiat', 'limfediat'):
+            rule = self.rules[name]
+            variable = rule['model_variable']
+            self.write(self.fesom / f'{variable}.fesom.2000.nc', variable, '1', ('nz', CENTRES))
+            with self.assertRaisesRegex(ValueError, 'MISSING_INPUT: hnode'):
+                RAW.materialize(rule, grid)
+        dz = self.write(self.fesom / 'hnode.fesom.2000.nc', 'hnode', 'm', ('nz', CENTRES))
+        with self.assertRaisesRegex(ValueError, 'MISSING_INPUT: DiaC'):
+            RAW.materialize(self.rules['limndiat'], grid)
+        carbon = self.write(self.fesom / 'DiaC.fesom.2000.nc', 'DiaC', '[mmol/m3]', ('nz', CENTRES))
+        for name in ('limndiat', 'limfediat'):
+            _, rule = RAW.materialize(self.rules[name], grid)
+            self.assertEqual(rule['pipelines'], ['lr_diatom_limitation'])
+            self.assertEqual(rule['lr_weighted_depth'], 100)
+            self.assertNotIn('surface_layer', rule)
+            self.assertEqual(set(rule['lr_auxiliary_files']), {str(dz), str(carbon)})
+            self.assertIn('monthly mean', rule['variable_attributes']['comment'])
+
     def test_iron_flux_reads_leg_fe2n(self):
         namelist = RAW.EXP / f'run_{RAW.PERIOD}/config/fesom/namelist.recom'
         namelist.parent.mkdir(parents=True)

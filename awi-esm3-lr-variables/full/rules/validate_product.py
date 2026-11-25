@@ -240,6 +240,20 @@ def sample_nc(rule, year, month, horizontal_indices, level, day=None):
         value=sum(w*one(t['files'],t['variable'],t['coefficient'],k)
                   for t in terms for k,w in depth_weights(t['files'],t['variable']))
         value=value+(0 if rule.get('lr_terms') else rule.get('lr_offset',0))
+    elif rule.get('lr_weighted_depth') is not None:
+        limit = rule['lr_weighted_depth']
+        with netCDF4.Dataset(rule['grid_file']) as grid:
+            tops = np.asarray(grid['depth_bnds'][:-1])
+        tops = tops[tops < limit]
+        upper = slice(0, len(tops))
+        limitation = one(paths, rule['model_variable'], 1., upper).filled(np.nan)
+        carbon = one(rule['lr_biomass_files'], rule['lr_biomass_variable'], 1., upper).filled(np.nan)
+        thickness = one(rule['lr_thickness_files'], rule['lr_thickness_variable'], 1., upper).filled(np.nan)
+        wet = np.minimum(thickness, limit - tops)
+        valid = (np.isfinite(limitation) & np.isfinite(carbon) & (carbon > 0)
+                 & np.isfinite(thickness) & (wet > 0))
+        value = (np.average(limitation[valid], weights=carbon[valid] * wet[valid])
+                 if valid.any() else np.ma.masked)
     elif rule.get('lr_thickness_files'):
         h=one(rule['lr_thickness_files'],rule['lr_thickness_variable'],1.,slice(None))
         value=np.ma.sum(sum(one(t['files'],t['variable'],t['coefficient'],slice(None)) for t in terms)*h)

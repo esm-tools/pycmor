@@ -321,6 +321,7 @@ def register_derived_pipelines(profile, campaign):
                 steps.insert(2, extra + step)
         return edit
     derive('lr_monthly', 'lr_target_depth', replace_or_insert('transform_and_target_depth'))
+    derive('lr_monthly', 'lr_diatom_limitation', replace_or_insert('diatom_limitation'))
     derive('lr_daily', 'lr_daily_target_depth', replace_or_insert('transform_and_target_depth'))
     derive('lr_daily_linear', 'lr_daily_target_depth_linear', replace_or_insert('target_depth_only'))
     def integral(steps):
@@ -447,17 +448,19 @@ def materialize(rule, gridpaths):
                 raise ValueError(f'MISSING_INPUT: {term["variable"]}: {component}/{pattern}')
             check_time(terms,term['variable'],term['units'])
             term['files']=list(map(str,terms))
-        if rule.get('lr_thickness'):
-            # Layer thickness of the same months for vertical integrals.
-            thickness=rule.pop('lr_thickness')
-            component,pattern=thickness['component'],thickness['pattern']
-            files=inputs(component,pattern)
+        for key in ('lr_thickness', 'lr_biomass'):
+            if not rule.get(key):
+                continue
+            spec = rule.pop(key)
+            component, pattern = spec['component'], spec['pattern']
+            files = inputs(component, pattern)
             if not files:
-                raise ValueError(f'MISSING_INPUT: {thickness["variable"]}: {component}/{pattern}')
-            check_months(files,thickness['variable'],thickness['units'])
-            rule.update(lr_thickness_files=list(map(str,files)),lr_thickness_variable=thickness['variable'],
-                        lr_thickness_units=thickness['units'])
-            rule['lr_auxiliary_files']=list(rule.get('lr_auxiliary_files',[]))+list(map(str,files))
+                raise ValueError(f'MISSING_INPUT: {spec["variable"]}: {component}/{pattern}')
+            check_months(files, spec['variable'], spec['units'])
+            rule[key + '_files'] = list(map(str, files))
+            rule[key + '_variable'] = spec['variable']
+            rule[key + '_units'] = spec['units']
+            rule.setdefault('lr_auxiliary_files', []).extend(rule[key + '_files'])
         if rule.get('lr_hybrid_levels'):
             # Same formula terms as the catalogue model-level rules: the
             # configured vtable and the 6-hourly surface pressure of this leg.
