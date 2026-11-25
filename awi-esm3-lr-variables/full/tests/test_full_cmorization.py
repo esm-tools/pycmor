@@ -25,6 +25,20 @@ def configured_metadata(test):
 
 
 class Tests(unittest.TestCase):
+    def test_single_year_keeps_archived_leg_and_excludes_multi_year_products(self):
+        leg = '31500101-31591231'
+        self.assertEqual(f.catalog_years(leg, {}), range(3150, 3160))
+        self.assertEqual(f.catalog_years(leg, {'processing_year': 3152}), range(3152, 3153))
+        for value in (3149, 3160, True, '3152'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'processing_year'):
+                f.catalog_years(leg, {'processing_year': value})
+        rows = self.catalog_without_metadata(processing_year=2610)
+        windows = [row for row in rows if row['compound'].split('.')[2].startswith('tclm-')
+                   or row['compound'].split('.')[-2] == 'dec']
+        self.assertTrue(windows)
+        self.assertTrue(all(row['status'] == 'NOT_APPLICABLE' and
+                            row['reason'].startswith('OUTSIDE_PROCESSING_YEAR') for row in windows))
+
     def test_missing_groundwater_is_reported_for_every_year_without_a_proxy(self):
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory);period='26100101-26141231'

@@ -540,8 +540,20 @@ def new_doc(doc, config, year, compound):
     return doc
 
 
+def catalog_years(period, config):
+    """Keep the archived leg context when converting just one model year."""
+    years = range(int(period[:4]), int(period[9:13]) + 1)
+    year = config.get('processing_year')
+    if year is None:
+        return years
+    if type(year) is not int or year not in years:
+        raise ValueError(f'processing_year must be an integer within {period}')
+    return range(year, year + 1)
+
+
 def build_catalog(config, experiment, period, identity, campaign):
     """All 17 full tiers + all raw fallbacks + REcoM/tracer + unimplemented lists."""
+    years = catalog_years(period, config)
     repo = Path(config['repo'])
     rep = module(repo/'examples/repoint_hr_year.py', 'full_repointer')
     raw = module(RULES/'raw_adapter.py', 'full_raw_rules')
@@ -620,7 +632,6 @@ def build_catalog(config, experiment, period, identity, campaign):
     iceberg = support_module('iceberg_support')
     raw_rules += list(iceberg.rules(RULES))
     candidates = defaultdict(list)
-    years = range(int(period[:4]),int(period[9:13])+1)
     scope = set(full_compounds) | {r['compound_name'] for r in raw_rules}
     # Retain the requested groundwater product after removing its physically
     # different deep-soil proxy from the executable XML catalogue.
@@ -660,6 +671,9 @@ def build_catalog(config, experiment, period, identity, campaign):
         if unknown:
             raise ValueError(f'Unknown requested_products: {sorted(unknown)}')
         scope = set(requested_products)
+    # A stand-alone year cannot represent the leg's multi-year products.
+    outside_window = {name for name in scope if config.get('processing_year') is not None
+                      and (name.split('.')[2].startswith('tclm-') or name.split('.')[-2] == 'dec')}
     # HR rotation-aware pipelines are the audited equivalents of the LR rules.
     vectors = {}
     for p in (repo/'awi-esm3-veg-hr-variables').glob('*/cmip7_awiesm3-veg-hr*.yaml'):
@@ -706,7 +720,7 @@ def build_catalog(config, experiment, period, identity, campaign):
                 doc['inherit']['bounds_reference_file']=str(full_grid)
             for rule in doc['rules']:
                 compound = rule['compound_name']
-                if compound not in scope:
+                if compound not in scope or compound in outside_window:
                     continue
                 frequency = compound.split('.')[-2]
                 if compound.split('.')[2].startswith('tclm-') and year != years.stop-1:
@@ -778,7 +792,7 @@ def build_catalog(config, experiment, period, identity, campaign):
         raw.YEARS = [year]
         for original in raw_rules:
             compound = original['compound_name']
-            if compound not in scope:
+            if compound not in scope or compound in outside_window:
                 continue
             if compound.split('.')[-2]=='fx' and year!=years.start:
                 continue
@@ -837,6 +851,11 @@ def build_catalog(config, experiment, period, identity, campaign):
                       [years.start] if frequency=='fx' else
                       [years.stop-1] if frequency=='dec' else years)
         for year in task_years:
+            if compound in outside_window:
+                rows.append(dict(compound=compound, year=year, status='NOT_APPLICABLE',
+                                 reason='OUTSIDE_PROCESSING_YEAR: requires a multi-year window',
+                                 alternatives=[], selection=compound in selection))
+                continue
             routes = candidates.get((compound,year),[])
             good = next((r for r in routes if r['status']=='READY'),None)
             exclusion = (support_module('data_request_coverage').conditional_exclusion(
