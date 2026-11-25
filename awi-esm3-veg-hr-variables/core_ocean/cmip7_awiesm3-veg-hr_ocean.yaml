@@ -417,6 +417,19 @@ rules:
     model_variable: salt
     lazy_write: true
 
+  # sf6: SF6 tracer of the FESOM tracer module, already monthly means in mol m-3.
+  # Written by the historical run only, from 1950 (Nadine, 2026-11-23);
+  # shard_tier_yaml.py drops the rule for other experiments and earlier years.
+  - name: sf6
+    inputs:
+      - path: *dp
+        pattern: sf6\.fesom\.\d{4}\.nc
+    compound_name: ocean.sf6.tavg-ol-hxy-sea.mon.glb
+    model_variable: sf6
+    only_experiments: [historical]
+    first_year: 1950
+    lazy_write: true
+
   - name: uo
     inputs:
       - path: *dp
