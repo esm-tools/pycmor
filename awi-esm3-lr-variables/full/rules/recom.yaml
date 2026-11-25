@@ -307,7 +307,7 @@ rules:
     pattern: DiaC\.fesom\.\d{4}\.nc$
   lr_exact_ocean_depth: true
 - name: phynano
-  compound_name: ocnBgchem.phynano.tavg-ol-hxy-sea.mon.glb
+  compound_name: ocnBgchem.phynano.tavg-u-hxy-sea.mon.glb
   model_variable: PhyC
   expected_units: '[mmol/m3]'
   lr_scale: 0.001
@@ -315,7 +315,11 @@ rules:
   lr_input:
     component: fesom
     pattern: PhyC\.fesom\.\d{4}\.nc$
-  lr_exact_ocean_depth: true
+  pipelines: [recom_surface]
+  surface_layer: true
+  comment: The CMIP7 DR defines phynano only as ocnBgchem.phynano.tavg-u-hxy-sea (2D, no vertical
+    dimension); there is no tavg-ol-hxy-sea 3D sibling in the data request. The source is 3D; the
+    requested 2D field is its first ocean layer, consistent with limndiat/limfediat.
 - name: chl
   compound_name: ocnBgchem.chl.tavg-ol-hxy-sea.mon.glb
   model_variable: PhyChl
