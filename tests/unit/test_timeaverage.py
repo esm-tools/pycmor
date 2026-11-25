@@ -60,6 +60,36 @@ def test_instantaneous_sampling(sample_data, sample_rule):
     assert pd.Timestamp("2023-02-01") in result.time.values
 
 
+def _six_hourly(start_hour=6, n=40):
+    times = xr.date_range(
+        f"3150-01-01T{start_hour:02d}:00", periods=n, freq="6h", calendar="proleptic_gregorian", use_cftime=True
+    )
+    values = np.random.default_rng(0).random((n, 3)).astype("float32")
+    values[5, 1] = np.nan
+    return xr.DataArray(values, coords={"time": times}, dims=["time", "cell"])
+
+
+def test_instantaneous_on_target_step_skips_resample(sample_rule):
+    """6-hourly point samples on the 6 h bins: the result is the input, as .first() would give."""
+    da = _six_hourly()
+    assert pycmor.std_lib.timeaverage._samples_on_bins(da, "6h")
+    result = timeavg(da, sample_rule("6hrPt", "0.25"))
+    expected = da.resample(time="6h").first()
+    xr.testing.assert_identical(result.drop_attrs(), expected.drop_attrs())
+
+
+@pytest.mark.parametrize("start_hour,drop", [(3, None), (6, 7)])
+def test_instantaneous_off_bins_or_gappy_keeps_resample(sample_rule, start_hour, drop):
+    """Samples between bin starts, or a missing step, still go through the resample."""
+    da = _six_hourly(start_hour)
+    if drop is not None:
+        da = da.drop_isel(time=drop)
+    assert not pycmor.std_lib.timeaverage._samples_on_bins(da, "6h")
+    result = timeavg(da, sample_rule("6hrPt", "0.25"))
+    expected = da.resample(time="6h").first()
+    xr.testing.assert_identical(result.drop_attrs(), expected.drop_attrs())
+
+
 def test_mean_default_offset(sample_data, sample_rule):
     """Without an offset, a mean sits at the middle of its interval (CMIP, wcrp TIME001)."""
     rule = sample_rule("Amon", "30")  # Monthly mean

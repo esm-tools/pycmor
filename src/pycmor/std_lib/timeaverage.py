@@ -195,6 +195,25 @@ def _duration_weighted_time_mean(da, frequency_str, **resample_kw):
     return result
 
 
+def _samples_on_bins(da, frequency_str):
+    """True when ``da.resample(time=frequency_str)`` puts exactly one sample in
+    every bin, at the bin label: the samples are contiguous at the target step
+    and each lies on a bin start. ``.first()`` is then the identity."""
+    try:
+        idx = da.indexes["time"]
+        step = pd.to_timedelta(frequency_str)
+    except (KeyError, ValueError, TypeError):
+        return False
+    if len(idx) < 2:
+        return False
+    try:
+        if not bool((idx.floor(frequency_str) == idx).all()):
+            return False
+    except (ValueError, TypeError, AttributeError, NotImplementedError):
+        return False
+    return all(d == step for d in np.diff(np.asarray(idx)))
+
+
 def timeavg(da: xr.DataArray, rule):
     """Preserve the source time epoch across :func:`_timeavg_impl`.
 
@@ -459,13 +478,20 @@ def _timeavg_impl(da: xr.DataArray, rule):
         _flox_engine = "numpy"
     _resample_kw = {"engine": _flox_engine}
     if time_method == "INSTANTANEOUS":
-        # xarray's DataArrayResample.first() does not accept the flox
-        # ``engine`` kwarg (no flox aggregator path for the "pick first
-        # element per group" reduction). Before the cmip7 cell_methods
-        # override added in 6c0a3c59, every CMIP7 tpt rule fell through
-        # to MEAN because CMIP6's Pt suffix was dropped; that masked the
-        # latent TypeError. Call .first() without the engine kwarg.
-        ds = da.resample(time=frequency_str).first()
+        if _samples_on_bins(da, frequency_str):
+            # Every resample bin would hold exactly one sample, stamped at the
+            # bin label, so .first() returns the input unchanged. The group-by
+            # is skipped: it was half the save time of a 6-hourly model-level
+            # field (1460 x 91 x 40320 values per year).
+            ds = da
+        else:
+            # xarray's DataArrayResample.first() does not accept the flox
+            # ``engine`` kwarg (no flox aggregator path for the "pick first
+            # element per group" reduction). Before the cmip7 cell_methods
+            # override added in 6c0a3c59, every CMIP7 tpt rule fell through
+            # to MEAN because CMIP6's Pt suffix was dropped; that masked the
+            # latent TypeError. Call .first() without the engine kwarg.
+            ds = da.resample(time=frequency_str).first()
     elif time_method in ("MAXIMUM", "MINIMUM"):
         # Daily (or other interval) extremum. Like MEAN this describes an
         # interval rather than an instant, so the stamp is placed at the
