@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter, defaultdict
+import contextlib
 import copy
 import csv
 from datetime import datetime, timezone
@@ -79,6 +80,7 @@ def load_config(path):
         walltime='12:00:00', memory='48G', shards=24, concurrency=2,
         product_timeout_seconds=7200, validation_timeout_seconds=1800,
         metadata_overrides={}, publication_ready=False, leg='latest',
+        batch_products=1, batch_target_seconds=300, batch_cost_history=[],
         aicc_vertical_config=str(ROOT/'config/aicc_vertical_config.json'))
     for key, value in defaults.items():
         config.setdefault(key, value)
@@ -106,9 +108,15 @@ def load_config(path):
         raise ValueError('results must be outside the source repository and not its ancestor')
     if config['vector_frame'] not in ('auto', 'rotated', 'geographic'):
         raise ValueError('vector_frame must be auto, rotated or geographic')
-    for key in ('shards', 'concurrency', 'product_timeout_seconds', 'validation_timeout_seconds'):
+    for key in ('shards', 'concurrency', 'product_timeout_seconds', 'validation_timeout_seconds',
+                'batch_products', 'batch_target_seconds'):
         if not isinstance(config[key], int) or isinstance(config[key], bool) or config[key] < 1:
             raise ValueError(f'{key} must be a positive integer')
+    if not isinstance(config['batch_cost_history'], list):
+        raise ValueError('batch_cost_history must be a list of earlier campaign directories')
+    # Earlier campaigns only inform the packing of products into array tasks.
+    config['batch_cost_history'] = [str((path.parent / Path(os.path.expandvars(p)).expanduser()).resolve())
+                                    for p in config['batch_cost_history']]
     if not isinstance(config['allow_dirty'], bool):
         raise ValueError('allow_dirty must be a JSON boolean')
     if 'aicc' in config.get('qc_tests', []):
@@ -1114,8 +1122,12 @@ def cli_recipes(recipe, path):
     return paths
 
 
-def run_native_recipe(recipe, path, python, launcher, scratch, env, log, timeout):
-    """Convert each requested grid in the same attempt, under one product deadline."""
+def run_native_recipe(recipe, path, python, launcher, scratch, env, log, timeout, runner=None):
+    """Convert each requested grid in the same attempt, under one product deadline.
+
+    ``runner`` (a native_zygote.ForkLauncher) forks the conversion from an
+    interpreter that already imported pycmor instead of starting a new one.
+    """
     deadline = time.monotonic() + timeout
     for single in cli_recipes(recipe, path):
         argv = [python, str(launcher), 'process', str(single)]
@@ -1123,14 +1135,19 @@ def run_native_recipe(recipe, path, python, launcher, scratch, env, log, timeout
         if remaining <= 0:
             raise subprocess.TimeoutExpired(argv, timeout)
         print(f'Converting {single.name}', file=log, flush=True)
-        result = subprocess.run(argv, env=env, cwd=scratch, stdout=log, stderr=subprocess.STDOUT,
-                                timeout=remaining)
+        if runner is None:
+            result = subprocess.run(argv, env=env, cwd=scratch, stdout=log, stderr=subprocess.STDOUT,
+                                    timeout=remaining)
+        else:
+            # The forked child appends to the log through its own descriptor.
+            result = runner.run(argv, env, scratch, log.name, remaining)
+            log.seek(0, os.SEEK_END)
         if result.returncode:
             return result
     return result
 
 
-def run_one(campaign, task, config):
+def run_one(campaign, task, config, runner=None):
     verify_campaign(campaign)
     if digest(task['recipe'])!=task['recipe_sha256']:
         raise ValueError('Recipe changed since planning')
@@ -1175,7 +1192,7 @@ def run_one(campaign, task, config):
     try:
         with (attempt/'conversion.log').open('w') as log:
             cp = run_native_recipe(recipe, rp, config['python'], campaign/'reproduce/native_cli.py',
-                                   scratch, env, log, config['product_timeout_seconds'])
+                                   scratch, env, log, config['product_timeout_seconds'], runner)
         result['exit_code']=cp.returncode
         if cp.returncode:
             raise ValueError(f'pycmor exit {cp.returncode}; see {attempt}/conversion.log')
@@ -1210,17 +1227,37 @@ def run_one(campaign, task, config):
     print(task['key'], result['status'], result.get('error',''), flush=True)
 
 
-def work(campaign, shard, shards):
+def native_runner(config):
+    """One preloaded pycmor interpreter per worker process when products are batched."""
+    if config.get('batch_products', 1) > 1:
+        return support_module('native_zygote').ForkLauncher()
+    return contextlib.nullcontext()
+
+
+def plan_task_batches(tasks, config, history_sources=(), done=()):
+    """Pack task indices into array tasks, longest expected group first."""
+    batches = support_module('task_batches')
+    history = batches.load_history([*config.get('batch_cost_history', []), *history_sources])
+    costs = [(i, 1.0 if task['key'] in done else batches.cost(task, history)) for i, task in enumerate(tasks)]
+    return batches.plan_batches(costs, config.get('batch_products', 1), config.get('batch_target_seconds', 300))
+
+
+def work(campaign, shard, shards, batched=False):
     config=verify_campaign(campaign)
-    tasks=read(campaign/'tasks.json')[shard::shards]
+    tasks=read(campaign/'tasks.json')
+    if batched:
+        tasks=[tasks[i] for i in read(campaign/'worker_batches.json')['groups'][shard]]
+    else:
+        tasks=tasks[shard::shards]
     with (campaign/f'.worker_{shard}.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        for task in tasks:
-            try:
-                run_one(campaign,task,config)
-            except Exception as e:
-                write(campaign/'status'/f"{task['key']}.json",dict(status='FAILED',error=str(e),key=task['key']))
-                print(task['key'],'FAILED',e,flush=True)
+        with native_runner(config) as runner:
+            for task in tasks:
+                try:
+                    run_one(campaign,task,config,runner)
+                except Exception as e:
+                    write(campaign/'status'/f"{task['key']}.json",dict(status='FAILED',error=str(e),key=task['key']))
+                    print(task['key'],'FAILED',e,flush=True)
     return int(any(read(campaign/'status'/f"{t['key']}.json").get('status')!='PASS' for t in tasks))
 
 
@@ -1346,10 +1383,19 @@ def submit_workers(campaign, config):
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if marker.exists():
             raise ValueError(f'Already submitted: {marker}; use --run to resume serially after checking jobs have finished')
-        shards=min(config['shards'],len(read(campaign/'tasks.json')))
+        tasks=read(campaign/'tasks.json')
+        shards=min(config['shards'],len(tasks))
         if not shards:
             report(campaign);raise ValueError('No supported products; no empty job submitted')
-        cmd=shlex.join([config['python'],str(campaign/'reproduce/full_cmorization.py'),'--worker',str(campaign),'--shards',str(shards)])
+        extra=[]
+        if config.get('batch_products',1)>1:
+            # Products already converted (e.g. by the validation array) only need their skip check.
+            done={t['key'] for t in tasks if (campaign/'status'/f"{t['key']}.json").is_file()
+                  and read(campaign/'status'/f"{t['key']}.json").get('status')=='PASS'}
+            groups=plan_task_batches(tasks,config,[campaign],done)
+            write(campaign/'worker_batches.json',support_module('task_batches').describe(groups))
+            shards=len(groups);extra=['--batched']
+        cmd=shlex.join([config['python'],str(campaign/'reproduce/full_cmorization.py'),'--worker',str(campaign),'--shards',str(shards),*extra])
         job=batch(config,cmd,campaign/'logs/worker-%A_%a.log','cmor-full',
                   [f'--array=0-{shards-1}%{config["concurrency"]}'])
         # Record the worker submission even if report-job submission fails.
@@ -1375,9 +1421,10 @@ def main():
     p.add_argument('--worker',type=Path,help=argparse.SUPPRESS)
     p.add_argument('--report',type=Path,help=argparse.SUPPRESS)
     p.add_argument('--shards',type=int,default=1,help=argparse.SUPPRESS)
+    p.add_argument('--batched',action='store_true',help=argparse.SUPPRESS)
     a=p.parse_args()
     if a.worker:
-        return work(a.worker,int(os.environ.get('SLURM_ARRAY_TASK_ID',0)),a.shards)
+        return work(a.worker,int(os.environ.get('SLURM_ARRAY_TASK_ID',0)),a.shards,a.batched)
     if a.report:
         return report(a.report)
     config=load_config(a.config)

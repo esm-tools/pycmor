@@ -317,6 +317,23 @@ changed test outputs block the gate. ``representative_test/gate_result.json``
 records the decision; it does not certify publication readiness. The normal
 full launcher does not implicitly enable this optional regression gate.
 
+Every array task, even for a fixed field, costs about ten seconds before any
+data is read: Slurm starts the task, Python imports pycmor, prefect and
+xarray. ``batch_products`` (default 1) lets one array task of the validation
+array and of the full conversion convert up to that many products, one after
+the other, packed to about ``batch_target_seconds`` (default 300) of expected
+work; a product expected to take longer runs alone. Array tasks are numbered
+longest first, so the slowest products start at once. Expected times come from
+``batch_cost_history`` (earlier campaign directories whose status files record
+per-product times, plus the campaign's own status files) and otherwise from
+the product's frequency and vertical domain. With batching, each conversion is
+forked from an interpreter that has already imported pycmor
+(``scripts/native_zygote.py``), but still runs in its own process with its own
+environment, scratch directory, log, timeout and status file: a failure, crash
+or timeout ends that product only. Status files, attempt directories and
+outputs are the same as with one product per task. ``batches.json`` and
+``worker_batches.json`` record the packing.
+
 The full driver sets ``PYCMOR_WORKER_COMPUTE=off`` to write large outputs
 chunk-by-chunk with the synchronous writer, rather than gathering an entire
 year of three-dimensional data into a Dask worker. Outside this driver,

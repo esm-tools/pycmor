@@ -214,7 +214,7 @@ def check_data(task, paths, metadata):
     return details
 
 
-def worker(campaign, index):
+def worker(campaign, index, runner=None):
     if not os.environ.get('SLURM_JOB_ID'):
         raise ValueError('Conversion tests require a Slurm allocation')
     # Old raw validators use assert. Never silently disable their checks.
@@ -229,7 +229,7 @@ def worker(campaign, index):
         verify(manifest, campaign)
         if f.digest(task['recipe']) != task['recipe_sha256']:
             raise ValueError('Recipe changed')
-        f.run_one(campaign, task, manifest['config'])
+        f.run_one(campaign, task, manifest['config'], runner)
         result = f.read(campaign / 'status' / (task['key'] + '.json'))
         record['conversion'] = result
         if result['status'] != 'PASS':
@@ -254,6 +254,24 @@ def worker(campaign, index):
     f.write(dest / 'status' / (task['key'] + '.json'), record)
     print(json.dumps(record, indent=2), flush=True)
     return int(record['status'] != 'CONVERSION_AND_BASIC_CHECKS_PASS')
+
+
+def batch_worker(campaign, index):
+    """Run one packed group of representative tests in this process, one product at a time.
+
+    Every product gets exactly the record, attempt directory and outputs of
+    :func:`worker`; a failing product is recorded and the next one still runs.
+    """
+    group = f.read(campaign / 'representative_test' / 'batches.json')['groups'][index]
+    failed = 0
+    with f.native_runner(f.read(campaign / 'representative_test' / 'manifest.json')['config']) as runner:
+        for position in group:
+            try:
+                failed |= worker(campaign, position, runner)
+            except Exception as exc:
+                failed = 1
+                print(f'Representative test {position} not recorded: {type(exc).__name__}: {exc}', flush=True)
+    return failed
 
 
 def report(campaign):
@@ -308,13 +326,26 @@ def submit(campaign, compounds=None, full_after_pass=False):
         if marker.exists():
             raise ValueError('Validation already submitted; inspect existing jobs first')
         config = manifest['config']
-        command = shlex.join([config['python'], str(dest / 'retest_all_products.py'),
-                              'worker', str(campaign)])
-        array = ','.join(str(i) for i, _ in selected) + f'%{config["concurrency"]}'
+        batches = None
+        if config.get('batch_products', 1) > 1:
+            # Pack products into array tasks, longest expected group first.
+            groups = f.plan_task_batches([t for _, t in selected], config, [campaign])
+            batches = f.support_module('task_batches').describe(
+                [([selected[i][0] for i in items], seconds) for items, seconds in groups])
+            f.write(dest / 'batches.json', batches)
+            command = shlex.join([config['python'], str(dest / 'retest_all_products.py'),
+                                  'batch-worker', str(campaign)])
+            array = f'0-{len(batches["groups"]) - 1}%{config["concurrency"]}'
+        else:
+            command = shlex.join([config['python'], str(dest / 'retest_all_products.py'),
+                                  'worker', str(campaign)])
+            array = ','.join(str(i) for i, _ in selected) + f'%{config["concurrency"]}'
         job = f.batch(config, command, dest / 'logs/test-%A_%a.log', 'cmor-validate',
                       [f'--array={array}'])
         submission = dict(workers=job, gate=None, full_after_pass=full_after_pass,
                           required=[t['key'] for _, t in selected], submitted=f.stamp())
+        if batches is not None:
+            submission['batches'] = len(batches['groups'])
         f.write(marker, submission)
         command = shlex.join([config['python'], str(dest / 'retest_all_products.py'),
                               'gate', str(campaign)])
@@ -367,7 +398,7 @@ def gate(campaign):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['prepare', 'worker', 'report', 'submit', 'gate'])
+    parser.add_argument('action', choices=['prepare', 'worker', 'batch-worker', 'report', 'submit', 'gate'])
     parser.add_argument('campaign', type=Path)
     parser.add_argument('--index', type=int)
     parser.add_argument('--compounds', nargs='+', help='Exact compounds for targeted validation (default: all READY products)')
@@ -379,6 +410,9 @@ def main():
     elif args.action == 'worker':
         index = args.index if args.index is not None else int(os.environ['SLURM_ARRAY_TASK_ID'])
         return worker(campaign, index)
+    elif args.action == 'batch-worker':
+        index = args.index if args.index is not None else int(os.environ['SLURM_ARRAY_TASK_ID'])
+        return batch_worker(campaign, index)
     elif args.action == 'submit':
         submit(campaign, args.compounds, args.full_after_pass)
     elif args.action == 'gate':
