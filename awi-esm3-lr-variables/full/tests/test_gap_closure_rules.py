@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import netCDF4
 import numpy as np
@@ -275,6 +276,36 @@ class MaterializeTests(unittest.TestCase):
         self.assertEqual(self.rules['frfe'], original)
         _, rule = RAW.materialize(self.rules['expfeob'], {'core3': '/fixture/core3.nc'})
         np.testing.assert_allclose([t['coefficient'] for t in rule['lr_terms']], [0.033e-6], rtol=1e-12)
+
+    def test_recom_work_namelist_and_precedence(self):
+        self.write(self.fesom / 'bflxN.fesom.2000.nc', 'bflxN', 'mmolN/m2/s')
+        leg = RAW.EXP / f'run_{RAW.PERIOD}'
+        work = leg / 'work/namelist.recom'
+        archived = RAW.EXP / 'archive/namelist.recom'
+        canonical = leg / 'config/fesom/namelist.recom'
+        with patch.dict(RAW.ARCHIVED_FILES, {}, clear=True):
+            for path, ratio in ((work, 0.02), (archived, 0.03), (canonical, 0.04)):
+                with self.subTest(path=path):
+                    path.parent.mkdir(parents=True)
+                    path.write_text(f'&pairon\n fe2n = {ratio}\n/\n')
+                    if path == archived:
+                        RAW.ARCHIVED_FILES['namelist.recom'] = str(archived)
+                    _, rule = RAW.materialize(self.rules['expfeob'], {'core3': '/fixture/core3.nc'})
+                    self.assertIn(str(path), rule['lr_auxiliary_files'])
+                    self.assertEqual(rule['lr_terms'][0]['coefficient'], ratio * 1e-6)
+
+    def test_recom_work_namelist_cannot_come_from_another_leg(self):
+        other = RAW.EXP / 'run_20010101-20011231/work/namelist.recom'
+        other.parent.mkdir(parents=True)
+        other.write_text('&pairon\n fe2n = 0.03\n/\n')
+        with patch.dict(RAW.ARCHIVED_FILES, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'requires actual leg namelist'):
+                RAW.verify_recom_production(self.rules['expfeob'])
+            work = RAW.EXP / f'run_{RAW.PERIOD}/work/namelist.recom'
+            work.parent.mkdir(parents=True)
+            work.symlink_to(other)
+            with self.assertRaisesRegex(ValueError, 'outside the requested leg'):
+                RAW.verify_recom_production(self.rules['expfeob'])
 
     def test_model_level_co2_pins_table_and_surface_pressure(self):
         self.write(self.oifs / 'atmos_mon_ml_co2_2000-2000.nc', 'co2', 'kg*kg-1',

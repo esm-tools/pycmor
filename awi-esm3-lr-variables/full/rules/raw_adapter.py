@@ -343,9 +343,16 @@ def verify_recom_production(rule):
     kind = rule.get('lr_recom_production')
     if not kind:
         return
-    path = EXP / f'run_{PERIOD}' / 'config/fesom/namelist.recom'
-    if not path.is_file() and ARCHIVED_FILES.get('namelist.recom'):
-        path=Path(ARCHIVED_FILES['namelist.recom'])
+    leg = EXP / f'run_{PERIOD}'
+    path = leg / 'config/fesom/namelist.recom'
+    if not path.is_file():
+        archived = ARCHIVED_FILES.get('namelist.recom')
+        if archived:
+            path = Path(archived)
+        else:
+            path = leg / 'work/namelist.recom'
+            if path.is_file() and not path.resolve().is_relative_to(leg.resolve()):
+                raise ValueError(f'Net REcoM production namelist points outside the requested leg: {path}')
     if not path.is_file():
         raise ValueError(f'Net REcoM production requires actual leg namelist: {path}')
     text = '\n'.join(line.split('!', 1)[0] for line in path.read_text().splitlines())
