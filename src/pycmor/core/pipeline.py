@@ -201,7 +201,9 @@ class Pipeline:
 
     def _run_native(self, data, rule_spec):
         for step in self.steps:
+            t0 = time.monotonic()
             data = step(data, rule_spec)
+            logger.info(f"step {getattr(step, '__name__', step)} took {time.monotonic() - t0:.1f}s")
             if isinstance(data, RuleSkipped):
                 return data
         return data
