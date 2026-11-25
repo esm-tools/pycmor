@@ -38,6 +38,7 @@ Table 2: Precision of time labels used in file names
 
 """
 
+import contextlib
 import functools
 import os
 import sys
@@ -2433,6 +2434,14 @@ def _safe_to_netcdf(ds_or_da, *args, scheduler="synchronous", **kwargs):
     except Exception as _exc:  # pragma: no cover - defensive
         logger.debug(f"could not demote bounds coords before write: {_exc}")
 
+    _cache = None
+    if isinstance(ds_or_da, xr.Dataset):
+        _single, _enc, _cache = _data_var_encoding_as_cmip7repack(
+            [ds_or_da], kwargs.get("encoding"), kwargs.get("unlimited_dims"), dask_write=_is_dask_backed(ds_or_da)
+        )
+        if _single[0] is not ds_or_da:
+            ds_or_da, kwargs["encoding"] = _single[0], _enc
+
     # Identify rule for GRAPH_METRIC log records. Best effort — uses the
     # DataArray's .name attribute, or first data_var for a Dataset.
     try:
@@ -2507,7 +2516,8 @@ def _safe_to_netcdf(ds_or_da, *args, scheduler="synchronous", **kwargs):
         f"nodes={n_keys} layers={n_layers} bytes={approx_bytes} chunks={n_chunks}"
     )
     t0 = time.time()
-    delayed = ds_or_da.to_netcdf(*args, compute=False, **kwargs)
+    with _netcdf_chunk_cache(_cache):
+        delayed = ds_or_da.to_netcdf(*args, compute=False, **kwargs)
     with dask.config.set(scheduler=scheduler):
         delayed.compute()
     logger.info(f"GRAPH_RESULT rule={rule_id} backend=sync status=ok elapsed_s={time.time()-t0:.2f}")
@@ -3386,9 +3396,11 @@ def _save_dataset_with_native_timespan(
     return da
 
 
-# What cmip7repack (default -z 4) makes of a time or time-bounds variable that
-# spans more than one chunk.
-_CMIP7REPACK_TIME_FILTERS = {"zlib": True, "complevel": 4, "shuffle": True, "fletcher32": True}
+# The filters cmip7repack (default -z 4) gives every variable it rechunks: a
+# time or time-bounds variable that spans more than one chunk, and a data
+# variable with small chunks. Only the pipeline order differs: netCDF-C puts
+# Fletcher32 first, h5repack last.
+_CMIP7REPACK_FILTERS = {"zlib": True, "complevel": 4, "shuffle": True, "fletcher32": True}
 # netCDF-C's default chunk along an unlimited dimension: 4 KiB for a 1-D
 # variable, a single record otherwise.
 _NC_DEFAULT_1D_UNLIM_CHUNK_BYTES = 4096
@@ -3440,11 +3452,198 @@ def _time_encoding_as_cmip7repack(datasets, enc, unlimited_dims):
                 default = _NC_DEFAULT_1D_UNLIM_CHUNK_BYTES // itemsize if var.ndim == 1 else 1
                 current = var_enc.get("chunksizes", (default,))[0]
                 if n > current:
-                    var_enc.update(_CMIP7REPACK_TIME_FILTERS)
+                    var_enc.update(_CMIP7REPACK_FILTERS)
                     var_enc["chunksizes"] = (n,) + tuple(var.shape[1:])
             var.encoding = var_enc
         out.append(ds)
     return out, enc
+
+
+# cmip7repack's data-variable chunk size (its -d option, default 4 MiB).
+_CMIP7REPACK_DATA_CHUNK_BYTES = 4 * 1024 * 1024
+
+
+def _cmip7repack_data_chunks(shape, chunks, itemsize, size=_CMIP7REPACK_DATA_CHUNK_BYTES):
+    """Chunk shape cmip7repack 1.1 rechunks a data variable to, or None if it
+    leaves the variable as it is.
+
+    Mirrors the shell arithmetic of cmip7repack: a variable stored contiguous
+    or in a single chunk, or whose chunks hold ``size`` bytes or more, is left
+    alone. Otherwise the leading chunk length becomes ``size // itemsize``
+    divided in turn by each trailing chunk length (integer division), the
+    trailing chunk lengths unchanged. The variable is rewritten only if that
+    chunk is strictly larger than the old one, and only then is each chunk
+    length capped at the variable's length.
+    """
+    if not shape or chunks is None or len(chunks) != len(shape):
+        return None
+    shape = [int(s) for s in shape]
+    chunks = [int(c) for c in chunks]
+    if min(chunks) < 1 or not any(c < s for c, s in zip(chunks, shape)):
+        return None
+    original = itemsize * int(np.prod(chunks))
+    if original >= size:
+        return None
+    new = list(chunks)
+    new[0] = size // itemsize
+    for c in chunks[1:]:
+        new[0] //= c
+    if itemsize * int(np.prod(new)) <= original:
+        return None
+    return tuple(min(c, s) for c, s in zip(new, shape))
+
+
+def _data_encoding_as_cmip7repack(var, entry, unlimited_dims, checked):
+    """Encoding that writes ``var`` the way cmip7repack would leave it, or
+    None when cmip7repack would leave the variable as it is.
+
+    ``entry`` is the encoding xarray writes the variable with: the entry of
+    the ``encoding`` argument (``checked``), else the variable's own encoding,
+    from which xarray drops chunk sizes that no longer fit the variable. The
+    chunk shape is only known for explicit chunk sizes; a variable left to
+    netCDF-C's default chunking, or compressed with another codec than zlib,
+    is left to cmip7repack.
+    """
+    if entry.get("contiguous") or entry.get("compression") not in (None, "zlib"):
+        return None
+    if any(entry.get(k) for k in ("blosc_shuffle", "szip_coding")):
+        return None
+    chunks = entry.get("chunksizes")
+    if chunks is None:
+        return None
+    if not checked:
+        unlimited = set(unlimited_dims or ())
+        too_big = any(c > d and dim not in unlimited for c, d, dim in zip(chunks, var.shape, var.dims))
+        if too_big or ("original_shape" in entry and tuple(entry["original_shape"]) != tuple(var.shape)):
+            return None
+    dtype = np.dtype(entry.get("dtype", var.dtype))
+    # cmip7repack reads the word size off the HDF5 type name (8 to 64 bits).
+    if dtype.kind not in "fiu" or dtype.itemsize not in (1, 2, 4, 8):
+        return None
+    target = _cmip7repack_data_chunks(var.shape, chunks, dtype.itemsize)
+    if target is None:
+        return None
+    new = {k: v for k, v in entry.items() if k not in ("compression", "contiguous")}
+    new.update(_CMIP7REPACK_FILTERS)
+    new["chunksizes"] = target
+    return new
+
+
+def _unaligned_write_cache(var, chunks, itemsize):
+    """HDF5 chunk cache (bytes, chunks) that holds every chunk of ``var`` at
+    once, or None when each dask block covers whole netCDF chunks.
+
+    The synchronous dask write stores the blocks in no particular order. When
+    several blocks share a compressed chunk, a chunk evicted half written is
+    compressed, written, and later read back and decompressed for the next
+    block: in an LR test a year of 6-hourly ta on 3 levels took 110 s instead
+    of 15 s. A cache that holds the whole variable compresses every chunk once.
+    """
+    blocks = getattr(var.data, "chunks", None)
+    if blocks is None:
+        return None
+    for sizes, c in zip(blocks, chunks):
+        if any(edge % c for edge in np.cumsum(sizes)[:-1]):
+            break
+    else:
+        return None
+    n = int(np.prod([-(-s // c) for s, c in zip(var.shape, chunks)]))
+    return n * int(np.prod(chunks)) * itemsize, n
+
+
+# Largest chunk cache the writer takes on for unaligned dask writes, summed
+# over the files of one save. The LR maximum is 4.6 GiB (a year of 3-hourly
+# tauuo on FESOM elements); an LR product job has 48 GB.
+_CMIP7REPACK_WRITE_CACHE_LIMIT = 8 * 1024**3
+
+
+def _data_var_encoding_as_cmip7repack(datasets, enc, unlimited_dims, dask_write=False):
+    """Write the data variable the way cmip7repack would leave it.
+
+    cmip7repack rechunks the variable the ``variable_id`` global attribute
+    names when its chunks hold less than 4 MiB (``_cmip7repack_data_chunks``),
+    with shuffle, deflate 4 and Fletcher32. Like a rechunked time axis, that
+    makes h5repack decode and re-encode every variable in the file. Writing
+    the data variable in that layout leaves cmip7repack only the metadata to
+    collate.
+
+    The target chunk is capped at each file's own length, so as with time the
+    entry moves from the shared ``enc`` to each dataset's variable encoding,
+    keeping the ``coordinates`` key xarray reads from the variable itself. When
+    no file needs it, nothing changes.
+
+    The dask blocks stay as they are: netCDF-C quantizes each block it is
+    given on its own, alternating from the block's first value, so merging
+    blocks along time would change the stored values wherever a time step has
+    an odd number of values (FESOM nodes). For a ``dask_write`` the third
+    return value is the chunk cache (``_unaligned_write_cache``) the write
+    needs, or None. If that exceeds ``_CMIP7REPACK_WRITE_CACHE_LIMIT`` the
+    data variable is left to cmip7repack.
+    """
+    if not datasets:
+        return datasets, enc, None
+    name = datasets[0].attrs.get("variable_id")
+    if not name or any(name not in ds.data_vars for ds in datasets):
+        return datasets, enc, None
+    shared = (enc or {}).get(name)
+    entries = []
+    for ds in datasets:
+        var = ds[name]
+        entry = shared if shared is not None else var.encoding
+        entries.append(_data_encoding_as_cmip7repack(var, entry, unlimited_dims, checked=shared is not None))
+    if all(e is None for e in entries):
+        return datasets, enc, None
+    cache = None
+    if dask_write:
+        needs = [
+            _unaligned_write_cache(ds[name], new["chunksizes"], np.dtype(new.get("dtype", ds[name].dtype)).itemsize)
+            for ds, new in zip(datasets, entries)
+            if new is not None
+        ]
+        needs = [n for n in needs if n is not None]
+        if sum(b for b, _ in needs) > _CMIP7REPACK_WRITE_CACHE_LIMIT:
+            logger.info(f"cmip7repack layout: {name} left to cmip7repack, unaligned write over the cache limit")
+            return datasets, enc, None
+        if needs:
+            cache = (max(b for b, _ in needs), max(n for _, n in needs))
+    enc = dict(enc or {})
+    enc.pop(name, None)
+    out = []
+    for ds, new in zip(datasets, entries):
+        ds = ds.copy(deep=False)
+        var = ds[name]
+        var_enc = dict(new) if new is not None else dict(shared if shared is not None else var.encoding)
+        if "coordinates" in var.encoding:
+            var_enc["coordinates"] = var.encoding["coordinates"]
+        if new is not None:
+            logger.info(f"cmip7repack layout: {name} chunks {tuple(new['chunksizes'])} of {var.shape}")
+        var.encoding = var_enc
+        out.append(ds)
+    return out, enc, cache
+
+
+@contextlib.contextmanager
+def _netcdf_chunk_cache(cache):
+    """Raise netCDF-C's default chunk cache to ``cache`` (bytes, chunks) for
+    the variables defined inside the block.
+
+    netCDF-C copies the default into each variable when it is defined, so the
+    write that follows keeps it while files opened afterwards get the old
+    default back. The default is process wide: a file another thread defines
+    meanwhile gets the larger cache too, which only lets it use more memory.
+    """
+    if cache is None:
+        yield
+        return
+    import netCDF4
+
+    old = netCDF4.get_chunk_cache()
+    size, nelems = cache
+    netCDF4.set_chunk_cache(max(old[0], int(size)), max(old[1], int(nelems) + 1), old[2])
+    try:
+        yield
+    finally:
+        netCDF4.set_chunk_cache(*old)
 
 
 def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, scheduler):
@@ -3477,6 +3676,9 @@ def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, 
         logger.debug(f"could not demote bounds coords before save_mfdataset: {_exc}")
 
     datasets, enc = _time_encoding_as_cmip7repack(datasets, enc, extra_kwargs.get("unlimited_dims"))
+    datasets, enc, cache = _data_var_encoding_as_cmip7repack(
+        datasets, enc, extra_kwargs.get("unlimited_dims"), dask_write=is_dask
+    )
 
     # Identify the batch for GRAPH_METRIC logging. Use the first dataset's
     # data var name as the rule id, plus the total count of datasets.
@@ -3545,7 +3747,8 @@ def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, 
         f"nodes={sum_keys} layers={sum_layers} bytes={sum_bytes} chunks={sum_chunks}"
     )
     t0 = time.time()
-    delayed = xr.save_mfdataset(datasets, paths, encoding=enc, compute=False, **extra_kwargs)
+    with _netcdf_chunk_cache(cache):
+        delayed = xr.save_mfdataset(datasets, paths, encoding=enc, compute=False, **extra_kwargs)
     with dask.config.set(scheduler=scheduler):
         delayed.compute()
     logger.info(f"GRAPH_RESULT rule={rule_id} backend=sync status=ok elapsed_s={time.time()-t0:.2f}")
