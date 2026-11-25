@@ -3386,6 +3386,67 @@ def _save_dataset_with_native_timespan(
     return da
 
 
+# What cmip7repack (default -z 4) makes of a time or time-bounds variable that
+# spans more than one chunk.
+_CMIP7REPACK_TIME_FILTERS = {"zlib": True, "complevel": 4, "shuffle": True, "fletcher32": True}
+# netCDF-C's default chunk along an unlimited dimension: 4 KiB for a 1-D
+# variable, a single record otherwise.
+_NC_DEFAULT_1D_UNLIM_CHUNK_BYTES = 4096
+
+
+def _time_encoding_as_cmip7repack(datasets, enc, unlimited_dims):
+    """Write time and its bounds the way cmip7repack would leave them.
+
+    cmip7repack rewrites a time or time-bounds variable that spans more than
+    one chunk as a single chunk with shuffle, deflate 4 and Fletcher32. Any
+    such per-variable option makes h5repack decode and re-encode every
+    variable in the file, the data variable included: about 20 min for a year
+    of 6-hourly model-level va, 5 h of the 16 h an LR model year takes.
+    Writing those variables in their final form leaves cmip7repack only the
+    metadata to collate, which h5repack does by copying raw chunks.
+
+    A variable cmip7repack would leave alone (one chunk already) is left alone
+    here too, so the repacked file does not change. The chunk length follows
+    each file's time length, so the entries move from the shared ``enc``,
+    which ``save_mfdataset`` applies to every file, to each dataset's own
+    variable encoding.
+    """
+    if not unlimited_dims or not datasets:
+        return datasets, enc
+    time_label = list(unlimited_dims)[0]
+    if time_label not in datasets[0].variables:
+        return datasets, enc
+    names = [time_label]
+    bounds = datasets[0][time_label].attrs.get("bounds") or datasets[0][time_label].encoding.get("bounds")
+    if bounds and bounds in datasets[0].variables:
+        names.append(bounds)
+    enc = dict(enc or {})
+    shared = {name: enc.pop(name, None) for name in names}
+    out = []
+    for ds in datasets:
+        ds = ds.copy(deep=False)
+        for name in names:
+            if name not in ds.variables:
+                continue
+            var = ds[name]
+            var_enc = dict(shared[name]) if shared[name] is not None else dict(var.encoding)
+            # Keep the ``coordinates: None`` the bounds demotion above set, or
+            # xarray writes a coordinates attribute on time_bnds (cf §7.1).
+            if "coordinates" in var.encoding:
+                var_enc["coordinates"] = var.encoding["coordinates"]
+            if var.ndim and var.dims[0] == time_label:
+                n = var.shape[0]
+                itemsize = np.dtype(var_enc.get("dtype", "float64")).itemsize
+                default = _NC_DEFAULT_1D_UNLIM_CHUNK_BYTES // itemsize if var.ndim == 1 else 1
+                current = var_enc.get("chunksizes", (default,))[0]
+                if n > current:
+                    var_enc.update(_CMIP7REPACK_TIME_FILTERS)
+                    var_enc["chunksizes"] = (n,) + tuple(var.shape[1:])
+            var.encoding = var_enc
+        out.append(ds)
+    return out, enc
+
+
 def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, scheduler):
     """Multi-file save with the same worker-side compute path as
     ``_safe_to_netcdf`` (Fix #3): compute the lazy datasets on the
@@ -3414,6 +3475,8 @@ def _save_mfdataset_worker_or_sync(datasets, paths, enc, extra_kwargs, is_dask, 
         datasets = _demoted
     except Exception as _exc:  # pragma: no cover - defensive
         logger.debug(f"could not demote bounds coords before save_mfdataset: {_exc}")
+
+    datasets, enc = _time_encoding_as_cmip7repack(datasets, enc, extra_kwargs.get("unlimited_dims"))
 
     # Identify the batch for GRAPH_METRIC logging. Use the first dataset's
     # data var name as the rule id, plus the total count of datasets.
