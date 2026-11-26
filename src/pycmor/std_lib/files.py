@@ -3097,6 +3097,40 @@ def split_data_timespan(ds, rule):
     return data_chunks
 
 
+def _fold_year_end_point(groups, time_label, rule):
+    """Put a trailing next-Jan-1-00:00 sample back into the year it ends.
+
+    ``save_dataset`` groups by ``file_timespan`` (calendar years), so the last
+    sample of an OpenIFS point stream, which covers (Jan 1 00:00, next Jan 1
+    00:00], came out as a one-record file ``..._195401010000-195401010000``
+    and the year's own file stopped at 21:00. Only for rules that retain the
+    year end point (``retain_year_end_point``), only a last group of exactly
+    one record at Jan 1 00:00, and only when the group before does not itself
+    start at Jan 1 00:00: LPJ-GUESS's point products are stamped at the start
+    of their periods and must stay as they are.
+    """
+    from ..core.gather_inputs import retain_year_end_point
+
+    groups = [g for g in groups if g.sizes.get(time_label, 0)]
+    if len(groups) < 2 or not retain_year_end_point(rule):
+        return groups
+
+    def at_new_year(value):
+        return (value.month, value.day, value.hour, value.minute, value.second) == (1, 1, 0, 0, 0)
+
+    def stamp(group, i):
+        value = group[time_label].values[i]
+        return pd.Timestamp(value) if isinstance(value, np.datetime64) else value
+
+    last, before = groups[-1], groups[-2]
+    if last.sizes[time_label] == 1 and at_new_year(stamp(last, 0)) and not at_new_year(stamp(before, 0)):
+        logger.info(f"  → year end point {stamp(last, 0)} kept with the year it ends")
+        groups[-2:] = [
+            xr.concat([before, last], dim=time_label, data_vars="minimal", coords="minimal", compat="override")
+        ]
+    return groups
+
+
 def _save_dataset_with_native_timespan(
     da,
     rule,
@@ -3830,10 +3864,10 @@ def _save_dataset_impl(da: xr.DataArray, rule):
                 **extra_kwargs,
             )
         else:
-            groups = da.resample({time_label: file_timespan})
+            groups = _fold_year_end_point([g for _, g in da.resample({time_label: file_timespan})], time_label, rule)
             paths = []
             datasets = []
-            for group_name, group_ds in groups:
+            for group_ds in groups:
                 paths.append(create_filepath(group_ds, rule))
                 # The pipeline payload is a DataArray, and xarray refuses to
                 # let the bnds aux ride on a DataArray (its 'bnds' dim isn't

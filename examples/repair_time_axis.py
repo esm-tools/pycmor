@@ -33,9 +33,14 @@ of ``..._18510102-18511231``), and the old file would otherwise stay next to
 the new one. Publishing removes them too from now on; this catches the ones
 published before.
 
+``--report-gaps`` changes nothing. It lists the hourly to daily datasets that
+miss records between two files, as esgf-qa does, and the rules that wrote
+them, ready for the ``rules:`` of a fix campaign.
+
 Usage::
 
     repair_time_axis.py <member dir> [<member dir> ...] [--jobs 8] [--remove-superseded] [--apply]
+    repair_time_axis.py <member dir> [<member dir> ...] --report-gaps
 
 <member dir> is the ``.../<source_id>/<experiment_id>/<variant_label>``
 directory of a DRS tree, for example
@@ -158,13 +163,93 @@ def superseded(member):
     return out
 
 
+# Sampling interval in days of the frequencies whose files are years of a
+# regular series; monthly and longer have no fixed step.
+STEP = {"1hr": 1 / 24, "3hr": 1 / 8, "6hr": 1 / 4, "day": 1.0}
+
+
+def _first_last(path):
+    """First and last time of ``path`` in days since 1850-01-01, whatever units it says."""
+    with nc.Dataset(path) as ds:
+        t = ds["time"]
+        calendar = getattr(t, "calendar", "standard")
+        ends = cftime.num2date([float(t[0]), float(t[-1])], t.units, calendar)
+        return tuple(float(v) for v in cftime.date2num(ends, UNITS, calendar))
+
+
+def _rule_names():
+    """{(region, frequency, variable, branding): [rule names]} of the HR tier yamls next to this script."""
+    import yaml
+
+    out = {}
+    for f in sorted((Path(__file__).resolve().parents[1] / "awi-esm3-veg-hr-variables").glob("*/*.yaml")):
+        doc = yaml.safe_load(f.read_text()) or {}
+        for rule in doc.get("rules") or []:
+            parts = str(rule.get("compound_name", "")).split(".")
+            if len(parts) == 5:
+                _, variable, branding, frequency, region = parts
+                out.setdefault((region, frequency, variable, branding), []).append(rule["name"])
+    return out
+
+
+def gaps(member, jobs):
+    """{dataset dir: (missing steps, first gap)} for the regular series under ``member``."""
+    leaves = sorted(
+        {p.parent for p in member.rglob("*.nc") if p.relative_to(member).parts[1] in STEP},
+    )
+    out = {}
+    with ProcessPoolExecutor(max(1, jobs)) as pool:
+        for leaf in leaves:
+            files = sorted(leaf.glob("*.nc"))
+            if len(files) < 2:
+                continue
+            step = STEP[leaf.relative_to(member).parts[1]]
+            spans = list(pool.map(_first_last, files, chunksize=8))
+            missing, first = 0, None
+            for (a, (_, a_last)), (b, (b_first, _)) in zip(zip(files, spans), zip(files[1:], spans[1:])):
+                n = round((b_first - a_last) / step) - 1
+                if n > 0:
+                    missing += n
+                    first = first or (a.name, b.name)
+            if missing:
+                out[leaf] = (missing, first)
+    return out
+
+
+def report_gaps(members, jobs):
+    names = _rule_names()
+    rules, unknown = set(), []
+    for member in members:
+        found = gaps(member.resolve(), jobs)
+        print(f"# {member}: {len(found)} dataset(s) with gaps between files")
+        for leaf, (missing, (a, b)) in sorted(found.items()):
+            region, frequency, variable, branding = leaf.relative_to(member.resolve()).parts[:4]
+            hit = names.get((region, frequency, variable, branding))
+            if hit:
+                rules.update(hit)
+            else:
+                unknown.append(leaf)
+            print(f"gap  {leaf.relative_to(member.resolve())}: {missing} missing, first between {a} and {b}")
+    print(f"# rules to run again: [{', '.join(sorted(rules))}]")
+    for leaf in unknown:
+        print(f"# no HR rule found for {leaf}")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("members", type=Path, nargs="+", help=".../<source_id>/<experiment_id>/<variant_label>")
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--remove-superseded", action="store_true", help="also remove files a newer file covers")
+    p.add_argument(
+        "--report-gaps",
+        action="store_true",
+        help="only list hourly to daily datasets with records missing between files, and the rules that wrote them",
+    )
     p.add_argument("--apply", action="store_true", help="change files; without it, only list what would change")
     args = p.parse_args(argv)
+    if args.report_gaps:
+        return report_gaps(args.members, args.jobs)
 
     files, gone = [], []
     for member in args.members:

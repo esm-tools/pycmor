@@ -1,5 +1,6 @@
 """The esgf-qa findings on HR 1pctCO2 (2026-11-26): no New Year gaps, one time reference, no XIOS stream attributes."""
 
+import datetime
 import importlib.util
 import logging
 import os
@@ -263,3 +264,57 @@ def test_repair_removes_superseded_files_only_when_asked(tmp_path):
     assert old.exists()
     assert rta.main([str(member), "--jobs", "1", "--apply", "--remove-superseded"]) == 0
     assert not old.exists() and new.exists()
+
+
+def _day_file(d, year, first_day, units="days since 1850-01-01"):
+    """One year of daily means from ``first_day`` (1 = Jan 1) to Dec 31."""
+    cal = "proleptic_gregorian"
+    start = cftime.date2num(cftime.datetime(year, 1, first_day, 12, calendar=cal), units, cal)
+    end = cftime.date2num(cftime.datetime(year, 12, 31, 12, calendar=cal), units, cal)
+    path = d / DCW.format(f"{year}01{first_day:02d}-{year}1231")
+    return _published(path, units, np.arange(start, end + 1), np.stack([np.arange(start, end + 1) - 0.5] * 2, axis=1))
+
+
+def test_gap_report_names_the_rules_that_wrote_the_gaps(tmp_path, capsys):
+    member = tmp_path / "m/e/r"
+    gap = member / "glb/day/dcw/tavg-u-hxy-lnd/g122/v1"
+    gap.mkdir(parents=True)
+    for year in (1850, 1851, 1852):
+        _day_file(gap, year, 2)
+    fine = member / "glb/day/dsn/tavg-u-hxy-lnd/g122/v1"
+    fine.mkdir(parents=True)
+    _day_file(fine, 1850, 2)
+    # a different time reference in the next file is no gap
+    _day_file(fine, 1851, 1, units="days since 1851-01-01")
+    found = rta.gaps(member, jobs=1)
+    assert {leaf.relative_to(member).parts[2]: n for leaf, (n, _) in found.items()} == {"dcw": 2}
+    assert rta.report_gaps([member], jobs=1) == 0
+    assert "# rules to run again: [dcw_day]" in capsys.readouterr().out
+
+
+def _groups(times):
+    data = xr.Dataset({"tas": ("time", np.arange(len(times), dtype="f4"))}, coords={"time": times})
+    return [g for _, g in data.resample(time="1YS")]
+
+
+def _fold(times, compound="atmos.tas.tpt-h2m-hxy-u.3hr.glb"):
+    from pycmor.std_lib.files import _fold_year_end_point
+
+    rule = {"compound_name": compound, "retain_year_end_point": "tpt"}
+    return [g.sizes["time"] for g in _fold_year_end_point(_groups(times), "time", rule)]
+
+
+def test_xios_point_year_keeps_next_new_year_in_its_file():
+    cal = "proleptic_gregorian"
+    times = [cftime.datetime(1953, 1, 1, 3, calendar=cal) + datetime.timedelta(hours=3 * i) for i in range(2920)]
+    assert times[-1] == cftime.datetime(1954, 1, 1, calendar=cal)
+    assert _fold(times) == [2920]
+    assert _fold(times, compound="atmos.tas.tavg-h2m-hxy-u.3hr.glb") == [2919, 1]
+
+
+def test_start_stamped_lpj_points_are_not_moved():
+    cal = "proleptic_gregorian"
+    yearly = [cftime.datetime(y, 1, 1, calendar=cal) for y in (1852, 1853)]
+    assert _fold(yearly, compound="land.fracLut.tpt-u-hxy-u.yr.glb") == [1, 1]
+    monthly = [cftime.datetime(1853, m, 1, calendar=cal) for m in range(1, 13)]
+    assert _fold(monthly, compound="land.fracLut.tpt-u-hxy-u.mon.glb") == [12]
