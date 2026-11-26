@@ -24,6 +24,88 @@ scientific_assumptions:
   - ocnBgchem.poc.tavg-ol-hxy-sea.mon.glb
   unsupported_note: The list above records gaps in the previously audited metadata version, not a permanent
     prohibition; actual support is determined from the selected pinned metadata.
+  blocked_2p3z2d_candidates:
+    policy: These piControl ocnBgchem requests (glb area, non-daily frequencies) have deliberately NO rule,
+      checked against the actual FESOM/REcoM source at the pinned revision and against this build's own
+      config/fesom/namelist.recom (2p3z2d, enable_coccos=.false.). Each is a genuine model-configuration
+      gap, not an unmapped-but-available quantity; do not add a rule for one of these without first
+      changing the FESOM/REcoM build or its runtime namelist.
+    no_coccolithophore_phaeocystis_diazotroph_or_misc_pft:
+      reason: enable_coccos=.false. in config/fesom/namelist.recom, so REcoM carries exactly two
+        phytoplankton tracers (small/nanophytoplankton Phy -> phynano, diatoms Dia -> phydiat) and no
+        diazotroph, coccolithophore, Phaeocystis or generic "other"/"pico" group (no such tracer, NPP term
+        or XIOS stream exists anywhere in src/recom or the registered xios_ids list in io_meandata.F90).
+        No calc/diaz/misc/pico variant of chl, phy, intpp, limfe, limirr or limn can be derived; REcoM's
+        "small" phytoplankton group is already claimed by phynano/limfediat's sibling nano-rules, not
+        picophytoplankton.
+      candidates:
+      - ocnBgchem.chldiaz.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.chlmisc.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.chlpico.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.intppcalc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.intppdiaz.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.intppmisc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.intpppico.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limfecalc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limfediaz.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limfemisc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limfepico.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limirrcalc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limirrdiaz.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limirrmisc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limirrpico.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limncalc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limndiaz.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limnmisc.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.limnpico.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.phycalc.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.phydiaz.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.phymisc.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.phypico.tavg-ol-hxy-sea.mon.glb
+    no_irradiance_limitation_diagnostic:
+      reason: recom_sms.F90's calculate_photosynthesis_rate computes a per-group light-limitation factor
+        (local variable lightlim, commented-out VTCphotLigLim_phyto/_diatoms/_cocco/_phaeo targets) but
+        never writes it to a saved module array or an io_meandata.F90 stream; unlike
+        limNn/limFen/limNd/limFed (recom_cmip7_diags), no light-limitation field is registered for XIOS
+        output for any functional group, including diatoms.
+      candidates:
+      - ocnBgchem.limirrdiat.tavg-u-hxy-sea.mon.glb
+    no_dms_tracer:
+      reason: Dimethyl sulphide is not implemented anywhere in this REcoM source (no DMS-related tracer,
+        production/consumption term or XIOS stream in src/recom or io_meandata.F90).
+      candidates:
+      - ocnBgchem.dmso.tavg-ols-hxy-sea.mon.glb
+    no_ammonium_tracer:
+      reason: DIN is the single combined pool of NO3- and NH4+ with no internal split anywhere in
+        recom_sms_init.F90/recom_sms_update.F90 (same basis as the existing no3/po4 rules' comments); nh4
+        cannot be isolated from DIN.
+      candidates:
+      - ocnBgchem.nh4.tavg-ol-hxy-sea.mon.glb
+    no_separate_aragonite_pathway:
+      reason: REcoM's single CaCO3 pool (Calc tracer, benCalc, calcif/calcdiss, expCalc/bflxCalc, already
+        mapped by calc/expcalc*/expcalcob/fric) represents generic calcite production; there is no separate
+        aragonite production, dissolution or benthic-flux pathway or tracer. OmegaA/CO3satA (MOCSY) are
+        seawater saturation-state diagnostics, already used for co3satarag, not an aragonite mass or flux.
+      candidates:
+      - ocnBgchem.arag.tavg-ol-hxy-sea.mon.glb
+      - ocnBgchem.arag.tavg-ols-hxy-sea.mon.glb
+      - ocnBgchem.exparagob.tavg-u-hxy-sea.mon.glb
+    no_riverine_nutrient_input:
+      reason: useRivers is not enabled for this build/leg (config/bin_2p3z2d/namelist.recom default, not
+        overridden in config/fesom/namelist.recom of the reviewed run), so no riverine inorganic/organic
+        carbon flux into the ocean surface is computed.
+      candidates:
+      - ocnBgchem.icfriver.tavg-u-hxy-sea.mon.glb
+      - ocnBgchem.ocfriver.tavg-u-hxy-sea.mon.glb
+    no_sea_ice_biogeochemistry_module:
+      reason: this REcoM source has no sea-ice algae/biogeochemistry component (no recom_ice*-style file,
+        no ice-algae tracer, production term or XIOS stream anywhere in src/recom or io_meandata.F90).
+      candidates:
+      - ocnBgchem.sialgc.tavg-u-hxy-si.mon.glb
+      - ocnBgchem.sichl.tavg-u-hxy-si.mon.glb
+      - ocnBgchem.sigpp.tavg-u-hxy-si.mon.glb
+      - ocnBgchem.sino3.tavg-u-hxy-si.mon.glb
+      - ocnBgchem.sisi.tavg-u-hxy-si.mon.glb
   conversion_constants:
     carbon_mass_g_mol: 12.011
     seconds_per_day: 86400
@@ -225,7 +307,7 @@ rules:
     pattern: DiaC\.fesom\.\d{4}\.nc$
   lr_exact_ocean_depth: true
 - name: phynano
-  compound_name: ocnBgchem.phynano.tavg-ol-hxy-sea.mon.glb
+  compound_name: ocnBgchem.phynano.tavg-u-hxy-sea.mon.glb
   model_variable: PhyC
   expected_units: '[mmol/m3]'
   lr_scale: 0.001
@@ -233,7 +315,11 @@ rules:
   lr_input:
     component: fesom
     pattern: PhyC\.fesom\.\d{4}\.nc$
-  lr_exact_ocean_depth: true
+  pipelines: [recom_surface]
+  surface_layer: true
+  comment: The CMIP7 DR defines phynano only as ocnBgchem.phynano.tavg-u-hxy-sea (2D, no vertical
+    dimension); there is no tavg-ol-hxy-sea 3D sibling in the data request. The source is 3D; the
+    requested 2D field is its first ocean layer, consistent with limndiat/limfediat.
 - name: chl
   compound_name: ocnBgchem.chl.tavg-ol-hxy-sea.mon.glb
   model_variable: PhyChl
@@ -1101,6 +1187,19 @@ rules:
   comment: REcoM CMIP7 diagnostic (recom_cmip7_diags), gross PON deposition into the benthos (recom_sinking
     BotFlux). REcoM has no denitrification in this source (commented out even with NitrogenSS), so the
     denitrification term is zero.
+- name: exppob
+  compound_name: ocnBgchem.exppob.tavg-u-hxy-sea.mon.glb
+  model_variable: bflxN
+  expected_units: mmolN/m2/s
+  lr_scale: 6.25e-05
+  lr_units: mol m-2 s-1
+  lr_input:
+    component: fesom
+    pattern: bflxN\.fesom\.\d{4}\.nc$
+  comment: REcoM has no phosphorus tracer; particulate organic phosphorus deposition into the benthos is
+    diagnosed by the same Redfield ratio N:P=16 used for po4 (recom_sms_init REcoM_Phos_depth = DIN/16),
+    applied here to the PON flux into the benthos (bflxN, recom_cmip7_diags) instead of to the DIN
+    concentration. bflxN/16 * 1e-3 = bflxN * 6.25e-05.
 - name: expsiob
   compound_name: ocnBgchem.expsiob.tavg-u-hxy-sea.mon.glb
   model_variable: bflxSi
