@@ -314,6 +314,27 @@ def _year_selection_mask(time_values, year_start, year_end, retain_year_end_poin
     return np.asarray(result, dtype=bool)
 
 
+def retain_year_end_point(rule):
+    """Whether ``rule`` keeps a sample at exactly next Jan 1 00:00 in its year.
+
+    ``retain_year_end_point`` is true, false, or ``tpt``: true only for a
+    point-in-time product (branding ``tpt-...``). ``tpt`` lets a whole
+    campaign opt in through ``inherit:`` without touching the time-mean
+    rules, whose next-year records are interval midpoints and never belong to
+    the year. OpenIFS XIOS point streams cover (Jan 1 00:00, next Jan 1 00:00],
+    so without this every year lost its last sample and the dataset had a gap
+    at each New Year (esgf-qa, HR 1pctCO2, 2026-11-26).
+    """
+    value = rule.get("retain_year_end_point", False) if hasattr(rule, "get") else False
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text == "tpt":
+            parts = str(rule.get("compound_name") or "").split(".")
+            return len(parts) > 2 and parts[2].startswith("tpt-")
+        return text in ("true", "yes", "1")
+    return bool(value)
+
+
 def _filter_files_by_year_range(files, year_start, year_end):
     """
     Filter files whose year range overlaps with [year_start, year_end].
@@ -536,9 +557,7 @@ def load_mfdataset(data, rule_spec):
         and "time" in mf_ds.coords
     ):
         time_vals = mf_ds["time"].values
-        mask = _year_selection_mask(
-            time_vals, year_start, year_end, bool(rule_spec.get("retain_year_end_point", False))
-        )
+        mask = _year_selection_mask(time_vals, year_start, year_end, retain_year_end_point(rule_spec))
         if not mask.all():
             n_dropped = int((~mask).sum())
             logger.info(

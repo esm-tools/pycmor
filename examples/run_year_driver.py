@@ -154,6 +154,42 @@ def drop_older_climatologies(dest):
     return removed
 
 
+FILE_RANGE = re.compile(r"^(?P<stem>.+)_(?P<start>\d{4,12})-(?P<end>\d{4,12})\.nc$")
+
+
+def _range_stamp(text, end):
+    """A file-name time stamp as a comparable tuple; an end stamp covers its whole last unit."""
+    fields = [int(text[0:4])] + [int(text[i : i + 2]) for i in range(4, len(text), 2)]
+    return tuple(fields + [99 if end else 0] * (6 - len(fields)))
+
+
+def drop_superseded(dest):
+    """Remove files of the same dataset whose time range ``dest`` covers.
+
+    A rerun year usually keeps its file name and simply replaces it. It does
+    not when the fix changes the range: the point-in-time 1hr/3hr/6hr files
+    now end at next Jan 1 00:00 (``..._185001010100-185101010000`` instead of
+    ``..._185001010100-185012312300``), and the daily storage changes start on
+    Jan 1 (``..._18510101-18511231`` instead of ``..._18510102-18511231``).
+    The old file would stay next to the new one, two files holding the same
+    days.
+    """
+    match = FILE_RANGE.match(dest.name)
+    if not match or len(match["start"]) != len(match["end"]):
+        return 0
+    start, end = _range_stamp(match["start"], False), _range_stamp(match["end"], True)
+    removed = 0
+    for old in dest.parent.glob(f"{match['stem']}_*.nc"):
+        m = FILE_RANGE.match(old.name)
+        if old == dest or not m or m["stem"] != match["stem"] or len(m["start"]) != len(m["end"]):
+            continue
+        if start <= _range_stamp(m["start"], False) and _range_stamp(m["end"], True) <= end:
+            log(f"removing {old.name}: {dest.name} covers it")
+            old.unlink()
+            removed += 1
+    return removed
+
+
 def publish(workdir, output_root):
     """Move a completed year's netCDF files into the campaign's output tree.
 
@@ -194,6 +230,7 @@ def publish(workdir, output_root):
             src.unlink()
         moved += 1
         replaced += drop_older_climatologies(dest)
+        replaced += drop_superseded(dest)
     return moved, replaced
 
 

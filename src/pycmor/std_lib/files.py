@@ -901,6 +901,24 @@ def _strip_variable_positive(ds):
     return ds
 
 
+# XIOS describes its own output stream with these: the operation, how often
+# the field was sampled and how often written. They say nothing about the CMOR
+# product, which pycmor may have averaged or resampled since, and they change
+# within a dataset whenever the XIOS setup does (HR 1pctCO2 tos and sos went
+# from "1 month" to "1 d" in 1873, which esgf-qa reported as inconsistent).
+_XIOS_STREAM_ATTRS = ("online_operation", "interval_operation", "interval_write")
+
+
+def _strip_xios_stream_attrs(ds):
+    """Drop XIOS's stream attributes from every variable."""
+    if not isinstance(ds, xr.Dataset):
+        return ds
+    for name in ds.variables:
+        for attr in _XIOS_STREAM_ATTRS:
+            ds[name].attrs.pop(attr, None)
+    return ds
+
+
 # CF §7.1: a bounds variable inherits its parent's meaning and must not carry
 # these itself. ``formula_terms`` and ``formula`` are the exception, CF 1.7
 # requires them on the bounds of a parametric vertical coordinate and CMOR
@@ -1019,6 +1037,7 @@ def _ensure_lat_lon_bounds_and_external_vars(ds, rule=None):
     ds = _ensure_coordinate_long_names(ds, rule)
     ds = _strip_bounds_attributes(ds)
     ds = _strip_variable_positive(ds)
+    ds = _strip_xios_stream_attrs(ds)
     ds = _drop_unrequested_aux_coords(ds, rule)
     ds = _ensure_data_dtype(ds, rule)
     ds = _ensure_coordinate_dtypes(ds)
@@ -3058,7 +3077,9 @@ def split_data_timespan(ds, rule):
     resampled_times = ds[time_label].values
     ref = pd.DataFrame(resampled_times, columns=["dateindex"])
     ref["mark"] = ncuts
-    retain_endpoint = bool(rule.get("retain_year_end_point", False))
+    from ..core.gather_inputs import retain_year_end_point
+
+    retain_endpoint = retain_year_end_point(rule)
     for ind, timecut in enumerate(reversed(time_cuts), start=1):
         # End-inclusive instantaneous source windows must keep their final
         # point in the corresponding chunk, not create a one-record spill.

@@ -53,10 +53,10 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
     compute_mrsow, compute_sftgif, compute_mrsofc, compute_rootd
 """
 
+import contextlib
 import glob as _glob
 import logging
 import os as _os
-import contextlib
 import pathlib
 import re as _re
 from typing import Optional
@@ -4886,6 +4886,55 @@ def load_lpjguess_monthly_lut(data, rule):
 # ============================================================
 
 
+def _previous_day_storage(data, rule, names):
+    """The previous year's last record of the storage fields ``names``, or None.
+
+    One cmorization year reads only its own ``<stream>_<Y>-<Y>.nc`` files, so
+    a difference taken within them has no value for January 1 and every year
+    had 364 (365) days, a gap at each New Year in the dataset (esgf-qa, HR
+    1pctCO2, 2026-11-26). The previous day sits in ``<stream>_<Y-1>-<Y-1>.nc``
+    next to it. Returns None, and the year keeps its first day missing, when
+    that file does not exist (the first year of a run) or the inputs are not
+    named by year.
+    """
+    year = rule.get("year", rule.get("year_start"))
+    if year is None or "time" not in data.dims or not data.sizes["time"]:
+        return None
+    year = int(year)
+    tag, previous_tag = f"_{year}-{year}.nc", f"_{year - 1}-{year - 1}.nc"
+    files = [pathlib.Path(f) for collection in rule.inputs for f in collection.files]
+    previous = []
+    for f in files:
+        if not f.name.endswith(tag):
+            logger.warning(f"compute_temporal_diff: {f.name} is not named by year {year}; January 1 stays missing")
+            return None
+        p = f.with_name(f.name[: -len(tag)] + previous_tag)
+        if not p.is_file():
+            logger.warning(f"compute_temporal_diff: no {p.name}; January 1 {year} stays missing")
+            return None
+        previous.append(p)
+    parts = []
+    for p in previous:
+        with xr.open_dataset(p, use_cftime=True) as source:
+            name = next((n for n in ("time", "time_counter") if n in source.dims), None)
+            if name is None:
+                raise ValueError(f"compute_temporal_diff: {p} has no time axis")
+            part = source.isel({name: [-1]}).load()
+        if name != "time":
+            part = part.rename({name: "time"})
+        parts.append(part[[v for v in names if v in part.data_vars]])
+    before = xr.merge(parts, compat="override", join="override")
+    missing = [v for v in names if v not in before.data_vars]
+    if missing:
+        raise ValueError(f"compute_temporal_diff: previous-year inputs lack {missing}")
+    elapsed = data.time.values[0] - before.time.values[0]
+    if abs(elapsed.total_seconds() - 86400.0) > 1e-6:
+        raise ValueError(
+            f"compute_temporal_diff: previous record {before.time.values[0]} is not one day before {data.time.values[0]}"
+        )
+    return before
+
+
 def compute_temporal_diff(data, rule):
     """
     Compute temporal difference of a variable (for dgw, dsn, dsw).
@@ -4893,10 +4942,30 @@ def compute_temporal_diff(data, rule):
     For dgw: diff of swvl4 * layer_thickness * 1000
     For dsn: diff of sd * scale_factor
     For dsw: diff of total water storage
+
+    January 1 uses the previous year's December 31 (see
+    ``_previous_day_storage``), so a year has all its days.
     """
     model_variable = rule.get("model_variable")
     scale_factor = rule.get("scale_factor", 1.0)
     layer_thickness = rule.get("layer_thickness", 1.0)
+
+    names = {
+        "total_water": ["swvl1", "swvl2", "swvl3", "swvl4", "sd", "src"],
+        "skin_reservoir": ["src"],
+        "soil_moisture": ["swvl1", "swvl2", "swvl3", "swvl4"],
+    }.get(model_variable, [model_variable])
+    before = _previous_day_storage(data, rule, names)
+    if before is not None:
+        # Only the stored fields and the time index take part; XIOS's
+        # time_centered/time_instant coordinates would not concatenate cleanly.
+        current = data[names]
+        current = current.drop_vars([c for c in current.coords if c != "time" and "time" in current[c].dims])
+        before = before.drop_vars([c for c in before.coords if c != "time" and "time" in before[c].dims])
+        for c in list(before.coords):
+            if c != "time" and c in current.coords:
+                before = before.assign_coords({c: current[c]})
+        data = xr.concat([before, current], dim="time", data_vars="all", coords="minimal", compat="override")
 
     if model_variable == "total_water":
         # Compute total water storage: soil moisture + snow + skin reservoir
@@ -5323,10 +5392,11 @@ def regrid_oifs_to_fesom(data, rule):
       - fesom_node_dim: name of node dimension in output (default: 'nod2')
       - regrid_cache_dir: dir to cache KDTree indices (optional)
     """
-    from scipy.spatial import cKDTree as _cKDTree
     import hashlib
     import os.path as _osp
+
     import joblib as _joblib
+    from scipy.spatial import cKDTree as _cKDTree
 
     grid_file = rule.get("grid_file")
     if grid_file is None:
@@ -6082,8 +6152,9 @@ def compute_hfbasin_tripyview(data, rule):
     ``['atlantic_arctic_ocean', 'indian_pacific_ocean', 'global_ocean']``.
     """
     import os as _os
-    import tripyview as _tpv
+
     import shapefile as _shp
+    import tripyview as _tpv
 
     mesh_path = rule.get("mesh_path")
     if mesh_path is None:
@@ -6306,8 +6377,9 @@ def compute_sltbasin_tripyview(data, rule):
     for the underlying tripyview/Griffies path-integral discretisation.
     """
     import os as _os
-    import tripyview as _tpv
+
     import shapefile as _shp
+    import tripyview as _tpv
 
     mesh_path = rule.get("mesh_path")
     if mesh_path is None:

@@ -142,6 +142,9 @@ EXPERIMENTS = {
     "abrupt-4xCO2": {"experiment_id": "abrupt-4xCO2", **_BRANCHED_OFF_PICONTROL_1949, "co2_scenario": "abrupt4x"},
 }
 DEFAULT_EXPERIMENT = "piControl"
+# The time reference of every file; parent_time_units and the branch times
+# above assume it.
+TIME_UNITS = "days since 1850-01-01"
 
 
 def experiment_profiles(model: str = DEFAULT_MODEL) -> dict:
@@ -377,9 +380,24 @@ def repoint_yaml(
     # know which run-year to slice. LPJ-GUESS / OIFS / FESOM patterns
     # already filter by year via the regex; this is for steps that
     # operate on data that the regex couldn't filter.
+    #
+    # Also two settings every year of every experiment needs, so the
+    # campaign does not depend on each tier yaml carrying them:
+    #
+    # - time_units: one time reference for every file of a dataset. Without
+    #   it pycmor keeps the reference of its input, which OpenIFS and FESOM
+    #   change per leg (``days since 1852-01-01`` ...), so time:units changed
+    #   from file to file and branch_time_in_child, which CMIP7 defines in
+    #   the child's time units, only held where it happened to say 1850. All
+    #   HR and LR experiments start their calendars at 1850-01-01.
+    # - retain_year_end_point: tpt: point-in-time streams end at next
+    #   Jan 1 00:00, and that sample belongs to this year; without it every
+    #   1hr/3hr/6hr tpt dataset had a gap at each New Year.
+    #
+    # Both found by esgf-qa on HR 1pctCO2 (2026-11-26).
     text = re.sub(
         r"(^inherit:\s*\n)",
-        rf"\1  year: {year}\n",
+        rf"\1  year: {year}\n  time_units: {TIME_UNITS}\n  retain_year_end_point: tpt\n",
         text,
         count=1,
         flags=re.M,
