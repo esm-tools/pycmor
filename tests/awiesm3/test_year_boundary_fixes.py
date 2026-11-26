@@ -287,9 +287,11 @@ def test_gap_report_names_the_rules_that_wrote_the_gaps(tmp_path, capsys):
     # a different time reference in the next file is no gap
     _day_file(fine, 1851, 1, units="days since 1851-01-01")
     found = rta.gaps(member, jobs=1)
-    assert {leaf.relative_to(member).parts[2]: n for leaf, (n, _) in found.items()} == {"dcw": 2}
+    assert {leaf.relative_to(member).parts[2]: n for leaf, (n, _, _) in found.items()} == {"dcw": 2}
     assert rta.report_gaps([member], jobs=1) == 0
-    assert "# rules to run again: [dcw_day]" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "# e: rules: [dcw_day]" in out
+    assert "# e: first_year: 1850  last_year: 1852" in out
 
 
 def _groups(times):

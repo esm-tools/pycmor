@@ -192,47 +192,68 @@ def _rule_names():
     return out
 
 
+def _year(path):
+    return int(RANGE.match(path.name)["start"][:4])
+
+
 def gaps(member, jobs):
-    """{dataset dir: (missing steps, first gap)} for the regular series under ``member``."""
+    """{dataset dir: (missing steps, first gap, years)} for the regular series under ``member``.
+
+    ``years`` holds the years on both sides of every gap: a point-in-time year
+    lacks its own last sample, a storage-change year its own first day, so
+    rerunning both sides covers either kind.
+    """
     leaves = sorted(
         {p.parent for p in member.rglob("*.nc") if p.relative_to(member).parts[1] in STEP},
     )
     out = {}
     with ProcessPoolExecutor(max(1, jobs)) as pool:
         for leaf in leaves:
-            files = sorted(leaf.glob("*.nc"))
+            files = sorted(f for f in leaf.glob("*.nc") if RANGE.match(f.name))
             if len(files) < 2:
                 continue
             step = STEP[leaf.relative_to(member).parts[1]]
             spans = list(pool.map(_first_last, files, chunksize=8))
-            missing, first = 0, None
+            missing, first, years = 0, None, set()
             for (a, (_, a_last)), (b, (b_first, _)) in zip(zip(files, spans), zip(files[1:], spans[1:])):
                 n = round((b_first - a_last) / step) - 1
                 if n > 0:
                     missing += n
                     first = first or (a.name, b.name)
+                    years.update((_year(a), _year(b)))
             if missing:
-                out[leaf] = (missing, first)
+                out[leaf] = (missing, first, years)
     return out
 
 
 def report_gaps(members, jobs):
+    """Per member: the datasets with gaps, the rules that wrote them and the years to run again."""
     names = _rule_names()
-    rules, unknown = set(), []
     for member in members:
-        found = gaps(member.resolve(), jobs)
+        member = member.resolve()
+        if not member.is_dir():
+            print(f"# {member}: not there (nothing published yet)")
+            continue
+        found = gaps(member, jobs)
         print(f"# {member}: {len(found)} dataset(s) with gaps between files")
-        for leaf, (missing, (a, b)) in sorted(found.items()):
-            region, frequency, variable, branding = leaf.relative_to(member.resolve()).parts[:4]
+        rules, years, unknown = set(), set(), []
+        for leaf, (missing, (a, b), span) in sorted(found.items()):
+            region, frequency, variable, branding = leaf.relative_to(member).parts[:4]
             hit = names.get((region, frequency, variable, branding))
             if hit:
                 rules.update(hit)
+                years.update(span)
             else:
                 unknown.append(leaf)
-            print(f"gap  {leaf.relative_to(member.resolve())}: {missing} missing, first between {a} and {b}")
-    print(f"# rules to run again: [{', '.join(sorted(rules))}]")
-    for leaf in unknown:
-        print(f"# no HR rule found for {leaf}")
+            print(
+                f"gap  {leaf.relative_to(member)}: {missing} missing in {min(span)}-{max(span)}, "
+                f"first between {a} and {b}"
+            )
+        for leaf in unknown:
+            print(f"# no HR rule writes {leaf.relative_to(member)} (withdrawn product?)")
+        if rules:
+            print(f"# {member.parent.name}: first_year: {min(years)}  last_year: {max(years)}")
+            print(f"# {member.parent.name}: rules: [{', '.join(sorted(rules))}]")
     return 0
 
 
@@ -255,7 +276,8 @@ def main(argv=None):
     for member in args.members:
         member = member.resolve()
         if not member.is_dir():
-            p.error(f"{member} is not a directory")
+            print(f"# {member}: not there (nothing published yet), skipped")
+            continue
         files += sorted(str(f) for f in member.rglob("*.nc"))
         if args.remove_superseded:
             gone += superseded(member)
