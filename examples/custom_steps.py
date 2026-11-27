@@ -51,6 +51,14 @@ Function index (keep this list in sync when adding/removing steps; helps avoid d
   Land / LPJ-GUESS
     compute_fire_emission, compute_mrtws, compute_snd,
     compute_mrsow, compute_sftgif, compute_mrsofc, compute_rootd
+
+  Reduced Gaussian grid (EC-Earth4: OIFS, LPJ-GUESS)
+    reduced_to_regular, daily_statistic_time, remap_conservative,
+    _remap_conservative_da, _reduced_gaussian_rows, _reduced_gaussian_index, _reduced_gaussian_bounds
+
+  ORCA grid (EC-Earth4: NEMO, SI3)
+    orca_grid, orca_vertices, orca_cell_area, _orca_geometry, _orca_domain_fields,
+    _orca_corners
 """
 
 import contextlib
@@ -7780,3 +7788,358 @@ def add_hybrid_sigma_coordinate(data, rule):
     )
 
     return ds[da_name] if was_dataarray and da_name in ds else ds
+
+
+# ============================================================
+# Reduced Gaussian grid (EC-Earth4: OIFS output, LPJ-GUESS on it)
+# ============================================================
+
+
+def _reduced_gaussian_rows(lat, lon):
+    """Row starts, row lengths and row latitudes of a reduced Gaussian grid, north to south."""
+    lat = np.asarray(lat, dtype="f8")
+    lon = np.asarray(lon, dtype="f8")
+    brk = np.flatnonzero(np.abs(np.diff(lat)) > 1e-6) + 1
+    starts = np.concatenate([[0], brk])
+    counts = np.diff(np.concatenate([starts, [lat.size]]))
+    rlat = lat[starts]
+    if np.unique(np.round(rlat, 6)).size != rlat.size:
+        raise ValueError("reduced Gaussian: latitude rows are not contiguous")
+    if not np.all(np.diff(rlat) < 0):
+        raise ValueError("reduced Gaussian: latitude rows are not north to south")
+    for s, n in zip(starts, counts):
+        if not np.allclose(np.mod(lon[s : s + n], 360.0), np.arange(n) * 360.0 / n, atol=1e-4):
+            raise ValueError(f"reduced Gaussian: row at lat {lat[s]:.4f}, longitudes not uniform from 0")
+    return starts, counts, rlat
+
+
+def _reduced_gaussian_index(lat, lon):
+    """Linear weights from a reduced Gaussian grid to the regular grid with the same rows.
+
+    Returns (rlat, rlon, i0, i1, w): regular latitudes and longitudes, and per
+    regular point the two neighbouring cells along the row and the weight of i1.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
+    nlon = int(counts.max())
+    rlon = np.arange(nlon) * 360.0 / nlon
+    i0, i1, w = [], [], []
+    for s, n in zip(starts, counts):
+        x = rlon * n / 360.0
+        j = np.floor(x).astype(int)
+        i0.append(s + j % n)
+        i1.append(s + (j + 1) % n)
+        w.append(x - j)
+    return rlat, rlon, np.concatenate(i0), np.concatenate(i1), np.concatenate(w)
+
+
+def reduced_to_regular(data, rule):
+    """OIFS reduced Gaussian (..., cell) to regular (..., lat, lon).
+
+    Linear along rows; rule option regrid_nearest: true takes the nearest cell
+    instead (keeps land/sea edges). No-op without a cell dimension.
+    """
+    if "cell" not in data.dims:
+        return data
+    rlat, rlon, i0, i1, w = _reduced_gaussian_index(data["lat"].values, data["lon"].values)
+    shape = (rlat.size, rlon.size)
+    if rule.get("regrid_nearest", False):
+        near = np.where(w < 0.5, i0, i1)
+
+        def _to_regular(x):
+            return x[..., near].reshape(x.shape[:-1] + shape)
+
+    else:
+
+        def _to_regular(x):
+            a, b = x[..., i0], x[..., i1]
+            # w == 0: exact point, ignore the neighbour
+            return np.where(w == 0.0, a, a + w * (b - a)).reshape(x.shape[:-1] + shape)
+
+    out = xr.apply_ufunc(
+        _to_regular,
+        data.drop_vars(["lat", "lon"]),
+        input_core_dims=[["cell"]],
+        output_core_dims=[["lat", "lon"]],
+        dask="parallelized",
+        output_dtypes=[data.dtype],
+        dask_gufunc_kwargs={"output_sizes": {"lat": shape[0], "lon": shape[1]}},
+        keep_attrs=True,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    out.name = data.name
+    return out
+
+
+def daily_statistic_time(data, rule):
+    """Daily statistic stamped at 00:00 of the next day: move stamps back 12 h.
+
+    The model writes daily max/min once a day at the end of the day; the
+    stamp moves into the day it describes. Only with rule option
+    daily_statistic: true and when all stamps are at 00:00.
+    """
+    import pandas as pd
+
+    if not rule.get("daily_statistic", False):
+        return data
+    dim = next(d for d in data.dims if d.startswith("time"))
+    t = data[dim]
+    if not bool((t.dt.hour == 0).all()):
+        return data
+    # pd.Timedelta works with cftime and datetime64
+    return data.assign_coords({dim: t - pd.Timedelta(hours=12)})
+
+
+def _reduced_gaussian_bounds(lat, lon):
+    """Cell corners (cell, 4) of a reduced Gaussian grid.
+
+    Longitude: centre plus or minus half the row spacing. Latitude: midpoint
+    between rows, 90 and -90 at the first and last row.
+    """
+    starts, counts, rlat = _reduced_gaussian_rows(lat, lon)
+    edges = np.concatenate([[90.0], (rlat[:-1] + rlat[1:]) / 2.0, [-90.0]])
+    row = np.repeat(np.arange(counts.size), counts)
+    half = np.repeat(180.0 / counts, counts)
+    lon = np.asarray(lon, dtype="f8")
+    north, south = edges[row], edges[row + 1]
+    lon_b = np.stack([lon - half, lon + half, lon + half, lon - half], axis=-1)
+    lat_b = np.stack([north, north, south, south], axis=-1)
+    return lat_b, lon_b
+
+
+def remap_conservative(data, rule):
+    """Cell field on a reduced Gaussian grid (..., cell) to a regular grid with CDO remapcon.
+
+    Takes a DataArray or a Dataset (each variable with the cell dimension).
+    Cells may be a subset of the grid (LPJ-GUESS land points): they are put
+    on the full grid of the file in rule option remap_source_grid, missing
+    elsewhere. Rule options: remap_target (CDO grid; default the regular
+    Gaussian grid with the same latitudes, F<N>: F128 for TL255), remap_fill (value for missing cells before remapping:
+    0 for grid-cell means; none keeps means over the valid area, missing
+    elsewhere). Needs pycdo and cdo.
+    """
+    if isinstance(data, xr.Dataset):
+        cell = data["lat"].dims[0]
+        out = xr.Dataset(
+            {n: _remap_conservative_da(v, rule) if cell in v.dims else v for n, v in data.data_vars.items()},
+            attrs=data.attrs,
+        )
+        for k in out.coords:
+            if k in data.coords and k not in ("lat", "lon"):
+                out[k].encoding = dict(data[k].encoding)
+        return out
+    return _remap_conservative_da(data, rule)
+
+
+def _remap_conservative_da(data, rule):
+    """remap_conservative for one DataArray (..., cell).
+
+    CDO works on files and pycmor passes xarray objects between steps, so:
+    1. Full source grid: the cells of the file in remap_source_grid (or of
+       the data itself); the data cells (LPJ-GUESS: land only) are matched to
+       it by lat/lon and the other cells are missing (or remap_fill).
+    2. Cell corners of the reduced Gaussian grid (_reduced_gaussian_bounds):
+       remapcon needs them, the model output has none.
+    3. Target: remap_target, else the regular Gaussian grid with the same
+       latitudes. A reduced Gaussian grid N<n> has 2n latitude rows, and
+       CDO names the regular grid with those rows F<n> (TL255: N128, F128).
+    4. Write the source (leading dimensions folded into one time axis) to a
+       temporary file, cdo remapcon, read the result back.
+    5. Rebuild the DataArray: leading dimensions and their coordinates back,
+       (lat, lon) north to south, attributes and encodings of the input.
+    """
+    import tempfile
+
+    from pycdo import cdo
+
+    from pycmor.std_lib.files import _match_cells
+
+    cell = data["lat"].dims[0]
+    data = data.transpose(..., cell)
+    ref = rule.get("remap_source_grid")
+    if ref:
+        files = sorted(_glob.glob(str(ref)))
+        if not files:
+            raise FileNotFoundError(f"remap_source_grid matches nothing: {ref}")
+        with xr.open_dataset(files[0], decode_times=False) as src:
+            full = xr.Dataset(coords={"lat": src["lat"].load(), "lon": src["lon"].load()})
+    else:
+        full = xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]})
+    full_lat = np.asarray(full["lat"].values, dtype="f8").ravel()
+    full_lon = np.asarray(full["lon"].values, dtype="f8").ravel()
+    take = _match_cells(xr.Dataset(coords={"lat": data["lat"], "lon": data["lon"]}), full)
+    if take is None or np.unique(take).size != take.size:
+        raise ValueError(f"{data.sizes[cell]} cells are not a subset of the {full_lat.size}-cell reference grid")
+
+    lead = data.shape[:-1]
+    values = np.full((int(np.prod(lead)), full_lat.size), np.nan)
+    values[:, take] = np.asarray(data.values, dtype="f8").reshape(-1, data.sizes[cell])
+    fill = rule.get("remap_fill")
+    if fill is not None:
+        values = np.where(np.isnan(values), float(fill), values)
+    lat_b, lon_b = _reduced_gaussian_bounds(full_lat, full_lon)
+    # 2n latitude rows on N<n> -> regular Gaussian F<n>
+    n_rows = _reduced_gaussian_rows(full_lat, full_lon)[1].size
+    target = rule.get("remap_target") or f"F{n_rows // 2}"
+
+    src = xr.Dataset(
+        {"v": (("time", "cell"), values, {"coordinates": "lat lon"})},
+        coords={
+            "time": ("time", np.arange(values.shape[0], dtype="f8"), {"units": "days since 2000-01-01"}),
+            "lat": ("cell", full_lat, {"units": "degrees_north", "bounds": "lat_bnds"}),
+            "lon": ("cell", full_lon, {"units": "degrees_east", "bounds": "lon_bnds"}),
+            "lat_bnds": (("cell", "nv"), lat_b),
+            "lon_bnds": (("cell", "nv"), lon_b),
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        src_path, out_path = f"{tmp}/src.nc", f"{tmp}/out.nc"
+        src.to_netcdf(src_path, encoding={"v": {"_FillValue": 1.0e20}})
+        cdo(src_path).remapcon(target).execute(output=out_path)
+        with xr.open_dataset(out_path, decode_times=False) as res:
+            res = res.load()
+    res = res.sortby("lat", ascending=False)
+    rlat, rlon = res["lat"].values, res["lon"].values
+    out = xr.DataArray(
+        res["v"].values.reshape(lead + (rlat.size, rlon.size)).astype(data.dtype),
+        dims=data.dims[:-1] + ("lat", "lon"),
+        coords={k: v for k, v in data.coords.items() if cell not in v.dims},
+        attrs=data.attrs,
+        name=data.name,
+    )
+    out = out.assign_coords(
+        lat=("lat", rlat, {"standard_name": "latitude", "units": "degrees_north"}),
+        lon=("lon", rlon, {"standard_name": "longitude", "units": "degrees_east"}),
+    )
+    out.attrs.pop("coordinates", None)
+    for k in out.coords:
+        if k in data.coords and k not in ("lat", "lon"):
+            out[k].encoding = dict(data[k].encoding)
+    return out
+
+
+# ============================================================
+# ORCA grid (EC-Earth4: NEMO, SI3)
+# ============================================================
+
+# Cell corners of each point from the staggered grid: corner point and the
+# (dj, di) of the SW, SE, NE, NW corners (counterclockwise).
+_ORCA_CORNERS = {
+    "T": ("f", ((-1, -1), (-1, 0), (0, 0), (0, -1))),
+    "U": ("v", ((-1, 0), (-1, 1), (0, 1), (0, 0))),
+}
+
+
+def _orca_domain_fields(path, names):
+    """2D fields (y, x) of a NEMO domain file as float64, first time step."""
+    out = {}
+    with xr.open_dataset(path, decode_times=False) as ds:
+        for n in names:
+            v = ds[n]
+            if "time_counter" in v.dims:
+                v = v.isel(time_counter=0)
+            out[n] = np.asarray(v.values, dtype="f8")
+    return out
+
+
+def _orca_corners(glam, gphi, offsets):
+    """Corners (y, x, 4) from the corner point grid.
+
+    x is cyclic (no halo columns); the row south of the first one is
+    extrapolated (land on ORCA grids). Corner longitudes are within 180
+    degrees of the first corner of the cell.
+    """
+    ny, nx = gphi.shape
+    lat = np.vstack([np.maximum(2.0 * gphi[0] - gphi[1], -90.0), gphi])
+    lon = np.vstack([glam[0], glam])
+    jj = np.arange(ny)[:, None] + 1
+    ii = np.arange(nx)[None, :]
+    lat_b = np.stack([lat[jj + dj, (ii + di) % nx] for dj, di in offsets], axis=-1)
+    lon_b = np.stack([lon[jj + dj, (ii + di) % nx] for dj, di in offsets], axis=-1)
+    return lat_b, lon_b
+
+
+def _orca_geometry(rule, shape):
+    """Centres and corners (double precision) at the rule's orca_point."""
+    path = rule.get("orca_domain")
+    if not path:
+        raise ValueError("ORCA grid: rule option orca_domain (domain_cfg.nc) not set")
+    point = str(rule.get("orca_point", "T")).upper()
+    if point not in _ORCA_CORNERS:
+        raise ValueError(f"ORCA grid: orca_point {point!r} not supported ({sorted(_ORCA_CORNERS)})")
+    cp, offsets = _ORCA_CORNERS[point]
+    p = point.lower()
+    f = _orca_domain_fields(path, [f"glam{p}", f"gphi{p}", f"glam{cp}", f"gphi{cp}"])
+    lat, lon = f[f"gphi{p}"], f[f"glam{p}"]
+    if lat.shape != tuple(shape):
+        raise ValueError(f"ORCA grid: domain {lat.shape} does not match data (j, i) {tuple(shape)}")
+    lat_b, lon_b = _orca_corners(f[f"glam{cp}"], f[f"gphi{cp}"], offsets)
+    lon_b = lon[..., None] + (lon_b - lon[..., None] + 180.0) % 360.0 - 180.0
+    return lat, lon, lat_b, lon_b
+
+
+def orca_grid(data, rule):
+    """NEMO or SI3 field (..., y, x) to the CMOR curvilinear form (..., j, i).
+
+    latitude and longitude (2D, double precision) come from the domain file in
+    rule option orca_domain, at the point in orca_point (T or U; default T);
+    the file nav_lat/nav_lon go. Corners follow in orca_vertices, before
+    save_dataset. Runs before map_dimensions, which would take y and x for
+    latitude and longitude axes.
+    """
+    if not {"y", "x"} <= set(data.dims):
+        return data
+    lat, lon, _, _ = _orca_geometry(rule, (data.sizes["y"], data.sizes["x"]))
+    out = data.drop_vars([c for c in ("nav_lat", "nav_lon") if c in data.coords])
+    out = out.rename({"y": "j", "x": "i"})
+    out = out.assign_coords(
+        latitude=(
+            ("j", "i"),
+            lat,
+            {"standard_name": "latitude", "units": "degrees_north", "bounds": "vertices_latitude"},
+        ),
+        longitude=(
+            ("j", "i"),
+            lon,
+            {"standard_name": "longitude", "units": "degrees_east", "bounds": "vertices_longitude"},
+        ),
+    )
+    out.attrs.pop("coordinates", None)
+    out.encoding.pop("coordinates", None)
+    return out
+
+
+def orca_vertices(data, rule):
+    """Add vertices_latitude/longitude (j, i, vertices) to an orca_grid field.
+
+    Returns a Dataset (a DataArray cannot hold the vertices dimension); place
+    it right before save_dataset. No-op without j and i dimensions.
+    """
+    ds = data.to_dataset() if isinstance(data, xr.DataArray) else data
+    if not {"j", "i"} <= set(ds.dims):
+        return data
+    _, _, lat_b, lon_b = _orca_geometry(rule, (ds.sizes["j"], ds.sizes["i"]))
+    ds["vertices_latitude"] = (("j", "i", "vertices"), lat_b)
+    ds["vertices_longitude"] = (("j", "i", "vertices"), lon_b)
+    for v in ("vertices_latitude", "vertices_longitude"):
+        ds[v].encoding["_FillValue"] = None
+    return ds
+
+
+def orca_cell_area(data, rule):
+    """Cell area e1*e2 (y, x) at orca_point (default T) from the domain file.
+
+    Takes the Dataset of load_gridfile (grid_file: the domain file). Defined
+    on every cell, land included.
+    """
+    p = str(rule.get("orca_point", "T")).lower()
+    e1, e2 = data[f"e1{p}"], data[f"e2{p}"]
+    if "time_counter" in e1.dims:
+        e1, e2 = e1.isel(time_counter=0, drop=True), e2.isel(time_counter=0, drop=True)
+    area = (e1.astype("f8") * e2.astype("f8")).drop_vars([c for c in e1.coords if c not in ("y", "x")])
+    area.attrs = {"units": "m2", "standard_name": "cell_area"}
+    area.name = rule.model_variable
+    return area
