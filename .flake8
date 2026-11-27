@@ -13,6 +13,12 @@ exclude =
     cmip6-cmor-tables,
     CMIP7_DReq_Software,
     CMIP7-CVs,
-    src/pycmor/webapp.py
+    src/pycmor/webapp.py,
+    awi-esm3-lr-variables,
+    awi-esm3-veg-hr-variables,
+    notes,
+    tools,
+    ./tests/awiesm3,
+    ./examples/[!0]*
 per-file-ignores =
     */_version.py:E203

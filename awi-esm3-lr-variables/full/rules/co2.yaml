@@ -1,0 +1,129 @@
+schema_version: 1
+description: Existing reviewed atmospheric CO2 coupling and prognostic-tracer mappings.
+scientific_assumptions:
+  configuration_key: carbon_context
+  eligibility_profile: awiesm3-v3.5.1-cc-raw-v1
+  flux_eligibility: The workflow requires carbon_context.external_emissions_reader to be explicitly
+    false before enabling the existing coupling-flux mappings; true or unknown is blocked because
+    the retained sum is not proven exhaustive. Pressure-level tracer eligibility is separate from
+    this flux-specific condition. The driver enforces eligibility, not this rule loader.
+  configuration_evidence:
+  - Record OpenIFS, LPJ-GUESS and FESOM source revisions and build identity in campaign configuration/state.
+  - Verify FCO2NAT -> co2nbf, FCO2ANT -> co2apf and FCO2NPP -> co2fire against the selected coupling implementation.
+    co2fire denotes signed NPP, not fire emissions.
+  - Verify that the coupling fields contain kg CO2 m-2 s-1 despite their unspecific kg m-2 s-1 units attributes;
+    requested fluxes use kg C m-2 s-1.
+  - Verify the FESOM gen_forcing_couple ocean-flux sign change to positive atmospheric release.
+  - Record wetland CH4-to-CO2 routing and fossil/other emission-reader configuration explicitly; neither
+    routing nor absent fossil emissions is assumed for all runs.
+  - Review whether the retained sources exhaust fco2nat/fco2antt/fco2all for the selected experiment;
+    these existing linear combinations do not discover additional carbon sources.
+  - For co2_p19, verify a prognostic mass-mixing-ratio tracer and the stated molar masses; prescribed
+    CO2 is not substituted.
+  context_handling: Optional carbon_context is copied to rule comments as operator-supplied provenance.
+    Its presence is not automatic scientific validation.
+  conversion_constants:
+    carbon_molar_mass: 12.01115
+    co2_molar_mass: 44.0095
+    dry_air_molar_mass: 28.9644
+  flux_coefficient: 12.01115 / 44.0095; serialized coefficients below preserve the existing calculation
+    exactly.
+  tracer_coefficient: 28.9644 / 44.0095; serialized scale below preserves the existing calculation exactly.
+  scope: No CO2 mass, model-level tracer, surface tracer, methane diagnostic or new REcoM mapping is introduced.
+defaults:
+  lr_group: co2
+  grid_label: g271
+  time_dimname: time_counter
+rules:
+- name: fco2nat
+  compound_name: atmos.fco2nat.tavg-u-hxy-u.mon.glb
+  model_variable: co2nbf
+  grid: OpenIFS TCO95 XIOS 400x192 regular grid
+  pipelines:
+  - lr_linear
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_co2nbf_1m_\d{4}-\d{4}\.nc$
+  lr_terms:
+  - variable: co2nbf
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2nbf_1m_\d{4}-\d{4}\.nc$
+  - variable: co2fire
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2fire_1m_\d{4}-\d{4}\.nc$
+  - variable: co2of
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2of_1m_\d{4}-\d{4}\.nc$
+  comment: Signed coupled CO2 flux, positive into atmosphere, converted from kg CO2 to kg C. The reviewed
+    coupling maps co2fire to signed NPP, not fire emissions, and co2apf to the coupled anthropogenic land
+    flux. Interpretation as the requested total flux requires run-specific review of wetland CH4 routing,
+    fossil emissions and other carbon-source pathways; these pathways are not inferred by this recipe.
+- name: fco2antt
+  compound_name: atmos.fco2antt.tavg-u-hxy-u.mon.glb
+  model_variable: co2apf
+  grid: OpenIFS TCO95 XIOS 400x192 regular grid
+  pipelines:
+  - lr_linear
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_co2apf_1m_\d{4}-\d{4}\.nc$
+  lr_terms:
+  - variable: co2apf
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2apf_1m_\d{4}-\d{4}\.nc$
+  comment: Signed coupled CO2 flux, positive into atmosphere, converted from kg CO2 to kg C. The reviewed
+    coupling maps co2fire to signed NPP, not fire emissions, and co2apf to the coupled anthropogenic land
+    flux. Interpretation as the requested total flux requires run-specific review of wetland CH4 routing,
+    fossil emissions and other carbon-source pathways; these pathways are not inferred by this recipe.
+- name: fco2all
+  compound_name: atmos.fco2all.tavg-u-hxy-u.mon.glb
+  model_variable: co2nbf
+  grid: OpenIFS TCO95 XIOS 400x192 regular grid
+  pipelines:
+  - lr_linear
+  lr_units: kg m-2 s-1
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_co2nbf_1m_\d{4}-\d{4}\.nc$
+  lr_terms:
+  - variable: co2nbf
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2nbf_1m_\d{4}-\d{4}\.nc$
+  - variable: co2fire
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2fire_1m_\d{4}-\d{4}\.nc$
+  - variable: co2of
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2of_1m_\d{4}-\d{4}\.nc$
+  - variable: co2apf
+    units: kg m-2 s-1
+    coefficient: 0.272921755530056
+    pattern: atm_remapped_1m_co2apf_1m_\d{4}-\d{4}\.nc$
+  comment: Signed coupled CO2 flux, positive into atmosphere, converted from kg CO2 to kg C. The reviewed
+    coupling maps co2fire to signed NPP, not fire emissions, and co2apf to the coupled anthropogenic land
+    flux. Interpretation as the requested total flux requires run-specific review of wetland CH4 routing,
+    fossil emissions and other carbon-source pathways; these pathways are not inferred by this recipe.
+- name: co2_p19
+  compound_name: atmos.co2.tavg-p19-hxy-air.mon.glb
+  model_variable: co2
+  expected_units: kg*kg-1
+  lr_scale: 0.6581397198332178
+  lr_units: mol mol-1
+  pipelines:
+  - lr_monthly
+  grid: OpenIFS TCO95 XIOS 400x192 regular grid; 19 pressure levels
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_pl_co2_1m_pl_\d{4}-\d{4}\.nc$
+  comment: Prognostic pressure-level CO2 tracer, not a prescribed concentration. Linear kg/kg to mol/mol
+    conversion with OpenIFS RMD=28.9644 and RMCO2=44.0095, as used in ECE_LPJG_SET_STATE. Monthly pressure-level
+    output is retained; no model-level, near-surface or total-atmospheric-mass diagnostic is inferred.

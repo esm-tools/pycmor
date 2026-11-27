@@ -1,0 +1,59 @@
+tier: lrcs_land
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: evspsblsoi
+  compound_name: land.evspsblsoi.tavg-u-hxy-lnd.mon.glb
+  model_variable: evspsblsoi
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: evspsblsoi_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: evspsblveg
+  compound_name: land.evspsblveg.tavg-u-hxy-lnd.mon.glb
+  model_variable: evspsblveg
+  source_units: kg m-2 s-1
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: evspsblveg_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+- name: mrfso
+  compound_name: landIce.mrfso.tavg-u-hxy-lnd.mon.glb
+  model_variable: mrfso
+  source_units: kg m-2
+  pipelines:
+  - lr_lpj
+  time_dimname: time
+  grid_label: gn
+  grid: LPJ-GUESS native TCO95 land cells
+  lr_input:
+    component: lpj_guess
+    pattern: mrfso_monthly.out
+  lr_grid_key: lpj
+  lr_group: land
+not_enabled:
+- name: sftgif
+  compound_name: land.sftgif.ti-u-hxy-u.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: mrsofc
+  compound_name: land.mrsofc.ti-u-hxy-lnd.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rootd
+  compound_name: land.rootd.ti-u-hxy-lnd.fx.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

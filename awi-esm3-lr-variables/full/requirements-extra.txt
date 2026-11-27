@@ -1,0 +1,14 @@
+# Full-catalog LR extension dependencies, pinned to the audited environment.
+# These are direct-dependency pins, not a complete platform-independent lock.
+# pycmor's base dependencies are supplied by the editable repository install.
+cf-units==3.3.0
+compliance-checker==6.1.0
+cc-plugin-wcrp==2.3.5
+esgvoc==7.0.0
+cmip7_repack==1.1.1
+CMIP7_data_request_api==1.5.1
+pyfesom2==0.4.1
+tripyview @ git+https://github.com/JanStreffing/tripyview.git@b95b5ce20d8c11948b87b6236323d7838dd91ddb
+scipy==1.15.3
+matplotlib==3.10.9
+cc-plugin-aicc @ git+https://github.com/sol1105/cc-plugin-aicc@8fe3f2d00d85a68f521c06d560b09c7d396dd055

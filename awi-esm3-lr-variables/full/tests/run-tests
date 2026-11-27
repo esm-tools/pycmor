@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+cmor_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+export NUMBA_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+export PYTHONPATH="$cmor_root/scripts${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONDONTWRITEBYTECODE=1
+exec "${PYCMOR_PYTHON:-python3}" -m unittest discover -s "$cmor_root/tests" -v

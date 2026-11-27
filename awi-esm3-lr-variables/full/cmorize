@@ -1,0 +1,6 @@
+#!/bin/bash
+# Shared entry point; use an activated environment or PYCMOR_PYTHON.
+set -euo pipefail
+source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+exec "${PYCMOR_PYTHON:-python3}" "$source_root/scripts/full_cmorization.py" "$@"

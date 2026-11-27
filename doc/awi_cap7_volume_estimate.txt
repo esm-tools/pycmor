@@ -1,0 +1,80 @@
+AWI CAP7 Datenvolumen - Finale Schätzung
+==========================================
+
+Eingangsannahmen
+----------------
+
+Modellkonfigurationen:
+  - LR: AWI-ESM3-VEG-LR (OpenIFS TCo95 + FESOM2 CORE2)
+  - HR: AWI-ESM3-VEG-HR (OpenIFS TCo319 + FESOM2 DARS)
+
+Zielgitter:
+  Atmos (OpenIFS):
+    - LR: TCo95  reduced Gaussian =   40 320 Punkte
+    - HR: TCo319 reduced Gaussian =  421 120 Punkte
+  Land / Veg:
+    - native (LPJ-GUESS 420 000)
+  Ozean (FESOM2):
+    - LR: CORE2 native (126 858 × 47 Lev)     + 1° regrid (360×180 × 47)
+    - HR: DARS  native (3 146 761 × 56 Lev)   + 0.25° regrid (1440×720 × 56)
+  Sea-Ice (FESOM2):
+    - LR: CORE2 native + 1° regrid
+    - HR: DARS  native + 0.25° regrid
+
+Variablensatz (aus awi-esm3-veg-hr-variables/*/cmip7_awiesm3-veg-hr_*.yaml):
+  - Atmos 208, Land 163, Ozean 129, Sea-Ice 105 = 605 Regeln total
+  - Ausgeschlossen: 6hr model-level + 3hr 6plev (10 Regeln)
+
+Kompression:
+  - 1.62× aggregat, empirisch aus 1 702 pycmor-Ausgabedateien
+    (416 GB on-disk vs 676 GB uncompressed float32)
+
+Simulationsjahre pro Konfiguration:
+  500 + 150 + 300 + 46 + 3×30 + 173 + 7×128 = 2 155 Jahre
+
+
+Pro Simulationsjahr (komprimiert ×1.62)
+---------------------------------------
+
+                        LR         HR
+  Total              59 GB     770 GB
+
+
+Aufspaltung nach Domain (GB/y komprimiert)
+------------------------------------------
+
+  Domain                       LR       HR
+  atmos                        40      413
+  ocean (native + regrid)       9      225
+  seaice (native + regrid)      4       87
+  land / veg                    6       45
+
+
+Aufspaltung nach Frequenz (GB/y komprimiert)
+--------------------------------------------
+
+  Freq               LR       HR
+  day                18      242
+  1hr                21      221
+  mon                 8      152
+  3hr                 9      121
+  6hr                 3       27
+  yr / fx / dec     0.3        7
+
+
+Hochgerechnet auf 2 155 Sim-Jahre
+---------------------------------
+
+                    Jahre    TB komprimiert
+  LR                 2 155       123 TB
+  HR                 2 155     1 663 TB (1.7 PB)
+  LR + HR gesamt              ≈ 1.8 PB
+
+
+Empfehlung ans DKRZ
+-------------------
+
+Plant 2 PB für AWI CAP7 (≈1.8 PB erwartet + ~10 % Puffer).
+
+HR dominiert mit ~93 % des Gesamtvolumens; LR-Anteil ist dank 1°-Regrid
+sehr klein.

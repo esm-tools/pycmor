@@ -4,6 +4,7 @@ Provides validation of user configuration files by checking against a schema.
 
 import glob
 import importlib
+import os
 import pathlib
 
 from cerberus import Validator
@@ -59,6 +60,7 @@ class PipelineSectionValidator(Validator):
             if value.startswith("script://"):
                 script_path = value.replace("script://", "")
                 script_path = script_path.rsplit(":", 1)[0]
+                script_path = os.path.expandvars(script_path)
                 try:
                     pathlib.Path(script_path).expanduser().resolve()
                 except TypeError as e:
@@ -263,7 +265,7 @@ GENERAL_SCHEMA = {
             },
             "CMIP7_DReq_version": {
                 "type": "string",
-                "required": False,  # Optional: defaults to "v1.2.2.2"
+                "required": False,  # Optional: defaults to "v1.2.2.5"
             },
         },
     },
@@ -287,6 +289,14 @@ PIPELINES_SCHEMA = {
                     "excludes": "uses",
                     "schema": {"type": "string", "is_qualname_or_script": True},
                 },
+                "workflow_backend": {
+                    "type": "string",
+                    "required": False,
+                    "allowed": ["prefect", "native"],
+                },
+                "cache_expiration": {"required": False},
+                "collapse_steps": {"type": "boolean", "required": False},
+                "throttle_group": {"type": "string", "required": False},
             },
         },
     },

@@ -1,0 +1,115 @@
+tier: veg_atm
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: rls_mon
+  compound_name: atmos.rls.tavg-u-hxy-u.mon.glb
+  model_variable: str
+  expected_units: J m-2
+  lr_scale: 0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_str_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: rss_mon
+  compound_name: atmos.rss.tavg-u-hxy-u.mon.glb
+  model_variable: ssr
+  expected_units: J m-2
+  lr_scale: 0.0002777777777777778
+  lr_units: W m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ssr_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+- name: lwp_mon
+  compound_name: aerosol.lwp.tavg-u-hxy-u.mon.glb
+  model_variable: tclw
+  expected_units: kg m-2
+  lr_scale: 1
+  lr_units: kg m-2
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_tclw_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+not_enabled:
+- name: hfls_3hr
+  compound_name: atmos.hfls.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfss_3hr
+  compound_name: atmos.hfss.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlds_3hr
+  compound_name: atmos.rlds.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlus_3hr
+  compound_name: atmos.rlus.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_3hr
+  compound_name: atmos.rsds.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsus_3hr
+  compound_name: atmos.rsus.tavg-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ps_3hrPt
+  compound_name: atmos.ps.tpt-u-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: prsn_6hr
+  compound_name: atmos.prsn.tavg-u-hxy-u.6hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: tsns_day
+  compound_name: atmos.ts.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snmsl_day
+  compound_name: atmos.snmsl.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbbc_mon
+  compound_name: aerosol.emibbbc.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbch4_mon
+  compound_name: aerosol.emibbch4.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbco_mon
+  compound_name: aerosol.emibbco.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbdms_mon
+  compound_name: aerosol.emibbdms.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibboa_mon
+  compound_name: aerosol.emibboa.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbso2_mon
+  compound_name: aerosol.emibbso2.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: emibbvoc_mon
+  compound_name: aerosol.emibbvoc.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

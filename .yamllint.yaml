@@ -9,6 +9,9 @@ ignore:
   - CMIP7-CVs/
   - tests/fixtures/stub_data/
 rules:
+  indentation:
+    ignore:
+      - awi-esm3-lr-variables/
   line-length:
     max: 170
     level: warning

@@ -1,0 +1,77 @@
+tier: extra_atm
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules: []
+not_enabled:
+- name: hfls_1hr
+  compound_name: atmos.hfls.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hfss_1hr
+  compound_name: atmos.hfss.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlus_1hr
+  compound_name: atmos.rlus.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsus_1hr
+  compound_name: atmos.rsus.tavg-u-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_1hr_glb
+  compound_name: atmos.hurs.tavg-h2m-hxy-u.1hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: clt_1hr_south30
+  compound_name: atmos.clt.tavg-u-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_1hr_south30
+  compound_name: atmos.hurs.tavg-h2m-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pr_1hr_south30
+  compound_name: atmos.pr.tavg-u-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlds_1hr_south30
+  compound_name: atmos.rlds.tavg-u-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_1hr_south30
+  compound_name: atmos.rsds.tavg-u-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfcWind_1hr_south30
+  compound_name: atmos.sfcWind.tavg-h10m-hxy-u.1hr.30S-90S
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: hurs_3hr
+  compound_name: atmos.hurs.tpt-h2m-hxy-u.3hr.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: cl_day
+  compound_name: atmos.cl.tavg-al-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: pfull_day
+  compound_name: atmos.pfull.tavg-al-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rls_day
+  compound_name: atmos.rls.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rss_day
+  compound_name: atmos.rss.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: evspsbl_day
+  compound_name: atmos.evspsbl.tavg-u-hxy-lnd.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: wsg_10m_mon
+  compound_name: atmos.wsg.tmax-h10m-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.

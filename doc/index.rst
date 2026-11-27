@@ -25,6 +25,7 @@ Contents
    cmip7_controlled_vocabularies
    table_explorer
    pycmor_on_slurm
+   production_campaigns
    schemas
    standard_library
    coordinate_bounds

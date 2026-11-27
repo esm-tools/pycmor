@@ -1,0 +1,263 @@
+tier: lrcs_seaice
+description: LR variable definitions. Shared pipelines/defaults are in ../profile.yaml.
+  No experiment years or leg paths belong here.
+rules:
+- name: siconca
+  compound_name: seaIce.siconca.tavg-u-hxy-u.mon.glb
+  model_variable: ci
+  expected_units: '1'
+  lr_scale: 100
+  lr_units: '%'
+  pipelines:
+  - lr_monthly
+  grid_label: gr
+  grid: OpenIFS TCO95 remapped to 400 x 192 latitude-longitude cells
+  lr_input:
+    component: oifs
+    pattern: atm_remapped_1m_ci_1m_\d{4}-\d{4}\.nc$
+  lr_group: atmos
+not_enabled:
+- name: sidconcdyn
+  compound_name: seaIce.sidconcdyn.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidconcth
+  compound_name: seaIce.sidconcth.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sicompstren
+  compound_name: seaIce.sicompstren.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sistrxdtop
+  compound_name: seaIce.sistrxdtop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sistrydtop
+  compound_name: seaIce.sistrydtop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sistrxubot
+  compound_name: seaIce.sistrxubot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sistryubot
+  compound_name: seaIce.sistryubot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflcondbot
+  compound_name: seaIce.siflcondbot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidmassdyn
+  compound_name: seaIce.sidmassdyn.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidmassth
+  compound_name: seaIce.sidmassth.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: snm
+  compound_name: seaIce.snm.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflfwbot
+  compound_name: seaIce.siflfwbot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflfwdrain
+  compound_name: seaIce.siflfwdrain.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisaltmass
+  compound_name: seaIce.sisaltmass.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sispeed
+  compound_name: seaIce.sispeed.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidmasstranx
+  compound_name: seaIce.sidmasstranx.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidmasstrany
+  compound_name: seaIce.sidmasstrany.tavg-u-hxy-u.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfdsi
+  compound_name: ocean.sfdsi.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sfdsi_seaice
+  compound_name: seaIce.sfdsi.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: vsfsit
+  compound_name: ocean.vsfsit.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflfwbot_omon
+  compound_name: ocean.siflfwbot.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflcondtop
+  compound_name: seaIce.siflcondtop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sihc
+  compound_name: seaIce.sihc.tavg-u-hxy-sea.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisnhc
+  compound_name: seaIce.sisnhc.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sitempbot
+  compound_name: seaIce.sitempbot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sifb
+  compound_name: seaIce.sifb.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidragtop
+  compound_name: seaIce.sidragtop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sidragbot
+  compound_name: seaIce.sidragbot.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisnmass_north
+  compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisnmass_south
+  compound_name: seaIce.sisnmass.tavg-u-hm-si.mon.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: simpconc
+  compound_name: seaIce.simpconc.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: simpthick
+  compound_name: seaIce.simpthick.tavg-u-hxy-simp.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: simprefrozen
+  compound_name: seaIce.simprefrozen.tavg-u-hxy-simp.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: simpeffconc
+  compound_name: seaIce.simpeffconc.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siarea_north
+  compound_name: seaIce.siarea.tavg-u-hm-u.mon.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siarea_south
+  compound_name: seaIce.siarea.tavg-u-hm-u.mon.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siarea_north_day
+  compound_name: seaIce.siarea.tavg-u-hm-u.day.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siarea_south_day
+  compound_name: seaIce.siarea.tavg-u-hm-u.day.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siextent_north
+  compound_name: seaIce.siextent.tavg-u-hm-u.mon.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siextent_south
+  compound_name: seaIce.siextent.tavg-u-hm-u.mon.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siextent_north_day
+  compound_name: seaIce.siextent.tavg-u-hm-u.day.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siextent_south_day
+  compound_name: seaIce.siextent.tavg-u-hm-u.day.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sivol_north
+  compound_name: seaIce.sivol.tavg-u-hm-u.mon.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sivol_south
+  compound_name: seaIce.sivol.tavg-u-hm-u.mon.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sivol_north_day
+  compound_name: seaIce.sivol.tavg-u-hm-u.day.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sivol_south_day
+  compound_name: seaIce.sivol.tavg-u-hm-u.day.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sbl_seaice
+  compound_name: seaIce.sbl.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_seaice
+  compound_name: seaIce.rsds.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsds_seaice_day
+  compound_name: seaIce.rsds.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsus_seaice
+  compound_name: seaIce.rsus.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rsus_seaice_day
+  compound_name: seaIce.rsus.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlds_seaice
+  compound_name: seaIce.rlds.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: rlus_seaice
+  compound_name: seaIce.rlus.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sifllattop
+  compound_name: seaIce.sifllattop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siflsenstop
+  compound_name: seaIce.siflsenstop.tavg-u-hxy-si.mon.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: siconca_day
+  compound_name: seaIce.siconca.tavg-u-hxy-u.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sispeed_day
+  compound_name: seaIce.sispeed.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sitimefrac_day
+  compound_name: seaIce.sitimefrac.tavg-u-hxy-sea.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: ts_day
+  compound_name: seaIce.ts.tavg-u-hxy-si.day.glb
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisnmass_north_day
+  compound_name: seaIce.sisnmass.tavg-u-hm-si.day.nh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
+- name: sisnmass_south_day
+  compound_name: seaIce.sisnmass.tavg-u-hm-si.day.sh
+  reason: Not enabled in the audited raw-monthly LR profile; additional diagnostics
+    or mapping review required.
